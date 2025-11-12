@@ -9265,6 +9265,7 @@ function clearAutomationList() {
 
 {% endblock %}
 
+{% block scripts %}
 <style>
 /* Modal Styles */
 .modal {
@@ -9376,15 +9377,19 @@ function clearAutomationList() {
 </style>
 
 <script>
-// IMMEDIATE TEST - This should run first
+// CRITICAL: This MUST execute - if you don't see this, script isn't loading
+alert('SCRIPT IS LOADING - CHECK CONSOLE');
 console.log('=== DOMAIN VERIFICATION SCRIPT LOADING ===');
+console.log('Script execution started at:', new Date().toISOString());
 
 // Domain Verification Variables - MUST be defined BEFORE function
 let domainVerificationJobId = null;
 let domainVerificationPollInterval = null;
 
 // Define function DIRECTLY on window - SIMPLE AND DIRECT
+console.log('About to define window.startDomainVerification...');
 window.startDomainVerification = function() {
+    alert('FUNCTION CALLED!');
     console.log('🚀 startDomainVerification() called');
     
     try {
@@ -9789,3 +9794,4 @@ setTimeout(function() {
     }
 }, 1000);
 </script>
+{% endblock %}
