@@ -109,11 +109,22 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 db.session.commit()
             
             except Exception as e:
-                operation.workspace_status = 'failed'
-                operation.message = f'Failed to add domain to Workspace: {str(e)}'
-                operation.raw_log.append(log_entry('workspace', 'failed', str(e)))
-                db.session.commit()
-                return
+                error_msg = str(e)
+                # Check for common error types
+                if 'insufficient' in error_msg.lower() or 'scope' in error_msg.lower() or 'permission' in error_msg.lower():
+                    error_msg = f'Missing required Google API scopes. Please re-authenticate with site verification scope: {error_msg}'
+                elif 'already exists' in error_msg.lower() or 'duplicate' in error_msg.lower():
+                    # Domain already exists, treat as success
+                    operation.workspace_status = 'success'
+                    operation.raw_log.append(log_entry('workspace', 'success', f'Domain already exists: {error_msg}'))
+                    db.session.commit()
+                    # Continue to next step
+                else:
+                    operation.workspace_status = 'failed'
+                    operation.message = f'Failed to add domain to Workspace: {error_msg}'
+                    operation.raw_log.append(log_entry('workspace', 'failed', error_msg))
+                    db.session.commit()
+                    return
             
             # Step 4: Get verification token
             try:
@@ -126,9 +137,16 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 db.session.commit()
             
             except Exception as e:
+                error_msg = str(e)
+                # Check for scope/permission errors
+                if 'insufficient' in error_msg.lower() or 'scope' in error_msg.lower() or 'permission' in error_msg.lower():
+                    error_msg = f'Missing Google Site Verification API scope. Please re-authenticate: {error_msg}'
+                elif 'not found' in error_msg.lower() or '404' in error_msg.lower():
+                    error_msg = f'Domain not found in Google Workspace. Ensure domain is added first: {error_msg}'
+                
                 operation.dns_status = 'failed'
-                operation.message = f'Failed to get verification token: {str(e)}'
-                operation.raw_log.append(log_entry('token', 'failed', str(e)))
+                operation.message = f'Failed to get verification token: {error_msg}'
+                operation.raw_log.append(log_entry('token', 'failed', error_msg))
                 db.session.commit()
                 return
             
@@ -164,7 +182,8 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 while attempt < max_attempts and not verified:
                     attempt += 1
                     try:
-                        time.sleep(20)  # Wait for DNS propagation
+                        if attempt > 1:
+                            time.sleep(20)  # Wait for DNS propagation (only after first attempt)
                         verify_result = google_service.verify_domain(apex)
                         
                         if verify_result.get('verified'):
@@ -178,13 +197,23 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                                 time.sleep(30)  # Wait longer between retries
                     
                     except Exception as e:
-                        operation.raw_log.append(log_entry('verify', 'error', f'Attempt {attempt} error: {str(e)}'))
+                        error_msg = str(e)
+                        # Check for scope/permission errors
+                        if 'insufficient' in error_msg.lower() or 'scope' in error_msg.lower() or 'permission' in error_msg.lower():
+                            error_msg = f'Missing Google Site Verification API scope. Please re-authenticate: {error_msg}'
+                            operation.verify_status = 'failed'
+                            operation.message = error_msg
+                            operation.raw_log.append(log_entry('verify', 'failed', error_msg))
+                            db.session.commit()
+                            return
+                        
+                        operation.raw_log.append(log_entry('verify', 'error', f'Attempt {attempt} error: {error_msg}'))
                         if attempt < max_attempts:
                             time.sleep(30)
                 
                 if not verified:
                     operation.verify_status = 'failed'
-                    operation.message = f'Verification failed after {max_attempts} attempts'
+                    operation.message = f'Verification failed after {max_attempts} attempts. DNS may not have propagated yet.'
                     operation.raw_log.append(log_entry('verify', 'failed', 'Verification timeout'))
                 
                 db.session.commit()

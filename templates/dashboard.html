@@ -9383,23 +9383,34 @@ let domainVerificationPollInterval = null;
 function startDomainVerification() {
     const input = document.getElementById('domain-verification-input').value.trim();
     if (!input) {
+        logBulkDomain('❌ Error: Please enter at least one domain');
         alert('Please enter at least one domain');
         return;
     }
     
     if (!isAuthenticated) {
+        logBulkDomain('❌ Error: Please authenticate an account first');
         alert('Please authenticate an account first');
         return;
     }
     
     const domains = input.split('\n').map(d => d.trim()).filter(d => d);
     if (domains.length === 0) {
+        logBulkDomain('❌ Error: No valid domains found');
         alert('No valid domains found');
         return;
     }
     
     const dryRun = document.getElementById('domain-verification-dry-run').checked;
     const skipVerified = document.getElementById('domain-verification-skip-verified').checked;
+    
+    // Log to Results Log
+    logBulkDomain('🚀 Starting Domain Addition & Verification Process...');
+    logBulkDomain(`📋 Domains to process: ${domains.length}`);
+    domains.forEach((domain, idx) => {
+        logBulkDomain(`   ${idx + 1}. ${domain}`);
+    });
+    logBulkDomain(`⚙️ Options: Dry-run=${dryRun}, Skip verified=${skipVerified}`);
     
     // Show status table
     document.getElementById('domain-verification-status').style.display = 'block';
@@ -9410,6 +9421,7 @@ function startDomainVerification() {
     document.getElementById('domain-verification-log').textContent = '';
     
     // Start process
+    logBulkDomain('📡 Sending request to server...');
     fetch('/api/domains/add-and-verify', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -9419,23 +9431,37 @@ function startDomainVerification() {
             skipVerified: skipVerified
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             domainVerificationJobId = data.job_id;
+            logBulkDomain(`✅ Verification job started successfully`);
+            logBulkDomain(`🆔 Job ID: ${data.job_id}`);
+            logBulkDomain(`📊 Processing ${data.accepted} domain(s)...`);
             logDomainVerification(`✅ Started verification job: ${data.job_id}`);
             logDomainVerification(`📊 Processing ${data.accepted} domains...`);
             
             // Start polling
             startDomainVerificationPolling();
         } else {
-            alert('Failed to start verification: ' + data.error);
-            logDomainVerification(`❌ Error: ${data.error}`);
+            const errorMsg = data.error || 'Failed to start verification';
+            logBulkDomain(`❌ Failed to start verification: ${errorMsg}`);
+            logDomainVerification(`❌ Error: ${errorMsg}`);
+            alert('Failed to start verification: ' + errorMsg);
         }
     })
     .catch(error => {
-        alert('Network error: ' + error);
-        logDomainVerification(`❌ Network error: ${error}`);
+        const errorMsg = error.message || String(error);
+        logBulkDomain(`❌ Network/API Error: ${errorMsg}`);
+        logDomainVerification(`❌ Network error: ${errorMsg}`);
+        alert('Error: ' + errorMsg);
     });
 }
 
@@ -9444,6 +9470,8 @@ function startDomainVerificationPolling() {
         clearInterval(domainVerificationPollInterval);
     }
     
+    let lastStatusCount = 0;
+    
     domainVerificationPollInterval = setInterval(() => {
         if (!domainVerificationJobId) {
             clearInterval(domainVerificationPollInterval);
@@ -9451,10 +9479,50 @@ function startDomainVerificationPolling() {
         }
         
         fetch(`/api/domains/status?job_id=${domainVerificationJobId}`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     updateDomainVerificationTable(data.results);
+                    
+                    // Log status changes to Results Log
+                    if (data.results.length !== lastStatusCount) {
+                        lastStatusCount = data.results.length;
+                        logBulkDomain(`📊 Status update: ${data.results.length} domain(s) in progress`);
+                    }
+                    
+                    // Log each domain's status to Results Log
+                    data.results.forEach(result => {
+                        const statusKey = `${result.domain}_${result.workspace}_${result.dns}_${result.verify}`;
+                        if (!window.domainStatusCache) {
+                            window.domainStatusCache = {};
+                        }
+                        
+                        if (window.domainStatusCache[result.domain] !== statusKey) {
+                            window.domainStatusCache[result.domain] = statusKey;
+                            
+                            // Log status changes
+                            if (result.workspace === 'success' && result.dns === 'pending' && result.verify === 'pending') {
+                                logBulkDomain(`✅ ${result.domain}: Added to Workspace`);
+                            } else if (result.workspace === 'failed') {
+                                logBulkDomain(`❌ ${result.domain}: Workspace add failed - ${result.message || 'Unknown error'}`);
+                            } else if (result.dns === 'success' && result.verify === 'pending') {
+                                logBulkDomain(`✅ ${result.domain}: TXT record created, waiting for verification...`);
+                            } else if (result.dns === 'failed') {
+                                logBulkDomain(`❌ ${result.domain}: DNS TXT creation failed - ${result.message || 'Unknown error'}`);
+                            } else if (result.verify === 'success') {
+                                logBulkDomain(`✅ ${result.domain}: Domain verified successfully!`);
+                            } else if (result.verify === 'failed') {
+                                logBulkDomain(`❌ ${result.domain}: Verification failed - ${result.message || 'Unknown error'}`);
+                            } else if (result.workspace === 'skipped' || result.verify === 'skipped') {
+                                logBulkDomain(`⏭️ ${result.domain}: Skipped (already verified)`);
+                            }
+                        }
+                    });
                     
                     // Check if all domains are complete
                     const allComplete = data.results.every(r => 
@@ -9463,12 +9531,22 @@ function startDomainVerificationPolling() {
                     
                     if (allComplete && data.results.length > 0) {
                         clearInterval(domainVerificationPollInterval);
+                        const successCount = data.results.filter(r => r.verify === 'success').length;
+                        const failedCount = data.results.filter(r => r.verify === 'failed' || r.workspace === 'failed' || r.dns === 'failed').length;
+                        const skippedCount = data.results.filter(r => r.verify === 'skipped').length;
+                        
+                        logBulkDomain('✅ All domains processed');
+                        logBulkDomain(`📊 Summary: ${successCount} verified, ${failedCount} failed, ${skippedCount} skipped`);
                         logDomainVerification('✅ All domains processed');
                     }
+                } else {
+                    logBulkDomain(`❌ Failed to get status: ${data.error || 'Unknown error'}`);
                 }
             })
             .catch(error => {
+                const errorMsg = error.message || String(error);
                 console.error('Polling error:', error);
+                logBulkDomain(`❌ Status polling error: ${errorMsg}`);
             });
     }, 5000); // Poll every 5 seconds
 }
@@ -9476,6 +9554,11 @@ function startDomainVerificationPolling() {
 function updateDomainVerificationTable(results) {
     const tbody = document.getElementById('domain-verification-table-body');
     tbody.innerHTML = '';
+    
+    if (!results || results.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #656d76;">No domains processed yet...</td></tr>';
+        return;
+    }
     
     results.forEach(result => {
         const row = document.createElement('tr');
@@ -9493,12 +9576,15 @@ function updateDomainVerificationTable(results) {
             return `<span style="background-color: ${color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">${status.toUpperCase()}</span>`;
         };
         
+        // Escape HTML in message to prevent XSS
+        const safeMessage = (result.message || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
         row.innerHTML = `
             <td style="padding: 8px;">${result.domain}</td>
             <td style="padding: 8px;">${getStatusBadge(result.workspace)}</td>
             <td style="padding: 8px;">${getStatusBadge(result.dns)}</td>
             <td style="padding: 8px;">${getStatusBadge(result.verify)}</td>
-            <td style="padding: 8px; max-width: 300px; word-wrap: break-word;">${result.message || '-'}</td>
+            <td style="padding: 8px; max-width: 300px; word-wrap: break-word;">${safeMessage}</td>
             <td style="padding: 8px; font-size: 11px; color: var(--color-fg-muted);">${result.updated_at ? new Date(result.updated_at).toLocaleString() : '-'}</td>
         `;
         
