@@ -8,6 +8,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from flask import Blueprint, request, jsonify, session
+from functools import wraps
 from database import db, DomainOperation, GoogleAccount, NamecheapConfig
 from services.zone_utils import to_apex, matching_zone_in_namecheap
 from services.google_domains_service import GoogleDomainsService
@@ -16,6 +17,17 @@ from services.namecheap_dns_service import NamecheapDNSService
 logger = logging.getLogger(__name__)
 
 dns_manager = Blueprint('dns_manager', __name__)
+
+# Login required decorator (matches app.py implementation)
+def login_required(f):
+    """Decorator to require login"""
+    from flask import redirect, url_for
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if 'user' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return wrapper
 
 # Store active jobs
 active_jobs = {}
@@ -189,6 +201,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
             db.session.commit()
 
 @dns_manager.route('/api/domains/add-and-verify', methods=['POST'])
+@login_required
 def add_and_verify_domains():
     """
     Start domain addition and verification process.
@@ -274,6 +287,7 @@ def add_and_verify_domains():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @dns_manager.route('/api/namecheap-config', methods=['GET', 'POST'])
+@login_required
 def namecheap_config():
     """
     Get or save Namecheap configuration.
@@ -338,6 +352,7 @@ def namecheap_config():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @dns_manager.route('/api/domains/status', methods=['GET'])
+@login_required
 def get_domain_status():
     """
     Get status of domain verification job.

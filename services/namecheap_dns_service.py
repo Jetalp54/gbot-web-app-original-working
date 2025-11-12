@@ -231,18 +231,73 @@ class NamecheapDNSService:
             raise
     
     def _extract_sld(self, domain: str) -> str:
-        """Extract second-level domain (e.g., 'example' from 'example.com')."""
-        parts = domain.split('.')
-        if len(parts) >= 2:
-            return parts[-2]
-        return parts[0]
+        """
+        Extract second-level domain (e.g., 'example' from 'example.com').
+        For complex TLDs like 'co.uk', extracts correctly.
+        """
+        try:
+            import publicsuffix2
+            psl = publicsuffix2.PublicSuffixList()
+            
+            # Get the registrable domain (apex)
+            registrable = psl.get_public_suffix(domain)
+            if registrable:
+                # For 'example.co.uk', registrable is 'example.co.uk'
+                # We need to extract 'example' as SLD
+                # Split and get the first part before the public suffix
+                domain_parts = domain.split('.')
+                registrable_parts = registrable.split('.')
+                if len(domain_parts) > len(registrable_parts):
+                    # Domain has subdomain, get the part before registrable
+                    return domain_parts[-(len(registrable_parts) + 1)]
+                elif len(registrable_parts) >= 2:
+                    # Registrable itself, get first part
+                    return registrable_parts[0]
+            
+            # Fallback: simple extraction
+            parts = domain.split('.')
+            if len(parts) >= 2:
+                return parts[-2]
+            return parts[0]
+        except Exception as e:
+            logger.warning(f"Error extracting SLD for {domain}, using fallback: {e}")
+            # Fallback
+            parts = domain.split('.')
+            if len(parts) >= 2:
+                return parts[-2]
+            return parts[0]
     
     def _extract_tld(self, domain: str) -> str:
-        """Extract top-level domain (e.g., 'com' from 'example.com')."""
-        parts = domain.split('.')
-        if len(parts) >= 2:
-            return parts[-1]
-        # For domains like 'co.uk', return the last two parts
-        if len(parts) >= 3:
-            return '.'.join(parts[-2:])
-        return parts[-1] if parts else ''
+        """
+        Extract top-level domain (e.g., 'com' from 'example.com').
+        For complex TLDs like 'co.uk', returns 'co.uk'.
+        """
+        try:
+            import publicsuffix2
+            psl = publicsuffix2.PublicSuffixList()
+            
+            # Get the public suffix (TLD)
+            public_suffix = psl.get_public_suffix(domain)
+            if public_suffix:
+                # Extract TLD from public suffix
+                # For 'example.co.uk', public_suffix is 'co.uk', so TLD is 'co.uk'
+                # For 'example.com', public_suffix is 'com', so TLD is 'com'
+                return public_suffix
+            
+            # Fallback: simple extraction
+            parts = domain.split('.')
+            if len(parts) >= 2:
+                return parts[-1]
+            # For domains like 'co.uk', return the last two parts
+            if len(parts) >= 3:
+                return '.'.join(parts[-2:])
+            return parts[-1] if parts else ''
+        except Exception as e:
+            logger.warning(f"Error extracting TLD for {domain}, using fallback: {e}")
+            # Fallback
+            parts = domain.split('.')
+            if len(parts) >= 2:
+                return parts[-1]
+            if len(parts) >= 3:
+                return '.'.join(parts[-2:])
+            return parts[-1] if parts else ''

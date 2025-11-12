@@ -123,6 +123,76 @@
         </form>
     </div>
 
+    <!-- Namecheap DNS Configuration Section -->
+    <div class="github-card" style="margin-bottom: 24px;">
+        <div class="github-card-header">
+            <h3 class="github-card-title" style="font-size: 18px;">
+                <i class="fas fa-globe"></i>
+                Namecheap DNS Configuration
+            </h3>
+        </div>
+        <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+            Configure Namecheap API credentials for DNS management. These credentials are used for automated domain verification via TXT records.
+            <strong>Note:</strong> Your client IP must be whitelisted in your Namecheap account settings.
+        </p>
+        
+        <form id="namecheap-config-form">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group-github">
+                    <label for="namecheap_api_user" class="form-label-github">
+                        <i class="fas fa-user"></i> API User
+                    </label>
+                    <input type="text" class="form-control-github" id="namecheap_api_user" 
+                           placeholder="your_api_user" required>
+                    <small style="color: #656d76; font-size: 12px;">
+                        Your Namecheap API username
+                    </small>
+                </div>
+                <div class="form-group-github">
+                    <label for="namecheap_username" class="form-label-github">
+                        <i class="fas fa-user-circle"></i> Account Username
+                    </label>
+                    <input type="text" class="form-control-github" id="namecheap_username" 
+                           placeholder="your_namecheap_username" required>
+                    <small style="color: #656d76; font-size: 12px;">
+                        Your Namecheap account username
+                    </small>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group-github">
+                    <label for="namecheap_api_key" class="form-label-github">
+                        <i class="fas fa-key"></i> API Key
+                    </label>
+                    <input type="password" class="form-control-github" id="namecheap_api_key" 
+                           placeholder="your_api_key" required>
+                    <small style="color: #656d76; font-size: 12px;">
+                        Your Namecheap API key (found in your account settings)
+                    </small>
+                </div>
+                <div class="form-group-github">
+                    <label for="namecheap_client_ip" class="form-label-github">
+                        <i class="fas fa-network-wired"></i> Client IP
+                    </label>
+                    <input type="text" class="form-control-github" id="namecheap_client_ip" 
+                           placeholder="1.2.3.4" required>
+                    <small style="color: #656d76; font-size: 12px;">
+                        Your server's public IP (must be whitelisted in Namecheap)
+                    </small>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+                <button type="submit" class="btn-github btn-github-primary">
+                    <i class="fas fa-save"></i> Save Namecheap Configuration
+                </button>
+            </div>
+        </form>
+        
+        <div id="namecheap-config-status" style="margin-top: 16px; display: none;"></div>
+    </div>
+
     <!-- OTP Generator SSH Settings Section -->
     <div class="github-card" style="margin-bottom: 24px;">
         <div class="github-card-header">
@@ -515,6 +585,9 @@ $(document).ready(function() {
     // Load current configuration
     loadCurrentConfiguration();
     
+    // Load Namecheap configuration
+    loadNamecheapConfiguration();
+    
     // Load OTP SSH configuration
     loadOTPSSHConfiguration();
     
@@ -554,6 +627,12 @@ $(document).ready(function() {
     $('#server-config-form').submit(function(e) {
         e.preventDefault();
         saveServerConfiguration();
+    });
+    
+    // Handle Namecheap form submission
+    $('#namecheap-config-form').submit(function(e) {
+        e.preventDefault();
+        saveNamecheapConfiguration();
     });
     
     // Handle OTP form submission
@@ -1938,6 +2017,97 @@ function uploadFileInChunks(file, chunkSize, totalChunks) {
     }
     
     uploadNextChunk();
+}
+
+// Namecheap Configuration Functions
+function loadNamecheapConfiguration() {
+    console.log('Loading Namecheap configuration...');
+    
+    fetch('/api/namecheap-config', {
+        method: 'GET',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.config) {
+            // Populate form fields
+            $('#namecheap_api_user').val(data.config.api_user || '');
+            $('#namecheap_username').val(data.config.username || '');
+            $('#namecheap_client_ip').val(data.config.client_ip || '');
+            // Don't populate API key for security
+            $('#namecheap_api_key').val('');
+            
+            // Show status
+            const statusDiv = $('#namecheap-config-status');
+            statusDiv.html(`
+                <div style="background-color: rgba(45, 164, 78, 0.1); border: 1px solid #2da44e; border-radius: 6px; padding: 12px; color: #2da44e;">
+                    <i class="fas fa-check-circle"></i> Configuration loaded
+                </div>
+            `);
+            statusDiv.show();
+        } else {
+            // No configuration found
+            const statusDiv = $('#namecheap-config-status');
+            statusDiv.html(`
+                <div style="background-color: rgba(251, 133, 0, 0.1); border: 1px solid #fb8500; border-radius: 6px; padding: 12px; color: #fb8500;">
+                    <i class="fas fa-exclamation-triangle"></i> No configuration found. Please configure Namecheap API credentials.
+                </div>
+            `);
+            statusDiv.show();
+        }
+    })
+    .catch(error => {
+        console.error('Error loading Namecheap configuration:', error);
+        showStatus('❌ Error loading Namecheap configuration: ' + error, 'error');
+    });
+}
+
+function saveNamecheapConfiguration() {
+    console.log('Saving Namecheap configuration...');
+    
+    const config = {
+        api_user: $('#namecheap_api_user').val().trim(),
+        api_key: $('#namecheap_api_key').val().trim(),
+        username: $('#namecheap_username').val().trim(),
+        client_ip: $('#namecheap_client_ip').val().trim()
+    };
+    
+    // Validate required fields
+    if (!config.api_user || !config.api_key || !config.username || !config.client_ip) {
+        showStatus('Please fill in all required fields', 'error');
+        return;
+    }
+    
+    // Validate IP format (basic)
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (!ipRegex.test(config.client_ip)) {
+        showStatus('Please enter a valid IP address', 'error');
+        return;
+    }
+    
+    showStatus('Saving Namecheap configuration...', 'info');
+    
+    fetch('/api/namecheap-config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(config)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showStatus('✅ Namecheap configuration saved successfully', 'success');
+            // Clear API key field for security
+            $('#namecheap_api_key').val('');
+            // Reload configuration to show updated status
+            loadNamecheapConfiguration();
+        } else {
+            showStatus('❌ Failed to save configuration: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving Namecheap configuration:', error);
+        showStatus('❌ Network error: ' + error, 'error');
+    });
 }
 
 // OTP SSH Configuration Functions
