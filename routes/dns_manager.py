@@ -296,13 +296,16 @@ def get_namecheap_domains():
         {
             "success": bool,
             "domains": [{"name": "...", "expire_date": "..."}, ...],
-            "error": "..." (if failed)
+            "error": "..." (if failed),
+            "debug_info": "..." (if available)
         }
     """
     try:
+        logger.info("API: Fetching Namecheap domains...")
         dns_service = NamecheapDNSService()
         domains = dns_service.get_domains_list()
         
+        logger.info(f"API: Successfully retrieved {len(domains)} domains")
         return jsonify({
             'success': True,
             'domains': domains,
@@ -310,10 +313,44 @@ def get_namecheap_domains():
         })
     
     except Exception as e:
-        logger.error(f"Error fetching Namecheap domains: {e}")
+        error_msg = str(e)
+        logger.error(f"Error fetching Namecheap domains: {error_msg}", exc_info=True)
+        
+        # Provide more detailed error information
+        debug_info = None
+        troubleshooting = []
+        
+        if "configuration not found" in error_msg.lower():
+            debug_info = "Namecheap credentials not configured. Please save configuration in Settings first."
+            troubleshooting.append("1. Fill in all Namecheap API credentials in Settings")
+            troubleshooting.append("2. Click 'Save Namecheap Configuration'")
+        elif "client ip" in error_msg.lower() or "whitelist" in error_msg.lower():
+            debug_info = "Client IP may not be whitelisted in Namecheap account settings."
+            troubleshooting.append("1. Log in to your Namecheap account")
+            troubleshooting.append("2. Go to Profile > Tools > API Access")
+            troubleshooting.append("3. Add your server's IP address to the whitelist")
+        elif "api error" in error_msg.lower() or "invalid" in error_msg.lower():
+            debug_info = "Check API credentials (API User, API Key, Username) and ensure they are correct."
+            troubleshooting.append("1. Verify API User matches your Namecheap API username")
+            troubleshooting.append("2. Verify API Key is correct (regenerate if needed)")
+            troubleshooting.append("3. Verify Username matches your Namecheap account username")
+            troubleshooting.append("4. Ensure Client IP is whitelisted")
+        elif "no domains" in error_msg.lower() or len(error_msg) == 0:
+            debug_info = "No domains found. This could mean:"
+            troubleshooting.append("1. Your account has no domains")
+            troubleshooting.append("2. API credentials are incorrect")
+            troubleshooting.append("3. Client IP is not whitelisted")
+            troubleshooting.append("4. Check server logs for detailed error: journalctl -u gbot.service -f")
+        else:
+            troubleshooting.append("1. Check server logs: sudo journalctl -u gbot.service -n 50")
+            troubleshooting.append("2. Verify Namecheap API credentials are correct")
+            troubleshooting.append("3. Ensure Client IP is whitelisted in Namecheap")
+        
         return jsonify({
             'success': False,
-            'error': str(e),
+            'error': error_msg,
+            'debug_info': debug_info,
+            'troubleshooting': troubleshooting,
             'domains': []
         }), 500
 

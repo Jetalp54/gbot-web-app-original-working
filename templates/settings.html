@@ -228,7 +228,13 @@
                 </div>
                 <div id="namecheap-domains-error" style="display: none; text-align: center; padding: 40px; color: #cf222e;">
                     <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px;"></i>
-                    <p id="namecheap-domains-error-message"></p>
+                    <p id="namecheap-domains-error-message" style="word-wrap: break-word; max-width: 100%;"></p>
+                    <button onclick="toggleDebugInfo()" class="btn-github" style="margin-top: 16px; padding: 6px 12px; font-size: 12px;">
+                        <i class="fas fa-bug"></i> Show Debug Info
+                    </button>
+                    <div id="namecheap-debug-info" style="display: none; margin-top: 16px; padding: 12px; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; text-align: left; font-family: monospace; font-size: 11px; max-height: 200px; overflow-y: auto;">
+                        <pre id="namecheap-debug-content"></pre>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2270,7 +2276,14 @@ function proceedWithFetch() {
         method: 'GET',
         headers: {'Content-Type': 'application/json'}
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-download"></i> Fetch & Retrieve Domains';
@@ -2278,7 +2291,16 @@ function proceedWithFetch() {
         if (data.success) {
             displayNamecheapDomains(data.domains);
         } else {
-            showNamecheapDomainsError(data.error || 'Failed to fetch domains');
+            let errorMsg = data.error || 'Failed to fetch domains';
+            if (data.debug_info) {
+                errorMsg += '\n\n' + data.debug_info;
+            }
+            if (data.troubleshooting && data.troubleshooting.length > 0) {
+                errorMsg += '\n\nTroubleshooting:\n' + data.troubleshooting.join('\n');
+            }
+            // Store debug data if available
+            window.namecheapDebugData = data;
+            showNamecheapDomainsError(errorMsg, data);
         }
     })
     .catch(error => {
@@ -2325,16 +2347,45 @@ function displayNamecheapDomains(domains) {
     list.innerHTML = html;
 }
 
-function showNamecheapDomainsError(message) {
+function showNamecheapDomainsError(message, debugData) {
     const loading = document.getElementById('namecheap-domains-loading');
     const content = document.getElementById('namecheap-domains-content');
     const error = document.getElementById('namecheap-domains-error');
     const errorMsg = document.getElementById('namecheap-domains-error-message');
+    const debugInfo = document.getElementById('namecheap-debug-info');
+    const debugContent = document.getElementById('namecheap-debug-content');
     
     loading.style.display = 'none';
     content.style.display = 'none';
     error.style.display = 'block';
-    errorMsg.textContent = message;
+    debugInfo.style.display = 'none';
+    
+    // Format error message with line breaks
+    errorMsg.innerHTML = message.replace(/\n/g, '<br>');
+    
+    // Store debug data
+    if (debugData) {
+        window.namecheapDebugData = debugData;
+        debugContent.textContent = JSON.stringify(debugData, null, 2);
+    }
+    
+    // Also show in status
+    showStatus('❌ ' + message.split('\n')[0], 'error');
+    
+    // Log to console for debugging
+    console.error('Namecheap domains fetch error:', message);
+    if (debugData) {
+        console.error('Debug data:', debugData);
+    }
+}
+
+function toggleDebugInfo() {
+    const debugInfo = document.getElementById('namecheap-debug-info');
+    if (debugInfo.style.display === 'none') {
+        debugInfo.style.display = 'block';
+    } else {
+        debugInfo.style.display = 'none';
+    }
 }
 
 function closeNamecheapDomainsModal() {

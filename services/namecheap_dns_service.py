@@ -83,16 +83,41 @@ class NamecheapDNSService:
             response = requests.get(self.BASE_URL, params=params, timeout=30)
             response.raise_for_status()
             
-            # Parse XML response (simplified - in production, use proper XML parser)
-            # For now, we'll use a simple approach and parse the XML
+            # Parse XML response
             import xml.etree.ElementTree as ET
-            root = ET.fromstring(response.text)
+            try:
+                root = ET.fromstring(response.text)
+            except ET.ParseError as parse_error:
+                logger.error(f"Failed to parse XML response: {parse_error}")
+                logger.error(f"Response text (first 500 chars): {response.text[:500]}")
+                raise Exception(f"Invalid XML response from Namecheap API: {str(parse_error)}")
             
-            # Check for errors
+            # Check for errors in response
             errors = root.findall('.//Error')
             if errors:
-                error_messages = [e.text for e in errors]
-                raise Exception(f"Namecheap API error: {', '.join(error_messages)}")
+                error_messages = []
+                for error_elem in errors:
+                    error_text = error_elem.text or error_elem.get('Number', '') or 'Unknown error'
+                    error_num = error_elem.get('Number', '')
+                    if error_num:
+                        error_messages.append(f"[{error_num}] {error_text}")
+                    else:
+                        error_messages.append(error_text)
+                
+                full_error = ', '.join(error_messages) if error_messages else 'Unknown error'
+                logger.error(f"Namecheap API returned errors: {full_error}")
+                logger.error(f"Full XML response: {response.text}")
+                raise Exception(f"Namecheap API error: {full_error}")
+            
+            # Check Status attribute
+            status = root.get('Status', '').upper()
+            if status and status != 'OK':
+                logger.warning(f"Namecheap API status is not OK: {status}")
+                # Don't fail if status is not OK, but log it
+            
+            # Log successful response (first 200 chars for debugging)
+            logger.debug(f"Namecheap API response Status: {root.get('Status', 'N/A')}")
+            logger.debug(f"Response XML (first 200 chars): {response.text[:200]}")
             
             return {'success': True, 'xml': root, 'raw': response.text}
         
@@ -275,38 +300,104 @@ class NamecheapDNSService:
             List of domain dictionaries with domain name and status
         """
         try:
+            logger.info("Fetching domains list from Namecheap API...")
             result = self._make_request('namecheap.domains.getList', {
                 'PageSize': 100,  # Maximum per page
                 'SortBy': 'NAME'
             })
             
             root = result['xml']
+            raw_xml = result.get('raw', '')
+            
+            # Log raw XML for debugging (first 500 chars)
+            logger.debug(f"Namecheap API response (first 500 chars): {raw_xml[:500]}")
+            
             domains = []
             
+            # Check API response status
+            api_status = root.get('Status', '')
+            if api_status and api_status.upper() != 'OK':
+                error_msg = f"Namecheap API returned status: {api_status}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+            
             # Parse domain list from XML
-            # Namecheap returns domains in <Domain> elements
-            for domain_elem in root.findall('.//Domain'):
-                domain_name = domain_elem.get('Name') or domain_elem.attrib.get('Name', '')
-                is_locked = domain_elem.get('IsLocked', 'false').lower() == 'true'
-                auto_renew = domain_elem.get('AutoRenew', 'false').lower() == 'true'
-                expire_date = domain_elem.get('ExpiredDate', '')
-                created_date = domain_elem.get('CreatedDate', '')
-                
-                if domain_name:
+            # Namecheap returns domains in <Domain> elements under <DomainGetListResult>
+            # Try multiple possible XML structures
+            domain_elements = []
+            
+            # Try different possible paths
+            possible_paths = [
+                './/Domain',
+                './/DomainGetListResult/Domain',
+                'DomainGetListResult/Domain',
+                'CommandResponse/DomainGetListResult/Domain'
+            ]
+            
+            for path in possible_paths:
+                domain_elements = root.findall(path)
+                if domain_elements:
+                    logger.info(f"Found domains using path: {path}")
+                    break
+            
+            if not domain_elements:
+                # Log the XML structure for debugging
+                import xml.etree.ElementTree as ET
+                logger.warning(f"No domains found. XML structure: {ET.tostring(root, encoding='unicode')[:1000]}")
+                # Check if there's an error message in the response
+                error_elem = root.find('.//Error')
+                if error_elem is not None:
+                    error_text = error_elem.text or ''
+                    raise Exception(f"Namecheap API error: {error_text}")
+                else:
+                    # Return empty list with warning
+                    logger.warning("No domains found in response. This might be normal if account has no domains.")
+                    return []
+            
+            for domain_elem in domain_elements:
+                try:
+                    # Try both attribute access methods
+                    domain_name = domain_elem.get('Name') or domain_elem.attrib.get('Name', '')
+                    if not domain_name:
+                        # Try text content
+                        domain_name = domain_elem.text or ''
+                    
+                    if not domain_name:
+                        continue
+                    
+                    is_locked = (domain_elem.get('IsLocked', 'false') or domain_elem.attrib.get('IsLocked', 'false')).lower() == 'true'
+                    auto_renew = (domain_elem.get('AutoRenew', 'false') or domain_elem.attrib.get('AutoRenew', 'false')).lower() == 'true'
+                    expire_date = domain_elem.get('ExpiredDate', '') or domain_elem.attrib.get('ExpiredDate', '')
+                    created_date = domain_elem.get('CreatedDate', '') or domain_elem.attrib.get('CreatedDate', '')
+                    
                     domains.append({
-                        'name': domain_name,
+                        'name': domain_name.strip(),
                         'is_locked': is_locked,
                         'auto_renew': auto_renew,
                         'expire_date': expire_date,
                         'created_date': created_date
                     })
+                except Exception as parse_error:
+                    logger.warning(f"Error parsing domain element: {parse_error}")
+                    continue
             
-            logger.info(f"Retrieved {len(domains)} domains from Namecheap")
+            logger.info(f"Successfully retrieved {len(domains)} domains from Namecheap")
+            if len(domains) == 0:
+                logger.warning("No domains found. This might indicate:")
+                logger.warning("  1. Account has no domains")
+                logger.warning("  2. API credentials are incorrect")
+                logger.warning("  3. Client IP is not whitelisted")
+                logger.warning(f"  4. XML structure is different. Raw response: {raw_xml[:500]}")
+            
             return domains
         
         except Exception as e:
-            logger.error(f"Error getting domains list: {e}")
-            raise
+            error_msg = f"Error getting domains list: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            # Include more context in the error
+            if hasattr(e, '__cause__') and e.__cause__:
+                error_msg += f" (Caused by: {str(e.__cause__)})"
+            raise Exception(error_msg)
 
     def _extract_tld(self, domain: str) -> str:
         """
