@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}User Management - GBot Web{% endblock %}
+
+{% block content %}
+<div class="github-card">
+    <div class="github-card-header">
+        <h1 class="github-card-title">
+            <i class="fas fa-users"></i>
+            User Management
+        </h1>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px;">
+        <!-- Add New User -->
+        <div class="github-card" style="margin-bottom: 0;">
+            <div class="github-card-header">
+                <h3 class="github-card-title" style="font-size: 16px;">
+                    <i class="fas fa-user-plus"></i>
+                    Add New User
+                </h3>
+            </div>
+            <div class="form-group-github">
+                <label for="new-username" class="form-label-github">
+                    <i class="fas fa-user"></i> Username
+                </label>
+                <input type="text" id="new-username" class="form-control-github" placeholder="Enter username" required>
+            </div>
+            <div class="form-group-github">
+                <label for="new-password" class="form-label-github">
+                    <i class="fas fa-lock"></i> Password
+                </label>
+                <input type="password" id="new-password" class="form-control-github" placeholder="Enter password" required>
+            </div>
+            <div class="form-group-github">
+                <label for="new-role" class="form-label-github">
+                    <i class="fas fa-user-tag"></i> Role
+                </label>
+                <select id="new-role" class="form-control-github">
+                    <option value="support">Support</option>
+                    <option value="mailer">Mailer</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <button onclick="addUser()" class="btn-github btn-github-primary" style="width: 100%;">
+                <i class="fas fa-plus"></i>
+                Add User
+            </button>
+        </div>
+        
+        <!-- Existing Users -->
+        <div class="github-card" style="margin-bottom: 0;">
+            <div class="github-card-header">
+                <h3 class="github-card-title" style="font-size: 16px;">
+                    <i class="fas fa-list"></i>
+                    Existing Users
+                </h3>
+            </div>
+            <div id="user-list">
+                <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: #656d76;">
+                    <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i>
+                    Loading users...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+// User management functions
+function addUser() {
+    const username = document.getElementById('new-username').value.trim();
+    const password = document.getElementById('new-password').value.trim();
+    const role = document.getElementById('new-role').value;
+    
+    if (!username || !password) {
+        alert('Please fill in all fields');
+        return;
+    }
+    
+    fetch('/api/add-user', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username, password, role})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ User added successfully!');
+            document.getElementById('new-username').value = '';
+            document.getElementById('new-password').value = '';
+            loadUsers();
+        } else {
+            alert('❌ Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('❌ Network error: ' + error);
+    });
+}
+
+function loadUsers() {
+    fetch('/api/list-users')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && Array.isArray(data.users)) {
+            const userList = document.getElementById('user-list');
+            if (data.users.length === 0) {
+                userList.innerHTML = '<p>No users found.</p>';
+                return;
+            }
+            
+            userList.innerHTML = data.users.map((user, index) => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f6f8fa; margin-bottom: 8px; border-radius: 6px; border: 1px solid #d0d7de; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#f3f4f6'" onmouseout="this.style.backgroundColor='#f6f8fa'">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <span style="background: #24292f; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">${index + 1}</span>
+                        <div>
+                            <div style="font-weight: 600; font-size: 14px; color: #24292f; margin-bottom: 4px;">
+                                <i class="fas fa-user" style="margin-right: 6px; color: #656d76;"></i>
+                                ${user.username}
+                            </div>
+                            <span style="background: ${user.role === 'admin' ? '#da3633' : user.role === 'mailer' ? '#fb8500' : '#2da44e'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                                ${user.role}
+                            </span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="editUser('${user.username}', '${user.role}')" class="btn-github" style="padding: 4px 12px; font-size: 12px;">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button onclick="deleteUser('${user.username}')" class="btn-github btn-github-danger" style="padding: 4px 12px; font-size: 12px;">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            document.getElementById('user-list').innerHTML = '<p>Error loading users.</p>';
+        }
+    })
+    .catch(error => {
+        console.error("Fetch error:", error);
+        document.getElementById('user-list').innerHTML = '<p>Network error loading users.</p>';
+    });
+}
+
+function editUser(username, currentRole) {
+    const newPassword = prompt(`Enter new password for user "${username}":`);
+    if (!newPassword) return;
+    
+    const newRole = prompt(`Enter role for "${username}" (admin/support/mailer):`, currentRole);
+    if (!newRole) return;
+    
+    if (newRole !== 'admin' && newRole !== 'support' && newRole !== 'mailer') {
+        alert('Role must be either "admin", "support", or "mailer"');
+        return;
+    }
+    
+    fetch('/api/edit-user', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username, password: newPassword, role: newRole})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ User updated successfully!');
+            loadUsers();
+        } else {
+            alert('❌ Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('❌ Network error: ' + error);
+    });
+}
+
+function deleteUser(username) {
+    if (username === '{{ user }}') {
+        alert('❌ Cannot delete your own account!');
+        return;
+    }
+    
+    if (!confirm(`⚠️ Delete user "${username}"?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    fetch('/api/delete-user', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ User deleted successfully!');
+            loadUsers();
+        } else {
+            alert('❌ Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('❌ Network error: ' + error);
+    });
+}
+
+// Load users when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadUsers();
+});
+</script>
+{% endblock %}
