@@ -997,7 +997,7 @@
                 </label>
             </div>
             
-            <button onclick="startDomainVerification()" class="btn-github btn-github-primary">
+            <button onclick="startDomainVerification()" class="btn-github btn-github-primary" id="domain-verification-start-btn">
                 <i class="fas fa-play"></i> Start Process
             </button>
         </div>
@@ -9381,88 +9381,125 @@ let domainVerificationJobId = null;
 let domainVerificationPollInterval = null;
 
 function startDomainVerification() {
-    const input = document.getElementById('domain-verification-input').value.trim();
-    if (!input) {
-        logBulkDomain('❌ Error: Please enter at least one domain');
-        alert('Please enter at least one domain');
-        return;
-    }
+    console.log('🚀 startDomainVerification() called');
     
-    if (!isAuthenticated) {
-        logBulkDomain('❌ Error: Please authenticate an account first');
-        alert('Please authenticate an account first');
-        return;
-    }
-    
-    const domains = input.split('\n').map(d => d.trim()).filter(d => d);
-    if (domains.length === 0) {
-        logBulkDomain('❌ Error: No valid domains found');
-        alert('No valid domains found');
-        return;
-    }
-    
-    const dryRun = document.getElementById('domain-verification-dry-run').checked;
-    const skipVerified = document.getElementById('domain-verification-skip-verified').checked;
-    
-    // Log to Results Log
-    logBulkDomain('🚀 Starting Domain Addition & Verification Process...');
-    logBulkDomain(`📋 Domains to process: ${domains.length}`);
-    domains.forEach((domain, idx) => {
-        logBulkDomain(`   ${idx + 1}. ${domain}`);
-    });
-    logBulkDomain(`⚙️ Options: Dry-run=${dryRun}, Skip verified=${skipVerified}`);
-    
-    // Show status table
-    document.getElementById('domain-verification-status').style.display = 'block';
-    document.getElementById('domain-verification-log-container').style.display = 'block';
-    
-    // Clear previous results
-    document.getElementById('domain-verification-table-body').innerHTML = '';
-    document.getElementById('domain-verification-log').textContent = '';
-    
-    // Start process
-    logBulkDomain('📡 Sending request to server...');
-    fetch('/api/domains/add-and-verify', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            domains: domains,
-            dryRun: dryRun,
-            skipVerified: skipVerified
+    try {
+        const input = document.getElementById('domain-verification-input').value.trim();
+        console.log('📝 Input value:', input);
+        
+        if (!input) {
+            console.error('❌ No input provided');
+            logBulkDomain('❌ Error: Please enter at least one domain');
+            alert('Please enter at least one domain');
+            return;
+        }
+        
+        if (!isAuthenticated) {
+            console.error('❌ Not authenticated');
+            logBulkDomain('❌ Error: Please authenticate an account first');
+            alert('Please authenticate an account first');
+            return;
+        }
+        
+        const domains = input.split('\n').map(d => d.trim()).filter(d => d);
+        if (domains.length === 0) {
+            console.error('❌ No valid domains');
+            logBulkDomain('❌ Error: No valid domains found');
+            alert('No valid domains found');
+            return;
+        }
+        
+        const dryRun = document.getElementById('domain-verification-dry-run').checked;
+        const skipVerified = document.getElementById('domain-verification-skip-verified').checked;
+        
+        console.log('📋 Processing domains:', domains);
+        console.log('⚙️ Options - Dry-run:', dryRun, 'Skip verified:', skipVerified);
+        
+        // Log to Results Log
+        logBulkDomain('🚀 Starting Domain Addition & Verification Process...');
+        logBulkDomain(`📋 Domains to process: ${domains.length}`);
+        domains.forEach((domain, idx) => {
+            logBulkDomain(`   ${idx + 1}. ${domain}`);
+        });
+        logBulkDomain(`⚙️ Options: Dry-run=${dryRun}, Skip verified=${skipVerified}`);
+        
+        // Show status table
+        document.getElementById('domain-verification-status').style.display = 'block';
+        document.getElementById('domain-verification-log-container').style.display = 'block';
+        
+        // Clear previous results
+        document.getElementById('domain-verification-table-body').innerHTML = '';
+        document.getElementById('domain-verification-log').textContent = '';
+        
+        // Disable button to prevent double-clicks
+        const btn = document.getElementById('domain-verification-start-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        }
+        
+        // Start process
+        logBulkDomain('📡 Sending request to server...');
+        console.log('📡 Fetching /api/domains/add-and-verify...');
+        
+        fetch('/api/domains/add-and-verify', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                domains: domains,
+                dryRun: dryRun,
+                skipVerified: skipVerified
+            })
         })
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(data => {
-                throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            domainVerificationJobId = data.job_id;
-            logBulkDomain(`✅ Verification job started successfully`);
-            logBulkDomain(`🆔 Job ID: ${data.job_id}`);
-            logBulkDomain(`📊 Processing ${data.accepted} domain(s)...`);
-            logDomainVerification(`✅ Started verification job: ${data.job_id}`);
-            logDomainVerification(`📊 Processing ${data.accepted} domains...`);
+        .then(response => {
+            console.log('📥 Response received:', response.status, response.statusText);
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('✅ Response data:', data);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-play"></i> Start Process';
+            }
             
-            // Start polling
-            startDomainVerificationPolling();
-        } else {
-            const errorMsg = data.error || 'Failed to start verification';
-            logBulkDomain(`❌ Failed to start verification: ${errorMsg}`);
-            logDomainVerification(`❌ Error: ${errorMsg}`);
-            alert('Failed to start verification: ' + errorMsg);
-        }
-    })
-    .catch(error => {
-        const errorMsg = error.message || String(error);
-        logBulkDomain(`❌ Network/API Error: ${errorMsg}`);
-        logDomainVerification(`❌ Network error: ${errorMsg}`);
-        alert('Error: ' + errorMsg);
-    });
+            if (data.success) {
+                domainVerificationJobId = data.job_id;
+                logBulkDomain(`✅ Verification job started successfully`);
+                logBulkDomain(`🆔 Job ID: ${data.job_id}`);
+                logBulkDomain(`📊 Processing ${data.accepted} domain(s)...`);
+                logDomainVerification(`✅ Started verification job: ${data.job_id}`);
+                logDomainVerification(`📊 Processing ${data.accepted} domains...`);
+                
+                // Start polling
+                startDomainVerificationPolling();
+            } else {
+                const errorMsg = data.error || 'Failed to start verification';
+                logBulkDomain(`❌ Failed to start verification: ${errorMsg}`);
+                logDomainVerification(`❌ Error: ${errorMsg}`);
+                alert('Failed to start verification: ' + errorMsg);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Fetch error:', error);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-play"></i> Start Process';
+            }
+            const errorMsg = error.message || String(error);
+            logBulkDomain(`❌ Network/API Error: ${errorMsg}`);
+            logDomainVerification(`❌ Network error: ${errorMsg}`);
+            alert('Error: ' + errorMsg);
+        });
+    } catch (error) {
+        console.error('❌ startDomainVerification error:', error);
+        logBulkDomain(`❌ JavaScript Error: ${error.message || String(error)}`);
+        alert('Error: ' + (error.message || String(error)));
+    }
 }
 
 function startDomainVerificationPolling() {
