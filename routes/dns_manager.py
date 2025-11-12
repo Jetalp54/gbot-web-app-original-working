@@ -175,6 +175,10 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
             
             # Step 6: Verify domain (with retries)
             if not dry_run:
+                # Wait 10 seconds after DNS TXT record creation before first verification attempt
+                logger.info(f"Waiting 10 seconds for DNS propagation before verification...")
+                time.sleep(10)
+                
                 max_attempts = 10
                 attempt = 0
                 verified = False
@@ -182,8 +186,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 while attempt < max_attempts and not verified:
                     attempt += 1
                     try:
-                        if attempt > 1:
-                            time.sleep(20)  # Wait for DNS propagation (only after first attempt)
+                        logger.info(f"Verification attempt {attempt}/{max_attempts} for {apex}")
                         verify_result = google_service.verify_domain(apex)
                         
                         if verify_result.get('verified'):
@@ -191,13 +194,15 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                             operation.verify_status = 'success'
                             operation.message = 'Domain verified successfully'
                             operation.raw_log.append(log_entry('verify', 'success', f'Verified on attempt {attempt}'))
+                            logger.info(f"Domain {apex} verified successfully on attempt {attempt}")
                         else:
                             operation.raw_log.append(log_entry('verify', 'pending', f'Attempt {attempt}/{max_attempts}: Not yet verified'))
                             if attempt < max_attempts:
-                                time.sleep(30)  # Wait longer between retries
+                                time.sleep(30)  # Wait 30 seconds between retries
                     
                     except Exception as e:
                         error_msg = str(e)
+                        logger.warning(f"Verification attempt {attempt} error for {apex}: {error_msg}")
                         # Check for scope/permission errors
                         if 'insufficient' in error_msg.lower() or 'scope' in error_msg.lower() or 'permission' in error_msg.lower():
                             error_msg = f'Missing Google Site Verification API scope. Please re-authenticate: {error_msg}'
@@ -215,6 +220,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     operation.verify_status = 'failed'
                     operation.message = f'Verification failed after {max_attempts} attempts. DNS may not have propagated yet.'
                     operation.raw_log.append(log_entry('verify', 'failed', 'Verification timeout'))
+                    logger.warning(f"Domain {apex} verification failed after {max_attempts} attempts")
                 
                 db.session.commit()
             else:

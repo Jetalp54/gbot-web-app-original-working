@@ -997,7 +997,7 @@
                 </label>
             </div>
             
-            <button onclick="startDomainVerification()" class="btn-github btn-github-primary" id="domain-verification-start-btn">
+            <button onclick="window.startDomainVerification()" class="btn-github btn-github-primary" id="domain-verification-start-btn">
                 <i class="fas fa-play"></i> Start Process
             </button>
         </div>
@@ -9380,7 +9380,8 @@ function clearAutomationList() {
 let domainVerificationJobId = null;
 let domainVerificationPollInterval = null;
 
-function startDomainVerification() {
+// Make function globally accessible
+window.startDomainVerification = function() {
     console.log('🚀 startDomainVerification() called');
     
     try {
@@ -9655,13 +9656,54 @@ function toggleDomainVerificationLog() {
     }
 }
 
+// Add event listener as fallback for button click
+document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('domain-verification-start-btn');
+    if (btn) {
+        console.log('✅ Domain verification button found, adding event listener...');
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('🔘 Button clicked via event listener');
+            if (typeof window.startDomainVerification === 'function') {
+                window.startDomainVerification();
+            } else {
+                console.error('❌ startDomainVerification function not found!');
+                alert('Error: startDomainVerification function not found. Please refresh the page.');
+            }
+        });
+    } else {
+        console.warn('⚠️ Domain verification button not found on page load');
+    }
+    
+    // Verify function is accessible
+    console.log('startDomainVerification function type:', typeof window.startDomainVerification);
+});
+
 // Cache buster and debugging
 console.log('Dashboard loaded - Version 20241027');
 console.log('updateMegaProgress function:', typeof updateMegaProgress);
 console.log('copyRetrievedSubdomains function:', typeof copyRetrievedSubdomains);
+console.log('startDomainVerification function:', typeof window.startDomainVerification);
 
 // Force reload if needed
 if (typeof updateMegaProgress === 'undefined') {
     console.error('updateMegaProgress function not found - possible caching issue');
 }
+
+// Additional debugging: Test button click immediately
+setTimeout(function() {
+    const btn = document.getElementById('domain-verification-start-btn');
+    if (btn) {
+        console.log('✅ Domain verification button found in DOM');
+        console.log('Button onclick attribute:', btn.getAttribute('onclick'));
+        // Test if function is callable
+        if (typeof window.startDomainVerification === 'function') {
+            console.log('✅ startDomainVerification is callable');
+        } else {
+            console.error('❌ startDomainVerification is NOT a function!');
+        }
+    } else {
+        console.error('❌ Domain verification button NOT found in DOM');
+    }
+}, 1000);
 </script>
