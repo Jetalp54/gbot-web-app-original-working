@@ -70,10 +70,29 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
         }
         
         try:
-            # Step 1: Convert to apex
+            # Step 1: Convert to apex and calculate subdomain host
             apex = to_apex(domain)
             operation.apex_domain = apex
-            operation.raw_log = [log_entry('apex', 'success', f'Converted {domain} to apex: {apex}')]
+            
+            # Calculate subdomain host for TXT record
+            # For subdomain like "alberto.lumenskin.co.uk", host should be "alberto"
+            # For apex like "lumenskin.co.uk", host should be "@"
+            txt_host = '@'  # Default for apex domain
+            if domain.lower() != apex.lower():
+                # It's a subdomain - extract the subdomain part
+                domain_parts = domain.lower().split('.')
+                apex_parts = apex.lower().split('.')
+                if len(domain_parts) > len(apex_parts):
+                    # Get the subdomain part (everything before the apex)
+                    subdomain_part = domain_parts[:len(domain_parts) - len(apex_parts)]
+                    txt_host = '.'.join(subdomain_part)  # e.g., "alberto" or "mail.team"
+                    logger.info(f"Subdomain detected: {domain} -> apex: {apex}, host: {txt_host}")
+                else:
+                    txt_host = '@'
+            else:
+                txt_host = '@'
+            
+            operation.raw_log = [log_entry('apex', 'success', f'Converted {domain} to apex: {apex}, TXT host: {txt_host}')]
             db.session.commit()
             
             # Step 2: Check if already verified (if skip_verified is True)
@@ -92,33 +111,45 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     logger.warning(f"Error checking verification status for {apex}: {e}")
                     # Continue with process
             
-            # Step 3: Add domain to Workspace
+            # Step 3: Add domain to Workspace (or continue if already exists)
+            google_service = None
             try:
                 google_service = GoogleDomainsService(account_name)
                 result = google_service.ensure_domain_added(apex)
                 
                 if result.get('already_exists'):
                     operation.workspace_status = 'success'
-                    operation.raw_log.append(log_entry('workspace', 'success', 'Domain already exists in Workspace'))
+                    operation.raw_log.append(log_entry('workspace', 'success', 'Domain already exists in Workspace - continuing with verification'))
+                    logger.info(f"Domain {apex} already exists, continuing with verification process")
                 elif result.get('created'):
                     operation.workspace_status = 'success'
                     operation.raw_log.append(log_entry('workspace', 'success', 'Domain added to Workspace'))
+                    logger.info(f"Domain {apex} added to Workspace")
                 else:
                     raise Exception("Unexpected result from ensure_domain_added")
                 
                 db.session.commit()
+                # IMPORTANT: Continue to next step even if domain already exists
             
             except Exception as e:
                 error_msg = str(e)
                 # Check for common error types
                 if 'insufficient' in error_msg.lower() or 'scope' in error_msg.lower() or 'permission' in error_msg.lower():
                     error_msg = f'Missing required Google API scopes. Please re-authenticate with site verification scope: {error_msg}'
-                elif 'already exists' in error_msg.lower() or 'duplicate' in error_msg.lower():
-                    # Domain already exists, treat as success
-                    operation.workspace_status = 'success'
-                    operation.raw_log.append(log_entry('workspace', 'success', f'Domain already exists: {error_msg}'))
+                    operation.workspace_status = 'failed'
+                    operation.message = error_msg
+                    operation.raw_log.append(log_entry('workspace', 'failed', error_msg))
                     db.session.commit()
-                    # Continue to next step
+                    return
+                elif 'already exists' in error_msg.lower() or 'duplicate' in error_msg.lower():
+                    # Domain already exists, treat as success and CONTINUE
+                    operation.workspace_status = 'success'
+                    operation.raw_log.append(log_entry('workspace', 'success', f'Domain already exists: {error_msg} - continuing with verification'))
+                    logger.info(f"Domain {apex} already exists (from exception), continuing with verification")
+                    db.session.commit()
+                    # Continue to next step - don't return!
+                    if not google_service:
+                        google_service = GoogleDomainsService(account_name)
                 else:
                     operation.workspace_status = 'failed'
                     operation.message = f'Failed to add domain to Workspace: {error_msg}'
@@ -126,14 +157,19 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     db.session.commit()
                     return
             
-            # Step 4: Get verification token
+            # Step 4: Get verification token (always proceed, even if domain already existed)
             try:
+                if not google_service:
+                    google_service = GoogleDomainsService(account_name)
+                    
                 token_result = google_service.get_verification_token(apex)
                 token = token_result['token']
-                host = token_result.get('host', '@')
+                # Use the calculated subdomain host, not the default '@' from Google
+                # Google returns '@' for apex, but we need the subdomain part for subdomains
                 txt_value = token_result.get('txt_value', f'google-site-verification={token}')
                 
-                operation.raw_log.append(log_entry('token', 'success', f'Retrieved verification token'))
+                operation.raw_log.append(log_entry('token', 'success', f'Retrieved verification token, will use host: {txt_host}'))
+                logger.info(f"Got verification token for {apex}, will add TXT record with host: {txt_host}")
                 db.session.commit()
             
             except Exception as e:
@@ -151,25 +187,27 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 return
             
             # Step 5: Create TXT record in Namecheap (unless dry-run)
+            # Use the calculated subdomain host (e.g., "alberto" for subdomain, "@" for apex)
             if dry_run:
                 operation.dns_status = 'dry-run'
-                operation.message = 'Dry-run: DNS TXT record not created'
-                operation.raw_log.append(log_entry('dns', 'dry-run', 'Dry-run mode: skipping DNS write'))
+                operation.message = f'Dry-run: DNS TXT record not created (would use host: {txt_host})'
+                operation.raw_log.append(log_entry('dns', 'dry-run', f'Dry-run mode: would add TXT @ {txt_host} with value: {txt_value}'))
                 db.session.commit()
             else:
                 try:
                     dns_service = NamecheapDNSService()
-                    dns_result = dns_service.upsert_txt_record(apex, host, txt_value, ttl=300)
+                    logger.info(f"Adding TXT record to Namecheap: apex={apex}, host={txt_host}, value={txt_value}")
+                    dns_result = dns_service.upsert_txt_record(apex, txt_host, txt_value, ttl=300)
                     
                     operation.dns_status = 'success'
-                    operation.message = f'TXT record created: {dns_result.get("message", "Success")}'
-                    operation.raw_log.append(log_entry('dns', 'success', f'TXT record created: {txt_value}'))
+                    operation.message = f'TXT record created @ {txt_host}: {dns_result.get("message", "Success")}'
+                    operation.raw_log.append(log_entry('dns', 'success', f'TXT record created @ {txt_host} with value: {txt_value}'))
                     db.session.commit()
                 
                 except Exception as e:
                     operation.dns_status = 'failed'
-                    operation.message = f'Failed to create TXT record: {str(e)}'
-                    operation.raw_log.append(log_entry('dns', 'failed', str(e)))
+                    operation.message = f'Failed to create TXT record @ {txt_host}: {str(e)}'
+                    operation.raw_log.append(log_entry('dns', 'failed', f'Error @ {txt_host}: {str(e)}'))
                     db.session.commit()
                     return
             
