@@ -322,30 +322,50 @@ class NamecheapDNSService:
                 raise Exception(error_msg)
             
             # Parse domain list from XML
-            # Namecheap returns domains in <Domain> elements under <DomainGetListResult>
-            # Try multiple possible XML structures
+            # Namecheap returns domains with namespaces (ns0:Domain)
+            # Format: <ns0:Domain Name="domain.com" Expires="..." Created="..." />
+            import xml.etree.ElementTree as ET
+            
+            # Register namespace to handle ns0: prefix
+            # Namecheap uses: http://api.namecheap.com/xml.response
+            namespace = {'ns0': 'http://api.namecheap.com/xml.response'}
+            
             domain_elements = []
             
-            # Try different possible paths
+            # Try different possible paths (with and without namespaces)
             possible_paths = [
+                # With namespace (most common)
+                './/ns0:Domain',
+                './/{http://api.namecheap.com/xml.response}Domain',
+                'ns0:CommandResponse/ns0:DomainGetListResult/ns0:Domain',
+                '{http://api.namecheap.com/xml.response}CommandResponse/{http://api.namecheap.com/xml.response}DomainGetListResult/{http://api.namecheap.com/xml.response}Domain',
+                # Without namespace (fallback)
                 './/Domain',
                 './/DomainGetListResult/Domain',
-                'DomainGetListResult/Domain',
                 'CommandResponse/DomainGetListResult/Domain'
             ]
             
             for path in possible_paths:
-                domain_elements = root.findall(path)
-                if domain_elements:
-                    logger.info(f"Found domains using path: {path}")
-                    break
+                try:
+                    if path.startswith('ns0:') or '{http://api.namecheap.com/xml.response}' in path:
+                        # Use namespace
+                        domain_elements = root.findall(path, namespace)
+                    else:
+                        # No namespace
+                        domain_elements = root.findall(path)
+                    
+                    if domain_elements:
+                        logger.info(f"Found {len(domain_elements)} domains using path: {path}")
+                        break
+                except Exception as path_error:
+                    logger.debug(f"Path {path} failed: {path_error}")
+                    continue
             
             if not domain_elements:
                 # Log the XML structure for debugging
-                import xml.etree.ElementTree as ET
                 logger.warning(f"No domains found. XML structure: {ET.tostring(root, encoding='unicode')[:1000]}")
                 # Check if there's an error message in the response
-                error_elem = root.find('.//Error')
+                error_elem = root.find('.//Error') or root.find('.//ns0:Error', namespace)
                 if error_elem is not None:
                     error_text = error_elem.text or ''
                     raise Exception(f"Namecheap API error: {error_text}")
@@ -356,19 +376,22 @@ class NamecheapDNSService:
             
             for domain_elem in domain_elements:
                 try:
-                    # Try both attribute access methods
+                    # Get domain name from Name attribute
                     domain_name = domain_elem.get('Name') or domain_elem.attrib.get('Name', '')
                     if not domain_name:
-                        # Try text content
+                        # Try text content as fallback
                         domain_name = domain_elem.text or ''
                     
                     if not domain_name:
+                        logger.warning(f"Skipping domain element without Name: {ET.tostring(domain_elem, encoding='unicode')[:200]}")
                         continue
                     
+                    # Get other attributes (Namecheap uses: Expires, Created, IsLocked, AutoRenew)
+                    # Note: Namecheap API uses "Expires" not "ExpiredDate", "Created" not "CreatedDate"
                     is_locked = (domain_elem.get('IsLocked', 'false') or domain_elem.attrib.get('IsLocked', 'false')).lower() == 'true'
                     auto_renew = (domain_elem.get('AutoRenew', 'false') or domain_elem.attrib.get('AutoRenew', 'false')).lower() == 'true'
-                    expire_date = domain_elem.get('ExpiredDate', '') or domain_elem.attrib.get('ExpiredDate', '')
-                    created_date = domain_elem.get('CreatedDate', '') or domain_elem.attrib.get('CreatedDate', '')
+                    expire_date = domain_elem.get('Expires', '') or domain_elem.attrib.get('Expires', '') or domain_elem.get('ExpiredDate', '') or domain_elem.attrib.get('ExpiredDate', '')
+                    created_date = domain_elem.get('Created', '') or domain_elem.attrib.get('Created', '') or domain_elem.get('CreatedDate', '') or domain_elem.attrib.get('CreatedDate', '')
                     
                     domains.append({
                         'name': domain_name.strip(),
@@ -377,8 +400,12 @@ class NamecheapDNSService:
                         'expire_date': expire_date,
                         'created_date': created_date
                     })
+                    
+                    logger.debug(f"Parsed domain: {domain_name.strip()}")
                 except Exception as parse_error:
                     logger.warning(f"Error parsing domain element: {parse_error}")
+                    import traceback
+                    logger.debug(traceback.format_exc())
                     continue
             
             logger.info(f"Successfully retrieved {len(domains)} domains from Namecheap")
