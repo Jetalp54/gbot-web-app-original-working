@@ -9378,36 +9378,33 @@ function clearAutomationList() {
 <script>
 // IMMEDIATE TEST - This should run first
 console.log('=== DOMAIN VERIFICATION SCRIPT LOADING ===');
-alert('Script is loading...');
 
 // Domain Verification Functions
 let domainVerificationJobId = null;
 let domainVerificationPollInterval = null;
 
-// Make function globally accessible - define it IMMEDIATELY at the top
-(function() {
-    'use strict';
-    window.startDomainVerification = function() {
-        console.log('🚀 startDomainVerification() called');
-        console.trace('Function call stack');
-        
-        // Immediate feedback
-        alert('Function called! Check console for details.');
-        
-        try {
+// Define function DIRECTLY on window - no IIFE wrapper
+window.startDomainVerification = function() {
+    console.log('🚀 startDomainVerification() called');
+    
+    try {
         const input = document.getElementById('domain-verification-input').value.trim();
         console.log('📝 Input value:', input);
         
         if (!input) {
             console.error('❌ No input provided');
-            logBulkDomain('❌ Error: Please enter at least one domain');
+            if (typeof logBulkDomain === 'function') {
+                logBulkDomain('❌ Error: Please enter at least one domain');
+            }
             alert('Please enter at least one domain');
             return;
         }
         
-        if (!isAuthenticated) {
+        if (typeof isAuthenticated === 'undefined' || !isAuthenticated) {
             console.error('❌ Not authenticated');
-            logBulkDomain('❌ Error: Please authenticate an account first');
+            if (typeof logBulkDomain === 'function') {
+                logBulkDomain('❌ Error: Please authenticate an account first');
+            }
             alert('Please authenticate an account first');
             return;
         }
@@ -9415,7 +9412,9 @@ let domainVerificationPollInterval = null;
         const domains = input.split('\n').map(d => d.trim()).filter(d => d);
         if (domains.length === 0) {
             console.error('❌ No valid domains');
-            logBulkDomain('❌ Error: No valid domains found');
+            if (typeof logBulkDomain === 'function') {
+                logBulkDomain('❌ Error: No valid domains found');
+            }
             alert('No valid domains found');
             return;
         }
@@ -9427,12 +9426,16 @@ let domainVerificationPollInterval = null;
         console.log('⚙️ Options - Dry-run:', dryRun, 'Skip verified:', skipVerified);
         
         // Log to Results Log
-        logBulkDomain('🚀 Starting Domain Addition & Verification Process...');
-        logBulkDomain(`📋 Domains to process: ${domains.length}`);
-        domains.forEach((domain, idx) => {
-            logBulkDomain(`   ${idx + 1}. ${domain}`);
-        });
-        logBulkDomain(`⚙️ Options: Dry-run=${dryRun}, Skip verified=${skipVerified}`);
+        if (typeof logBulkDomain === 'function') {
+            logBulkDomain('🚀 Starting Domain Addition & Verification Process...');
+            logBulkDomain(`📋 Domains to process: ${domains.length}`);
+            domains.forEach((domain, idx) => {
+                logBulkDomain(`   ${idx + 1}. ${domain}`);
+            });
+            logBulkDomain(`⚙️ Options: Dry-run=${dryRun}, Skip verified=${skipVerified}`);
+        } else {
+            console.warn('logBulkDomain function not available');
+        }
         
         // Show status table
         document.getElementById('domain-verification-status').style.display = 'block';
@@ -9450,7 +9453,9 @@ let domainVerificationPollInterval = null;
         }
         
         // Start process
-        logBulkDomain('📡 Sending request to server...');
+        if (typeof logBulkDomain === 'function') {
+            logBulkDomain('📡 Sending request to server...');
+        }
         console.log('📡 Fetching /api/domains/add-and-verify...');
         
         fetch('/api/domains/add-and-verify', {
@@ -9480,47 +9485,70 @@ let domainVerificationPollInterval = null;
             
             if (data.success) {
                 domainVerificationJobId = data.job_id;
-                logBulkDomain(`✅ Verification job started successfully`);
-                logBulkDomain(`🆔 Job ID: ${data.job_id}`);
-                logBulkDomain(`📊 Processing ${data.accepted} domain(s)...`);
-                logDomainVerification(`✅ Started verification job: ${data.job_id}`);
-                logDomainVerification(`📊 Processing ${data.accepted} domains...`);
+                console.log('✅ Job started:', data.job_id);
+                if (typeof logBulkDomain === 'function') {
+                    logBulkDomain(`✅ Verification job started successfully`);
+                    logBulkDomain(`🆔 Job ID: ${data.job_id}`);
+                    logBulkDomain(`📊 Processing ${data.accepted} domain(s)...`);
+                }
+                if (typeof logDomainVerification === 'function') {
+                    logDomainVerification(`✅ Started verification job: ${data.job_id}`);
+                    logDomainVerification(`📊 Processing ${data.accepted} domains...`);
+                }
                 
                 // Start polling
-                startDomainVerificationPolling();
+                if (typeof startDomainVerificationPolling === 'function') {
+                    startDomainVerificationPolling();
+                } else {
+                    console.error('startDomainVerificationPolling not found');
+                }
             } else {
                 const errorMsg = data.error || 'Failed to start verification';
-                logBulkDomain(`❌ Failed to start verification: ${errorMsg}`);
-                logDomainVerification(`❌ Error: ${errorMsg}`);
-                alert('Failed to start verification: ' + errorMsg);
+                console.error('Failed to start:', errorMsg);
+                if (typeof logBulkDomain === 'function') {
+                    logBulkDomain(`❌ Failed to start verification: ${errorMsg}`);
+                }
+                if (typeof logDomainVerification === 'function') {
+                    logDomainVerification(`❌ Error: ${errorMsg}`);
+                }
+                alert('Failed to start verification: ' + errorMsg + '\n\nCheck console (F12) for details.');
             }
         })
         .catch(error => {
             console.error('❌ Fetch error:', error);
+            console.error('Error details:', error);
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-play"></i> Start Process';
             }
             const errorMsg = error.message || String(error);
-            logBulkDomain(`❌ Network/API Error: ${errorMsg}`);
-            logDomainVerification(`❌ Network error: ${errorMsg}`);
-            alert('Error: ' + errorMsg);
+            console.error('Error message:', errorMsg);
+            if (typeof logBulkDomain === 'function') {
+                logBulkDomain(`❌ Network/API Error: ${errorMsg}`);
+            }
+            if (typeof logDomainVerification === 'function') {
+                logDomainVerification(`❌ Network error: ${errorMsg}`);
+            }
+            alert('Error: ' + errorMsg + '\n\nCheck browser console (F12) for details.');
         });
     } catch (error) {
         console.error('❌ startDomainVerification error:', error);
-        logBulkDomain(`❌ JavaScript Error: ${error.message || String(error)}`);
+        console.error('Error stack:', error.stack);
+        if (typeof logBulkDomain === 'function') {
+            logBulkDomain(`❌ JavaScript Error: ${error.message || String(error)}`);
+        }
         alert('Error: ' + (error.message || String(error)));
     }
-    };
-    
-    // Verify function was created
-    console.log('Function created, type:', typeof window.startDomainVerification);
-    if (typeof window.startDomainVerification === 'function') {
-        console.log('✅ startDomainVerification function successfully created');
-    } else {
-        console.error('❌ FAILED to create startDomainVerification function!');
-    }
-})();
+};
+
+// Verify function was created IMMEDIATELY
+console.log('Function created, type:', typeof window.startDomainVerification);
+if (typeof window.startDomainVerification === 'function') {
+    console.log('✅✅✅ startDomainVerification function successfully created ✅✅✅');
+} else {
+    console.error('❌❌❌ FAILED to create startDomainVerification function! ❌❌❌');
+    alert('CRITICAL: Failed to create startDomainVerification function!');
+}
 
 function startDomainVerificationPolling() {
     if (domainVerificationPollInterval) {
