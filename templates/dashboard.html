@@ -9376,19 +9376,25 @@ function clearAutomationList() {
 </style>
 
 <script>
+// IMMEDIATE TEST - This should run first
+console.log('=== DOMAIN VERIFICATION SCRIPT LOADING ===');
+alert('Script is loading...');
+
 // Domain Verification Functions
 let domainVerificationJobId = null;
 let domainVerificationPollInterval = null;
 
-// Make function globally accessible - define it immediately
-window.startDomainVerification = function() {
-    console.log('🚀 startDomainVerification() called');
-    console.trace('Function call stack');
-    
-    // Immediate feedback
-    alert('Function called! Check console for details.');
-    
-    try {
+// Make function globally accessible - define it IMMEDIATELY at the top
+(function() {
+    'use strict';
+    window.startDomainVerification = function() {
+        console.log('🚀 startDomainVerification() called');
+        console.trace('Function call stack');
+        
+        // Immediate feedback
+        alert('Function called! Check console for details.');
+        
+        try {
         const input = document.getElementById('domain-verification-input').value.trim();
         console.log('📝 Input value:', input);
         
@@ -9505,7 +9511,16 @@ window.startDomainVerification = function() {
         logBulkDomain(`❌ JavaScript Error: ${error.message || String(error)}`);
         alert('Error: ' + (error.message || String(error)));
     }
-}
+    };
+    
+    // Verify function was created
+    console.log('Function created, type:', typeof window.startDomainVerification);
+    if (typeof window.startDomainVerification === 'function') {
+        console.log('✅ startDomainVerification function successfully created');
+    } else {
+        console.error('❌ FAILED to create startDomainVerification function!');
+    }
+})();
 
 function startDomainVerificationPolling() {
     if (domainVerificationPollInterval) {
@@ -9704,10 +9719,21 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Cache buster and debugging
+console.log('=== DASHBOARD SCRIPT LOADED ===');
 console.log('Dashboard loaded - Version 20241027');
 console.log('updateMegaProgress function:', typeof updateMegaProgress);
 console.log('copyRetrievedSubdomains function:', typeof copyRetrievedSubdomains);
 console.log('startDomainVerification function:', typeof window.startDomainVerification);
+
+// CRITICAL TEST - Verify function exists
+if (typeof window.startDomainVerification === 'function') {
+    console.log('✅✅✅ startDomainVerification IS DEFINED AND IS A FUNCTION ✅✅✅');
+} else {
+    console.error('❌❌❌ CRITICAL ERROR: startDomainVerification IS NOT A FUNCTION ❌❌❌');
+    console.error('Type is:', typeof window.startDomainVerification);
+    console.error('Value is:', window.startDomainVerification);
+    alert('CRITICAL: startDomainVerification function not found! Check console.');
+}
 
 // Force reload if needed
 if (typeof updateMegaProgress === 'undefined') {
