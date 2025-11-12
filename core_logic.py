@@ -9,6 +9,7 @@ from googleapiclient.errors import HttpError
 import google.auth.transport.requests
 from flask import session
 from database import db, GoogleAccount, GoogleToken
+from config import SCOPES
 
 # Use a more robust session service storage
 _session_services = {}
@@ -67,13 +68,7 @@ class WebGoogleAPI:
                 "redirect_uris": ["https://ecochains.online/oauth-callback"]
             }
         }
-        flow = InstalledAppFlow.from_client_config(flow_config, scopes=[
-            'https://www.googleapis.com/auth/admin.directory.user',
-            'https://www.googleapis.com/auth/admin.directory.domain',
-            'https://www.googleapis.com/auth/admin.directory.rolemanagement',
-            'https://www.googleapis.com/auth/admin.directory.orgunit',
-            'https://www.googleapis.com/auth/admin.directory.group'
-        ])
+        flow = InstalledAppFlow.from_client_config(flow_config, scopes=SCOPES)
         flow.redirect_uri = "https://ecochains.online/oauth-callback"
         auth_url, state = flow.authorization_url(
             access_type='offline',
