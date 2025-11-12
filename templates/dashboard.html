@@ -997,7 +997,7 @@
                 </label>
             </div>
             
-            <button onclick="window.startDomainVerification()" class="btn-github btn-github-primary" id="domain-verification-start-btn">
+            <button onclick="console.log('Button clicked!'); if(typeof window.startDomainVerification === 'function') { window.startDomainVerification(); } else { alert('Error: startDomainVerification function not found! Check console for details.'); console.error('startDomainVerification is:', typeof window.startDomainVerification); }" class="btn-github btn-github-primary" id="domain-verification-start-btn">
                 <i class="fas fa-play"></i> Start Process
             </button>
         </div>
@@ -9380,9 +9380,13 @@ function clearAutomationList() {
 let domainVerificationJobId = null;
 let domainVerificationPollInterval = null;
 
-// Make function globally accessible
+// Make function globally accessible - define it immediately
 window.startDomainVerification = function() {
     console.log('🚀 startDomainVerification() called');
+    console.trace('Function call stack');
+    
+    // Immediate feedback
+    alert('Function called! Check console for details.');
     
     try {
         const input = document.getElementById('domain-verification-input').value.trim();
@@ -9658,25 +9662,45 @@ function toggleDomainVerificationLog() {
 
 // Add event listener as fallback for button click
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('📄 DOMContentLoaded fired');
     const btn = document.getElementById('domain-verification-start-btn');
     if (btn) {
         console.log('✅ Domain verification button found, adding event listener...');
+        // Keep onclick but also add event listener as backup
         btn.addEventListener('click', function(e) {
-            e.preventDefault();
             console.log('🔘 Button clicked via event listener');
+            console.log('Function type:', typeof window.startDomainVerification);
             if (typeof window.startDomainVerification === 'function') {
-                window.startDomainVerification();
+                try {
+                    window.startDomainVerification();
+                } catch (err) {
+                    console.error('Error calling startDomainVerification:', err);
+                    alert('Error: ' + err.message);
+                }
             } else {
                 console.error('❌ startDomainVerification function not found!');
                 alert('Error: startDomainVerification function not found. Please refresh the page.');
             }
         });
+        console.log('✅ Event listener added successfully');
     } else {
         console.warn('⚠️ Domain verification button not found on page load');
+        // Try again after a delay
+        setTimeout(function() {
+            const btn2 = document.getElementById('domain-verification-start-btn');
+            if (btn2) {
+                console.log('✅ Found button on retry');
+            } else {
+                console.error('❌ Button still not found after retry');
+            }
+        }, 2000);
     }
     
     // Verify function is accessible
     console.log('startDomainVerification function type:', typeof window.startDomainVerification);
+    if (typeof window.startDomainVerification !== 'function') {
+        console.error('❌ CRITICAL: startDomainVerification is not a function!');
+    }
 });
 
 // Cache buster and debugging
