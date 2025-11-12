@@ -183,14 +183,55 @@
                 </div>
             </div>
             
-            <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+            <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px; flex-wrap: wrap;">
                 <button type="submit" class="btn-github btn-github-primary">
                     <i class="fas fa-save"></i> Save Namecheap Configuration
+                </button>
+                <button type="button" class="btn-github" onclick="fetchNamecheapDomains()" id="fetch-domains-btn">
+                    <i class="fas fa-download"></i> Fetch & Retrieve Domains
                 </button>
             </div>
         </form>
         
         <div id="namecheap-config-status" style="margin-top: 16px; display: none;"></div>
+    </div>
+
+    <!-- Namecheap Domains Modal -->
+    <div id="namecheapDomainsModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px; width: 90%;">
+            <div class="modal-header">
+                <h2><i class="fas fa-globe"></i> Namecheap Domains</h2>
+                <span class="close" onclick="closeNamecheapDomainsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="namecheap-domains-loading" style="text-align: center; padding: 40px; display: none;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 48px; color: #0969da;"></i>
+                    <p style="margin-top: 16px; color: #656d76;">Fetching domains from Namecheap...</p>
+                </div>
+                <div id="namecheap-domains-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <p style="margin: 0; color: #656d76;">
+                            <strong id="namecheap-domains-count">0</strong> domain(s) found
+                        </p>
+                        <button onclick="copyAllNamecheapDomains()" class="btn-github" style="padding: 6px 12px; font-size: 13px;">
+                            <i class="fas fa-copy"></i> Copy All
+                        </button>
+                    </div>
+                    <div style="max-height: 400px; overflow-y: auto; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px;">
+                        <div id="namecheap-domains-list" style="font-family: monospace; font-size: 13px; line-height: 1.8;">
+                            <!-- Domains will be listed here -->
+                        </div>
+                    </div>
+                    <div style="margin-top: 16px; padding: 12px; background-color: #f6f8fa; border-radius: 6px; font-size: 12px; color: #656d76;">
+                        <i class="fas fa-info-circle"></i> Click on any domain to copy it, or use "Copy All" to copy all domains.
+                    </div>
+                </div>
+                <div id="namecheap-domains-error" style="display: none; text-align: center; padding: 40px; color: #cf222e;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px;"></i>
+                    <p id="namecheap-domains-error-message"></p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- OTP Generator SSH Settings Section -->
@@ -552,6 +593,71 @@
     <!-- Status Messages -->
     <div id="status-messages" style="margin-top: 24px;"></div>
 </div>
+
+<style>
+/* Modal Styles for Namecheap Domains */
+#namecheapDomainsModal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#namecheapDomainsModal .modal-content {
+    background-color: #fefefe;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+#namecheapDomainsModal .modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #e1e4e8;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f6f8fa;
+    border-radius: 8px 8px 0 0;
+}
+
+#namecheapDomainsModal .modal-header h2 {
+    margin: 0;
+    color: #24292f;
+    font-size: 20px;
+}
+
+#namecheapDomainsModal .close {
+    color: #656d76;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#namecheapDomainsModal .close:hover {
+    color: #24292f;
+    background-color: #e1e4e8;
+    border-radius: 4px;
+}
+
+#namecheapDomainsModal .modal-body {
+    padding: 20px;
+}
+</style>
 
 <!-- Test Connection Modal -->
 <div class="modal fade" id="testConnectionModal" tabindex="-1" aria-labelledby="testModalLabel" aria-hidden="true">
@@ -2108,6 +2214,203 @@ function saveNamecheapConfiguration() {
         console.error('Error saving Namecheap configuration:', error);
         showStatus('❌ Network error: ' + error, 'error');
     });
+}
+
+function fetchNamecheapDomains() {
+    console.log('Fetching Namecheap domains...');
+    
+    // Check if configuration exists (either in form or database)
+    const apiUser = $('#namecheap_api_user').val().trim();
+    const apiKey = $('#namecheap_api_key').val().trim();
+    const username = $('#namecheap_username').val().trim();
+    const clientIp = $('#namecheap_client_ip').val().trim();
+    
+    // If form fields are empty, check if config is saved in database
+    if (!apiUser || !apiKey || !username || !clientIp) {
+        // Try to fetch from database first
+        fetch('/api/namecheap-config', {
+            method: 'GET',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.config && data.config.is_configured) {
+                // Config exists in database, proceed with fetch
+                proceedWithFetch();
+            } else {
+                showStatus('Please save Namecheap configuration first', 'error');
+            }
+        })
+        .catch(error => {
+            showStatus('Please save Namecheap configuration first', 'error');
+        });
+        return;
+    }
+    
+    proceedWithFetch();
+}
+
+function proceedWithFetch() {
+    
+    // Show modal
+    const modal = document.getElementById('namecheapDomainsModal');
+    modal.style.display = 'flex';
+    
+    // Show loading, hide content and error
+    document.getElementById('namecheap-domains-loading').style.display = 'block';
+    document.getElementById('namecheap-domains-content').style.display = 'none';
+    document.getElementById('namecheap-domains-error').style.display = 'none';
+    
+    // Disable button
+    const btn = document.getElementById('fetch-domains-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching...';
+    
+    fetch('/api/namecheap-domains', {
+        method: 'GET',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-download"></i> Fetch & Retrieve Domains';
+        
+        if (data.success) {
+            displayNamecheapDomains(data.domains);
+        } else {
+            showNamecheapDomainsError(data.error || 'Failed to fetch domains');
+        }
+    })
+    .catch(error => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-download"></i> Fetch & Retrieve Domains';
+        console.error('Error fetching domains:', error);
+        showNamecheapDomainsError('Network error: ' + error);
+    });
+}
+
+function displayNamecheapDomains(domains) {
+    const loading = document.getElementById('namecheap-domains-loading');
+    const content = document.getElementById('namecheap-domains-content');
+    const error = document.getElementById('namecheap-domains-error');
+    const list = document.getElementById('namecheap-domains-list');
+    const count = document.getElementById('namecheap-domains-count');
+    
+    loading.style.display = 'none';
+    error.style.display = 'none';
+    content.style.display = 'block';
+    
+    count.textContent = domains.length;
+    
+    if (domains.length === 0) {
+        list.innerHTML = '<p style="text-align: center; color: #656d76; padding: 20px;">No domains found in your Namecheap account.</p>';
+        return;
+    }
+    
+    let html = '';
+    domains.forEach((domain, index) => {
+        const domainName = domain.name || domain;
+        html += `
+            <div style="padding: 8px; border-bottom: 1px solid #e1e4e8; cursor: pointer; transition: background-color 0.2s;" 
+                 onmouseover="this.style.backgroundColor='#f6f8fa'" 
+                 onmouseout="this.style.backgroundColor='transparent'"
+                 onclick="copyDomainToClipboard('${domainName}')"
+                 title="Click to copy">
+                <span style="color: #0969da; font-weight: 500;">${domainName}</span>
+                ${domain.expire_date ? `<span style="color: #656d76; font-size: 11px; margin-left: 12px;">Expires: ${domain.expire_date}</span>` : ''}
+            </div>
+        `;
+    });
+    
+    list.innerHTML = html;
+}
+
+function showNamecheapDomainsError(message) {
+    const loading = document.getElementById('namecheap-domains-loading');
+    const content = document.getElementById('namecheap-domains-content');
+    const error = document.getElementById('namecheap-domains-error');
+    const errorMsg = document.getElementById('namecheap-domains-error-message');
+    
+    loading.style.display = 'none';
+    content.style.display = 'none';
+    error.style.display = 'block';
+    errorMsg.textContent = message;
+}
+
+function closeNamecheapDomainsModal() {
+    document.getElementById('namecheapDomainsModal').style.display = 'none';
+}
+
+function copyDomainToClipboard(domain) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(domain).then(() => {
+            showStatus(`✅ Copied: ${domain}`, 'success');
+        }).catch(err => {
+            copyToClipboardFallback(domain);
+        });
+    } else {
+        copyToClipboardFallback(domain);
+    }
+}
+
+function copyAllNamecheapDomains() {
+    const domains = [];
+    const listItems = document.querySelectorAll('#namecheap-domains-list > div');
+    listItems.forEach(item => {
+        const domainSpan = item.querySelector('span[style*="color: #0969da"]');
+        if (domainSpan) {
+            domains.push(domainSpan.textContent.trim());
+        }
+    });
+    
+    if (domains.length === 0) {
+        showStatus('No domains to copy', 'error');
+        return;
+    }
+    
+    const domainsText = domains.join('\n');
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(domainsText).then(() => {
+            showStatus(`✅ Copied ${domains.length} domain(s) to clipboard`, 'success');
+        }).catch(err => {
+            copyToClipboardFallback(domainsText);
+        });
+    } else {
+        copyToClipboardFallback(domainsText);
+    }
+}
+
+function copyToClipboardFallback(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showStatus('✅ Copied to clipboard', 'success');
+        } else {
+            showStatus('❌ Copy failed. Please select and copy manually.', 'error');
+        }
+    } catch (err) {
+        showStatus('❌ Copy failed: ' + err.message, 'error');
+    } finally {
+        document.body.removeChild(textArea);
+    }
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('namecheapDomainsModal');
+    if (event.target === modal) {
+        closeNamecheapDomainsModal();
+    }
 }
 
 // OTP SSH Configuration Functions

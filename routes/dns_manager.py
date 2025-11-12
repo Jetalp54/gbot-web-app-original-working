@@ -286,6 +286,37 @@ def add_and_verify_domains():
         logger.error(f"Error starting domain verification: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@dns_manager.route('/api/namecheap-domains', methods=['GET'])
+@login_required
+def get_namecheap_domains():
+    """
+    Get list of domains from Namecheap account.
+    
+    Returns:
+        {
+            "success": bool,
+            "domains": [{"name": "...", "expire_date": "..."}, ...],
+            "error": "..." (if failed)
+        }
+    """
+    try:
+        dns_service = NamecheapDNSService()
+        domains = dns_service.get_domains_list()
+        
+        return jsonify({
+            'success': True,
+            'domains': domains,
+            'total': len(domains)
+        })
+    
+    except Exception as e:
+        logger.error(f"Error fetching Namecheap domains: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'domains': []
+        }), 500
+
 @dns_manager.route('/api/namecheap-config', methods=['GET', 'POST'])
 @login_required
 def namecheap_config():

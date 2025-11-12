@@ -267,6 +267,47 @@ class NamecheapDNSService:
                 return parts[-2]
             return parts[0]
     
+    def get_domains_list(self) -> List[Dict]:
+        """
+        Get list of all domains in the Namecheap account.
+        
+        Returns:
+            List of domain dictionaries with domain name and status
+        """
+        try:
+            result = self._make_request('namecheap.domains.getList', {
+                'PageSize': 100,  # Maximum per page
+                'SortBy': 'NAME'
+            })
+            
+            root = result['xml']
+            domains = []
+            
+            # Parse domain list from XML
+            # Namecheap returns domains in <Domain> elements
+            for domain_elem in root.findall('.//Domain'):
+                domain_name = domain_elem.get('Name') or domain_elem.attrib.get('Name', '')
+                is_locked = domain_elem.get('IsLocked', 'false').lower() == 'true'
+                auto_renew = domain_elem.get('AutoRenew', 'false').lower() == 'true'
+                expire_date = domain_elem.get('ExpiredDate', '')
+                created_date = domain_elem.get('CreatedDate', '')
+                
+                if domain_name:
+                    domains.append({
+                        'name': domain_name,
+                        'is_locked': is_locked,
+                        'auto_renew': auto_renew,
+                        'expire_date': expire_date,
+                        'created_date': created_date
+                    })
+            
+            logger.info(f"Retrieved {len(domains)} domains from Namecheap")
+            return domains
+        
+        except Exception as e:
+            logger.error(f"Error getting domains list: {e}")
+            raise
+
     def _extract_tld(self, domain: str) -> str:
         """
         Extract top-level domain (e.g., 'com' from 'example.com').
