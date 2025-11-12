@@ -11,4 +11,4 @@ psutil==5.9.5
 gunicorn==21.2.0
 requests==2.31.0
 pyotp==2.9.0
-publicsuffix2==2.2.0
+publicsuffix2==2.20191221
