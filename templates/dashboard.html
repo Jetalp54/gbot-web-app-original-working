@@ -9379,16 +9379,20 @@ function clearAutomationList() {
 // IMMEDIATE TEST - This should run first
 console.log('=== DOMAIN VERIFICATION SCRIPT LOADING ===');
 
-// Domain Verification Functions
+// Domain Verification Variables - MUST be defined BEFORE function
 let domainVerificationJobId = null;
 let domainVerificationPollInterval = null;
 
-// Define function DIRECTLY on window - no IIFE wrapper
+// Define function DIRECTLY on window - SIMPLE AND DIRECT
 window.startDomainVerification = function() {
     console.log('🚀 startDomainVerification() called');
     
     try {
-        const input = document.getElementById('domain-verification-input').value.trim();
+        const inputEl = document.getElementById('domain-verification-input');
+        if (!inputEl) {
+            throw new Error('Domain input field not found!');
+        }
+        const input = inputEl.value.trim();
         console.log('📝 Input value:', input);
         
         if (!input) {
