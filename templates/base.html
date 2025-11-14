@@ -2691,6 +2691,118 @@
     </style>
     
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+    <!-- Sidebar Override Styles - Must load after Primer CSS - Version 2.0 -->
+    <style id="sidebar-override-styles">
+        /* Force sidebar styles with high specificity to override Primer CSS */
+        aside.sidebar {
+            background: linear-gradient(180deg, #1a1d29 0%, #161922 100%) !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            height: 100vh !important;
+            width: 260px !important;
+            z-index: 1000 !important;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3) !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        
+        [data-color-mode="light"] aside.sidebar {
+            background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%) !important;
+            border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08) !important;
+        }
+        
+        aside.sidebar.collapsed {
+            width: 64px !important;
+        }
+        
+        /* Navigation Wrapper - Force flex layout */
+        aside.sidebar .nav-item-wrapper {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            margin-bottom: 4px !important;
+        }
+        
+        aside.sidebar .nav-item-wrapper.is-open {
+            margin-bottom: 12px !important;
+        }
+        
+        /* Dropdown Menu - Force proper display */
+        aside.sidebar .dropdown-menu {
+            max-height: 0 !important;
+            overflow: hidden !important;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        opacity 0.25s ease,
+                        padding 0.35s ease,
+                        margin-bottom 0.35s ease !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 2px !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            width: 100% !important;
+            background: transparent !important;
+            position: relative !important;
+        }
+        
+        aside.sidebar .nav-item-wrapper.is-open .dropdown-menu,
+        aside.sidebar .dropdown-menu.is-open {
+            max-height: 500px !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            padding: 4px 0 !important;
+            margin-bottom: 8px !important;
+            overflow: visible !important;
+        }
+        
+        /* Ensure dropdown is directly attached to nav-item - NO SPACING */
+        aside.sidebar .nav-item-wrapper > .nav-item.has-dropdown {
+            margin-bottom: 0 !important;
+            margin-top: 0 !important;
+        }
+        
+        aside.sidebar .nav-item-wrapper > .dropdown-menu {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding-top: 0 !important;
+        }
+        
+        aside.sidebar .nav-item-wrapper.is-open > .dropdown-menu {
+            margin-top: 0 !important;
+            margin-bottom: 8px !important;
+            padding-top: 0 !important;
+        }
+        
+        /* Prevent dropdown from floating or appearing in wrong place */
+        aside.sidebar .nav-item-wrapper {
+            position: relative !important;
+            z-index: 1 !important;
+        }
+        
+        aside.sidebar .nav-item-wrapper .dropdown-menu {
+            position: relative !important;
+            z-index: 1 !important;
+            top: auto !important;
+            left: auto !important;
+            right: auto !important;
+        }
+        
+        /* Ensure other nav-items stay below wrapper */
+        aside.sidebar .sidebar-nav > .nav-item {
+            position: relative !important;
+            z-index: 0 !important;
+            margin-top: 0 !important;
+        }
+    </style>
 </head>
 <body>
     {% if user %}
@@ -2813,27 +2925,30 @@
                 event.stopPropagation();
             }
             
-            const wrapper = document.querySelector('.nav-item-wrapper');
+            const wrapper = document.querySelector('aside.sidebar .nav-item-wrapper');
             const navItem = wrapper ? wrapper.querySelector('.nav-item.has-dropdown') : null;
             const dropdown = document.getElementById('dashboardDropdown');
             
             if (!wrapper || !navItem || !dropdown) {
-                console.error('Sidebar dropdown elements not found');
+                console.error('Sidebar dropdown elements not found', { wrapper, navItem, dropdown });
                 return;
             }
             
             const isOpen = wrapper.classList.contains('is-open');
+            console.log('Toggling dropdown, current state:', isOpen);
             
             if (isOpen) {
                 // Close dropdown
                 wrapper.classList.remove('is-open');
                 navItem.classList.remove('is-open');
                 dropdown.classList.remove('is-open');
+                console.log('Dropdown closed');
             } else {
                 // Open dropdown
                 wrapper.classList.add('is-open');
                 navItem.classList.add('is-open');
                 dropdown.classList.add('is-open');
+                console.log('Dropdown opened');
             }
         }
         
@@ -2906,7 +3021,7 @@
             
             // Auto-open dashboard dropdown if on dashboard page
             if (window.location.pathname === '/dashboard') {
-                const wrapper = document.querySelector('.nav-item-wrapper');
+                const wrapper = document.querySelector('aside.sidebar .nav-item-wrapper');
                 const navItem = wrapper ? wrapper.querySelector('.nav-item.has-dropdown') : null;
                 const dropdown = document.getElementById('dashboardDropdown');
                 
@@ -2914,6 +3029,9 @@
                     wrapper.classList.add('is-open');
                     navItem.classList.add('is-open');
                     dropdown.classList.add('is-open');
+                    console.log('Auto-opened dashboard dropdown');
+                } else {
+                    console.error('Could not auto-open dropdown', { wrapper, navItem, dropdown });
                 }
             }
             
