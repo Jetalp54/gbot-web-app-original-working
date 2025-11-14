@@ -1581,11 +1581,11 @@
             }
         }
 
-        /* Main Content - Modern Unboxed Design */
+        /* Main Content - Modern Unboxed Design - ClickUp Style */
         .main-container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
-            padding: var(--spacing-xl);
+            padding: var(--spacing-xl) var(--spacing-xl);
             min-height: calc(100vh - 80px);
             position: relative;
             z-index: 1;
@@ -1616,22 +1616,21 @@
             box-shadow: 0 4px 12px var(--color-shadow);
         }
 
-        /* Modern Cards - ClickUp Style */
+        /* Modern Cards - ClickUp Style - Unboxed */
         .github-card {
             background-color: var(--color-canvas-default);
-            border: 1px solid var(--color-border-default);
+            border: none;
             border-radius: var(--radius-lg);
-            padding: var(--spacing-lg);
+            padding: var(--spacing-xl);
             margin-bottom: var(--spacing-lg);
-            box-shadow: 0 1px 2px var(--color-shadow), 0 0 0 1px var(--color-border-default);
+            box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
         }
 
         .github-card:hover {
-            border-color: var(--color-border-muted);
-            box-shadow: 0 4px 12px var(--color-shadow-medium), 0 0 0 1px var(--color-border-muted);
-            transform: translateY(-1px);
+            box-shadow: 0 4px 16px var(--color-shadow-medium), 0 2px 4px var(--color-shadow);
+            transform: translateY(-2px);
         }
 
         .github-card-header {
@@ -1655,7 +1654,7 @@
             color: var(--color-accent-fg);
         }
 
-        /* Modern Buttons - ClickUp Style */
+        /* Modern Buttons - ClickUp Style - Unboxed */
         .btn-github {
             background-color: var(--color-btn-bg);
             border: 1px solid var(--color-btn-border);
@@ -1670,10 +1669,16 @@
             align-items: center;
             gap: var(--spacing-sm);
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            min-height: 36px;
+            min-height: 38px;
             position: relative;
             overflow: hidden;
             letter-spacing: -0.01em;
+            box-shadow: 0 1px 2px var(--color-shadow);
+        }
+        
+        .btn-github:hover {
+            box-shadow: 0 2px 4px var(--color-shadow);
+            transform: translateY(-1px);
         }
 
         .btn-github::before {
@@ -1728,69 +1733,77 @@
             color: var(--color-btn-danger-text);
         }
 
-        /* Form Elements */
+        /* Modern Form Elements - ClickUp Style */
         .form-control-github {
             background-color: var(--color-input-bg);
-            border: 1px solid var(--color-input-border);
-            border-radius: 6px;
-            padding: 8px 12px;
+            border: 1px solid var(--color-border-default);
+            border-radius: var(--radius-md);
+            padding: 10px 14px;
             font-size: 14px;
             color: var(--color-fg-default);
             width: 100%;
-            transition: all 0.2s ease;
-            min-height: 32px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            min-height: 38px;
+            box-shadow: 0 1px 2px var(--color-shadow);
+        }
+
+        .form-control-github:hover {
+            border-color: var(--color-border-muted);
+            box-shadow: 0 2px 4px var(--color-shadow);
         }
 
         .form-control-github:focus {
-            border-color: var(--color-accent-emphasis);
+            border-color: var(--color-accent-fg);
             outline: none;
-            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.3);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), 0 2px 4px var(--color-shadow);
         }
 
         [data-color-mode="dark"] .form-control-github:focus {
-            box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.3);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2), 0 2px 4px var(--color-shadow);
         }
 
         .form-group-github {
-            margin-bottom: 16px;
+            margin-bottom: var(--spacing-lg);
         }
 
         .form-label-github {
             display: block;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 13px;
             color: var(--color-fg-default);
-            margin-bottom: 8px;
+            margin-bottom: var(--spacing-sm);
+            letter-spacing: -0.01em;
         }
 
-        /* Alerts */
+        /* Modern Alerts - ClickUp Style */
         .alert-github {
-            padding: 16px;
-            border-radius: 6px;
-            border: 1px solid;
-            margin-bottom: 16px;
+            padding: var(--spacing-md);
+            border-radius: var(--radius-md);
+            border: none;
+            margin-bottom: var(--spacing-md);
             font-size: 14px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: var(--spacing-sm);
+            box-shadow: 0 1px 3px var(--color-shadow);
         }
 
         .alert-success {
-            background-color: rgba(45, 164, 78, 0.1);
-            border-color: var(--color-success-emphasis);
+            background-color: rgba(16, 185, 129, 0.08);
             color: var(--color-success-fg);
+            box-shadow: 0 1px 3px rgba(16, 185, 129, 0.1);
         }
 
         .alert-danger {
-            background-color: rgba(218, 54, 51, 0.1);
-            border-color: var(--color-danger-emphasis);
+            background-color: rgba(239, 68, 68, 0.08);
             color: var(--color-danger-fg);
+            box-shadow: 0 1px 3px rgba(239, 68, 68, 0.1);
         }
 
         .alert-warning {
-            background-color: rgba(251, 133, 0, 0.1);
-            border-color: var(--color-warning-emphasis);
+            background-color: rgba(245, 158, 11, 0.08);
             color: var(--color-warning-fg);
+            box-shadow: 0 1px 3px rgba(245, 158, 11, 0.1);
         }
 
         /* Tables */
@@ -2043,13 +2056,14 @@
 
         /* Clean 3-tab layout - no special overrides needed */
 
-        /* Dashboard sections */
+        /* Dashboard sections - Unboxed */
         .section {
             background-color: var(--color-canvas-default);
-            border: 1px solid var(--color-border-default);
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 24px;
+            border: none;
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            margin-bottom: var(--spacing-lg);
+            box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
         }
 
         .section h3 {
@@ -2080,24 +2094,32 @@
         .form-row select,
         .form-row input {
             background-color: var(--color-input-bg);
-            border: 1px solid var(--color-input-border);
-            border-radius: 6px;
-            padding: 8px 12px;
+            border: 1px solid var(--color-border-default);
+            border-radius: var(--radius-md);
+            padding: 10px 14px;
             color: var(--color-fg-default);
             min-width: 200px;
             flex: 1;
+            box-shadow: 0 1px 2px var(--color-shadow);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .form-row select:hover,
+        .form-row input:hover {
+            border-color: var(--color-border-muted);
+            box-shadow: 0 2px 4px var(--color-shadow);
         }
 
         .form-row select:focus,
         .form-row input:focus {
-            border-color: var(--color-accent-emphasis);
+            border-color: var(--color-accent-fg);
             outline: none;
-            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.3);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), 0 2px 4px var(--color-shadow);
         }
 
         [data-color-mode="dark"] .form-row select:focus,
         [data-color-mode="dark"] .form-row input:focus {
-            box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.3);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2), 0 2px 4px var(--color-shadow);
         }
 
         /* Button rows */
@@ -2511,27 +2533,36 @@
         .form-group select,
         .form-group textarea {
             background-color: var(--color-input-bg);
-            border: 1px solid var(--color-input-border);
-            border-radius: 6px;
-            padding: 8px 12px;
+            border: 1px solid var(--color-border-default);
+            border-radius: var(--radius-md);
+            padding: 10px 14px;
             font-size: 14px;
             color: var(--color-fg-default);
             width: 100%;
-            transition: all 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 1px 2px var(--color-shadow);
+            min-height: 38px;
+        }
+
+        .form-group input:hover,
+        .form-group select:hover,
+        .form-group textarea:hover {
+            border-color: var(--color-border-muted);
+            box-shadow: 0 2px 4px var(--color-shadow);
         }
 
         .form-group input:focus,
         .form-group select:focus,
         .form-group textarea:focus {
-            border-color: var(--color-accent-emphasis);
+            border-color: var(--color-accent-fg);
             outline: none;
-            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.3);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), 0 2px 4px var(--color-shadow);
         }
 
         [data-color-mode="dark"] .form-group input:focus,
         [data-color-mode="dark"] .form-group select:focus,
         [data-color-mode="dark"] .form-group textarea:focus {
-            box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.3);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2), 0 2px 4px var(--color-shadow);
         }
 
         /* Legacy button compatibility */
