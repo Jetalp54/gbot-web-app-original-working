@@ -2,8 +2,8 @@
 {% block title %}Dashboard - GBot Web{% endblock %}
 
 {% block content %}
-<!-- Tab Navigation -->
-<div class="tab-navigation">
+<!-- Tab Navigation - Hidden, tabs now in sidebar dropdown -->
+<div class="tab-navigation" style="display: none;">
     <nav>
         <button class="tab-button active" onclick="showTab('tab1')">
             <i class="fas fa-user-friends"></i>
@@ -1529,6 +1529,16 @@ let selectedDomain = null;
 
 // Tab switching functionality
 function showTab(tabId) {
+    // Update sidebar dropdown active state
+    const dropdownItems = document.querySelectorAll('.dropdown-item');
+    dropdownItems.forEach(item => {
+        item.classList.remove('active');
+        if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(tabId)) {
+            item.classList.add('active');
+        }
+    });
+    
+    // Original showTab logic
     console.log('Switching to tab:', tabId);
     
     // Hide all tab contents
