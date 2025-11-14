@@ -1091,6 +1091,12 @@
         .nav-item-below-dropdown {
             position: relative;
             z-index: 1;
+            margin-top: 0;
+            transition: margin-top 0.3s ease;
+        }
+        
+        .nav-item-wrapper:has(.dropdown-open-menu) ~ .nav-item-below-dropdown {
+            margin-top: 0;
         }
 
         .sidebar.collapsed .nav-item span {
@@ -1139,6 +1145,7 @@
             position: relative;
             margin-bottom: 4px;
             z-index: 1;
+            width: 100%;
         }
         
         .nav-item.has-dropdown {
@@ -1151,6 +1158,7 @@
             z-index: 1;
             background-color: transparent;
             margin-top: 0;
+            width: 100%;
         }
 
         .dropdown-toggle {
@@ -1170,7 +1178,7 @@
         .dropdown-menu {
             max-height: 0;
             overflow: hidden;
-            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease, margin-top 0.3s ease;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease, margin-top 0.3s ease, margin-bottom 0.3s ease;
             margin-top: 0;
             margin-bottom: 0;
             margin-left: 0;
@@ -1194,7 +1202,8 @@
             padding: 8px 12px;
             visibility: visible;
             margin-top: 8px;
-            margin-bottom: 8px;
+            margin-bottom: 16px !important;
+            display: flex !important;
         }
 
         .sidebar.collapsed .dropdown-menu {
@@ -2719,13 +2728,28 @@
                 navItem.classList.toggle('dropdown-open');
                 dropdown.classList.toggle('dropdown-open-menu');
                 
-                // Remove any inline styles that might interfere
-                dropdown.style.removeProperty('display');
-                dropdown.style.removeProperty('visibility');
-                dropdown.style.removeProperty('opacity');
-                dropdown.style.removeProperty('max-height');
-                dropdown.style.removeProperty('padding');
-                dropdown.style.removeProperty('margin-top');
+                // Force proper display and spacing to push items down
+                if (!isOpen) {
+                    // Opening - force display with margin-bottom to push items down
+                    dropdown.style.setProperty('display', 'flex', 'important');
+                    dropdown.style.setProperty('visibility', 'visible', 'important');
+                    dropdown.style.setProperty('opacity', '1', 'important');
+                    dropdown.style.setProperty('max-height', '500px', 'important');
+                    dropdown.style.setProperty('padding', '8px 12px', 'important');
+                    dropdown.style.setProperty('margin-top', '8px', 'important');
+                    dropdown.style.setProperty('margin-bottom', '16px', 'important');
+                } else {
+                    // Closing - remove inline styles to let CSS handle it
+                    setTimeout(() => {
+                        dropdown.style.removeProperty('display');
+                        dropdown.style.removeProperty('visibility');
+                        dropdown.style.removeProperty('opacity');
+                        dropdown.style.removeProperty('max-height');
+                        dropdown.style.removeProperty('padding');
+                        dropdown.style.removeProperty('margin-top');
+                        dropdown.style.removeProperty('margin-bottom');
+                    }, 400);
+                }
             }
         }
         
@@ -2803,13 +2827,14 @@
                 if (navItem && dropdown) {
                     navItem.classList.add('dropdown-open');
                     dropdown.classList.add('dropdown-open-menu');
-                    // Remove any inline styles
-                    dropdown.style.removeProperty('display');
-                    dropdown.style.removeProperty('visibility');
-                    dropdown.style.removeProperty('opacity');
-                    dropdown.style.removeProperty('max-height');
-                    dropdown.style.removeProperty('padding');
-                    dropdown.style.removeProperty('margin-top');
+                    // Force display with proper spacing
+                    dropdown.style.setProperty('display', 'flex', 'important');
+                    dropdown.style.setProperty('visibility', 'visible', 'important');
+                    dropdown.style.setProperty('opacity', '1', 'important');
+                    dropdown.style.setProperty('max-height', '500px', 'important');
+                    dropdown.style.setProperty('padding', '8px 12px', 'important');
+                    dropdown.style.setProperty('margin-top', '8px', 'important');
+                    dropdown.style.setProperty('margin-bottom', '16px', 'important');
                 }
             }
             
@@ -2998,5 +3023,40 @@
     </script>
     
     {% block scripts %}{% endblock %}
+    
+    <!-- Scroll to Top Button -->
+    <button class="scroll-to-top" id="scrollToTop" onclick="scrollToTop()" title="Scroll to top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+    
+    <script>
+        // Scroll to Top Button
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+        
+        // Show/hide scroll to top button
+        window.addEventListener('scroll', function() {
+            const scrollButton = document.getElementById('scrollToTop');
+            if (scrollButton) {
+                if (window.pageYOffset > 300) {
+                    scrollButton.classList.add('visible');
+                } else {
+                    scrollButton.classList.remove('visible');
+                }
+            }
+        });
+        
+        // Initialize scroll button on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const scrollButton = document.getElementById('scrollToTop');
+            if (scrollButton && window.pageYOffset > 300) {
+                scrollButton.classList.add('visible');
+            }
+        });
+    </script>
 </body>
 </html>
