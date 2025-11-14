@@ -69,85 +69,103 @@
     <!-- Professional GitHub Theme -->
     <style>
         :root {
-            /* Light theme variables */
+            /* Modern ClickUp-like Light Theme */
             --color-canvas-default: #ffffff;
-            --color-canvas-subtle: #f6f8fa;
-            --color-canvas-inset: #f6f8fa;
-            --color-border-default: #d0d7de;
-            --color-border-muted: #d8dee4;
-            --color-border-subtle: rgba(27,31,36,0.15);
-            --color-fg-default: #1f2328;
-            --color-fg-muted: #656d76;
-            --color-fg-subtle: #6e7781;
-            --color-accent-fg: #0969da;
-            --color-accent-emphasis: #0969da;
-            --color-success-fg: #1a7f37;
-            --color-success-emphasis: #2da44e;
-            --color-danger-fg: #cf222e;
-            --color-danger-emphasis: #da3633;
-            --color-warning-fg: #9a6700;
-            --color-warning-emphasis: #fb8500;
-            --color-header-bg: #24292f;
-            --color-header-text: #f0f6fc;
-            --color-btn-text: #24292f;
-            --color-btn-bg: #f6f8fa;
-            --color-btn-border: #d0d7de;
-            --color-btn-hover-bg: #f3f4f6;
-            --color-btn-hover-border: #afb8c1;
+            --color-canvas-subtle: #f7f8f9;
+            --color-canvas-inset: #f0f1f2;
+            --color-border-default: #e4e6e8;
+            --color-border-muted: #e8eaed;
+            --color-border-subtle: rgba(0,0,0,0.08);
+            --color-fg-default: #2d3436;
+            --color-fg-muted: #636e72;
+            --color-fg-subtle: #b2bec3;
+            --color-accent-fg: #6366f1;
+            --color-accent-emphasis: #4f46e5;
+            --color-accent-purple: #8b5cf6;
+            --color-success-fg: #10b981;
+            --color-success-emphasis: #059669;
+            --color-danger-fg: #ef4444;
+            --color-danger-emphasis: #dc2626;
+            --color-warning-fg: #f59e0b;
+            --color-warning-emphasis: #d97706;
+            --color-header-bg: #ffffff;
+            --color-header-text: #2d3436;
+            --color-btn-text: #2d3436;
+            --color-btn-bg: #ffffff;
+            --color-btn-border: #e4e6e8;
+            --color-btn-hover-bg: #f7f8f9;
+            --color-btn-hover-border: #d1d5db;
             --color-btn-primary-text: #ffffff;
-            --color-btn-primary-bg: #2da44e;
-            --color-btn-primary-border: #2da44e;
-            --color-btn-primary-hover-bg: #2c974b;
+            --color-btn-primary-bg: #6366f1;
+            --color-btn-primary-border: #6366f1;
+            --color-btn-primary-hover-bg: #4f46e5;
             --color-btn-danger-text: #ffffff;
-            --color-btn-danger-bg: #da3633;
-            --color-btn-danger-border: #da3633;
-            --color-btn-danger-hover-bg: #b62324;
+            --color-btn-danger-bg: #ef4444;
+            --color-btn-danger-border: #ef4444;
+            --color-btn-danger-hover-bg: #dc2626;
             --color-input-bg: #ffffff;
-            --color-input-border: #d0d7de;
-            --color-shadow: rgba(31,35,40,0.04);
-            --color-shadow-medium: rgba(31,35,40,0.15);
-            --color-shadow-large: rgba(31,35,40,0.22);
+            --color-input-border: #e4e6e8;
+            --color-shadow: rgba(0,0,0,0.04);
+            --color-shadow-medium: rgba(0,0,0,0.08);
+            --color-shadow-large: rgba(0,0,0,0.12);
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
         }
 
         [data-color-mode="dark"] {
-            /* Dark theme variables */
-            --color-canvas-default: #0d1117;
-            --color-canvas-subtle: #161b22;
-            --color-canvas-inset: #161b22;
-            --color-border-default: #30363d;
-            --color-border-muted: #21262d;
-            --color-border-subtle: rgba(240,246,252,0.1);
-            --color-fg-default: #e6edf3;
-            --color-fg-muted: #7d8590;
-            --color-fg-subtle: #656d76;
-            --color-accent-fg: #2f81f7;
-            --color-accent-emphasis: #2f81f7;
-            --color-success-fg: #3fb950;
-            --color-success-emphasis: #238636;
-            --color-danger-fg: #f85149;
-            --color-danger-emphasis: #da3633;
-            --color-warning-fg: #d29922;
-            --color-warning-emphasis: #fb8500;
-            --color-header-bg: #161b22;
-            --color-header-text: #f0f6fc;
-            --color-btn-text: #c9d1d9;
-            --color-btn-bg: #21262d;
-            --color-btn-border: #30363d;
-            --color-btn-hover-bg: #30363d;
-            --color-btn-hover-border: #8b949e;
+            /* Modern ClickUp-like Dark Theme */
+            --color-canvas-default: #1a1d29;
+            --color-canvas-subtle: #161922;
+            --color-canvas-inset: #0f1117;
+            --color-border-default: #2d3142;
+            --color-border-muted: #252836;
+            --color-border-subtle: rgba(255,255,255,0.1);
+            --color-fg-default: #e4e6eb;
+            --color-fg-muted: #9ca3af;
+            --color-fg-subtle: #6b7280;
+            --color-accent-fg: #818cf8;
+            --color-accent-emphasis: #6366f1;
+            --color-accent-purple: #a78bfa;
+            --color-success-fg: #34d399;
+            --color-success-emphasis: #10b981;
+            --color-danger-fg: #f87171;
+            --color-danger-emphasis: #ef4444;
+            --color-warning-fg: #fbbf24;
+            --color-warning-emphasis: #f59e0b;
+            --color-header-bg: #1a1d29;
+            --color-header-text: #e4e6eb;
+            --color-btn-text: #e4e6eb;
+            --color-btn-bg: #252836;
+            --color-btn-border: #2d3142;
+            --color-btn-hover-bg: #2d3142;
+            --color-btn-hover-border: #3d4154;
             --color-btn-primary-text: #ffffff;
-            --color-btn-primary-bg: #238636;
-            --color-btn-primary-border: #238636;
-            --color-btn-primary-hover-bg: #2ea043;
+            --color-btn-primary-bg: #6366f1;
+            --color-btn-primary-border: #6366f1;
+            --color-btn-primary-hover-bg: #4f46e5;
             --color-btn-danger-text: #ffffff;
-            --color-btn-danger-bg: #da3633;
-            --color-btn-danger-border: #da3633;
-            --color-btn-danger-hover-bg: #b62324;
-            --color-input-bg: #0d1117;
-            --color-input-border: #30363d;
-            --color-shadow: rgba(1,4,9,0.8);
-            --color-shadow-medium: rgba(1,4,9,0.8);
-            --color-shadow-large: rgba(1,4,9,0.8);
+            --color-btn-danger-bg: #ef4444;
+            --color-btn-danger-border: #ef4444;
+            --color-btn-danger-hover-bg: #dc2626;
+            --color-input-bg: #161922;
+            --color-input-border: #2d3142;
+            --color-shadow: rgba(0,0,0,0.3);
+            --color-shadow-medium: rgba(0,0,0,0.4);
+            --color-shadow-large: rgba(0,0,0,0.5);
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
         }
 
         /* Force dark theme on ALL elements */
@@ -873,22 +891,27 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Roboto", "Helvetica Neue", Arial, sans-serif;
             font-size: 14px;
-            line-height: 1.5;
-            background-color: var(--color-canvas-default);
+            line-height: 1.6;
+            font-weight: 400;
+            letter-spacing: -0.01em;
+            background-color: var(--color-canvas-subtle);
             color: var(--color-fg-default);
             margin: 0;
             min-height: 100vh;
             transition: all 0.3s ease;
             width: 100%;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         /* Ensure all containers inherit background and cover full width */
         .main-container {
-            background-color: var(--color-canvas-default);
+            background-color: var(--color-canvas-subtle);
             width: 100%;
             min-height: calc(100vh - 80px);
+            padding: var(--spacing-lg);
         }
 
         /* Force full-width background coverage */
@@ -931,10 +954,10 @@
            SIDEBAR - COMPLETE REFACTOR
            ============================================ */
         
-        /* Left Sidebar - Modern SaaS Design */
+        /* Left Sidebar - Modern ClickUp Design */
         .sidebar {
-            background: linear-gradient(180deg, #1a1d29 0%, #161922 100%);
-            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            background: var(--color-canvas-default);
+            border-right: 1px solid var(--color-border-default);
             position: fixed;
             left: 0;
             top: 0;
@@ -944,15 +967,15 @@
             transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             overflow-y: auto;
             overflow-x: hidden;
-            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+            box-shadow: 2px 0 8px var(--color-shadow);
             display: flex;
             flex-direction: column;
         }
         
         [data-color-mode="light"] .sidebar {
-            background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
-            border-right: 1px solid rgba(0, 0, 0, 0.08);
-            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
+            background: var(--color-canvas-default);
+            border-right: 1px solid var(--color-border-default);
+            box-shadow: 2px 0 8px var(--color-shadow);
         }
 
         .sidebar::-webkit-scrollbar {
@@ -977,19 +1000,15 @@
         }
 
         .sidebar-header {
-            padding: 20px 16px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding: var(--spacing-lg) var(--spacing-md);
+            border-bottom: 1px solid var(--color-border-default);
             display: flex;
             align-items: center;
             justify-content: space-between;
             min-height: 64px;
             background: transparent;
             flex-wrap: wrap;
-            gap: 12px;
-        }
-        
-        [data-color-mode="light"] .sidebar-header {
-            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            gap: var(--spacing-sm);
         }
         
         .sidebar.collapsed .sidebar-header {
@@ -1047,7 +1066,7 @@
         .sidebar-toggle {
             background: linear-gradient(135deg, rgba(240, 246, 252, 0.1) 0%, rgba(240, 246, 252, 0.05) 100%);
             border: 1px solid rgba(240, 246, 252, 0.2);
-            color: var(--color-header-text);
+            color: rgba(255, 255, 255, 0.9);
             padding: 8px;
             border-radius: 10px;
             cursor: pointer;
@@ -1061,6 +1080,12 @@
             flex-shrink: 0;
         }
         
+        [data-color-mode="light"] .sidebar-toggle {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: rgba(99, 102, 241, 0.9);
+        }
+        
         .sidebar.collapsed .sidebar-toggle {
             width: 100%;
             margin-top: 8px;
@@ -1071,6 +1096,13 @@
             transform: scale(1.08) rotate(90deg);
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             border-color: rgba(240, 246, 252, 0.3);
+            color: rgba(255, 255, 255, 1);
+        }
+        
+        [data-color-mode="light"] .sidebar-toggle:hover {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+            border-color: rgba(99, 102, 241, 0.5);
+            color: rgba(99, 102, 241, 1);
         }
 
         /* Sidebar Navigation */
@@ -1099,10 +1131,10 @@
 
         /* Navigation Items */
         .nav-item {
-            color: rgba(255, 255, 255, 0.85);
+            color: var(--color-fg-muted);
             text-decoration: none;
             padding: 10px 12px;
-            border-radius: 8px;
+            border-radius: var(--radius-md);
             font-weight: 500;
             font-size: 14px;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1114,10 +1146,7 @@
             background: transparent;
             border: none;
             margin-bottom: 0;
-        }
-        
-        [data-color-mode="light"] .nav-item {
-            color: rgba(0, 0, 0, 0.75);
+            letter-spacing: -0.01em;
         }
 
         .sidebar.collapsed .nav-item span {
@@ -1125,26 +1154,21 @@
         }
 
         .nav-item:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: rgba(255, 255, 255, 1);
+            background: var(--color-canvas-subtle);
+            color: var(--color-fg-default);
             text-decoration: none;
             transform: none;
         }
-        
-        [data-color-mode="light"] .nav-item:hover {
-            background: rgba(0, 0, 0, 0.04);
-            color: rgba(0, 0, 0, 0.9);
-        }
 
         .nav-item.active {
-            background: rgba(99, 102, 241, 0.15);
-            color: rgba(255, 255, 255, 1);
+            background: var(--color-canvas-subtle);
+            color: var(--color-accent-fg);
             font-weight: 600;
         }
         
         [data-color-mode="light"] .nav-item.active {
-            background: rgba(99, 102, 241, 0.1);
-            color: rgba(99, 102, 241, 1);
+            background: rgba(99, 102, 241, 0.08);
+            color: var(--color-accent-fg);
         }
 
         .nav-item.active::before {
@@ -1514,7 +1538,7 @@
             color: white;
         }
 
-        /* Main Content Area */
+        /* Main Content Area - Modern Unboxed */
         .main-wrapper {
             flex: 1;
             margin-left: 260px;
@@ -1523,7 +1547,7 @@
             width: calc(100% - 260px);
             position: relative;
             z-index: 1;
-            background-color: var(--color-canvas-default);
+            background-color: var(--color-canvas-subtle);
         }
 
         .sidebar.collapsed ~ .main-wrapper {
@@ -1557,15 +1581,15 @@
             }
         }
 
-        /* Main Content */
+        /* Main Content - Modern Unboxed Design */
         .main-container {
-            max-width: 1280px;
+            max-width: 1400px;
             margin: 0 auto;
-            padding: 32px;
+            padding: var(--spacing-xl);
             min-height: calc(100vh - 80px);
             position: relative;
             z-index: 1;
-            background-color: var(--color-canvas-default);
+            background-color: var(--color-canvas-subtle);
         }
         
         /* Tooltip for collapsed sidebar */
@@ -1592,60 +1616,64 @@
             box-shadow: 0 4px 12px var(--color-shadow);
         }
 
-        /* GitHub Cards */
+        /* Modern Cards - ClickUp Style */
         .github-card {
             background-color: var(--color-canvas-default);
             border: 1px solid var(--color-border-default);
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
-            transition: all 0.3s ease;
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+            box-shadow: 0 1px 2px var(--color-shadow), 0 0 0 1px var(--color-border-default);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
         }
 
         .github-card:hover {
             border-color: var(--color-border-muted);
-            box-shadow: 0 8px 24px var(--color-shadow-medium);
+            box-shadow: 0 4px 12px var(--color-shadow-medium), 0 0 0 1px var(--color-border-muted);
+            transform: translateY(-1px);
         }
 
         .github-card-header {
-            border-bottom: 1px solid var(--color-border-muted);
-            padding-bottom: 20px;
-            margin-bottom: 24px;
+            border-bottom: 1px solid var(--color-border-default);
+            padding-bottom: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
         }
 
         .github-card-title {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 600;
             color: var(--color-fg-default);
             margin: 0;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: var(--spacing-sm);
+            letter-spacing: -0.02em;
         }
 
         .github-card-title i {
             color: var(--color-accent-fg);
         }
 
-        /* Buttons */
+        /* Modern Buttons - ClickUp Style */
         .btn-github {
             background-color: var(--color-btn-bg);
             border: 1px solid var(--color-btn-border);
             color: var(--color-btn-text);
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 10px 20px;
+            border-radius: var(--radius-md);
             font-weight: 500;
             font-size: 14px;
             cursor: pointer;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            transition: all 0.2s ease;
-            min-height: 32px;
+            gap: var(--spacing-sm);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            min-height: 36px;
             position: relative;
             overflow: hidden;
+            letter-spacing: -0.01em;
         }
 
         .btn-github::before {
@@ -2696,8 +2724,8 @@
     <style id="sidebar-override-styles">
         /* Force sidebar styles with high specificity to override Primer CSS */
         aside.sidebar {
-            background: linear-gradient(180deg, #1a1d29 0%, #161922 100%) !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+            background: var(--color-canvas-default) !important;
+            border-right: 1px solid var(--color-border-default) !important;
             position: fixed !important;
             left: 0 !important;
             top: 0 !important;
@@ -2707,15 +2735,15 @@
             transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
             overflow-y: auto !important;
             overflow-x: hidden !important;
-            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3) !important;
+            box-shadow: 2px 0 8px var(--color-shadow) !important;
             display: flex !important;
             flex-direction: column !important;
         }
         
         [data-color-mode="light"] aside.sidebar {
-            background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%) !important;
-            border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
-            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08) !important;
+            background: var(--color-canvas-default) !important;
+            border-right: 1px solid var(--color-border-default) !important;
+            box-shadow: 2px 0 8px var(--color-shadow) !important;
         }
         
         aside.sidebar.collapsed {
@@ -2811,7 +2839,6 @@
         <div class="sidebar-header">
             <a href="/dashboard" class="sidebar-logo" title="GBot">
                 <i class="fas fa-robot"></i>
-                <span>GBot</span>
             </a>
             <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
                 <i class="fas fa-angle-double-left" id="sidebarToggleIcon"></i>
@@ -2834,9 +2861,9 @@
                         <i class="fas fa-user-plus"></i>
                         <span>User Create/Delete/Domain</span>
                     </a>
-                    <a href="/dashboard#tab3" class="dropdown-item" onclick="handleDashboardTabClick(event, 'tab3');" title="Bulk Domain Change & SMTP/CSV">
+                    <a href="/dashboard#tab3" class="dropdown-item" onclick="handleDashboardTabClick(event, 'tab3');" title="DNS & SMTP">
                         <i class="fas fa-exchange-alt"></i>
-                        <span>Bulk Domain Change & SMTP/CSV</span>
+                        <span>DNS & SMTP</span>
                     </a>
                 </div>
             </div>
