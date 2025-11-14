@@ -1085,6 +1085,7 @@
             flex-direction: column;
             width: 100%;
             margin-bottom: 2px;
+            position: relative;
         }
         
         /* When dropdown is open, wrapper expands to push items below down */
@@ -1093,6 +1094,21 @@
         }
         
         .nav-item-wrapper:has(.dropdown-open-menu) {
+            margin-bottom: 8px !important;
+        }
+        
+        /* Ensure dropdown is directly attached to Dashboard nav-item */
+        .nav-item-wrapper .nav-item.has-dropdown {
+            margin-bottom: 0;
+        }
+        
+        .nav-item-wrapper .dropdown-menu {
+            margin-top: 0 !important;
+            margin-bottom: 0;
+        }
+        
+        .nav-item-wrapper .dropdown-menu.dropdown-open-menu {
+            margin-top: 0 !important;
             margin-bottom: 8px !important;
         }
 
@@ -1123,6 +1139,7 @@
             position: relative;
             z-index: 1;
             margin-top: 0;
+            clear: both;
         }
 
         .sidebar.collapsed .nav-item span {
@@ -1186,13 +1203,14 @@
             position: relative;
             z-index: 1;
             background: transparent;
-            margin-top: 0;
+            margin-top: 0 !important;
             margin-left: 0;
             margin-right: 0;
             width: 100%;
             flex-shrink: 0;
             padding-left: 0;
             padding-right: 0;
+            padding-top: 0;
         }
 
         .dropdown-toggle {
@@ -1277,6 +1295,7 @@
             position: relative;
             overflow: hidden;
             margin-bottom: 2px;
+            margin-top: 0;
         }
         
         [data-color-mode="light"] .dropdown-item {
