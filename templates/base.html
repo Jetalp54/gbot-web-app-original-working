@@ -1117,8 +1117,16 @@
         }
         
         .nav-item-wrapper .dropdown-menu {
-            position: relative;
-            z-index: 1;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background-color: var(--color-header-bg);
+            border: 1px solid var(--color-border-default);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            margin-top: 0;
         }
 
         .dropdown-toggle {
@@ -1138,9 +1146,8 @@
         .dropdown-menu {
             max-height: 0;
             overflow: hidden;
-            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease, margin-top 0.3s ease;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
             margin-top: 0;
-            margin-bottom: 0;
             margin-left: 0;
             margin-right: 0;
             display: flex;
@@ -1150,9 +1157,10 @@
             padding: 0 12px;
             visibility: hidden;
             width: 100%;
-            background-color: transparent;
-            position: relative;
-            z-index: 1;
+            background-color: var(--color-header-bg);
+            border: 1px solid var(--color-border-default);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
         .nav-item.has-dropdown.dropdown-open + .dropdown-menu,
@@ -1162,9 +1170,7 @@
             opacity: 1;
             padding: 8px 12px;
             visibility: visible;
-            margin-top: 8px;
-            margin-bottom: 12px;
-            background-color: transparent;
+            margin-top: 4px;
         }
 
         .sidebar.collapsed .dropdown-menu {
