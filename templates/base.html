@@ -1035,6 +1035,8 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         .nav-item {
@@ -1125,6 +1127,7 @@
             overflow: hidden;
             transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease, margin-top 0.3s ease;
             margin-top: 0;
+            margin-bottom: 8px;
             margin-left: 0;
             margin-right: 0;
             display: flex;
@@ -1144,6 +1147,7 @@
             padding: 8px 12px;
             visibility: visible;
             margin-top: 8px;
+            margin-bottom: 8px;
         }
 
         .sidebar.collapsed .dropdown-menu {
@@ -1220,9 +1224,14 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
+            margin-top: auto;
         }
 
-        .sidebar.collapsed .sidebar-footer > *:not(.theme-toggle) {
+        .sidebar.collapsed .sidebar-footer .sidebar-user-info span {
+            display: none;
+        }
+        
+        .sidebar.collapsed .sidebar-footer .btn-logout span {
             display: none;
         }
 
@@ -1238,6 +1247,12 @@
             color: var(--color-header-text);
             border: 1px solid rgba(240, 246, 252, 0.15);
             transition: all 0.3s ease;
+            justify-content: center;
+        }
+        
+        .sidebar.collapsed .sidebar-user-info {
+            padding: 12px;
+            justify-content: center;
         }
         
         .sidebar-user-info:hover {
@@ -1247,11 +1262,22 @@
 
         .sidebar-user-info i {
             font-size: 16px;
+            min-width: 16px;
         }
 
         .sidebar-footer-actions {
             display: flex;
             gap: 8px;
+            align-items: center;
+        }
+        
+        .sidebar.collapsed .sidebar-footer-actions {
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .sidebar.collapsed .sidebar-footer-actions .btn-logout {
+            width: 100%;
         }
 
         .theme-toggle {
@@ -1299,6 +1325,11 @@
             overflow: hidden;
         }
         
+        .sidebar.collapsed .btn-logout {
+            padding: 12px;
+            justify-content: center;
+        }
+        
         .btn-logout::before {
             content: '';
             position: absolute;
@@ -1322,8 +1353,12 @@
             left: 100%;
         }
 
-        .sidebar.collapsed .btn-logout span {
+        .btn-logout span {
             display: none;
+        }
+        
+        .btn-logout i {
+            font-size: 16px;
         }
 
         /* Main Content Area */
@@ -2520,7 +2555,7 @@
         
         <nav class="sidebar-nav">
             <div class="nav-item-wrapper">
-                <a href="/dashboard" class="nav-item has-dropdown {% if request.endpoint == 'dashboard' %}active dropdown-open{% endif %}" onclick="if(event.target.closest('.dropdown-toggle')) { toggleDashboardDropdown(event); return false; }" title="Dashboard">
+                <a href="/dashboard#tab1" class="nav-item has-dropdown {% if request.endpoint == 'dashboard' %}active dropdown-open{% endif %}" onclick="if(event.target.closest('.dropdown-toggle')) { toggleDashboardDropdown(event); return false; } else { handleDashboardClick(event); }" title="Dashboard">
                     <i class="fas fa-chart-bar"></i>
                     <span>Dashboard</span>
                     <i class="fas fa-chevron-down dropdown-toggle" onclick="toggleDashboardDropdown(event); event.stopPropagation();"></i>
@@ -2568,7 +2603,6 @@
                 </button>
                 <a href="{{ url_for('logout') }}" class="btn-logout" title="Logout">
                     <i class="fas fa-sign-out-alt"></i>
-                    <span>Logout</span>
                 </a>
             </div>
         </div>
@@ -2641,6 +2675,14 @@
                 dropdown.style.removeProperty('max-height');
                 dropdown.style.removeProperty('padding');
                 dropdown.style.removeProperty('margin-top');
+            }
+        }
+        
+        function handleDashboardClick(event) {
+            // If clicking on Dashboard link (not dropdown toggle), redirect to tab1
+            if (!event.target.closest('.dropdown-toggle')) {
+                event.preventDefault();
+                window.location.href = '/dashboard#tab1';
             }
         }
         
