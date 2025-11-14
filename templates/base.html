@@ -1123,11 +1123,11 @@
         .dropdown-menu {
             max-height: 0;
             overflow: hidden;
-            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease, margin-top 0.3s ease;
             margin-top: 0;
             margin-left: 0;
             margin-right: 0;
-            display: none;
+            display: flex;
             flex-direction: column;
             gap: 6px;
             opacity: 0;
@@ -1137,24 +1137,13 @@
         }
 
         .nav-item.has-dropdown.dropdown-open + .dropdown-menu,
-        .nav-item-wrapper .nav-item.dropdown-open + .dropdown-menu {
-            display: flex !important;
-            max-height: 500px !important;
-            opacity: 1 !important;
-            padding: 8px 12px !important;
-            visibility: visible !important;
-            margin-top: 8px !important;
-        }
-        
-        /* Ensure dropdown is visible when parent has dropdown-open class */
-        .nav-item.dropdown-open ~ .dropdown-menu,
-        .nav-item-wrapper .dropdown-menu[style*="flex"] {
-            display: flex !important;
-            max-height: 500px !important;
-            opacity: 1 !important;
-            padding: 8px 12px !important;
-            visibility: visible !important;
-            margin-top: 8px !important;
+        .nav-item-wrapper .nav-item.dropdown-open + .dropdown-menu,
+        .dropdown-menu.dropdown-open-menu {
+            max-height: 500px;
+            opacity: 1;
+            padding: 8px 12px;
+            visibility: visible;
+            margin-top: 8px;
         }
 
         .sidebar.collapsed .dropdown-menu {
@@ -1343,10 +1332,15 @@
             margin-left: 280px;
             transition: margin-left 0.3s ease;
             min-height: 100vh;
+            width: calc(100% - 280px);
+            position: relative;
+            z-index: 1;
+            background-color: var(--color-canvas-default);
         }
 
         .sidebar.collapsed ~ .main-wrapper {
             margin-left: 70px;
+            width: calc(100% - 70px);
         }
 
         /* Legacy header styles - keep for compatibility but hide */
@@ -1381,6 +1375,9 @@
             margin: 0 auto;
             padding: 32px;
             min-height: calc(100vh - 80px);
+            position: relative;
+            z-index: 1;
+            background-color: var(--color-canvas-default);
         }
         
         /* Tooltip for collapsed sidebar */
@@ -2523,21 +2520,21 @@
         
         <nav class="sidebar-nav">
             <div class="nav-item-wrapper">
-                <a href="/dashboard" class="nav-item has-dropdown {% if request.endpoint == 'dashboard' %}active dropdown-open{% endif %}" onclick="toggleDashboardDropdown(event); return false;" title="Dashboard">
+                <a href="/dashboard" class="nav-item has-dropdown {% if request.endpoint == 'dashboard' %}active dropdown-open{% endif %}" onclick="if(event.target.closest('.dropdown-toggle')) { toggleDashboardDropdown(event); return false; }" title="Dashboard">
                     <i class="fas fa-chart-bar"></i>
                     <span>Dashboard</span>
-                    <i class="fas fa-chevron-down dropdown-toggle"></i>
+                    <i class="fas fa-chevron-down dropdown-toggle" onclick="toggleDashboardDropdown(event); event.stopPropagation();"></i>
                 </a>
-                <div class="dropdown-menu" id="dashboardDropdown" style="display: {% if request.endpoint == 'dashboard' %}flex{% else %}none{% endif %};">
-                    <a href="/dashboard#tab1" class="dropdown-item" onclick="event.preventDefault(); showTab('tab1');" title="Account & User Management">
+                <div class="dropdown-menu" id="dashboardDropdown" {% if request.endpoint == 'dashboard' %}class="dropdown-open-menu"{% endif %}>
+                    <a href="/dashboard#tab1" class="dropdown-item" onclick="handleDashboardTabClick(event, 'tab1');" title="Account & User Management">
                         <i class="fas fa-user-friends"></i>
                         <span>Account & User Mgmt</span>
                     </a>
-                    <a href="/dashboard#tab2" class="dropdown-item" onclick="event.preventDefault(); showTab('tab2');" title="User Create/Delete/Domain">
+                    <a href="/dashboard#tab2" class="dropdown-item" onclick="handleDashboardTabClick(event, 'tab2');" title="User Create/Delete/Domain">
                         <i class="fas fa-user-plus"></i>
                         <span>User Create/Delete/Domain</span>
                     </a>
-                    <a href="/dashboard#tab3" class="dropdown-item" onclick="event.preventDefault(); showTab('tab3');" title="Bulk Domain Change & SMTP/CSV">
+                    <a href="/dashboard#tab3" class="dropdown-item" onclick="handleDashboardTabClick(event, 'tab3');" title="Bulk Domain Change & SMTP/CSV">
                         <i class="fas fa-exchange-alt"></i>
                         <span>Bulk Domain Change & SMTP/CSV</span>
                     </a>
@@ -2630,40 +2627,58 @@
             const navItem = document.querySelector('.nav-item.has-dropdown');
             const dropdown = document.getElementById('dashboardDropdown');
             
-            console.log('Toggle dropdown clicked', navItem, dropdown);
-            
             if (navItem && dropdown) {
                 const isOpen = navItem.classList.contains('dropdown-open');
-                console.log('Current state:', isOpen);
                 
-                // Toggle the class
+                // Toggle the class - CSS will handle the animation
                 navItem.classList.toggle('dropdown-open');
+                dropdown.classList.toggle('dropdown-open-menu');
                 
-                // Force display update with inline styles
-                if (!isOpen) {
-                    // Opening - force show
-                    dropdown.style.setProperty('display', 'flex', 'important');
-                    dropdown.style.setProperty('visibility', 'visible', 'important');
-                    dropdown.style.setProperty('opacity', '1', 'important');
-                    dropdown.style.setProperty('max-height', '500px', 'important');
-                    dropdown.style.setProperty('padding', '8px 12px', 'important');
-                    dropdown.style.setProperty('margin-top', '8px', 'important');
-                    console.log('Opening dropdown - forced display');
-                } else {
-                    // Closing
-                    dropdown.style.setProperty('max-height', '0', 'important');
-                    dropdown.style.setProperty('opacity', '0', 'important');
-                    dropdown.style.setProperty('padding', '0 12px', 'important');
-                    dropdown.style.setProperty('margin-top', '0', 'important');
-                    setTimeout(() => {
-                        dropdown.style.setProperty('display', 'none', 'important');
-                        dropdown.style.setProperty('visibility', 'hidden', 'important');
-                    }, 400);
-                    console.log('Closing dropdown');
-                }
-            } else {
-                console.error('Nav item or dropdown not found', navItem, dropdown);
+                // Remove any inline styles that might interfere
+                dropdown.style.removeProperty('display');
+                dropdown.style.removeProperty('visibility');
+                dropdown.style.removeProperty('opacity');
+                dropdown.style.removeProperty('max-height');
+                dropdown.style.removeProperty('padding');
+                dropdown.style.removeProperty('margin-top');
             }
+        }
+        
+        function handleDashboardTabClick(event, tabId) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // Navigate to dashboard if not already there
+            if (window.location.pathname !== '/dashboard') {
+                window.location.href = '/dashboard#' + tabId;
+                return;
+            }
+            
+            // Update URL hash
+            window.location.hash = tabId;
+            
+            // Call showTab function if it exists
+            if (typeof showTab === 'function') {
+                showTab(tabId);
+            } else {
+                // Fallback: wait for showTab to be available
+                setTimeout(() => {
+                    if (typeof showTab === 'function') {
+                        showTab(tabId);
+                    } else {
+                        console.warn('showTab function not found');
+                    }
+                }, 100);
+            }
+            
+            // Update active state in dropdown
+            const dropdownItems = document.querySelectorAll('.dropdown-item');
+            dropdownItems.forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(tabId)) {
+                    item.classList.add('active');
+                }
+            });
         }
         
         // Initialize sidebar state
@@ -2694,14 +2709,14 @@
                 const dropdown = document.getElementById('dashboardDropdown');
                 if (navItem && dropdown) {
                     navItem.classList.add('dropdown-open');
-                    // Force show with inline styles
-                    dropdown.style.setProperty('display', 'flex', 'important');
-                    dropdown.style.setProperty('visibility', 'visible', 'important');
-                    dropdown.style.setProperty('opacity', '1', 'important');
-                    dropdown.style.setProperty('max-height', '500px', 'important');
-                    dropdown.style.setProperty('padding', '8px 12px', 'important');
-                    dropdown.style.setProperty('margin-top', '8px', 'important');
-                    console.log('Auto-opened dashboard dropdown');
+                    dropdown.classList.add('dropdown-open-menu');
+                    // Remove any inline styles
+                    dropdown.style.removeProperty('display');
+                    dropdown.style.removeProperty('visibility');
+                    dropdown.style.removeProperty('opacity');
+                    dropdown.style.removeProperty('max-height');
+                    dropdown.style.removeProperty('padding');
+                    dropdown.style.removeProperty('margin-top');
                 }
             }
             
