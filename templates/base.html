@@ -1097,6 +1097,11 @@
         }
 
         /* Dashboard Dropdown */
+        .nav-item-wrapper {
+            position: relative;
+            margin-bottom: 4px;
+        }
+        
         .nav-item.has-dropdown {
             position: relative;
         }
@@ -1128,9 +1133,22 @@
             opacity: 0;
             padding: 0 12px;
             visibility: hidden;
+            width: 100%;
         }
 
-        .nav-item.dropdown-open + .dropdown-menu {
+        .nav-item.has-dropdown.dropdown-open + .dropdown-menu,
+        .nav-item-wrapper .nav-item.dropdown-open + .dropdown-menu {
+            display: flex !important;
+            max-height: 500px !important;
+            opacity: 1 !important;
+            padding: 8px 12px !important;
+            visibility: visible !important;
+            margin-top: 8px !important;
+        }
+        
+        /* Ensure dropdown is visible when parent has dropdown-open class */
+        .nav-item.dropdown-open ~ .dropdown-menu,
+        .nav-item-wrapper .dropdown-menu[style*="flex"] {
             display: flex !important;
             max-height: 500px !important;
             opacity: 1 !important;
@@ -2499,29 +2517,31 @@
                 <span>GBot</span>
             </a>
             <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
-                <i class="fas fa-bars"></i>
+                <i class="fas fa-angle-double-left" id="sidebarToggleIcon"></i>
             </button>
         </div>
         
         <nav class="sidebar-nav">
-            <a href="/dashboard" class="nav-item has-dropdown {% if request.endpoint == 'dashboard' %}active dropdown-open{% endif %}" onclick="toggleDashboardDropdown(event)" title="Dashboard">
-                <i class="fas fa-chart-bar"></i>
-                <span>Dashboard</span>
-                <i class="fas fa-chevron-down dropdown-toggle"></i>
-            </a>
-            <div class="dropdown-menu" id="dashboardDropdown">
-                <a href="/dashboard#tab1" class="dropdown-item" onclick="event.preventDefault(); showTab('tab1');" title="Account & User Management">
-                    <i class="fas fa-user-friends"></i>
-                    <span>Account & User Mgmt</span>
+            <div class="nav-item-wrapper">
+                <a href="/dashboard" class="nav-item has-dropdown {% if request.endpoint == 'dashboard' %}active dropdown-open{% endif %}" onclick="toggleDashboardDropdown(event); return false;" title="Dashboard">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Dashboard</span>
+                    <i class="fas fa-chevron-down dropdown-toggle"></i>
                 </a>
-                <a href="/dashboard#tab2" class="dropdown-item" onclick="event.preventDefault(); showTab('tab2');" title="User Create/Delete/Domain">
-                    <i class="fas fa-user-plus"></i>
-                    <span>User Create/Delete/Domain</span>
-                </a>
-                <a href="/dashboard#tab3" class="dropdown-item" onclick="event.preventDefault(); showTab('tab3');" title="Bulk Domain Change & SMTP/CSV">
-                    <i class="fas fa-exchange-alt"></i>
-                    <span>Bulk Domain Change & SMTP/CSV</span>
-                </a>
+                <div class="dropdown-menu" id="dashboardDropdown" style="display: {% if request.endpoint == 'dashboard' %}flex{% else %}none{% endif %};">
+                    <a href="/dashboard#tab1" class="dropdown-item" onclick="event.preventDefault(); showTab('tab1');" title="Account & User Management">
+                        <i class="fas fa-user-friends"></i>
+                        <span>Account & User Mgmt</span>
+                    </a>
+                    <a href="/dashboard#tab2" class="dropdown-item" onclick="event.preventDefault(); showTab('tab2');" title="User Create/Delete/Domain">
+                        <i class="fas fa-user-plus"></i>
+                        <span>User Create/Delete/Domain</span>
+                    </a>
+                    <a href="/dashboard#tab3" class="dropdown-item" onclick="event.preventDefault(); showTab('tab3');" title="Bulk Domain Change & SMTP/CSV">
+                        <i class="fas fa-exchange-alt"></i>
+                        <span>Bulk Domain Change & SMTP/CSV</span>
+                    </a>
+                </div>
             </div>
             
             {% if role == 'admin' %}
@@ -2585,9 +2605,20 @@
         // Sidebar Management
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
+            const toggleIcon = document.getElementById('sidebarToggleIcon');
             if (sidebar) {
+                const isCollapsed = sidebar.classList.contains('collapsed');
                 sidebar.classList.toggle('collapsed');
                 localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+                
+                // Update icon based on state
+                if (toggleIcon) {
+                    if (sidebar.classList.contains('collapsed')) {
+                        toggleIcon.className = 'fas fa-angle-double-right';
+                    } else {
+                        toggleIcon.className = 'fas fa-angle-double-left';
+                    }
+                }
             }
         }
         
@@ -2605,30 +2636,29 @@
                 const isOpen = navItem.classList.contains('dropdown-open');
                 console.log('Current state:', isOpen);
                 
+                // Toggle the class
                 navItem.classList.toggle('dropdown-open');
                 
-                // Force display update
+                // Force display update with inline styles
                 if (!isOpen) {
-                    // Opening
-                    dropdown.style.display = 'flex';
-                    dropdown.style.visibility = 'visible';
-                    dropdown.style.opacity = '1';
-                    dropdown.style.maxHeight = '500px';
-                    dropdown.style.padding = '8px 12px';
-                    dropdown.style.marginTop = '8px';
-                    console.log('Opening dropdown');
+                    // Opening - force show
+                    dropdown.style.setProperty('display', 'flex', 'important');
+                    dropdown.style.setProperty('visibility', 'visible', 'important');
+                    dropdown.style.setProperty('opacity', '1', 'important');
+                    dropdown.style.setProperty('max-height', '500px', 'important');
+                    dropdown.style.setProperty('padding', '8px 12px', 'important');
+                    dropdown.style.setProperty('margin-top', '8px', 'important');
+                    console.log('Opening dropdown - forced display');
                 } else {
                     // Closing
+                    dropdown.style.setProperty('max-height', '0', 'important');
+                    dropdown.style.setProperty('opacity', '0', 'important');
+                    dropdown.style.setProperty('padding', '0 12px', 'important');
+                    dropdown.style.setProperty('margin-top', '0', 'important');
                     setTimeout(() => {
-                        dropdown.style.maxHeight = '0';
-                        dropdown.style.opacity = '0';
-                        dropdown.style.padding = '0 12px';
-                        dropdown.style.marginTop = '0';
-                        setTimeout(() => {
-                            dropdown.style.display = 'none';
-                            dropdown.style.visibility = 'hidden';
-                        }, 400);
-                    }, 10);
+                        dropdown.style.setProperty('display', 'none', 'important');
+                        dropdown.style.setProperty('visibility', 'hidden', 'important');
+                    }, 400);
                     console.log('Closing dropdown');
                 }
             } else {
@@ -2639,9 +2669,15 @@
         // Initialize sidebar state
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');
+            const toggleIcon = document.getElementById('sidebarToggleIcon');
             const savedState = localStorage.getItem('sidebarCollapsed');
             if (sidebar && savedState === 'true') {
                 sidebar.classList.add('collapsed');
+                if (toggleIcon) {
+                    toggleIcon.className = 'fas fa-angle-double-right';
+                }
+            } else if (toggleIcon) {
+                toggleIcon.className = 'fas fa-angle-double-left';
             }
             
             // Handle hash navigation for dashboard tabs
@@ -2658,12 +2694,13 @@
                 const dropdown = document.getElementById('dashboardDropdown');
                 if (navItem && dropdown) {
                     navItem.classList.add('dropdown-open');
-                    dropdown.style.display = 'flex';
-                    dropdown.style.visibility = 'visible';
-                    dropdown.style.opacity = '1';
-                    dropdown.style.maxHeight = '500px';
-                    dropdown.style.padding = '8px 12px';
-                    dropdown.style.marginTop = '8px';
+                    // Force show with inline styles
+                    dropdown.style.setProperty('display', 'flex', 'important');
+                    dropdown.style.setProperty('visibility', 'visible', 'important');
+                    dropdown.style.setProperty('opacity', '1', 'important');
+                    dropdown.style.setProperty('max-height', '500px', 'important');
+                    dropdown.style.setProperty('padding', '8px 12px', 'important');
+                    dropdown.style.setProperty('margin-top', '8px', 'important');
                     console.log('Auto-opened dashboard dropdown');
                 }
             }
