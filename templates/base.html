@@ -927,6 +927,10 @@
             min-height: 100vh;
         }
 
+        /* ============================================
+           SIDEBAR - COMPLETE REFACTOR
+           ============================================ */
+        
         /* Left Sidebar - Modern SaaS Design */
         .sidebar {
             background: linear-gradient(180deg, #1a1d29 0%, #161922 100%);
@@ -1069,56 +1073,31 @@
             border-color: rgba(240, 246, 252, 0.3);
         }
 
+        /* Sidebar Navigation */
         .sidebar-nav {
             flex: 1;
             padding: 12px 8px;
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 4px;
             overflow-y: auto;
             overflow-x: hidden;
         }
         
-        /* Navigation Wrapper - Critical for dropdown behavior */
+        /* Navigation Item Wrapper - Contains Dashboard + Dropdown */
         .nav-item-wrapper {
-            display: block;
-            width: 100%;
-            margin-bottom: 2px;
-            position: relative;
-        }
-        
-        /* When dropdown is open, wrapper expands to push items below down */
-        .nav-item-wrapper.dropdown-wrapper-open {
-            margin-bottom: 8px !important;
-        }
-        
-        .nav-item-wrapper:has(.dropdown-open-menu) {
-            margin-bottom: 8px !important;
-        }
-        
-        /* Ensure dropdown is directly attached to Dashboard nav-item - NO SPACING */
-        .nav-item-wrapper > .nav-item.has-dropdown {
-            margin-bottom: 0 !important;
-        }
-        
-        .nav-item-wrapper > .dropdown-menu {
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-            padding-top: 0 !important;
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            width: 100%;
+            margin-bottom: 4px;
         }
         
-        .nav-item-wrapper > .dropdown-menu.dropdown-open-menu {
-            margin-top: 0 !important;
-            margin-bottom: 8px !important;
-            padding-top: 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 2px !important;
+        /* When dropdown is open, wrapper expands to push items below */
+        .nav-item-wrapper.is-open {
+            margin-bottom: 12px;
         }
 
+        /* Navigation Items */
         .nav-item {
             color: rgba(255, 255, 255, 0.85);
             text-decoration: none;
@@ -1134,19 +1113,11 @@
             position: relative;
             background: transparent;
             border: none;
-            margin-bottom: 2px;
-            z-index: 1;
+            margin-bottom: 0;
         }
         
         [data-color-mode="light"] .nav-item {
             color: rgba(0, 0, 0, 0.75);
-        }
-        
-        .nav-item-below-dropdown {
-            position: relative;
-            z-index: 1;
-            margin-top: 0;
-            clear: both;
         }
 
         .sidebar.collapsed .nav-item span {
@@ -1199,38 +1170,25 @@
             transform: scale(1.1);
         }
 
-        /* Dashboard Dropdown - Modern Design */
-        .nav-item.has-dropdown {
-            position: relative;
-            z-index: 1;
-            margin-bottom: 0;
-        }
-        
-        .nav-item-wrapper .dropdown-menu {
-            position: relative;
-            z-index: 1;
-            background: transparent;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
+        /* Dropdown Toggle Icon */
         .dropdown-toggle {
             margin-left: auto;
-            transition: transform 0.2s ease;
+            transition: transform 0.3s ease;
             font-size: 11px;
             opacity: 0.6;
+            pointer-events: none;
         }
 
-        .nav-item.dropdown-open .dropdown-toggle {
+        .nav-item.has-dropdown .dropdown-toggle {
+            pointer-events: auto;
+        }
+
+        .nav-item.has-dropdown.is-open .dropdown-toggle {
             transform: rotate(180deg);
             opacity: 1;
         }
         
-        .nav-item:hover .dropdown-toggle {
+        .nav-item.has-dropdown:hover .dropdown-toggle {
             opacity: 1;
         }
 
@@ -1238,12 +1196,16 @@
             display: none;
         }
 
+        /* Dropdown Menu - Clean Implementation */
         .dropdown-menu {
             max-height: 0;
             overflow: hidden;
-            transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, padding 0.3s ease, margin-bottom 0.3s ease;
-            margin: 0 !important;
-            padding: 0 !important;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        opacity 0.25s ease,
+                        padding 0.35s ease,
+                        margin-bottom 0.35s ease;
+            margin: 0;
+            padding: 0;
             display: flex;
             flex-direction: column;
             gap: 2px;
@@ -1254,23 +1216,16 @@
             position: relative;
         }
 
-        .nav-item.has-dropdown.dropdown-open + .dropdown-menu,
-        .nav-item-wrapper .nav-item.dropdown-open + .dropdown-menu,
-        .nav-item-wrapper .dropdown-menu.dropdown-open-menu {
-            max-height: 500px !important;
-            opacity: 1 !important;
-            padding: 4px 0 0 0 !important;
-            visibility: visible !important;
-            margin: 0 0 8px 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 2px !important;
-            position: relative !important;
-            overflow: visible !important;
+        /* Dropdown Menu - Open State */
+        .nav-item-wrapper.is-open .dropdown-menu,
+        .dropdown-menu.is-open {
+            max-height: 500px;
+            opacity: 1;
+            visibility: visible;
+            padding: 4px 0;
+            margin-bottom: 8px;
+            overflow: visible;
         }
-        
-        /* Critical: Expand wrapper when dropdown opens to push items down */
-        /* This is handled above in .nav-item-wrapper.dropdown-wrapper-open */
 
         .sidebar.collapsed .dropdown-menu {
             display: none !important;
@@ -1347,11 +1302,11 @@
         .dropdown-item i {
             font-size: 16px;
             min-width: 16px;
-            color: var(--color-header-text);
+            color: inherit;
         }
         
         .dropdown-item span {
-            color: var(--color-header-text);
+            color: inherit;
         }
         
         .sidebar.collapsed .dropdown-item {
@@ -2752,13 +2707,13 @@
         </div>
         
         <nav class="sidebar-nav">
-            <div class="nav-item-wrapper">
-                <a href="/dashboard#tab1" class="nav-item has-dropdown {% if request.endpoint == 'dashboard' %}active dropdown-open{% endif %}" onclick="if(event.target.closest('.dropdown-toggle')) { toggleDashboardDropdown(event); return false; } else { handleDashboardClick(event); }" title="Dashboard">
+            <div class="nav-item-wrapper {% if request.endpoint == 'dashboard' %}is-open{% endif %}">
+                <a href="/dashboard#tab1" class="nav-item has-dropdown {% if request.endpoint == 'dashboard' %}active is-open{% endif %}" onclick="if(event.target.closest('.dropdown-toggle')) { toggleDashboardDropdown(event); return false; } else { handleDashboardClick(event); }" title="Dashboard">
                     <i class="fas fa-chart-bar"></i>
                     <span>Dashboard</span>
                     <i class="fas fa-chevron-down dropdown-toggle" onclick="toggleDashboardDropdown(event); event.stopPropagation();"></i>
                 </a>
-                <div class="dropdown-menu" id="dashboardDropdown" {% if request.endpoint == 'dashboard' %}class="dropdown-open-menu"{% endif %}>
+                <div class="dropdown-menu {% if request.endpoint == 'dashboard' %}is-open{% endif %}" id="dashboardDropdown">
                     <a href="/dashboard#tab1" class="dropdown-item" onclick="handleDashboardTabClick(event, 'tab1');" title="Account & User Management">
                         <i class="fas fa-user-friends"></i>
                         <span>Account & User Mgmt</span>
@@ -2775,15 +2730,15 @@
             </div>
             
             {% if role == 'admin' %}
-            <a href="/users" class="nav-item nav-item-below-dropdown {% if request.endpoint == 'users' %}active{% endif %}" title="Users">
+            <a href="/users" class="nav-item {% if request.endpoint == 'users' %}active{% endif %}" title="Users">
                 <i class="fas fa-users"></i>
                 <span>Users</span>
             </a>
-            <a href="/whitelist" class="nav-item nav-item-below-dropdown {% if request.endpoint == 'whitelist' %}active{% endif %}" title="IP Whitelist">
+            <a href="/whitelist" class="nav-item {% if request.endpoint == 'whitelist' %}active{% endif %}" title="IP Whitelist">
                 <i class="fas fa-shield-alt"></i>
                 <span>IP Whitelist</span>
             </a>
-            <a href="/settings" class="nav-item nav-item-below-dropdown {% if request.endpoint == 'settings' %}active{% endif %}" title="Settings">
+            <a href="/settings" class="nav-item {% if request.endpoint == 'settings' %}active{% endif %}" title="Settings">
                 <i class="fas fa-cog"></i>
                 <span>Settings</span>
             </a>
@@ -2851,48 +2806,34 @@
             }
         }
         
+        // Dashboard Dropdown Toggle - Clean Implementation
         function toggleDashboardDropdown(event) {
             if (event) {
                 event.preventDefault();
                 event.stopPropagation();
             }
-            const navItem = document.querySelector('.nav-item.has-dropdown');
-            const dropdown = document.getElementById('dashboardDropdown');
-            const wrapper = document.querySelector('.nav-item-wrapper');
             
-            if (navItem && dropdown && wrapper) {
-                const isOpen = navItem.classList.contains('dropdown-open');
-                
-                // Toggle the class - CSS will handle the animation
-                navItem.classList.toggle('dropdown-open');
-                dropdown.classList.toggle('dropdown-open-menu');
-                
-                // Add/remove class on wrapper to trigger CSS changes
-                if (!isOpen) {
-                    wrapper.classList.add('dropdown-wrapper-open');
-                    // Opening - force display with proper spacing
-                    dropdown.style.setProperty('display', 'flex', 'important');
-                    dropdown.style.setProperty('visibility', 'visible', 'important');
-                    dropdown.style.setProperty('opacity', '1', 'important');
-                    dropdown.style.setProperty('max-height', '500px', 'important');
-                    dropdown.style.setProperty('padding', '4px 0', 'important');
-                    dropdown.style.setProperty('margin-top', '0', 'important');
-                    dropdown.style.setProperty('margin-bottom', '8px', 'important');
-                    dropdown.style.setProperty('overflow', 'visible', 'important');
-                } else {
-                    wrapper.classList.remove('dropdown-wrapper-open');
-                    // Closing - remove inline styles to let CSS handle it
-                    setTimeout(() => {
-                        dropdown.style.removeProperty('display');
-                        dropdown.style.removeProperty('visibility');
-                        dropdown.style.removeProperty('opacity');
-                        dropdown.style.removeProperty('max-height');
-                        dropdown.style.removeProperty('padding');
-                        dropdown.style.removeProperty('margin-top');
-                        dropdown.style.removeProperty('margin-bottom');
-                        dropdown.style.removeProperty('overflow');
-                    }, 400);
-                }
+            const wrapper = document.querySelector('.nav-item-wrapper');
+            const navItem = wrapper ? wrapper.querySelector('.nav-item.has-dropdown') : null;
+            const dropdown = document.getElementById('dashboardDropdown');
+            
+            if (!wrapper || !navItem || !dropdown) {
+                console.error('Sidebar dropdown elements not found');
+                return;
+            }
+            
+            const isOpen = wrapper.classList.contains('is-open');
+            
+            if (isOpen) {
+                // Close dropdown
+                wrapper.classList.remove('is-open');
+                navItem.classList.remove('is-open');
+                dropdown.classList.remove('is-open');
+            } else {
+                // Open dropdown
+                wrapper.classList.add('is-open');
+                navItem.classList.add('is-open');
+                dropdown.classList.add('is-open');
             }
         }
         
@@ -2965,19 +2906,14 @@
             
             // Auto-open dashboard dropdown if on dashboard page
             if (window.location.pathname === '/dashboard') {
-                const navItem = document.querySelector('.nav-item.has-dropdown');
+                const wrapper = document.querySelector('.nav-item-wrapper');
+                const navItem = wrapper ? wrapper.querySelector('.nav-item.has-dropdown') : null;
                 const dropdown = document.getElementById('dashboardDropdown');
-                if (navItem && dropdown) {
-                    navItem.classList.add('dropdown-open');
-                    dropdown.classList.add('dropdown-open-menu');
-                    // Force display with proper spacing
-                    dropdown.style.setProperty('display', 'flex', 'important');
-                    dropdown.style.setProperty('visibility', 'visible', 'important');
-                    dropdown.style.setProperty('opacity', '1', 'important');
-                    dropdown.style.setProperty('max-height', '500px', 'important');
-                    dropdown.style.setProperty('padding', '4px 0', 'important');
-                    dropdown.style.setProperty('margin-top', '0', 'important');
-                    dropdown.style.setProperty('margin-bottom', '8px', 'important');
+                
+                if (wrapper && navItem && dropdown) {
+                    wrapper.classList.add('is-open');
+                    navItem.classList.add('is-open');
+                    dropdown.classList.add('is-open');
                 }
             }
             
