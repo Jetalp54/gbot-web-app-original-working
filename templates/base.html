@@ -1099,21 +1099,24 @@
         /* Ensure dropdown is directly attached to Dashboard nav-item - NO SPACING */
         .nav-item-wrapper > .nav-item.has-dropdown {
             margin-bottom: 0 !important;
-            display: block;
         }
         
         .nav-item-wrapper > .dropdown-menu {
             margin-top: 0 !important;
             margin-bottom: 0 !important;
             padding-top: 0 !important;
-            display: block;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
         
         .nav-item-wrapper > .dropdown-menu.dropdown-open-menu {
             margin-top: 0 !important;
             margin-bottom: 8px !important;
             padding-top: 0 !important;
-            display: block !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 2px !important;
         }
 
         .nav-item {
@@ -1210,7 +1213,9 @@
             margin: 0 !important;
             padding: 0 !important;
             width: 100%;
-            display: block;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
 
         .dropdown-toggle {
@@ -1239,7 +1244,9 @@
             transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, padding 0.3s ease, margin-bottom 0.3s ease;
             margin: 0 !important;
             padding: 0 !important;
-            display: block;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
             opacity: 0;
             visibility: hidden;
             width: 100%;
@@ -1255,7 +1262,9 @@
             padding: 4px 0 0 0 !important;
             visibility: visible !important;
             margin: 0 0 8px 0 !important;
-            display: block !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 2px !important;
             position: relative !important;
             overflow: visible !important;
         }
