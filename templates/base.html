@@ -1087,8 +1087,13 @@
             margin-bottom: 2px;
         }
         
+        /* When dropdown is open, wrapper expands to push items below down */
         .nav-item-wrapper.dropdown-wrapper-open {
-            margin-bottom: 8px;
+            margin-bottom: 8px !important;
+        }
+        
+        .nav-item-wrapper:has(.dropdown-open-menu) {
+            margin-bottom: 8px !important;
         }
 
         .nav-item {
@@ -1181,7 +1186,7 @@
             position: relative;
             z-index: 1;
             background: transparent;
-            margin-top: 4px;
+            margin-top: 0;
             margin-left: 0;
             margin-right: 0;
             width: 100%;
@@ -1214,7 +1219,7 @@
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, padding 0.3s ease, margin-bottom 0.3s ease;
-            margin-top: 4px;
+            margin-top: 0;
             margin-bottom: 0;
             margin-left: 0;
             margin-right: 0;
@@ -1241,7 +1246,7 @@
             padding-left: 0 !important;
             padding-right: 0 !important;
             visibility: visible !important;
-            margin-top: 4px !important;
+            margin-top: 0 !important;
             margin-bottom: 8px !important;
             display: flex !important;
             position: relative !important;
@@ -1249,13 +1254,7 @@
         }
         
         /* Critical: Expand wrapper when dropdown opens to push items down */
-        .nav-item-wrapper.dropdown-wrapper-open {
-            margin-bottom: 8px !important;
-        }
-        
-        .nav-item-wrapper:has(.dropdown-open-menu) {
-            margin-bottom: 8px !important;
-        }
+        /* This is handled above in .nav-item-wrapper.dropdown-wrapper-open */
 
         .sidebar.collapsed .dropdown-menu {
             display: none !important;
@@ -2860,7 +2859,7 @@
                     dropdown.style.setProperty('opacity', '1', 'important');
                     dropdown.style.setProperty('max-height', '500px', 'important');
                     dropdown.style.setProperty('padding', '4px 0', 'important');
-                    dropdown.style.setProperty('margin-top', '4px', 'important');
+                    dropdown.style.setProperty('margin-top', '0', 'important');
                     dropdown.style.setProperty('margin-bottom', '8px', 'important');
                     dropdown.style.setProperty('overflow', 'visible', 'important');
                 } else {
@@ -2960,7 +2959,7 @@
                     dropdown.style.setProperty('opacity', '1', 'important');
                     dropdown.style.setProperty('max-height', '500px', 'important');
                     dropdown.style.setProperty('padding', '4px 0', 'important');
-                    dropdown.style.setProperty('margin-top', '4px', 'important');
+                    dropdown.style.setProperty('margin-top', '0', 'important');
                     dropdown.style.setProperty('margin-bottom', '8px', 'important');
                 }
             }
