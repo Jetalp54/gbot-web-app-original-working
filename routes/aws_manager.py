@@ -10,8 +10,11 @@ import zipfile
 import time
 import traceback
 import logging
-from flask import Blueprint, request, jsonify, session, render_template
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
 from functools import wraps
+from database import db, UserAppPassword
 
 # Constants from aws.py
 LAMBDA_ROLE_NAME = "edu-gw-app-password-lambda-role"
@@ -28,6 +31,10 @@ EC2_KEY_PAIR_NAME = "edu-gw-ec2-build-key"
 logger = logging.getLogger(__name__)
 
 aws_manager = Blueprint('aws_manager', __name__)
+
+# Global executor for background tasks
+executor = ThreadPoolExecutor(max_workers=20)
+active_jobs = {}
 
 # Login required decorator
 def login_required(f):
@@ -101,8 +108,7 @@ def create_infrastructure():
             return jsonify({'success': False, 'error': 'Please provide Access Key, Secret Key and Region.'}), 400
 
         session = get_boto3_session(access_key, secret_key, region)
-        account_id = get_account_id(session)
-
+        
         # Create IAM role
         lambda_policies = [
             "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
@@ -266,10 +272,160 @@ def create_lambdas():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# --- Bulk Generation Logic ---
+
+@aws_manager.route('/api/aws/bulk-generate', methods=['POST'])
+@login_required
+def bulk_generate():
+    """
+    Start background job to generate app passwords in bulk.
+    Invokes Lambdas synchronously on the server side and saves results to DB.
+    """
+    data = request.get_json()
+    access_key = data.get('access_key', '').strip()
+    secret_key = data.get('secret_key', '').strip()
+    region = data.get('region', '').strip()
+    users_raw = data.get('users', [])
+    
+    if not users_raw:
+        return jsonify({'success': False, 'error': 'No users provided'}), 400
+
+    # Parse users
+    users = []
+    for u in users_raw:
+        parts = u.split(':', 1)
+        if len(parts) == 2:
+            users.append({'email': parts[0].strip(), 'password': parts[1].strip()})
+    
+    if not users:
+        return jsonify({'success': False, 'error': 'No valid user:password pairs found'}), 400
+
+    job_id = str(int(time.time()))
+    active_jobs[job_id] = {
+        'total': len(users),
+        'completed': 0,
+        'success': 0,
+        'failed': 0,
+        'results': [],
+        'status': 'processing'
+    }
+
+    # Start background thread
+    # We pass app_context explicitly if needed, but db operations need app context inside the thread
+    from app import app
+    
+    def background_process(app, job_id, users, access_key, secret_key, region):
+        with app.app_context():
+            session_boto = get_boto3_session(access_key, secret_key, region)
+            lam = session_boto.client("lambda")
+            
+            def process_single_user(user):
+                email = user['email']
+                password = user['password']
+                try:
+                    resp = lam.invoke(
+                        FunctionName=PRODUCTION_LAMBDA_NAME,
+                        InvocationType="RequestResponse", # Sync
+                        Payload=json.dumps({"email": email, "password": password}).encode("utf-8"),
+                    )
+                    payload = resp.get("Payload")
+                    body = payload.read().decode("utf-8") if payload else "{}"
+                    data = json.loads(body)
+                    
+                    # If successful and has app_password, save to DB
+                    if data.get('app_password'):
+                        save_app_password(email, data['app_password'])
+                        return {'email': email, 'success': True, 'app_password': data['app_password']}
+                    else:
+                        error_msg = data.get('error_message', 'Unknown error')
+                        return {'email': email, 'success': False, 'error': error_msg}
+                except Exception as e:
+                    return {'email': email, 'success': False, 'error': str(e)}
+
+            # Execute in parallel
+            with ThreadPoolExecutor(max_workers=10) as pool: # Server-side concurrency limit
+                futures = {pool.submit(process_single_user, u): u for u in users}
+                
+                for future in as_completed(futures):
+                    result = future.result()
+                    active_jobs[job_id]['completed'] += 1
+                    if result['success']:
+                        active_jobs[job_id]['success'] += 1
+                        active_jobs[job_id]['results'].append({
+                            'email': result['email'],
+                            'app_password': result['app_password'],
+                            'success': True
+                        })
+                    else:
+                        active_jobs[job_id]['failed'] += 1
+                        active_jobs[job_id]['results'].append({
+                            'email': result['email'],
+                            'error': result.get('error'),
+                            'success': False
+                        })
+            
+            active_jobs[job_id]['status'] = 'completed'
+
+    threading.Thread(target=background_process, args=(app, job_id, users, access_key, secret_key, region)).start()
+
+    return jsonify({'success': True, 'job_id': job_id, 'message': f'Started processing {len(users)} users'})
+
+@aws_manager.route('/api/aws/job-status/<job_id>', methods=['GET'])
+@login_required
+def get_job_status(job_id):
+    job = active_jobs.get(job_id)
+    if not job:
+        return jsonify({'success': False, 'error': 'Job not found'}), 404
+    return jsonify({'success': True, 'job': job})
+
+@aws_manager.route('/api/aws/generated-passwords', methods=['GET'])
+@login_required
+def get_generated_passwords():
+    """Fetch all generated app passwords from DB"""
+    try:
+        # Get recent passwords
+        passwords = UserAppPassword.query.order_by(UserAppPassword.created_at.desc()).all()
+        result = []
+        for p in passwords:
+            email = f"{p.username}@{p.domain}"
+            result.append({
+                'email': email,
+                'app_password': p.app_password,
+                'created_at': p.created_at.isoformat()
+            })
+        return jsonify({'success': True, 'passwords': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def save_app_password(email, app_password):
+    """Save app password to DB, splitting email into username and domain"""
+    try:
+        if '@' in email:
+            username, domain = email.split('@', 1)
+        else:
+            username = email
+            domain = 'unknown'
+            
+        # Check if exists
+        existing = UserAppPassword.query.filter_by(username=username, domain=domain).first()
+        if existing:
+            existing.app_password = app_password
+            existing.updated_at = db.func.current_timestamp()
+        else:
+            new_entry = UserAppPassword(username=username, domain=domain, app_password=app_password)
+            db.session.add(new_entry)
+        
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error saving app password for {email}: {e}")
+
+# --- End Bulk Logic ---
+
 @aws_manager.route('/api/aws/invoke-lambda', methods=['POST'])
 @login_required
 def invoke_lambda():
-    """Invoke production Lambda"""
+    """Invoke production Lambda (Single invocation)"""
     try:
         data = request.get_json()
         access_key = data.get('access_key', '').strip()
@@ -318,6 +474,11 @@ def invoke_lambda():
             body = payload.read().decode("utf-8") if payload else ""
             try:
                 response_data = json.loads(body)
+                
+                # Save to DB if successful
+                if response_data.get('app_password'):
+                    save_app_password(email, response_data['app_password'])
+                
                 return jsonify({
                     'success': True,
                     **response_data
@@ -1083,4 +1244,3 @@ def find_ec2_build_instance(session):
         for inst in r.get("Instances", []):
             return inst
     return None
-

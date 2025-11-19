@@ -175,6 +175,20 @@
                             Delete All Lambdas
                         </button>
 
+                        <!-- Results Section -->
+                        <div class="section" style="margin-top: var(--spacing-lg); background-color: var(--color-canvas-subtle); border: 1px solid var(--color-border-default);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
+                                <h5 style="margin: 0;">Generated App Passwords</h5>
+                                <button class="btn-github" onclick="fetchGeneratedPasswords()">
+                                    <i class="fas fa-sync"></i> Refresh Results
+                                </button>
+                            </div>
+                            <div class="form-group-github">
+                                <label class="form-label-github">Result List (email:app password):</label>
+                                <textarea id="resultsOutput" class="form-control-github" rows="10" readonly style="font-family: monospace;"></textarea>
+                            </div>
+                        </div>
+
                         <!-- Cleanup Operations -->
                         <div style="border-top: 1px solid var(--color-border-default); padding-top: var(--spacing-md); margin-top: var(--spacing-md);">
                             <h5 style="margin-bottom: var(--spacing-sm); font-weight: 600;">Cleanup Operations</h5>
@@ -593,24 +607,25 @@
             return;
         }
 
-        const users = usersText.split('\n').filter(line => line.trim() && line.includes(':'));
+        // Parse users cleanly
+        const usersRaw = usersText.split('\n').filter(line => line.trim() && line.includes(':'));
         
         if (executionMode === 'single') {
-            if (users.length > 1) {
-                if (!confirm(`Single Account mode selected, but ${users.length} accounts found.\n\nUsing first account only. Switch to 'Multiple Accounts' mode to process all accounts.\n\nContinue with first account only?`)) {
+            if (usersRaw.length > 1) {
+                if (!confirm(`Single Account mode selected, but ${usersRaw.length} accounts found.\n\nUsing first account only. Switch to 'Multiple Accounts' mode to process all accounts.\n\nContinue with first account only?`)) {
                     return;
                 }
             }
-            invokeSingleAccount(users[0]);
+            invokeSingleAccount(usersRaw[0]);
         } else {
-            if (users.length > 1000) {
-                alert(`Too many users (${users.length}). Maximum is 1000. Please reduce the number of users.`);
+            if (usersRaw.length > 1000) {
+                alert(`Too many users (${usersRaw.length}). Maximum is 1000. Please reduce the number of users.`);
                 return;
             }
-            if (!confirm(`Are you sure you want to process ${users.length} accounts in parallel?\n\nThis will invoke the Lambda ${users.length} times concurrently.`)) {
+            if (!confirm(`Are you sure you want to process ${usersRaw.length} accounts in parallel?\n\nThis will invoke the Lambda ${usersRaw.length} times concurrently on the server.`)) {
                 return;
             }
-            invokeMultipleAccounts(users);
+            invokeMultipleAccounts(usersRaw);
         }
     }
 
@@ -648,12 +663,11 @@
                 }
                 if (data.app_password) {
                     log(`App Password: ${data.app_password.substring(0, 8)}****`);
+                    // Auto refresh list
+                    fetchGeneratedPasswords();
                 }
                 if (data.secret_key) {
                     log(`Secret Key: ${data.secret_key}`);
-                }
-                if (data.timings) {
-                    log(`Timings: ${JSON.stringify(data.timings, null, 2)}`);
                 }
                 log('='.repeat(60));
                 alert('Lambda execution completed.\n\nResponse logged above.');
@@ -668,85 +682,92 @@
         });
     }
 
+    // Updated to use new Bulk API
     function invokeMultipleAccounts(users) {
         const accessKey = document.getElementById('accessKey').value.trim();
         const secretKey = document.getElementById('secretKey').value.trim();
         const region = document.getElementById('region').value.trim();
 
-        const totalUsers = users.length;
         log('='.repeat(60));
-        log(`Starting parallel Lambda invocations for ${totalUsers} accounts...`);
+        log(`Starting bulk generation for ${users.length} accounts on the server...`);
         log('='.repeat(60));
 
-        document.getElementById('multiStatus').textContent = `Processing: 0/${totalUsers} completed`;
+        document.getElementById('multiStatus').textContent = `Starting job...`;
 
-        let successCount = 0;
-        let failedCount = 0;
-        const startTime = Date.now();
-
-        // Process users in batches to avoid overwhelming the server
-        const batchSize = 50;
-        let currentIndex = 0;
-
-        function processBatch() {
-            const batch = users.slice(currentIndex, currentIndex + batchSize);
-            if (batch.length === 0) {
-                const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
-                log('='.repeat(60));
-                log('PARALLEL EXECUTION SUMMARY:');
-                log(`Total Accounts: ${totalUsers}`);
-                log(`Successful: ${successCount}`);
-                log(`Failed: ${failedCount}`);
-                log(`Total Time: ${elapsedTime} seconds`);
-                log(`Average Time per Account: ${(elapsedTime / totalUsers).toFixed(2)} seconds`);
-                log('='.repeat(60));
-                document.getElementById('multiStatus').textContent = `Completed: ${successCount}/${totalUsers} successful, ${failedCount} failed`;
-                alert(`Parallel execution completed!\n\nTotal: ${totalUsers}\nSuccessful: ${successCount}\nFailed: ${failedCount}\nTime: ${elapsedTime}s\n\nCheck logs for detailed results.`);
-                return;
+        fetch('/api/aws/bulk-generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region,
+                users: users
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`Job started: ${data.job_id}`);
+                pollJobStatus(data.job_id);
+            } else {
+                log(`ERROR starting bulk job: ${data.error}`);
+                alert(`Error: ${data.error}`);
             }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
 
-            const promises = batch.map((userLine, batchIndex) => {
-                const [email, password] = userLine.split(':', 2);
-                const globalIndex = currentIndex + batchIndex + 1;
-                return fetch('/api/aws/invoke-lambda', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        access_key: accessKey,
-                        secret_key: secretKey,
-                        region: region,
-                        email: email.trim(),
-                        password: password.trim(),
-                        async: true
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        successCount++;
-                        log(`[${globalIndex}/${totalUsers}] ✅ ${email.trim()}: Invoked successfully`);
-                    } else {
-                        failedCount++;
-                        log(`[${globalIndex}/${totalUsers}] ❌ ${email.trim()}: ${data.error || 'Unknown error'}`);
+    function pollJobStatus(jobId) {
+        const statusInterval = setInterval(() => {
+            fetch(`/api/aws/job-status/${jobId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const job = data.job;
+                    document.getElementById('multiStatus').textContent = `Processing: ${job.completed}/${job.total} completed (Success: ${job.success}, Failed: ${job.failed})`;
+                    
+                    if (job.completed > 0 && job.completed % 5 === 0) {
+                        fetchGeneratedPasswords(); // Periodic refresh
                     }
-                    document.getElementById('multiStatus').textContent = `Processing: ${successCount + failedCount}/${totalUsers} completed (Success: ${successCount}, Failed: ${failedCount})`;
-                })
-                .catch(error => {
-                    failedCount++;
-                    log(`[${globalIndex}/${totalUsers}] ❌ ${email.trim()}: Exception - ${error.message}`);
-                    document.getElementById('multiStatus').textContent = `Processing: ${successCount + failedCount}/${totalUsers} completed (Success: ${successCount}, Failed: ${failedCount})`;
-                });
-            });
 
-            Promise.all(promises).then(() => {
-                currentIndex += batchSize;
-                setTimeout(processBatch, 100); // Small delay between batches
-            });
-        }
+                    if (job.status === 'completed') {
+                        clearInterval(statusInterval);
+                        log('='.repeat(60));
+                        log('BULK JOB COMPLETED');
+                        log(`Success: ${job.success}, Failed: ${job.failed}`);
+                        
+                        // Log errors
+                        job.results.forEach(r => {
+                            if (!r.success) {
+                                log(`❌ Failed: ${r.email} - ${r.error}`);
+                            }
+                        });
+                        
+                        log('='.repeat(60));
+                        fetchGeneratedPasswords(); // Final refresh
+                        alert('Bulk generation completed. Check the results list.');
+                    }
+                }
+            })
+            .catch(err => console.error(err));
+        }, 2000);
+    }
 
-        processBatch();
+    function fetchGeneratedPasswords() {
+        fetch('/api/aws/generated-passwords')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const lines = data.passwords.map(p => `${p.email}:${p.app_password}`);
+                document.getElementById('resultsOutput').value = lines.join('\n');
+            }
+        })
+        .catch(err => console.error(err));
     }
 
     // Delete All Lambdas
@@ -1051,6 +1072,6 @@
 
     // Initialize
     log('AWS Management page loaded. Ready.');
+    fetchGeneratedPasswords(); // Load existing passwords on page load
 </script>
 {% endblock %}
-
