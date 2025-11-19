@@ -682,7 +682,7 @@
         });
     }
 
-    // Updated to use new Bulk API
+        // Updated to use new Bulk API
     function invokeMultipleAccounts(users) {
         const accessKey = document.getElementById('accessKey').value.trim();
         const secretKey = document.getElementById('secretKey').value.trim();
@@ -693,6 +693,7 @@
         log('='.repeat(60));
 
         document.getElementById('multiStatus').textContent = `Starting job...`;
+        document.getElementById('resultsOutput').value = ''; // Clear previous results
 
         fetch('/api/aws/bulk-generate', {
             method: 'POST',
@@ -731,8 +732,15 @@
                     const job = data.job;
                     document.getElementById('multiStatus').textContent = `Processing: ${job.completed}/${job.total} completed (Success: ${job.success}, Failed: ${job.failed})`;
                     
-                    if (job.completed > 0 && job.completed % 5 === 0) {
-                        fetchGeneratedPasswords(); // Periodic refresh
+                    // Update results in real-time from job data
+                    if (job.results && job.results.length > 0) {
+                        const successResults = job.results
+                            .filter(r => r.success && r.app_password)
+                            .map(r => `${r.email}:${r.app_password}`);
+                        
+                        if (successResults.length > 0) {
+                            document.getElementById('resultsOutput').value = successResults.join('\n');
+                        }
                     }
 
                     if (job.status === 'completed') {
@@ -749,7 +757,7 @@
                         });
                         
                         log('='.repeat(60));
-                        fetchGeneratedPasswords(); // Final refresh
+                        // Do NOT fetch all passwords here, rely on job.results
                         alert('Bulk generation completed. Check the results list.');
                     }
                 }

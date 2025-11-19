@@ -376,6 +376,7 @@ def get_job_status(job_id):
     job = active_jobs.get(job_id)
     if not job:
         return jsonify({'success': False, 'error': 'Job not found'}), 404
+    # Return the job status including the results list (which has the new passwords)
     return jsonify({'success': True, 'job': job})
 
 @aws_manager.route('/api/aws/generated-passwords', methods=['GET'])
