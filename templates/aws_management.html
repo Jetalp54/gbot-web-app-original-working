@@ -1,0 +1,1056 @@
+{% extends "base.html" %}
+
+{% block title %}AWS Management - GBot Web{% endblock %}
+
+{% block content %}
+<div class="main-wrapper">
+    <div class="main-container">
+        <h1 class="github-card-title" style="margin-bottom: var(--spacing-xl);">
+            <i class="fas fa-cloud"></i>
+            AWS Management
+        </h1>
+
+        <!-- AWS & G-Workspace Credentials Section -->
+        <div class="github-card" style="margin-bottom: var(--spacing-lg);">
+            <div class="github-card-header">
+                <h3 class="github-card-title">
+                    <i class="fas fa-key"></i>
+                    AWS & G-Workspace Credentials
+                </h3>
+            </div>
+            <div class="github-card-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg);">
+                    <!-- AWS Setup -->
+                    <div class="section">
+                        <h4 style="margin-bottom: var(--spacing-md);">AWS Setup</h4>
+                        <div class="form-group-github">
+                            <label class="form-label-github">Access Key ID:</label>
+                            <input type="text" id="accessKey" class="form-control-github" placeholder="Enter AWS Access Key ID">
+                        </div>
+                        <div class="form-group-github">
+                            <label class="form-label-github">Secret Access Key:</label>
+                            <input type="password" id="secretKey" class="form-control-github" placeholder="Enter AWS Secret Access Key">
+                        </div>
+                        <div class="form-group-github">
+                            <label class="form-label-github">Region:</label>
+                            <input type="text" id="region" class="form-control-github" value="eu-west-1" placeholder="eu-west-1">
+                        </div>
+                        <button class="btn-github btn-github-primary" onclick="testConnection()" style="width: 100%; margin-top: var(--spacing-md);">
+                            <i class="fas fa-plug"></i>
+                            Test Connection
+                        </button>
+                    </div>
+
+                    <!-- ECR Image & Configuration -->
+                    <div class="section">
+                        <h4 style="margin-bottom: var(--spacing-md);">ECR Image & Configuration</h4>
+                        <div class="form-group-github">
+                            <label class="form-label-github">ECR Image URI (Chromium Lambda):</label>
+                            <input type="text" id="ecrUri" class="form-control-github" value="(connect first)" readonly>
+                        </div>
+                        <p style="font-size: 12px; color: var(--color-fg-muted); margin-top: -8px; margin-bottom: var(--spacing-md);">
+                            Built on EC2 from repo: docker-selenium-lambda
+                        </p>
+                        
+                        <div style="border-top: 1px solid var(--color-border-default); padding-top: var(--spacing-md); margin-top: var(--spacing-md);">
+                            <h5 style="margin-bottom: var(--spacing-sm); font-size: 14px;">S3 Configuration</h5>
+                            <div class="form-group-github">
+                                <label class="form-label-github">S3 Bucket (App Passwords):</label>
+                                <input type="text" id="s3Bucket" class="form-control-github" value="edu-gw-app-passwords">
+                            </div>
+                        </div>
+
+                        <div style="border-top: 1px solid var(--color-border-default); padding-top: var(--spacing-md); margin-top: var(--spacing-md);">
+                            <h5 style="margin-bottom: var(--spacing-sm); font-size: 14px;">SFTP Configuration</h5>
+                            <div class="form-group-github">
+                                <label class="form-label-github">SFTP Host:</label>
+                                <input type="text" id="sftpHost" class="form-control-github" value="46.224.9.127">
+                            </div>
+                            <div class="form-group-github">
+                                <label class="form-label-github">SFTP User:</label>
+                                <input type="text" id="sftpUser" class="form-control-github" placeholder="Enter SFTP username">
+                            </div>
+                            <div class="form-group-github">
+                                <label class="form-label-github">SFTP Password:</label>
+                                <input type="password" id="sftpPassword" class="form-control-github" placeholder="Enter SFTP password">
+                            </div>
+                            <div class="form-group-github">
+                                <label class="form-label-github">SFTP Remote Dir:</label>
+                                <input type="text" id="sftpDir" class="form-control-github" value="/home/brightmindscampus/">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Section -->
+        <div class="github-card">
+            <div class="github-card-body">
+                <div style="display: flex; gap: var(--spacing-sm); margin-bottom: var(--spacing-lg); border-bottom: 1px solid var(--color-border-default);">
+                    <button class="tab-button active" onclick="switchTab('infra')" id="tab-infra-btn">
+                        <i class="fas fa-server"></i>
+                        1) Core Infrastructure
+                    </button>
+                    <button class="tab-button" onclick="switchTab('lambda')" id="tab-lambda-btn">
+                        <i class="fas fa-code"></i>
+                        2) Production Lambda
+                    </button>
+                    <button class="tab-button" onclick="switchTab('ec2')" id="tab-ec2-btn">
+                        <i class="fas fa-desktop"></i>
+                        3) EC2 Build Box (Docker)
+                    </button>
+                </div>
+
+                <!-- Infrastructure Tab -->
+                <div id="tab-infra" class="tab-content active">
+                    <div class="section">
+                        <h4 style="margin-bottom: var(--spacing-md);">Core AWS Resources</h4>
+                        <button class="btn-github btn-github-primary" onclick="createInfrastructure()" style="width: 100%; margin-bottom: var(--spacing-sm);">
+                            <i class="fas fa-plus-circle"></i>
+                            Create Core Resources (IAM, ECR, S3)
+                        </button>
+                        <button class="btn-github" onclick="createECRManual()" style="width: 100%; margin-bottom: var(--spacing-sm);">
+                            <i class="fas fa-box"></i>
+                            Create ECR Repository (Manual)
+                        </button>
+                        <button class="btn-github" onclick="inspectResources()" style="width: 100%;">
+                            <i class="fas fa-search"></i>
+                            Inspect Resources (IAM / ECR / Lambdas)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Lambda Tab -->
+                <div id="tab-lambda" class="tab-content" style="display: none;">
+                    <div class="section" style="margin-bottom: var(--spacing-lg);">
+                        <h4 style="margin-bottom: var(--spacing-md);">Production Lambda Management</h4>
+                        <div class="alert-github" style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-md);">
+                            <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
+                            <div>
+                                <strong>Production Workflow:</strong><br>
+                                1) Create Core Resources (IAM, ECR, S3)<br>
+                                2) Use EC2 tab to build/push Docker image<br>
+                                3) Create/Update Production Lambda<br>
+                                4) Invoke Lambda (Single or Multiple accounts)
+                            </div>
+                        </div>
+                        <button class="btn-github btn-github-primary" onclick="createLambdas()" style="width: 100%; margin-bottom: var(--spacing-md);">
+                            <i class="fas fa-sync-alt"></i>
+                            Create / Update Production Lambda
+                        </button>
+
+                        <!-- Execution Mode -->
+                        <div class="section" style="margin-bottom: var(--spacing-lg);">
+                            <h5 style="margin-bottom: var(--spacing-sm);">Execution Mode</h5>
+                            <div style="display: flex; gap: var(--spacing-lg); margin-bottom: var(--spacing-md);">
+                                <label style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer;">
+                                    <input type="radio" name="executionMode" value="single" checked>
+                                    <span>Single Account</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer;">
+                                    <input type="radio" name="executionMode" value="multiple">
+                                    <span>Multiple Accounts (Parallel)</span>
+                                </label>
+                            </div>
+
+                            <!-- Account Input -->
+                            <div class="form-group-github">
+                                <label class="form-label-github">Account Input (user:password, one per line):</label>
+                                <p style="font-size: 12px; color: var(--color-fg-muted); margin-bottom: var(--spacing-sm);">
+                                    Single Account Mode: Enter one line (email:password)<br>
+                                    Multiple Accounts Mode: Enter multiple lines (one per line)
+                                </p>
+                                <textarea id="multipleUsers" class="form-control-github" rows="8" placeholder="email1:password1&#10;email2:password2&#10;email3:password3"></textarea>
+                            </div>
+                            <div id="multiStatus" style="font-size: 13px; color: var(--color-fg-muted); margin-top: var(--spacing-sm);">Ready</div>
+                        </div>
+
+                        <button class="btn-github btn-github-primary" onclick="invokeProductionLambda()" style="width: 100%; margin-bottom: var(--spacing-md);">
+                            <i class="fas fa-play"></i>
+                            Invoke Production Lambda
+                        </button>
+                        <button class="btn-github btn-github-danger" onclick="deleteAllLambdas()" style="width: 100%; margin-bottom: var(--spacing-md);">
+                            <i class="fas fa-trash"></i>
+                            Delete All Lambdas
+                        </button>
+
+                        <!-- Cleanup Operations -->
+                        <div style="border-top: 1px solid var(--color-border-default); padding-top: var(--spacing-md); margin-top: var(--spacing-md);">
+                            <h5 style="margin-bottom: var(--spacing-sm); font-weight: 600;">Cleanup Operations</h5>
+                            <button class="btn-github" onclick="deleteS3Content()" style="width: 100%; margin-bottom: var(--spacing-sm);">
+                                <i class="fas fa-trash-alt"></i>
+                                Delete S3 Bucket Content
+                            </button>
+                            <button class="btn-github" onclick="deleteECRRepo()" style="width: 100%; margin-bottom: var(--spacing-sm);">
+                                <i class="fas fa-trash-alt"></i>
+                                Delete ECR Repository
+                            </button>
+                            <button class="btn-github" onclick="deleteCloudWatchLogs()" style="width: 100%;">
+                                <i class="fas fa-trash-alt"></i>
+                                Delete CloudWatch Logs
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EC2 Tab -->
+                <div id="tab-ec2" class="tab-content" style="display: none;">
+                    <div class="section">
+                        <h4 style="margin-bottom: var(--spacing-md);">EC2 Build Box (Free Tier t2.micro, Amazon Linux 2)</h4>
+                        <div class="alert-github" style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-md);">
+                            <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
+                            <div>
+                                This EC2 instance automatically:<br>
+                                - Installs Docker + AWS CLI + git<br>
+                                - Clones docker-selenium-lambda<br>
+                                - Builds image based on umihico/aws-lambda-selenium-python<br>
+                                - Pushes it to your ECR repo as :latest
+                            </div>
+                        </div>
+                        <button class="btn-github btn-github-primary" onclick="ec2CreateBuildBox()" style="width: 100%; margin-bottom: var(--spacing-sm);">
+                            <i class="fas fa-plus-circle"></i>
+                            Create / Prepare EC2 Build Box
+                        </button>
+                        <button class="btn-github" onclick="ec2ShowStatus()" style="width: 100%; margin-bottom: var(--spacing-sm);">
+                            <i class="fas fa-info-circle"></i>
+                            Show EC2 Build Box Status
+                        </button>
+                        <button class="btn-github btn-github-danger" onclick="ec2Terminate()" style="width: 100%;">
+                            <i class="fas fa-stop"></i>
+                            Terminate EC2 Build Box
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Output Section -->
+        <div class="github-card" style="margin-top: var(--spacing-lg);">
+            <div class="github-card-header">
+                <h3 class="github-card-title">
+                    <i class="fas fa-terminal"></i>
+                    Log Output
+                </h3>
+            </div>
+            <div class="github-card-body">
+                <div id="logOutput" style="background-color: var(--color-canvas-inset); border-radius: var(--radius-md); padding: var(--spacing-md); font-family: 'Courier New', monospace; font-size: 13px; max-height: 400px; overflow-y: auto; min-height: 200px; color: var(--color-fg-default); white-space: pre-wrap; word-wrap: break-word;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .tab-button {
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: var(--spacing-sm) var(--spacing-md);
+        cursor: pointer;
+        color: var(--color-fg-muted);
+        font-weight: 500;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        transition: all 0.2s ease;
+    }
+
+    .tab-button:hover {
+        color: var(--color-fg-default);
+        background: var(--color-canvas-subtle);
+    }
+
+    .tab-button.active {
+        color: var(--color-accent-fg);
+        border-bottom-color: var(--color-accent-fg);
+        font-weight: 600;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    #logOutput {
+        scrollbar-width: thin;
+        scrollbar-color: var(--color-border-muted) transparent;
+    }
+
+    #logOutput::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    #logOutput::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    #logOutput::-webkit-scrollbar-thumb {
+        background: var(--color-border-muted);
+        border-radius: 4px;
+    }
+
+    #logOutput::-webkit-scrollbar-thumb:hover {
+        background: var(--color-border-default);
+    }
+</style>
+
+<script>
+    // Logging function
+    function log(message) {
+        const logOutput = document.getElementById('logOutput');
+        const timestamp = new Date().toLocaleTimeString();
+        const logLine = `[${timestamp}] ${message}\n`;
+        logOutput.textContent += logLine;
+        logOutput.scrollTop = logOutput.scrollHeight;
+        console.log(logLine);
+    }
+
+    // Tab switching
+    function switchTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+            tab.style.display = 'none';
+        });
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        // Show selected tab
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+        document.getElementById(`tab-${tabName}`).style.display = 'block';
+        document.getElementById(`tab-${tabName}-btn`).classList.add('active');
+    }
+
+    // Test Connection
+    function testConnection() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide Access Key, Secret Key and Region.');
+            return;
+        }
+
+        log('Testing AWS connection...');
+        
+        fetch('/api/aws/test-connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`Connected to AWS account ${data.account_id} (Region: ${data.region})`);
+                document.getElementById('ecrUri').value = data.ecr_uri;
+                alert(`Connection OK\nConnected to AWS account ${data.account_id}`);
+            } else {
+                log(`ERROR connecting to AWS: ${data.error}`);
+                alert(`Connection Failed: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Create Infrastructure
+    function createInfrastructure() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide Access Key, Secret Key and Region.');
+            return;
+        }
+
+        log('Creating core infrastructure (IAM, ECR, S3)...');
+        
+        fetch('/api/aws/create-infrastructure', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log('Infrastructure setup completed.');
+                log(`IAM Lambda Role ARN: ${data.role_arn}`);
+                alert('Core infrastructure created successfully.');
+            } else {
+                log(`ERROR creating infrastructure: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Create ECR Manual
+    function createECRManual() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide Access Key, Secret Key and Region.');
+            return;
+        }
+
+        log('Manually creating ECR repository...');
+        
+        fetch('/api/aws/create-ecr-manual', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`ECR repository verified: ${data.repo_uri}`);
+                alert(`ECR repository created/verified:\n${data.repo_uri}`);
+            } else {
+                log(`ERROR creating ECR repository: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Inspect Resources
+    function inspectResources() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide Access Key, Secret Key and Region.');
+            return;
+        }
+
+        log('Inspecting resources...');
+        
+        fetch('/api/aws/inspect-resources', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log('Resource inspection completed.');
+                if (data.iam_roles) {
+                    data.iam_roles.forEach(role => {
+                        log(`IAM Role: ${role.name} | ARN: ${role.arn}`);
+                    });
+                }
+                if (data.ecr_repos) {
+                    data.ecr_repos.forEach(repo => {
+                        log(`ECR Repo: ${repo.name} | URI: ${repo.uri}`);
+                    });
+                }
+                if (data.s3_buckets) {
+                    data.s3_buckets.forEach(bucket => {
+                        log(`S3 Bucket: ${bucket.name} | Created: ${bucket.created}`);
+                    });
+                }
+                if (data.lambdas) {
+                    data.lambdas.forEach(lambda => {
+                        log(`Lambda: ${lambda.name} | Runtime: ${lambda.runtime} | PackageType: ${lambda.package_type}`);
+                    });
+                }
+            } else {
+                log(`ERROR inspecting resources: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Create Lambdas
+    function createLambdas() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+        const ecrUri = document.getElementById('ecrUri').value.trim();
+        const s3Bucket = document.getElementById('s3Bucket').value.trim();
+        const sftpHost = document.getElementById('sftpHost').value.trim();
+        const sftpUser = document.getElementById('sftpUser').value.trim();
+        const sftpPassword = document.getElementById('sftpPassword').value.trim();
+        const sftpDir = document.getElementById('sftpDir').value.trim() || '/home/brightmindscampus/';
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        if (!ecrUri || !ecrUri.includes('amazonaws.com')) {
+            alert('ECR Image URI is not set. Connect and prepare EC2 build box first.');
+            return;
+        }
+
+        if (!s3Bucket) {
+            alert('Please enter S3 Bucket name for app passwords storage.');
+            return;
+        }
+
+        if (!sftpHost || !sftpUser) {
+            alert('Please enter SFTP Host and User for secret key storage.');
+            return;
+        }
+
+        log('Creating / updating PRODUCTION Lambda (container image)...');
+        
+        fetch('/api/aws/create-lambdas', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region,
+                ecr_uri: ecrUri,
+                s3_bucket: s3Bucket,
+                sftp_host: sftpHost,
+                sftp_user: sftpUser,
+                sftp_password: sftpPassword,
+                sftp_dir: sftpDir
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log('PRODUCTION Lambda is ready.');
+                log(`Lambda configured using ECR image URI: ${ecrUri}`);
+                alert('Production Lambda created/updated successfully.');
+            } else {
+                log(`ERROR creating production Lambda: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Invoke Production Lambda
+    function invokeProductionLambda() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+        const executionMode = document.querySelector('input[name="executionMode"]:checked').value;
+        const usersText = document.getElementById('multipleUsers').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        if (!usersText) {
+            alert('Please enter at least one account in the format \'email:password\' (one per line).');
+            return;
+        }
+
+        const users = usersText.split('\n').filter(line => line.trim() && line.includes(':'));
+        
+        if (executionMode === 'single') {
+            if (users.length > 1) {
+                if (!confirm(`Single Account mode selected, but ${users.length} accounts found.\n\nUsing first account only. Switch to 'Multiple Accounts' mode to process all accounts.\n\nContinue with first account only?`)) {
+                    return;
+                }
+            }
+            invokeSingleAccount(users[0]);
+        } else {
+            if (users.length > 1000) {
+                alert(`Too many users (${users.length}). Maximum is 1000. Please reduce the number of users.`);
+                return;
+            }
+            if (!confirm(`Are you sure you want to process ${users.length} accounts in parallel?\n\nThis will invoke the Lambda ${users.length} times concurrently.`)) {
+                return;
+            }
+            invokeMultipleAccounts(users);
+        }
+    }
+
+    function invokeSingleAccount(userLine) {
+        const [email, password] = userLine.split(':', 2);
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        log(`Using account: ${email}`);
+        log('Invoking PRODUCTION Lambda for account processing...');
+
+        fetch('/api/aws/invoke-lambda', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region,
+                email: email.trim(),
+                password: password.trim()
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log('='.repeat(60));
+                log('LAMBDA RESPONSE:');
+                log(`Status: ${data.status || 'unknown'}`);
+                log(`Step Completed: ${data.step_completed || 'unknown'}`);
+                if (data.error_message) {
+                    log(`Error: ${data.error_message}`);
+                }
+                if (data.app_password) {
+                    log(`App Password: ${data.app_password.substring(0, 8)}****`);
+                }
+                if (data.secret_key) {
+                    log(`Secret Key: ${data.secret_key}`);
+                }
+                if (data.timings) {
+                    log(`Timings: ${JSON.stringify(data.timings, null, 2)}`);
+                }
+                log('='.repeat(60));
+                alert('Lambda execution completed.\n\nResponse logged above.');
+            } else {
+                log(`ERROR invoking Lambda: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    function invokeMultipleAccounts(users) {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        const totalUsers = users.length;
+        log('='.repeat(60));
+        log(`Starting parallel Lambda invocations for ${totalUsers} accounts...`);
+        log('='.repeat(60));
+
+        document.getElementById('multiStatus').textContent = `Processing: 0/${totalUsers} completed`;
+
+        let successCount = 0;
+        let failedCount = 0;
+        const startTime = Date.now();
+
+        // Process users in batches to avoid overwhelming the server
+        const batchSize = 50;
+        let currentIndex = 0;
+
+        function processBatch() {
+            const batch = users.slice(currentIndex, currentIndex + batchSize);
+            if (batch.length === 0) {
+                const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                log('='.repeat(60));
+                log('PARALLEL EXECUTION SUMMARY:');
+                log(`Total Accounts: ${totalUsers}`);
+                log(`Successful: ${successCount}`);
+                log(`Failed: ${failedCount}`);
+                log(`Total Time: ${elapsedTime} seconds`);
+                log(`Average Time per Account: ${(elapsedTime / totalUsers).toFixed(2)} seconds`);
+                log('='.repeat(60));
+                document.getElementById('multiStatus').textContent = `Completed: ${successCount}/${totalUsers} successful, ${failedCount} failed`;
+                alert(`Parallel execution completed!\n\nTotal: ${totalUsers}\nSuccessful: ${successCount}\nFailed: ${failedCount}\nTime: ${elapsedTime}s\n\nCheck logs for detailed results.`);
+                return;
+            }
+
+            const promises = batch.map((userLine, batchIndex) => {
+                const [email, password] = userLine.split(':', 2);
+                const globalIndex = currentIndex + batchIndex + 1;
+                return fetch('/api/aws/invoke-lambda', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        access_key: accessKey,
+                        secret_key: secretKey,
+                        region: region,
+                        email: email.trim(),
+                        password: password.trim(),
+                        async: true
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        successCount++;
+                        log(`[${globalIndex}/${totalUsers}] ✅ ${email.trim()}: Invoked successfully`);
+                    } else {
+                        failedCount++;
+                        log(`[${globalIndex}/${totalUsers}] ❌ ${email.trim()}: ${data.error || 'Unknown error'}`);
+                    }
+                    document.getElementById('multiStatus').textContent = `Processing: ${successCount + failedCount}/${totalUsers} completed (Success: ${successCount}, Failed: ${failedCount})`;
+                })
+                .catch(error => {
+                    failedCount++;
+                    log(`[${globalIndex}/${totalUsers}] ❌ ${email.trim()}: Exception - ${error.message}`);
+                    document.getElementById('multiStatus').textContent = `Processing: ${successCount + failedCount}/${totalUsers} completed (Success: ${successCount}, Failed: ${failedCount})`;
+                });
+            });
+
+            Promise.all(promises).then(() => {
+                currentIndex += batchSize;
+                setTimeout(processBatch, 100); // Small delay between batches
+            });
+        }
+
+        processBatch();
+    }
+
+    // Delete All Lambdas
+    function deleteAllLambdas() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to delete all Lambdas? This action cannot be undone.')) {
+            return;
+        }
+
+        fetch('/api/aws/delete-all-lambdas', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log('Lambda cleanup completed.');
+                alert('All Lambdas deleted successfully.');
+            } else {
+                log(`ERROR deleting Lambdas: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Delete S3 Content
+    function deleteS3Content() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to delete all contents from the S3 bucket? This action cannot be undone.')) {
+            return;
+        }
+
+        fetch('/api/aws/delete-s3-content', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`S3 bucket contents deleted successfully.`);
+                alert(`All contents deleted from S3 bucket`);
+            } else {
+                log(`ERROR deleting S3 contents: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Delete ECR Repo
+    function deleteECRRepo() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to delete the ECR repository and all images? This action cannot be undone.')) {
+            return;
+        }
+
+        fetch('/api/aws/delete-ecr-repo', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`ECR repository deleted successfully.`);
+                alert(`ECR repository deleted`);
+            } else {
+                log(`ERROR deleting ECR repository: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Delete CloudWatch Logs
+    function deleteCloudWatchLogs() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to delete CloudWatch log groups? This action cannot be undone.')) {
+            return;
+        }
+
+        fetch('/api/aws/delete-cloudwatch-logs', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`CloudWatch log cleanup completed. Deleted ${data.deleted_count} log groups.`);
+                alert(`Deleted ${data.deleted_count} log groups`);
+            } else {
+                log(`ERROR deleting CloudWatch logs: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // EC2 Functions
+    function ec2CreateBuildBox() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        log('Launching EC2 build box...');
+
+        fetch('/api/aws/ec2-create-build-box', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log('EC2 build box launch requested.');
+                log('Wait ~5–10 minutes for Docker build & ECR push to complete, then create Lambdas from the Lambdas tab.');
+                alert('EC2 build box launch requested.\n\nWait ~5–10 minutes for Docker build & ECR push to complete.');
+            } else {
+                log(`ERROR creating EC2 build box: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    function ec2ShowStatus() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        log('Checking EC2 build box status...');
+
+        fetch('/api/aws/ec2-show-status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`EC2 build box status: ${data.instance_id} | state=${data.state} | public_ip=${data.public_ip}`);
+                if (data.build_status) {
+                    log(data.build_status);
+                }
+                if (data.console_output) {
+                    log('='.repeat(60));
+                    log('EC2 CONSOLE OUTPUT:');
+                    log(data.console_output);
+                    log('='.repeat(60));
+                }
+                alert(data.status_message || 'EC2 status retrieved. Check logs for details.');
+            } else {
+                log(`ERROR checking EC2 status: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    function ec2Terminate() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to terminate the EC2 build box? This action cannot be undone.')) {
+            return;
+        }
+
+        log('Terminating EC2 build box...');
+
+        fetch('/api/aws/ec2-terminate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`Terminate requested for EC2 build box: ${data.instance_id}`);
+                alert(`Terminate requested for ${data.instance_id}`);
+            } else {
+                log(`ERROR terminating EC2 instance: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Initialize
+    log('AWS Management page loaded. Ready.');
+</script>
+{% endblock %}
+
