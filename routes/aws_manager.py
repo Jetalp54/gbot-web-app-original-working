@@ -735,6 +735,7 @@ def create_ecr_repo(session, region):
             raise
 
 def create_s3_bucket(session, region):
+    global S3_BUCKET_NAME
     s3 = session.client("s3")
     
     try:
@@ -746,7 +747,6 @@ def create_s3_bucket(session, region):
             pass
         elif list_error_code in ['403', 'AccessDenied']:
             account_id = session.client('sts').get_caller_identity()['Account']
-            global S3_BUCKET_NAME
             S3_BUCKET_NAME = f"{S3_BUCKET_NAME}-{account_id}"
             return create_s3_bucket(session, region)
         else:
