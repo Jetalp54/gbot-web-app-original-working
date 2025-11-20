@@ -336,6 +336,70 @@ def create_lambdas():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@aws_manager.route('/api/aws/fix-lambda-concurrency', methods=['POST'])
+@login_required
+def fix_lambda_concurrency():
+    """Remove reserved concurrency limit to allow 1000+ concurrent executions"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        region = data.get('region', '').strip()
+
+        if not access_key or not secret_key or not region:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        session = get_boto3_session(access_key, secret_key, region)
+        lam = session.client("lambda")
+
+        try:
+            # Check current concurrency settings
+            concurrency_config = lam.get_function_concurrency(FunctionName=PRODUCTION_LAMBDA_NAME)
+            reserved_concurrency = concurrency_config.get('ReservedConcurrentExecutions')
+            
+            if reserved_concurrency:
+                logger.info(f"[LAMBDA] Current reserved concurrency: {reserved_concurrency}")
+                # Delete reserved concurrency to use account limit (1000+)
+                lam.delete_function_concurrency(FunctionName=PRODUCTION_LAMBDA_NAME)
+                logger.info(f"[LAMBDA] ✓ Removed reserved concurrency limit ({reserved_concurrency} → account limit)")
+                return jsonify({
+                    'success': True,
+                    'message': f'Removed reserved concurrency limit ({reserved_concurrency}). Lambda can now use account limit (1000+).',
+                    'previous_limit': reserved_concurrency,
+                    'new_limit': 'Account limit (1000+)'
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'message': 'No reserved concurrency limit found. Lambda is using account limit (1000+).',
+                    'current_limit': 'Account limit (1000+)'
+                })
+        except lam.exceptions.ResourceNotFoundException:
+            return jsonify({
+                'success': False,
+                'error': f'Lambda function {PRODUCTION_LAMBDA_NAME} not found. Create it first.'
+            }), 404
+        except Exception as e:
+            # Try to delete anyway (might be a different error)
+            try:
+                lam.delete_function_concurrency(FunctionName=PRODUCTION_LAMBDA_NAME)
+                logger.info(f"[LAMBDA] ✓ Removed reserved concurrency limit")
+                return jsonify({
+                    'success': True,
+                    'message': 'Removed reserved concurrency limit. Lambda can now use account limit (1000+).'
+                })
+            except Exception as e2:
+                logger.error(f"Error fixing concurrency: {e2}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Could not fix concurrency limit: {str(e2)}'
+                }), 500
+
+    except Exception as e:
+        logger.error(f"Error fixing Lambda concurrency: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # --- Bulk Generation Logic ---
 
 @aws_manager.route('/api/aws/bulk-generate', methods=['POST'])
@@ -1259,6 +1323,29 @@ def create_or_update_lambda(session, function_name, role_arn, timeout, env_vars,
             "EphemeralStorage": {"Size": 2048}
         }
         lam.update_function_configuration(**config_update_params)
+        
+        # CRITICAL: Remove reserved concurrency limit to allow 1000+ concurrent executions
+        # If ReservedConcurrentExecutions is set, it limits concurrent executions
+        try:
+            # Get current concurrency settings
+            concurrency_config = lam.get_function_concurrency(FunctionName=function_name)
+            reserved_concurrency = concurrency_config.get('ReservedConcurrentExecutions')
+            if reserved_concurrency and reserved_concurrency < 1000:
+                logger.warning(f"[LAMBDA] Current reserved concurrency is {reserved_concurrency}, removing limit...")
+                # Delete reserved concurrency to use account limit (1000+)
+                lam.delete_function_concurrency(FunctionName=function_name)
+                logger.info(f"[LAMBDA] ✓ Removed reserved concurrency limit - now using account limit (1000+)")
+        except lam.exceptions.ResourceNotFoundException:
+            # Function doesn't have reserved concurrency set - this is good!
+            logger.info(f"[LAMBDA] No reserved concurrency limit found - using account limit (1000+)")
+        except Exception as e:
+            logger.warning(f"[LAMBDA] Could not check/update concurrency settings: {e}")
+            # Try to delete anyway (might not exist)
+            try:
+                lam.delete_function_concurrency(FunctionName=function_name)
+                logger.info(f"[LAMBDA] ✓ Removed reserved concurrency limit")
+            except:
+                pass  # Ignore if it doesn't exist
     except lam.exceptions.ResourceNotFoundException:
         create_params = {
             "FunctionName": function_name,
@@ -1272,6 +1359,22 @@ def create_or_update_lambda(session, function_name, role_arn, timeout, env_vars,
             "EphemeralStorage": {"Size": 2048}
         }
         lam.create_function(**create_params)
+        
+        # CRITICAL: Ensure no reserved concurrency limit for new functions
+        # This allows the function to use the full account limit (1000+)
+        try:
+            # Check if reserved concurrency was set (shouldn't be for new functions)
+            concurrency_config = lam.get_function_concurrency(FunctionName=function_name)
+            reserved_concurrency = concurrency_config.get('ReservedConcurrentExecutions')
+            if reserved_concurrency and reserved_concurrency < 1000:
+                logger.warning(f"[LAMBDA] New function has reserved concurrency {reserved_concurrency}, removing...")
+                lam.delete_function_concurrency(FunctionName=function_name)
+                logger.info(f"[LAMBDA] ✓ Removed reserved concurrency limit for new function")
+        except lam.exceptions.ResourceNotFoundException:
+            # No reserved concurrency set - perfect!
+            logger.info(f"[LAMBDA] New function created without reserved concurrency limit - using account limit (1000+)")
+        except Exception as e:
+            logger.warning(f"[LAMBDA] Could not check concurrency for new function: {e}")
 
 def ensure_ec2_role_profile(session):
     iam = session.client("iam")

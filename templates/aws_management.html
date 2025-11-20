@@ -139,9 +139,13 @@
                                 4) Invoke Lambda → Wait → Fetch from DynamoDB
                             </div>
                         </div>
-                        <button class="btn-github btn-github-primary" onclick="createLambdas()" style="width: 100%; margin-bottom: var(--spacing-md);">
+                        <button class="btn-github btn-github-primary" onclick="createLambdas()" style="width: 100%; margin-bottom: var(--spacing-sm);">
                             <i class="fas fa-sync-alt"></i>
                             Create / Update Production Lambda
+                        </button>
+                        <button class="btn-github" onclick="fixLambdaConcurrency()" style="width: 100%; margin-bottom: var(--spacing-md); background-color: rgba(255, 193, 7, 0.1); border-color: #ffc107;">
+                            <i class="fas fa-tachometer-alt"></i>
+                            🔧 Fix Concurrency Limit (Remove 10 User Limit)
                         </button>
 
                         <!-- Execution Mode -->
@@ -647,6 +651,50 @@
 
     // Global flag to prevent duplicate invocations
     let isProcessing = false;
+
+    // Fix Lambda Concurrency Limit
+    function fixLambdaConcurrency() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please enter AWS credentials first.');
+            return;
+        }
+
+        if (!confirm('This will remove the reserved concurrency limit (if set) to allow 1000+ concurrent executions. Continue?')) {
+            return;
+        }
+
+        log('🔧 Fixing Lambda concurrency limit...');
+        fetch('/api/aws/fix-lambda-concurrency', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`✓ ${data.message}`);
+                if (data.previous_limit) {
+                    log(`Previous limit: ${data.previous_limit} → New limit: ${data.new_limit || data.current_limit}`);
+                }
+                alert('Lambda concurrency limit fixed! You can now process 1000+ users simultaneously.');
+            } else {
+                log(`ERROR: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(err => {
+            log(`ERROR: ${err.message}`);
+            alert(`Error: ${err.message}`);
+        });
+    }
 
     // Invoke Production Lambda
     function invokeProductionLambda() {
