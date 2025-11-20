@@ -589,8 +589,18 @@
         });
     }
 
+    // Global flag to prevent duplicate invocations
+    let isProcessing = false;
+
     // Invoke Production Lambda
     function invokeProductionLambda() {
+        // Prevent duplicate invocations
+        if (isProcessing) {
+            log('⚠️ WARNING: A bulk job is already running. Please wait for it to complete.');
+            alert('A bulk job is already running. Please wait for it to complete.');
+            return;
+        }
+
         const accessKey = document.getElementById('accessKey').value.trim();
         const secretKey = document.getElementById('secretKey').value.trim();
         const region = document.getElementById('region').value.trim();
@@ -625,6 +635,8 @@
             if (!confirm(`Are you sure you want to process ${usersRaw.length} accounts in parallel?\n\nThis will invoke the Lambda ${usersRaw.length} times concurrently on the server.`)) {
                 return;
             }
+            // Set flag to prevent duplicate clicks
+            isProcessing = true;
             invokeMultipleAccounts(usersRaw);
         }
     }
@@ -710,16 +722,18 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                log(`Job started: ${data.job_id}`);
+                log(`✅ Job started: ${data.job_id}`);
                 pollJobStatus(data.job_id);
             } else {
-                log(`ERROR starting bulk job: ${data.error}`);
+                log(`❌ ERROR starting bulk job: ${data.error}`);
                 alert(`Error: ${data.error}`);
+                isProcessing = false; // Reset flag on error
             }
         })
         .catch(error => {
-            log(`ERROR: ${error.message}`);
+            log(`❌ ERROR: ${error.message}`);
             alert(`Error: ${error.message}`);
+            isProcessing = false; // Reset flag on error
         });
     }
 
@@ -745,8 +759,9 @@
 
                     if (job.status === 'completed') {
                         clearInterval(statusInterval);
+                        isProcessing = false; // Reset flag when job completes
                         log('='.repeat(60));
-                        log('BULK JOB COMPLETED');
+                        log('✅ BULK JOB COMPLETED');
                         log(`Success: ${job.success}, Failed: ${job.failed}`);
                         
                         // Log errors

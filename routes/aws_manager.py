@@ -36,6 +36,10 @@ aws_manager = Blueprint('aws_manager', __name__)
 executor = ThreadPoolExecutor(max_workers=20)
 active_jobs = {}
 
+# Global set to track emails currently being processed (prevent duplicates within a job)
+processing_emails = set()
+processing_lock = threading.Lock()
+
 # Login required decorator
 def login_required(f):
     """Decorator to require login"""
@@ -331,6 +335,14 @@ def bulk_generate():
                 with app.app_context():
                     email = user['email']
                     password = user['password']
+                    
+                    # Check if email is already being processed (deduplicate)
+                    with processing_lock:
+                        if email in processing_emails:
+                            logger.warning(f"[BULK] ⚠️ SKIPPED: {email} is already being processed")
+                            return {'email': email, 'success': False, 'error': 'Duplicate - already processing'}
+                        processing_emails.add(email)
+                    
                     try:
                         logger.info(f"[BULK] Invoking Lambda for {email}")
                         resp = lam.invoke(
@@ -356,6 +368,10 @@ def bulk_generate():
                     except Exception as e:
                         logger.error(f"[BULK] Exception for {email}: {e}")
                         return {'email': email, 'success': False, 'error': str(e)}
+                    finally:
+                        # Remove from processing set when done
+                        with processing_lock:
+                            processing_emails.discard(email)
 
             # Execute in parallel
             # We use Synchronous invocation to capture the password directly.
