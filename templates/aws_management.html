@@ -143,6 +143,10 @@
                             <i class="fas fa-sync-alt"></i>
                             Create / Update Production Lambda
                         </button>
+                        <button class="btn-github" onclick="checkAWSLimits()" style="width: 100%; margin-bottom: var(--spacing-sm); background-color: rgba(0, 123, 255, 0.1); border-color: #007bff;">
+                            <i class="fas fa-search"></i>
+                            🔍 Check AWS Limits (Diagnose 10 User Issue)
+                        </button>
                         <button class="btn-github" onclick="fixLambdaConcurrency()" style="width: 100%; margin-bottom: var(--spacing-md); background-color: rgba(255, 193, 7, 0.1); border-color: #ffc107;">
                             <i class="fas fa-tachometer-alt"></i>
                             🔧 Fix Concurrency Limit (Remove 10 User Limit)
@@ -651,6 +655,106 @@
 
     // Global flag to prevent duplicate invocations
     let isProcessing = false;
+
+    // Check AWS Limits (Diagnostic Tool)
+    function checkAWSLimits() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please enter AWS credentials first.');
+            return;
+        }
+
+        log('🔍 Checking ALL AWS limits that could cause 10-user bottleneck...');
+        fetch('/api/aws/check-aws-limits', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log('='.repeat(60));
+                log('📊 AWS LIMITS DIAGNOSTIC REPORT');
+                log('='.repeat(60));
+                
+                const limits = data.limits;
+                
+                // Lambda Function Settings
+                log('\n🔹 Lambda Function Settings:');
+                if (limits.lambda_function.error) {
+                    log(`  ❌ Error: ${limits.lambda_function.error}`);
+                } else {
+                    log(`  Function: ${limits.lambda_function.name || 'N/A'}`);
+                    log(`  State: ${limits.lambda_function.state || 'N/A'}`);
+                    
+                    if (limits.lambda_function.reserved_concurrency !== undefined) {
+                        if (limits.lambda_function.reserved_concurrency === null) {
+                            log(`  ✅ Reserved Concurrency: Unreserved (Good!)`);
+                        } else {
+                            log(`  ⚠️ Reserved Concurrency: ${limits.lambda_function.reserved_concurrency} (THIS IS THE LIMIT!)`);
+                        }
+                    }
+                    
+                    if (limits.lambda_function.recent_max_concurrent !== undefined) {
+                        log(`  Recent Max Concurrent: ${limits.lambda_function.recent_max_concurrent}`);
+                    }
+                }
+                
+                // Account Limits
+                log('\n🔹 Account-Level Limits:');
+                if (limits.account_limits.error) {
+                    log(`  ❌ Error: ${limits.account_limits.error}`);
+                } else {
+                    log(`  Unreserved Concurrent Executions: ${limits.account_limits.unreserved_concurrent_executions || 'N/A'}`);
+                    if (limits.account_limits.status) {
+                        log(`  ${limits.account_limits.status}`);
+                    }
+                }
+                
+                // Service Quotas
+                log('\n🔹 Service Quotas:');
+                if (limits.service_quotas.error) {
+                    log(`  ⚠️ ${limits.service_quotas.error}`);
+                } else if (limits.service_quotas.lambda_concurrent_executions) {
+                    log(`  Lambda Concurrent Executions Quota: ${limits.service_quotas.lambda_concurrent_executions}`);
+                } else {
+                    log(`  Using default quota (1000)`);
+                }
+                
+                // Recommendations
+                log('\n🔹 Recommendations:');
+                if (limits.recommendations && limits.recommendations.length > 0) {
+                    limits.recommendations.forEach(rec => log(`  ${rec}`));
+                } else {
+                    log(`  ✅ No obvious limits found. Issue might be elsewhere.`);
+                }
+                
+                log('='.repeat(60));
+                
+                // Show alert with summary
+                const criticalIssues = limits.recommendations.filter(r => r.includes('CRITICAL')).length;
+                if (criticalIssues > 0) {
+                    alert(`Found ${criticalIssues} CRITICAL limit(s)! Check the log output for details.`);
+                } else {
+                    alert('No obvious AWS limits found. Check log output for full details.');
+                }
+            } else {
+                log(`ERROR: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(err => {
+            log(`ERROR: ${err.message}`);
+            alert(`Error: ${err.message}`);
+        });
+    }
 
     // Fix Lambda Concurrency Limit
     function fixLambdaConcurrency() {
