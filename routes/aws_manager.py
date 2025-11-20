@@ -106,6 +106,56 @@ def test_connection():
         logger.error(f"Error testing connection: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@aws_manager.route('/api/aws/create-dynamodb', methods=['POST'])
+@login_required
+def create_dynamodb_table():
+    """Create DynamoDB table for app password storage"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        region = data.get('region', '').strip()
+
+        if not access_key or not secret_key or not region:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        session = get_boto3_session(access_key, secret_key, region)
+        dynamodb = session.client('dynamodb')
+        table_name = "gbot-app-passwords"
+        
+        try:
+            # Check if table exists
+            dynamodb.describe_table(TableName=table_name)
+            return jsonify({'success': True, 'message': f'Table {table_name} already exists'})
+        except ClientError as e:
+            if e.response['Error']['Code'] != 'ResourceNotFoundException':
+                raise
+            
+            # Create table
+            logger.info(f"[DYNAMODB] Creating table {table_name}...")
+            dynamodb.create_table(
+                TableName=table_name,
+                KeySchema=[
+                    {'AttributeName': 'email', 'KeyType': 'HASH'}  # Partition key
+                ],
+                AttributeDefinitions=[
+                    {'AttributeName': 'email', 'AttributeType': 'S'}
+                ],
+                BillingMode='PAY_PER_REQUEST'  # On-demand pricing (no provisioned capacity)
+            )
+            
+            # Wait for table to be created
+            waiter = dynamodb.get_waiter('table_exists')
+            waiter.wait(TableName=table_name, WaiterConfig={'Delay': 2, 'MaxAttempts': 30})
+            
+            logger.info(f"[DYNAMODB] ✓ Table {table_name} created successfully")
+            return jsonify({'success': True, 'message': f'Table {table_name} created successfully'})
+            
+    except Exception as e:
+        logger.error(f"Error creating DynamoDB table: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @aws_manager.route('/api/aws/create-infrastructure', methods=['POST'])
 @login_required
 def create_infrastructure():
@@ -255,6 +305,7 @@ def create_lambdas():
 
         # Environment variables
         chromium_env = {
+            "DYNAMODB_TABLE_NAME": "gbot-app-passwords",  # DynamoDB table for password storage
             "APP_PASSWORDS_S3_BUCKET": s3_bucket,
             "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
             "SECRET_SFTP_HOST": sftp_host,
@@ -445,10 +496,70 @@ def get_job_status(job_id):
     # Return the job status including the results list (which has the new passwords)
     return jsonify({'success': True, 'job': job})
 
+@aws_manager.route('/api/aws/fetch-from-dynamodb', methods=['POST'])
+@login_required
+def fetch_from_dynamodb():
+    """Fetch app passwords from DynamoDB for specific users"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        region = data.get('region', '').strip()
+        emails = data.get('emails', [])  # List of emails to fetch
+        
+        if not access_key or not secret_key or not region:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+        
+        if not emails:
+            return jsonify({'success': False, 'error': 'No emails provided'}), 400
+        
+        session = get_boto3_session(access_key, secret_key, region)
+        dynamodb = session.resource('dynamodb')
+        table_name = "gbot-app-passwords"
+        
+        try:
+            table = dynamodb.Table(table_name)
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'DynamoDB table {table_name} not found: {e}'}), 404
+        
+        results = []
+        for email in emails:
+            try:
+                response = table.get_item(Key={'email': email})
+                if 'Item' in response:
+                    item = response['Item']
+                    results.append({
+                        'email': item['email'],
+                        'app_password': item['app_password'],
+                        'created_at': item.get('created_at', ''),
+                        'success': True
+                    })
+                    logger.info(f"[DYNAMODB] ✓ Fetched password for {email}")
+                else:
+                    logger.warning(f"[DYNAMODB] ⚠️ No entry found for {email}")
+                    results.append({
+                        'email': email,
+                        'error': 'Not found in DynamoDB',
+                        'success': False
+                    })
+            except Exception as e:
+                logger.error(f"[DYNAMODB] Error fetching {email}: {e}")
+                results.append({
+                    'email': email,
+                    'error': str(e),
+                    'success': False
+                })
+        
+        return jsonify({'success': True, 'results': results})
+    except Exception as e:
+        logger.error(f"Error fetching from DynamoDB: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @aws_manager.route('/api/aws/generated-passwords', methods=['GET'])
 @login_required
 def get_generated_passwords():
-    """Fetch all generated app passwords from DB (AWS generated only)"""
+    """Fetch all generated app passwords from local DB (deprecated - use DynamoDB)"""
     try:
         # Get recent passwords from AwsGeneratedPassword table
         passwords = AwsGeneratedPassword.query.order_by(AwsGeneratedPassword.created_at.desc()).all()
@@ -927,6 +1038,7 @@ def ensure_lambda_role(session):
         "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
         "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
         "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+        "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess",  # For app password storage
     ]
     
     try:

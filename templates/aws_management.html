@@ -110,6 +110,10 @@
                             <i class="fas fa-plus-circle"></i>
                             Create Core Resources (IAM, ECR, S3)
                         </button>
+                        <button class="btn-github btn-github-primary" onclick="createDynamoDBTable()" style="width: 100%; margin-bottom: var(--spacing-sm);">
+                            <i class="fas fa-database"></i>
+                            Create DynamoDB Table (Password Storage)
+                        </button>
                         <button class="btn-github" onclick="createECRManual()" style="width: 100%; margin-bottom: var(--spacing-sm);">
                             <i class="fas fa-box"></i>
                             Create ECR Repository (Manual)
@@ -129,10 +133,10 @@
                             <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
                             <div>
                                 <strong>Production Workflow:</strong><br>
-                                1) Create Core Resources (IAM, ECR, S3)<br>
+                                1) Create Core Resources (IAM, ECR, S3) + DynamoDB Table<br>
                                 2) Use EC2 tab to build/push Docker image<br>
                                 3) Create/Update Production Lambda<br>
-                                4) Invoke Lambda (Single or Multiple accounts)
+                                4) Invoke Lambda → Wait → Fetch from DynamoDB
                             </div>
                         </div>
                         <button class="btn-github btn-github-primary" onclick="createLambdas()" style="width: 100%; margin-bottom: var(--spacing-md);">
@@ -179,9 +183,23 @@
                         <div class="section" style="margin-top: var(--spacing-lg); background-color: var(--color-canvas-subtle); border: 1px solid var(--color-border-default);">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
                                 <h5 style="margin: 0;">Generated App Passwords</h5>
-                                <button class="btn-github" onclick="fetchGeneratedPasswords()">
-                                    <i class="fas fa-sync"></i> Refresh Results
-                                </button>
+                                <div>
+                                    <button class="btn-github btn-github-primary" onclick="fetchFromDynamoDB()" style="margin-right: var(--spacing-sm);">
+                                        <i class="fas fa-database"></i> Fetch from DynamoDB
+                                    </button>
+                                    <button class="btn-github" onclick="fetchGeneratedPasswords()">
+                                        <i class="fas fa-sync"></i> Refresh (Local DB)
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="alert-github" style="background-color: rgba(16, 185, 129, 0.08); border-left: 3px solid #10b981; margin-bottom: var(--spacing-md);">
+                                <i class="fas fa-info-circle" style="color: #10b981;"></i>
+                                <div>
+                                    <strong>How to use:</strong><br>
+                                    1) After invoking Lambda, wait 2-3 minutes<br>
+                                    2) Click "Fetch from DynamoDB" to get passwords<br>
+                                    3) Passwords are stored permanently in AWS DynamoDB
+                                </div>
                             </div>
                             <div class="form-group-github">
                                 <label class="form-label-github">Result List (email:app password):</label>
@@ -382,6 +400,43 @@
     }
 
     // Create Infrastructure
+    function createDynamoDBTable() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        log('Creating DynamoDB table for app password storage...');
+        
+        fetch('/api/aws/create-dynamodb', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log('✅ DynamoDB table created: gbot-app-passwords');
+                alert('DynamoDB table created successfully!');
+            } else {
+                log(`❌ ERROR creating DynamoDB table: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`❌ ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
     function createInfrastructure() {
         const accessKey = document.getElementById('accessKey').value.trim();
         const secretKey = document.getElementById('secretKey').value.trim();
@@ -779,6 +834,73 @@
             })
             .catch(err => console.error(err));
         }, 2000);
+    }
+
+    function fetchFromDynamoDB() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+        const usersText = document.getElementById('multipleUsers').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please provide AWS credentials.');
+            return;
+        }
+
+        if (!usersText) {
+            alert('Please paste users in the "Multiple Accounts" field first.');
+            return;
+        }
+
+        // Extract emails from the format "email:password"
+        const emails = usersText.split('\n')
+            .filter(line => line.trim() && line.includes(':'))
+            .map(line => line.split(':')[0].trim());
+
+        if (emails.length === 0) {
+            alert('No valid users found. Format: email:password (one per line)');
+            return;
+        }
+
+        log(`Fetching ${emails.length} passwords from DynamoDB...`);
+        
+        fetch('/api/aws/fetch-from-dynamodb', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region,
+                emails: emails
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const successResults = data.results.filter(r => r.success);
+                const failedResults = data.results.filter(r => !r.success);
+                
+                const passwords = successResults.map(r => `${r.email}:${r.app_password}`);
+                document.getElementById('resultsOutput').value = passwords.join('\n');
+                
+                log(`✅ Fetched ${successResults.length} passwords from DynamoDB`);
+                if (failedResults.length > 0) {
+                    log(`⚠️ ${failedResults.length} not found (may still be processing)`);
+                    failedResults.forEach(r => {
+                        log(`   - ${r.email}: ${r.error}`);
+                    });
+                }
+                
+                alert(`Success: ${successResults.length}/${emails.length} passwords fetched`);
+            } else {
+                log(`❌ ERROR fetching from DynamoDB: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`❌ ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
     }
 
     function fetchGeneratedPasswords() {
