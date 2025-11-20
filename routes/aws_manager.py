@@ -14,7 +14,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
 from functools import wraps
-from database import db, UserAppPassword
+from database import db, UserAppPassword, AwsGeneratedPassword
 
 # Constants from aws.py
 LAMBDA_ROLE_NAME = "edu-gw-app-password-lambda-role"
@@ -320,30 +320,33 @@ def bulk_generate():
             lam = session_boto.client("lambda")
             
             def process_single_user(user):
-                email = user['email']
-                password = user['password']
-                try:
-                    resp = lam.invoke(
-                        FunctionName=PRODUCTION_LAMBDA_NAME,
-                        InvocationType="RequestResponse", # Sync
-                        Payload=json.dumps({"email": email, "password": password}).encode("utf-8"),
-                    )
-                    payload = resp.get("Payload")
-                    body = payload.read().decode("utf-8") if payload else "{}"
-                    data = json.loads(body)
-                    
-                    # If successful and has app_password, save to DB
-                    if data.get('app_password'):
-                        save_app_password(email, data['app_password'])
-                        return {'email': email, 'success': True, 'app_password': data['app_password']}
-                    else:
-                        error_msg = data.get('error_message', 'Unknown error')
-                        return {'email': email, 'success': False, 'error': error_msg}
-                except Exception as e:
-                    return {'email': email, 'success': False, 'error': str(e)}
+                with app.app_context():
+                    email = user['email']
+                    password = user['password']
+                    try:
+                        resp = lam.invoke(
+                            FunctionName=PRODUCTION_LAMBDA_NAME,
+                            InvocationType="RequestResponse", # Sync
+                            Payload=json.dumps({"email": email, "password": password}).encode("utf-8"),
+                        )
+                        payload = resp.get("Payload")
+                        body = payload.read().decode("utf-8") if payload else "{}"
+                        data = json.loads(body)
+                        
+                        # If successful and has app_password, save to DB
+                        if data.get('app_password'):
+                            save_app_password(email, data['app_password'])
+                            return {'email': email, 'success': True, 'app_password': data['app_password']}
+                        else:
+                            error_msg = data.get('error_message', 'Unknown error')
+                            return {'email': email, 'success': False, 'error': error_msg}
+                    except Exception as e:
+                        return {'email': email, 'success': False, 'error': str(e)}
 
             # Execute in parallel
-            with ThreadPoolExecutor(max_workers=10) as pool: # Server-side concurrency limit
+            # We use Synchronous invocation to capture the password directly.
+            # We can increase workers since they are mostly waiting for I/O (Lambda).
+            with ThreadPoolExecutor(max_workers=50) as pool: 
                 futures = {pool.submit(process_single_user, u): u for u in users}
                 
                 for future in as_completed(futures):
@@ -382,15 +385,14 @@ def get_job_status(job_id):
 @aws_manager.route('/api/aws/generated-passwords', methods=['GET'])
 @login_required
 def get_generated_passwords():
-    """Fetch all generated app passwords from DB"""
+    """Fetch all generated app passwords from DB (AWS generated only)"""
     try:
-        # Get recent passwords
-        passwords = UserAppPassword.query.order_by(UserAppPassword.created_at.desc()).all()
+        # Get recent passwords from AwsGeneratedPassword table
+        passwords = AwsGeneratedPassword.query.order_by(AwsGeneratedPassword.created_at.desc()).all()
         result = []
         for p in passwords:
-            email = f"{p.username}@{p.domain}"
             result.append({
-                'email': email,
+                'email': p.email,
                 'app_password': p.app_password,
                 'created_at': p.created_at.isoformat()
             })
@@ -399,21 +401,15 @@ def get_generated_passwords():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 def save_app_password(email, app_password):
-    """Save app password to DB, splitting email into username and domain"""
+    """Save app password to AwsGeneratedPassword table"""
     try:
-        if '@' in email:
-            username, domain = email.split('@', 1)
-        else:
-            username = email
-            domain = 'unknown'
-            
         # Check if exists
-        existing = UserAppPassword.query.filter_by(username=username, domain=domain).first()
+        existing = AwsGeneratedPassword.query.filter_by(email=email).first()
         if existing:
             existing.app_password = app_password
             existing.updated_at = db.func.current_timestamp()
         else:
-            new_entry = UserAppPassword(username=username, domain=domain, app_password=app_password)
+            new_entry = AwsGeneratedPassword(email=email, app_password=app_password)
             db.session.add(new_entry)
         
         db.session.commit()

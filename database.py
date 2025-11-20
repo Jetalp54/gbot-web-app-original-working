@@ -72,6 +72,13 @@ class UserAppPassword(db.Model):
     # Composite unique constraint on username + domain
     __table_args__ = (db.UniqueConstraint('username', 'domain', name='unique_user_domain'),)
 
+class AwsGeneratedPassword(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=False, unique=True)
+    app_password = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
 class AutomationAccount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     account_name = db.Column(db.String(255), unique=True, nullable=False)
