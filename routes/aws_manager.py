@@ -4,6 +4,7 @@ AWS Management routes for AWS infrastructure, Lambda, and EC2 management.
 import os
 import boto3
 from botocore.exceptions import ClientError
+from botocore.config import Config
 import json
 import io
 import zipfile
@@ -463,7 +464,17 @@ def bulk_generate():
     def background_process(app, job_id, users, access_key, secret_key, region):
         with app.app_context():
             session_boto = get_boto3_session(access_key, secret_key, region)
-            lam = session_boto.client("lambda")
+            
+            # Configure Boto3 for high concurrency (default pool size is 10)
+            # This fixes the bottleneck where only 10 threads could talk to AWS at once
+            boto_config = Config(
+                max_pool_connections=1000,
+                retries={'max_attempts': 0} # We handle retries manually
+            )
+            
+            lam = session_boto.client("lambda", config=boto_config)
+            dynamodb = session_boto.resource('dynamodb', config=boto_config)
+            table = dynamodb.Table("gbot-app-passwords")
             
             def process_single_user(user):
                 with app.app_context():
@@ -472,8 +483,7 @@ def bulk_generate():
                     
                     # Check DynamoDB first - if password already exists, skip
                     try:
-                        dynamodb = session_boto.resource('dynamodb')
-                        table = dynamodb.Table("gbot-app-passwords")
+                        # Use shared table resource (efficient connection pooling)
                         response = table.get_item(Key={'email': email})
                         if 'Item' in response:
                             existing_password = response['Item'].get('app_password')
