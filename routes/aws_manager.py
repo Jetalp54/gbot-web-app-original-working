@@ -1147,6 +1147,29 @@ def ensure_ec2_key_pair(session):
 def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
     ec2 = session.client("ec2")
     ssm = session.client("ssm")
+    s3 = session.client("s3")
+
+    # Upload custom main.py to S3 for EC2 to download
+    s3_build_prefix = "ec2-build-files"
+    main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "repo_aws_files", "main.py")
+    
+    if not os.path.exists(main_py_path):
+        raise Exception(f"Custom main.py not found at {main_py_path}. Please ensure repo_aws_files/main.py exists.")
+    
+    logger.info(f"[EC2] Uploading custom main.py to S3: s3://{S3_BUCKET_NAME}/{s3_build_prefix}/main.py")
+    
+    try:
+        with open(main_py_path, 'rb') as f:
+            s3.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=f"{s3_build_prefix}/main.py",
+                Body=f.read(),
+                ContentType="text/x-python"
+            )
+        logger.info(f"[EC2] Custom main.py uploaded successfully")
+    except Exception as e:
+        logger.error(f"[EC2] Failed to upload main.py to S3: {e}")
+        raise Exception(f"Failed to upload custom main.py to S3: {e}")
 
     param = ssm.get_parameter(
         Name="/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
@@ -1157,7 +1180,7 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
 
     repo_uri_base = f"{account_id}.dkr.ecr.{region}.amazonaws.com/{ECR_REPO_NAME}"
 
-    # User data script (simplified - full version would upload files to S3)
+    # User data script that downloads custom main.py from S3
     user_data = f"""#!/bin/bash
 set -xe
 exec > >(tee /var/log/user-data.log) 2>&1
@@ -1179,6 +1202,15 @@ cd /home/ec2-user
 echo "Cloning docker-selenium-lambda repo..."
 git clone https://github.com/umihico/docker-selenium-lambda.git
 cd docker-selenium-lambda
+
+echo "Downloading custom main.py from S3..."
+aws s3 cp s3://{S3_BUCKET_NAME}/{s3_build_prefix}/main.py ./main.py
+if [ $? -eq 0 ]; then
+    echo "Custom main.py downloaded successfully"
+    chmod 644 main.py
+else
+    echo "WARNING: Failed to download custom main.py, using default from repo"
+fi
 
 echo "Verifying ECR repository exists..."
 ECR_FOUND=0
