@@ -65,6 +65,14 @@ def get_account_id(session):
 @login_required
 def aws_management():
     """AWS Management page"""
+    # Ensure table exists to prevent 500 errors if migration wasn't run
+    try:
+        inspector = db.inspect(db.engine)
+        if 'aws_generated_password' not in inspector.get_table_names():
+            db.create_all()
+    except Exception as e:
+        logger.error(f"Auto-migration failed: {e}")
+    
     return render_template('aws_management.html', user=session.get('user'), role=session.get('role'))
 
 @aws_manager.route('/api/aws/test-connection', methods=['POST'])
@@ -398,7 +406,9 @@ def get_generated_passwords():
             })
         return jsonify({'success': True, 'passwords': result})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        # If table doesn't exist or other DB error, return empty list to prevent frontend crash
+        logger.error(f"Error fetching generated passwords: {e}")
+        return jsonify({'success': True, 'passwords': [], 'error': str(e)})
 
 def save_app_password(email, app_password):
     """Save app password to AwsGeneratedPassword table"""
