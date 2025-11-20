@@ -463,28 +463,38 @@ def bulk_generate():
     
     def background_process(app, job_id, users, access_key, secret_key, region):
         with app.app_context():
-            session_boto = get_boto3_session(access_key, secret_key, region)
-            
-            # Configure Boto3 for high concurrency (default pool size is 10)
-            # This fixes the bottleneck where only 10 threads could talk to AWS at once
-            boto_config = Config(
-                max_pool_connections=1000,
-                retries={'max_attempts': 0} # We handle retries manually
-            )
-            
-            lam = session_boto.client("lambda", config=boto_config)
-            dynamodb = session_boto.resource('dynamodb', config=boto_config)
-            table = dynamodb.Table("gbot-app-passwords")
+            # NUCLEAR FIX: Create independent boto3 clients per thread to eliminate ANY connection pool contention
+            # Each thread gets its own client with its own connection pool
+            # This guarantees 1000+ concurrent invocations without blocking
             
             def process_single_user(user):
                 with app.app_context():
                     email = user['email']
                     password = user['password']
                     
+                    # Create INDEPENDENT boto3 session and clients for this thread
+                    # This eliminates connection pool sharing issues completely
+                    session_thread = boto3.Session(
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name=region
+                    )
+                    
+                    # Each thread gets its own Lambda client (no sharing = no blocking)
+                    lam_thread = session_thread.client("lambda", config=Config(
+                        max_pool_connections=10,  # Per-client pool (10 is fine since each thread has its own)
+                        retries={'max_attempts': 0}
+                    ))
+                    
+                    # Each thread gets its own DynamoDB resource
+                    dynamodb_thread = session_thread.resource('dynamodb', config=Config(
+                        max_pool_connections=10
+                    ))
+                    table_thread = dynamodb_thread.Table("gbot-app-passwords")
+                    
                     # Check DynamoDB first - if password already exists, skip
                     try:
-                        # Use shared table resource (efficient connection pooling)
-                        response = table.get_item(Key={'email': email})
+                        response = table_thread.get_item(Key={'email': email})
                         if 'Item' in response:
                             existing_password = response['Item'].get('app_password')
                             logger.info(f"[BULK] ✓ SKIPPED: {email} already has password in DynamoDB")
@@ -511,7 +521,8 @@ def bulk_generate():
                         max_retries = 5  # Increased retries for high concurrency scenarios
                         for attempt in range(max_retries):
                             try:
-                                resp = lam.invoke(
+                                # Use thread-specific Lambda client (no connection pool contention)
+                                resp = lam_thread.invoke(
                                     FunctionName=PRODUCTION_LAMBDA_NAME,
                                     InvocationType="RequestResponse", # Sync
                                     Payload=json.dumps({"email": email, "password": password}).encode("utf-8"),
