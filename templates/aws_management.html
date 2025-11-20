@@ -147,9 +147,13 @@
                             <i class="fas fa-search"></i>
                             🔍 Check AWS Limits (Diagnose 10 User Issue)
                         </button>
-                        <button class="btn-github" onclick="fixLambdaConcurrency()" style="width: 100%; margin-bottom: var(--spacing-md); background-color: rgba(255, 193, 7, 0.1); border-color: #ffc107;">
+                        <button class="btn-github" onclick="fixLambdaConcurrency()" style="width: 100%; margin-bottom: var(--spacing-sm); background-color: rgba(255, 193, 7, 0.1); border-color: #ffc107;">
                             <i class="fas fa-tachometer-alt"></i>
                             🔧 Fix Concurrency Limit (Remove 10 User Limit)
+                        </button>
+                        <button class="btn-github" onclick="requestQuotaIncrease()" style="width: 100%; margin-bottom: var(--spacing-md); background-color: rgba(40, 167, 69, 0.1); border-color: #28a745;">
+                            <i class="fas fa-arrow-up"></i>
+                            🚀 Request Quota Increase (10 → 1000)
                         </button>
 
                         <!-- Execution Mode -->
@@ -797,6 +801,65 @@
         .catch(err => {
             log(`ERROR: ${err.message}`);
             alert(`Error: ${err.message}`);
+        });
+    }
+
+    // Request Quota Increase
+    function requestQuotaIncrease() {
+        const accessKey = document.getElementById('accessKey').value.trim();
+        const secretKey = document.getElementById('secretKey').value.trim();
+        const region = document.getElementById('region').value.trim();
+
+        if (!accessKey || !secretKey || !region) {
+            alert('Please enter AWS credentials first.');
+            return;
+        }
+
+        const requestedLimit = prompt('Enter desired concurrent execution limit (default: 1000):', '1000');
+        if (!requestedLimit) {
+            return;
+        }
+
+        const limit = parseInt(requestedLimit);
+        if (isNaN(limit) || limit < 10) {
+            alert('Please enter a valid number >= 10');
+            return;
+        }
+
+        if (!confirm(`This will request AWS to increase your Lambda concurrent execution quota from 10 to ${limit}.\n\nAWS Support will review and approve (usually within 24 hours).\n\nContinue?`)) {
+            return;
+        }
+
+        log(`🚀 Requesting quota increase: 10 → ${limit}...`);
+        fetch('/api/aws/request-quota-increase', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region,
+                requested_limit: limit
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`✓ ${data.message}`);
+                if (data.request_id) {
+                    log(`Request ID: ${data.request_id}`);
+                    log(`Current quota: ${data.current_quota}`);
+                    log(`Requested quota: ${data.requested_quota}`);
+                    log(`Note: ${data.note || 'AWS Support will review and approve (usually within 24 hours)'}`);
+                }
+                alert(`Quota increase requested successfully!\n\nRequest ID: ${data.request_id || 'N/A'}\n\nAWS Support will review and approve (usually within 24 hours).`);
+            } else {
+                log(`ERROR: ${data.error}`);
+                alert(`Error: ${data.error}\n\nYou may need to request manually via AWS Support Center.`);
+            }
+        })
+        .catch(err => {
+            log(`ERROR: ${err.message}`);
+            alert(`Error: ${err.message}\n\nYou may need to request manually via AWS Support Center.`);
         });
     }
 

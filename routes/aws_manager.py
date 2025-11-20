@@ -481,6 +481,103 @@ def check_aws_limits():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@aws_manager.route('/api/aws/request-quota-increase', methods=['POST'])
+@login_required
+def request_quota_increase():
+    """Request Lambda concurrent executions quota increase"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        region = data.get('region', '').strip()
+        requested_limit = data.get('requested_limit', 1000)  # Default to 1000
+
+        if not access_key or not secret_key or not region:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        session = get_boto3_session(access_key, secret_key, region)
+        
+        try:
+            service_quotas = session.client("service-quotas", region_name=region)
+            
+            # Lambda concurrent executions quota code
+            quota_code = "L-B99A9384"
+            service_code = "lambda"
+            
+            # Get current quota
+            try:
+                current_quota = service_quotas.get_service_quota(
+                    ServiceCode=service_code,
+                    QuotaCode=quota_code
+                )
+                current_value = current_quota['Quota']['Value']
+                
+                if current_value >= requested_limit:
+                    return jsonify({
+                        'success': True,
+                        'message': f'Current quota ({current_value}) is already sufficient. No increase needed.',
+                        'current_quota': current_value
+                    })
+                
+                # Request quota increase
+                logger.info(f"[QUOTA] Requesting increase from {current_value} to {requested_limit}")
+                
+                # Request quota increase
+                try:
+                    quota_request = service_quotas.request_service_quota_increase(
+                        ServiceCode=service_code,
+                        QuotaCode=quota_code,
+                        DesiredValue=requested_limit
+                    )
+                    
+                    request_id = quota_request['RequestedQuota']['RequestId']
+                    logger.info(f"[QUOTA] ✓ Quota increase requested. Request ID: {request_id}")
+                    
+                    return jsonify({
+                        'success': True,
+                        'message': f'Quota increase requested: {current_value} → {requested_limit}',
+                        'request_id': request_id,
+                        'current_quota': current_value,
+                        'requested_quota': requested_limit,
+                        'note': 'AWS Support will review and approve (usually within 24 hours)'
+                    })
+                except service_quotas.exceptions.DependencyAccessDeniedException:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Service Quotas API not available. Request quota increase manually via AWS Support Center → Service Quotas → Lambda → Concurrent executions'
+                    }), 403
+                except service_quotas.exceptions.QuotaExceededException:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Cannot request {requested_limit}. Maximum allowed is lower. Check AWS Console for limits.'
+                    }), 400
+                except Exception as e:
+                    error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', '')
+                    if error_code == 'AccessDenied':
+                        return jsonify({
+                            'success': False,
+                            'error': 'Access denied. Request quota increase manually via AWS Support Center.'
+                        }), 403
+                    raise
+                    
+            except service_quotas.exceptions.NoSuchResourceException:
+                return jsonify({
+                    'success': False,
+                    'error': 'Quota not found. This account may not have Service Quotas enabled.'
+                }), 404
+                
+        except Exception as e:
+            logger.error(f"Error requesting quota increase: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Could not request quota increase: {str(e)}. Request manually via AWS Support Center.'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error requesting quota increase: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @aws_manager.route('/api/aws/fix-lambda-concurrency', methods=['POST'])
 @login_required
 def fix_lambda_concurrency():
