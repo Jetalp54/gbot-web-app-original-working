@@ -13,6 +13,12 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
+# Import gevent pool for async operations (compatible with gevent workers)
+try:
+    from gevent.pool import Pool as GeventPool
+    GEVENT_AVAILABLE = True
+except ImportError:
+    GEVENT_AVAILABLE = False
 from functools import wraps
 from database import db, UserAppPassword, AwsGeneratedPassword
 
@@ -493,27 +499,60 @@ def bulk_generate():
                             processing_emails.discard(email)
 
             # Execute in parallel
-            # Use 1000 workers for massive scale with DynamoDB-based deduplication
-            with ThreadPoolExecutor(max_workers=1000) as pool: 
-                futures = {pool.submit(process_single_user, u): u for u in users}
+            # Use gevent pool for 1000+ concurrent (compatible with gevent workers)
+            if GEVENT_AVAILABLE:
+                # Use gevent's greenlet pool (async, non-blocking)
+                pool = GeventPool(1000)
+                results = []
                 
-                for future in as_completed(futures):
-                    result = future.result()
-                    active_jobs[job_id]['completed'] += 1
-                    if result['success']:
-                        active_jobs[job_id]['success'] += 1
-                        active_jobs[job_id]['results'].append({
-                            'email': result['email'],
-                            'app_password': result['app_password'],
-                            'success': True
-                        })
-                    else:
-                        active_jobs[job_id]['failed'] += 1
-                        active_jobs[job_id]['results'].append({
-                            'email': result['email'],
-                            'error': result.get('error'),
-                            'success': False
-                        })
+                def process_and_store(user):
+                    result = process_single_user(user)
+                    with app.app_context():
+                        active_jobs[job_id]['completed'] += 1
+                        if result['success']:
+                            active_jobs[job_id]['success'] += 1
+                            active_jobs[job_id]['results'].append({
+                                'email': result['email'],
+                                'app_password': result['app_password'],
+                                'success': True
+                            })
+                        else:
+                            active_jobs[job_id]['failed'] += 1
+                            active_jobs[job_id]['results'].append({
+                                'email': result['email'],
+                                'error': result.get('error'),
+                                'success': False
+                            })
+                    return result
+                
+                # Spawn all greenlets
+                for user in users:
+                    pool.spawn(process_and_store, user)
+                
+                # Wait for all to complete
+                pool.join()
+            else:
+                # Fallback to ThreadPoolExecutor if gevent not available
+                with ThreadPoolExecutor(max_workers=1000) as pool: 
+                    futures = {pool.submit(process_single_user, u): u for u in users}
+                    
+                    for future in as_completed(futures):
+                        result = future.result()
+                        active_jobs[job_id]['completed'] += 1
+                        if result['success']:
+                            active_jobs[job_id]['success'] += 1
+                            active_jobs[job_id]['results'].append({
+                                'email': result['email'],
+                                'app_password': result['app_password'],
+                                'success': True
+                            })
+                        else:
+                            active_jobs[job_id]['failed'] += 1
+                            active_jobs[job_id]['results'].append({
+                                'email': result['email'],
+                                'error': result.get('error'),
+                                'success': False
+                            })
             
             active_jobs[job_id]['status'] = 'completed'
 
