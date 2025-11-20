@@ -1370,6 +1370,15 @@ def create_or_update_lambda(session, function_name, role_arn, timeout, env_vars,
         }
         lam.create_function(**create_params)
         
+        # CRITICAL: Wait for function to be Active before modifying concurrency
+        try:
+            logger.info(f"[LAMBDA] Waiting for {function_name} to be active...")
+            waiter = lam.get_waiter("function_active")
+            waiter.wait(FunctionName=function_name, WaiterConfig={"Delay": 5, "MaxAttempts": 60})
+            logger.info(f"[LAMBDA] {function_name} is now active.")
+        except Exception as e:
+            logger.warning(f"[LAMBDA] Warning waiting for active state: {e}")
+
         # CRITICAL: Ensure no reserved concurrency limit for new functions
         # This allows the function to use the full account limit (1000+)
         try:
