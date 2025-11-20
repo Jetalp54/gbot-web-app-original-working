@@ -9,7 +9,6 @@ Flask-SQLAlchemy
 python-dotenv
 psutil==5.9.5
 gunicorn==21.2.0
-gevent==23.9.1
 requests==2.31.0
 pyotp==2.9.0
 publicsuffix2==2.20191221

@@ -684,17 +684,13 @@
             }
             invokeSingleAccount(usersRaw[0]);
         } else {
-            // Warning for very large batches
-            if (usersRaw.length > 2000) {
-                if (!confirm(`⚠️ WARNING: You are about to process ${usersRaw.length} users!\n\nThis is a very large batch. Consider:\n- Splitting into 2 functions (1000 users each)\n- AWS Lambda has 1000 concurrent execution limit per function\n\nContinue anyway?`)) {
-                    return;
-                }
-            }
-            
-            if (!confirm(`Are you sure you want to process ${usersRaw.length} accounts?\n\nThis will invoke the Lambda ${usersRaw.length} times concurrently (max 1000 at once).`)) {
+            if (usersRaw.length > 1000) {
+                alert(`Too many users (${usersRaw.length}). Maximum is 1000. Please reduce the number of users.`);
                 return;
             }
-            
+            if (!confirm(`Are you sure you want to process ${usersRaw.length} accounts in parallel?\n\nThis will invoke the Lambda ${usersRaw.length} times concurrently on the server.`)) {
+                return;
+            }
             // Set flag to prevent duplicate clicks
             isProcessing = true;
             invokeMultipleAccounts(usersRaw);

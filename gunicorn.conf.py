@@ -6,10 +6,10 @@ import os
 bind = "127.0.0.1:5000"
 backlog = 16384  # High backlog for unlimited concurrent machines
 
-# Worker processes - Optimized for 1000+ concurrent AWS Lambda invocations
-workers = 4  # CPU cores (gevent handles concurrency efficiently)
-worker_class = "gevent"  # Async workers for massive concurrency (1000+ simultaneous)
-worker_connections = 5000  # Connections per worker (4 workers × 5000 = 20,000 concurrent!)
+# Worker processes - Optimized for unlimited concurrent machines without crashing
+workers = 16  # 4x CPU cores - safe for unlimited machines without resource exhaustion
+worker_class = "sync"
+worker_connections = 5000  # High connections per worker
 max_requests = 50000  # Very high before restart
 max_requests_jitter = 1000
 
