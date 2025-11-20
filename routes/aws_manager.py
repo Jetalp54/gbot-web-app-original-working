@@ -1149,13 +1149,23 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
     ssm = session.client("ssm")
     s3 = session.client("s3")
 
-    # Upload custom main.py to S3 for EC2 to download
+    # Ensure S3 bucket exists before uploading
+    logger.info(f"[EC2] Ensuring S3 bucket {S3_BUCKET_NAME} exists...")
+    try:
+        create_s3_bucket(session, region)
+    except Exception as e:
+        logger.warning(f"[EC2] S3 bucket creation warning: {e}")
+
+    # Upload custom files to S3 for EC2 to download
     s3_build_prefix = "ec2-build-files"
-    main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "repo_aws_files", "main.py")
+    repo_files_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "repo_aws_files")
+    main_py_path = os.path.join(repo_files_dir, "main.py")
+    dockerfile_path = os.path.join(repo_files_dir, "Dockerfile")
     
     if not os.path.exists(main_py_path):
         raise Exception(f"Custom main.py not found at {main_py_path}. Please ensure repo_aws_files/main.py exists.")
     
+    # Upload main.py
     logger.info(f"[EC2] Uploading custom main.py to S3: s3://{S3_BUCKET_NAME}/{s3_build_prefix}/main.py")
     
     try:
@@ -1167,9 +1177,30 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
                 ContentType="text/x-python"
             )
         logger.info(f"[EC2] Custom main.py uploaded successfully")
+        
+        # Upload Dockerfile if it exists
+        if os.path.exists(dockerfile_path):
+            logger.info(f"[EC2] Uploading custom Dockerfile to S3: s3://{S3_BUCKET_NAME}/{s3_build_prefix}/Dockerfile")
+            with open(dockerfile_path, 'rb') as f:
+                s3.put_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=f"{s3_build_prefix}/Dockerfile",
+                    Body=f.read(),
+                    ContentType="text/plain"
+                )
+            logger.info(f"[EC2] Custom Dockerfile uploaded successfully")
+        else:
+            logger.warning(f"[EC2] Dockerfile not found at {dockerfile_path}, will use default from repo")
+            
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'AccessDenied':
+            raise Exception(f"Access Denied to S3 bucket {S3_BUCKET_NAME}. Please ensure your AWS credentials have S3 write permissions (s3:PutObject).")
+        else:
+            raise Exception(f"Failed to upload files to S3: {e}")
     except Exception as e:
-        logger.error(f"[EC2] Failed to upload main.py to S3: {e}")
-        raise Exception(f"Failed to upload custom main.py to S3: {e}")
+        logger.error(f"[EC2] Failed to upload files to S3: {e}")
+        raise Exception(f"Failed to upload files to S3: {e}")
 
     param = ssm.get_parameter(
         Name="/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
@@ -1203,13 +1234,21 @@ echo "Cloning docker-selenium-lambda repo..."
 git clone https://github.com/umihico/docker-selenium-lambda.git
 cd docker-selenium-lambda
 
-echo "Downloading custom main.py from S3..."
+echo "Downloading custom files from S3..."
 aws s3 cp s3://{S3_BUCKET_NAME}/{s3_build_prefix}/main.py ./main.py
 if [ $? -eq 0 ]; then
     echo "Custom main.py downloaded successfully"
     chmod 644 main.py
 else
     echo "WARNING: Failed to download custom main.py, using default from repo"
+fi
+
+aws s3 cp s3://{S3_BUCKET_NAME}/{s3_build_prefix}/Dockerfile ./Dockerfile
+if [ $? -eq 0 ]; then
+    echo "Custom Dockerfile downloaded successfully"
+    chmod 644 Dockerfile
+else
+    echo "INFO: No custom Dockerfile found, using default from repo"
 fi
 
 echo "Verifying ECR repository exists..."
