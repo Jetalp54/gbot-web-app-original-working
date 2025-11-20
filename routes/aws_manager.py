@@ -405,7 +405,24 @@ def bulk_generate():
                     email = user['email']
                     password = user['password']
                     
-                    # Check if email is already being processed (deduplicate)
+                    # Check DynamoDB first - if password already exists, skip
+                    try:
+                        dynamodb = session_boto.resource('dynamodb')
+                        table = dynamodb.Table("gbot-app-passwords")
+                        response = table.get_item(Key={'email': email})
+                        if 'Item' in response:
+                            existing_password = response['Item'].get('app_password')
+                            logger.info(f"[BULK] ✓ SKIPPED: {email} already has password in DynamoDB")
+                            # Save to local DB too
+                            try:
+                                save_app_password(email, existing_password)
+                            except:
+                                pass
+                            return {'email': email, 'success': True, 'app_password': existing_password, 'skipped': True}
+                    except Exception as e:
+                        logger.warning(f"[BULK] Could not check DynamoDB for {email}: {e}")
+                    
+                    # Check if email is already being processed in memory (deduplicate)
                     with processing_lock:
                         if email in processing_emails:
                             logger.warning(f"[BULK] ⚠️ SKIPPED: {email} is already being processed")
@@ -476,8 +493,8 @@ def bulk_generate():
                             processing_emails.discard(email)
 
             # Execute in parallel
-            # Limit to 10 concurrent to avoid AWS rate limits and duplicate invocations
-            with ThreadPoolExecutor(max_workers=10) as pool: 
+            # Use 1000 workers for massive scale with DynamoDB-based deduplication
+            with ThreadPoolExecutor(max_workers=1000) as pool: 
                 futures = {pool.submit(process_single_user, u): u for u in users}
                 
                 for future in as_completed(futures):
