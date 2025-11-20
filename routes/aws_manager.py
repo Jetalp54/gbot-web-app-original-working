@@ -345,28 +345,61 @@ def bulk_generate():
                     
                     try:
                         logger.info(f"[BULK] Invoking Lambda for {email}")
-                        resp = lam.invoke(
-                            FunctionName=PRODUCTION_LAMBDA_NAME,
-                            InvocationType="RequestResponse", # Sync
-                            Payload=json.dumps({"email": email, "password": password}).encode("utf-8"),
-                        )
+                        
+                        # Retry logic for rate limiting
+                        max_retries = 3
+                        for attempt in range(max_retries):
+                            try:
+                                resp = lam.invoke(
+                                    FunctionName=PRODUCTION_LAMBDA_NAME,
+                                    InvocationType="RequestResponse", # Sync
+                                    Payload=json.dumps({"email": email, "password": password}).encode("utf-8"),
+                                )
+                                break  # Success, exit retry loop
+                            except ClientError as ce:
+                                if ce.response['Error']['Code'] == 'TooManyRequestsException':
+                                    if attempt < max_retries - 1:
+                                        wait_time = (2 ** attempt) * 5  # 5s, 10s, 20s
+                                        logger.warning(f"[BULK] Rate limited for {email}, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                                        time.sleep(wait_time)
+                                    else:
+                                        raise  # Final attempt failed
+                                else:
+                                    raise  # Other AWS error, don't retry
+                        
                         payload = resp.get("Payload")
                         body = payload.read().decode("utf-8") if payload else "{}"
-                        logger.info(f"[BULK] Lambda response for {email}: {body[:200]}")
-                        data = json.loads(body)
+                        logger.info(f"[BULK] Lambda response for {email}: {body[:500]}")  # Show more of response
+                        
+                        try:
+                            data = json.loads(body)
+                        except json.JSONDecodeError as je:
+                            logger.error(f"[BULK] Failed to parse Lambda response as JSON for {email}: {je}")
+                            return {'email': email, 'success': False, 'error': f'Invalid JSON response: {body[:200]}'}
+                        
+                        # Check Lambda status first
+                        lambda_status = data.get('status', 'unknown')
+                        app_password = data.get('app_password')
+                        error_msg = data.get('error_message', 'Unknown error')
+                        
+                        logger.info(f"[BULK] Lambda status for {email}: {lambda_status}, has_password: {bool(app_password)}")
                         
                         # If successful and has app_password, save to DB
-                        if data.get('app_password'):
+                        if lambda_status == 'success' and app_password:
                             logger.info(f"[BULK] Saving password for {email} to DB")
-                            save_app_password(email, data['app_password'])
-                            logger.info(f"[BULK] ✓ Successfully processed {email}")
-                            return {'email': email, 'success': True, 'app_password': data['app_password']}
+                            try:
+                                save_app_password(email, app_password)
+                                logger.info(f"[BULK] ✓ Successfully processed {email}")
+                            except Exception as db_err:
+                                logger.error(f"[BULK] Failed to save to DB for {email}: {db_err}")
+                                # Continue anyway - we have the password
+                            return {'email': email, 'success': True, 'app_password': app_password}
                         else:
-                            error_msg = data.get('error_message', 'Unknown error')
-                            logger.warning(f"[BULK] ✗ No password in response for {email}: {error_msg}")
+                            logger.warning(f"[BULK] ✗ Lambda failed for {email}: {error_msg}")
                             return {'email': email, 'success': False, 'error': error_msg}
                     except Exception as e:
                         logger.error(f"[BULK] Exception for {email}: {e}")
+                        logger.error(f"[BULK] Traceback: {traceback.format_exc()}")
                         return {'email': email, 'success': False, 'error': str(e)}
                     finally:
                         # Remove from processing set when done
