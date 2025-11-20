@@ -7,10 +7,10 @@ import os
 bind = "127.0.0.1:5000"
 backlog = 8192  # Maximum backlog for extreme concurrency
 
-# Worker processes - MAXIMUM for 4 vCPU, 16GB RAM
-workers = 16  # 4x CPU cores for maximum performance
-worker_class = "sync"
-worker_connections = 5000  # Maximum connections per worker
+# Worker processes - MAXIMUM for 4 vCPU, 16GB RAM - ASYNC for 1000+ concurrent
+workers = 4  # CPU cores (gevent handles massive concurrency)
+worker_class = "gevent"  # Async workers for 1000+ simultaneous Lambda invocations
+worker_connections = 10000  # Maximum connections per worker (4 × 10000 = 40,000 concurrent!)
 max_requests = 20000  # Very high before restart
 max_requests_jitter = 500
 
