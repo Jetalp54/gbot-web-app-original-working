@@ -332,6 +332,7 @@ def bulk_generate():
                     email = user['email']
                     password = user['password']
                     try:
+                        logger.info(f"[BULK] Invoking Lambda for {email}")
                         resp = lam.invoke(
                             FunctionName=PRODUCTION_LAMBDA_NAME,
                             InvocationType="RequestResponse", # Sync
@@ -339,16 +340,21 @@ def bulk_generate():
                         )
                         payload = resp.get("Payload")
                         body = payload.read().decode("utf-8") if payload else "{}"
+                        logger.info(f"[BULK] Lambda response for {email}: {body[:200]}")
                         data = json.loads(body)
                         
                         # If successful and has app_password, save to DB
                         if data.get('app_password'):
+                            logger.info(f"[BULK] Saving password for {email} to DB")
                             save_app_password(email, data['app_password'])
+                            logger.info(f"[BULK] ✓ Successfully processed {email}")
                             return {'email': email, 'success': True, 'app_password': data['app_password']}
                         else:
                             error_msg = data.get('error_message', 'Unknown error')
+                            logger.warning(f"[BULK] ✗ No password in response for {email}: {error_msg}")
                             return {'email': email, 'success': False, 'error': error_msg}
                     except Exception as e:
+                        logger.error(f"[BULK] Exception for {email}: {e}")
                         return {'email': email, 'success': False, 'error': str(e)}
 
             # Execute in parallel
@@ -413,19 +419,24 @@ def get_generated_passwords():
 def save_app_password(email, app_password):
     """Save app password to AwsGeneratedPassword table"""
     try:
+        logger.info(f"[DB] Attempting to save password for {email}")
         # Check if exists
         existing = AwsGeneratedPassword.query.filter_by(email=email).first()
         if existing:
+            logger.info(f"[DB] Updating existing entry for {email}")
             existing.app_password = app_password
             existing.updated_at = db.func.current_timestamp()
         else:
+            logger.info(f"[DB] Creating new entry for {email}")
             new_entry = AwsGeneratedPassword(email=email, app_password=app_password)
             db.session.add(new_entry)
         
         db.session.commit()
+        logger.info(f"[DB] ✓ Successfully saved password for {email}")
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error saving app password for {email}: {e}")
+        logger.error(f"[DB] ✗ Error saving app password for {email}: {e}")
+        logger.error(f"[DB] Exception details: {traceback.format_exc()}")
 
 # --- End Bulk Logic ---
 
