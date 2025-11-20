@@ -511,13 +511,19 @@ def invoke_lambda():
                 
                 # Save to DB if successful
                 if response_data.get('app_password'):
-                    save_app_password(email, response_data['app_password'])
+                    try:
+                        save_app_password(email, response_data['app_password'])
+                        logger.info(f"[INVOKE] ✓ Password saved for {email}")
+                    except Exception as db_error:
+                        logger.error(f"[INVOKE] Failed to save password to DB: {db_error}")
+                        # Continue anyway - return the password even if DB save fails
                 
                 return jsonify({
                     'success': True,
                     **response_data
                 })
-            except:
+            except Exception as parse_error:
+                logger.warning(f"[INVOKE] Failed to parse response as JSON: {parse_error}")
                 return jsonify({
                     'success': True,
                     'raw_response': body
