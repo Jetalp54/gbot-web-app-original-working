@@ -353,6 +353,24 @@ def bulk_generate():
     if not users_raw:
         return jsonify({'success': False, 'error': 'No users provided'}), 400
 
+    # Auto-clear DynamoDB before starting new batch
+    try:
+        session_boto = get_boto3_session(access_key, secret_key, region)
+        dynamodb = session_boto.resource('dynamodb')
+        table = dynamodb.Table("gbot-app-passwords")
+        
+        # Quick scan and delete old items
+        response = table.scan()
+        items = response.get('Items', [])
+        if items:
+            with table.batch_writer() as batch:
+                for item in items:
+                    batch.delete_item(Key={'email': item['email']})
+            logger.info(f"[DYNAMODB] ✓ Auto-cleared {len(items)} old items before new batch")
+    except Exception as e:
+        logger.warning(f"[DYNAMODB] Could not auto-clear (table may not exist): {e}")
+        # Continue anyway - not critical
+
     # Parse users
     users = []
     for u in users_raw:
@@ -458,9 +476,8 @@ def bulk_generate():
                             processing_emails.discard(email)
 
             # Execute in parallel
-            # We use Synchronous invocation to capture the password directly.
-            # We can increase workers since they are mostly waiting for I/O (Lambda).
-            with ThreadPoolExecutor(max_workers=50) as pool: 
+            # Limit to 10 concurrent to avoid AWS rate limits and duplicate invocations
+            with ThreadPoolExecutor(max_workers=10) as pool: 
                 futures = {pool.submit(process_single_user, u): u for u in users}
                 
                 for future in as_completed(futures):
@@ -528,13 +545,22 @@ def fetch_from_dynamodb():
                 response = table.get_item(Key={'email': email})
                 if 'Item' in response:
                     item = response['Item']
+                    app_password = item['app_password']
+                    
+                    # Save to local AwsGeneratedPassword table
+                    try:
+                        save_app_password(email, app_password)
+                        logger.info(f"[DYNAMODB] ✓ Fetched and saved to local DB: {email}")
+                    except Exception as db_err:
+                        logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
+                        # Continue anyway - we have the password
+                    
                     results.append({
                         'email': item['email'],
-                        'app_password': item['app_password'],
+                        'app_password': app_password,
                         'created_at': item.get('created_at', ''),
                         'success': True
                     })
-                    logger.info(f"[DYNAMODB] ✓ Fetched password for {email}")
                 else:
                     logger.warning(f"[DYNAMODB] ⚠️ No entry found for {email}")
                     results.append({

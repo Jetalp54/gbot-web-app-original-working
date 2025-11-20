@@ -196,9 +196,10 @@
                                 <i class="fas fa-info-circle" style="color: #10b981;"></i>
                                 <div>
                                     <strong>How to use:</strong><br>
-                                    1) After invoking Lambda, wait 2-3 minutes<br>
-                                    2) Click "Fetch from DynamoDB" to get passwords<br>
-                                    3) Passwords are stored permanently in AWS DynamoDB
+                                    1) Invoke Lambda → Old DynamoDB data auto-cleared<br>
+                                    2) Wait 2-3 minutes for processing<br>
+                                    3) Fetch from DynamoDB → Saved to local DB automatically<br>
+                                    4) Next batch will clear DynamoDB again (fresh start)
                                 </div>
                             </div>
                             <div class="form-group-github">
