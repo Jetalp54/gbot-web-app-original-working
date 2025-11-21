@@ -116,6 +116,17 @@ class NamecheapConfig(db.Model):
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
+class AwsConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    access_key_id = db.Column(db.String(255), nullable=False)
+    secret_access_key = db.Column(db.Text, nullable=False)  # Encrypted
+    region = db.Column(db.String(50), nullable=False, default='us-east-1')
+    ecr_uri = db.Column(db.String(500))
+    s3_bucket = db.Column(db.String(255), default='edu-gw-app-passwords')
+    is_configured = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
 class DomainOperation(db.Model):
     id = db.Column(db.String(36), primary_key=True)  # UUID as string
     job_id = db.Column(db.String(36), nullable=False, index=True)

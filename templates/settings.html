@@ -240,6 +240,110 @@
         </div>
     </div>
 
+    <!-- AWS & G-Workspace Credentials Section -->
+    <div class="github-card" style="margin-bottom: 24px;">
+        <div class="github-card-header">
+            <h3 class="github-card-title" style="font-size: 18px;">
+                <i class="fas fa-cloud"></i>
+                AWS & G-Workspace Credentials
+            </h3>
+        </div>
+        <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+            Configure AWS credentials for Lambda function management and Google Workspace automation. These credentials are saved securely and will be used for all AWS operations.
+        </p>
+        
+        <form id="aws-config-form">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group-github">
+                    <label for="aws_access_key_id" class="form-label-github">
+                        <i class="fas fa-key"></i> Access Key ID
+                    </label>
+                    <input type="text" class="form-control-github" id="aws_access_key_id" 
+                           placeholder="Enter AWS Access Key ID" required>
+                    <small style="color: #656d76; font-size: 12px;">
+                        Your AWS Access Key ID
+                    </small>
+                </div>
+                <div class="form-group-github">
+                    <label for="aws_secret_access_key" class="form-label-github">
+                        <i class="fas fa-lock"></i> Secret Access Key
+                    </label>
+                    <input type="password" class="form-control-github" id="aws_secret_access_key" 
+                           placeholder="Enter AWS Secret Access Key" required>
+                    <small style="color: #656d76; font-size: 12px;">
+                        Your AWS Secret Access Key
+                    </small>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group-github">
+                    <label for="aws_region" class="form-label-github">
+                        <i class="fas fa-globe"></i> AWS Region
+                    </label>
+                    <select class="form-control-github" id="aws_region" required>
+                        <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
+                        <option value="us-east-2">US East (Ohio) - us-east-2</option>
+                        <option value="us-west-1">US West (N. California) - us-west-1</option>
+                        <option value="us-west-2">US West (Oregon) - us-west-2</option>
+                        <option value="af-south-1">Africa (Cape Town) - af-south-1</option>
+                        <option value="ap-east-1">Asia Pacific (Hong Kong) - ap-east-1</option>
+                        <option value="ap-south-1">Asia Pacific (Mumbai) - ap-south-1</option>
+                        <option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
+                        <option value="ap-northeast-2">Asia Pacific (Seoul) - ap-northeast-2</option>
+                        <option value="ap-northeast-3">Asia Pacific (Osaka) - ap-northeast-3</option>
+                        <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
+                        <option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
+                        <option value="ap-southeast-3">Asia Pacific (Jakarta) - ap-southeast-3</option>
+                        <option value="ca-central-1">Canada (Central) - ca-central-1</option>
+                        <option value="eu-central-1">Europe (Frankfurt) - eu-central-1</option>
+                        <option value="eu-west-1" selected>Europe (Ireland) - eu-west-1</option>
+                        <option value="eu-west-2">Europe (London) - eu-west-2</option>
+                        <option value="eu-west-3">Europe (Paris) - eu-west-3</option>
+                        <option value="eu-north-1">Europe (Stockholm) - eu-north-1</option>
+                        <option value="eu-south-1">Europe (Milan) - eu-south-1</option>
+                        <option value="me-south-1">Middle East (Bahrain) - me-south-1</option>
+                        <option value="me-central-1">Middle East (UAE) - me-central-1</option>
+                        <option value="sa-east-1">South America (São Paulo) - sa-east-1</option>
+                    </select>
+                    <small style="color: #656d76; font-size: 12px;">
+                        Select your AWS region
+                    </small>
+                </div>
+                <div class="form-group-github">
+                    <label for="aws_s3_bucket" class="form-label-github">
+                        <i class="fas fa-bucket"></i> S3 Bucket (App Passwords)
+                    </label>
+                    <input type="text" class="form-control-github" id="aws_s3_bucket" 
+                           value="edu-gw-app-passwords" placeholder="edu-gw-app-passwords">
+                    <small style="color: #656d76; font-size: 12px;">
+                        S3 bucket name for app password storage
+                    </small>
+                </div>
+            </div>
+            
+            <div class="form-group-github" style="margin-bottom: 16px;">
+                <label for="aws_ecr_uri" class="form-label-github">
+                    <i class="fas fa-box"></i> ECR Image URI (Chromium Lambda)
+                </label>
+                <input type="text" class="form-control-github" id="aws_ecr_uri" 
+                       value="(connect first)" readonly placeholder="(connect first)">
+                <small style="color: #656d76; font-size: 12px;">
+                    ECR Image URI will be populated after testing connection. Built on EC2 from repo: docker-selenium-lambda
+                </small>
+            </div>
+            
+            <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+                <button type="button" class="btn-github" onclick="testAwsConnection()">
+                    <i class="fas fa-plug"></i> Test Connection
+                </button>
+                <button type="submit" class="btn-github btn-github-primary">
+                    <i class="fas fa-save"></i> Save Configuration
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- OTP Generator SSH Settings Section -->
     <div class="github-card" style="margin-bottom: 24px;">
         <div class="github-card-header">
@@ -700,6 +804,9 @@ $(document).ready(function() {
     // Load Namecheap configuration
     loadNamecheapConfiguration();
     
+    // Load AWS configuration
+    loadAwsConfiguration();
+    
     // Load OTP SSH configuration
     loadOTPSSHConfiguration();
     
@@ -745,6 +852,12 @@ $(document).ready(function() {
     $('#namecheap-config-form').submit(function(e) {
         e.preventDefault();
         saveNamecheapConfiguration();
+    });
+    
+    // Handle AWS form submission
+    $('#aws-config-form').submit(function(e) {
+        e.preventDefault();
+        saveAwsConfiguration();
     });
     
     // Handle OTP form submission
@@ -2218,6 +2331,109 @@ function saveNamecheapConfiguration() {
     })
     .catch(error => {
         console.error('Error saving Namecheap configuration:', error);
+        showStatus('❌ Network error: ' + error, 'error');
+    });
+}
+
+function loadAwsConfiguration() {
+    console.log('Loading AWS configuration...');
+    
+    fetch('/api/aws/get-config', {
+        method: 'GET',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.config) {
+            // Populate form fields
+            $('#aws_access_key_id').val(data.config.access_key_id || '');
+            $('#aws_secret_access_key').val(''); // Don't populate for security
+            $('#aws_region').val(data.config.region || 'eu-west-1');
+            $('#aws_ecr_uri').val(data.config.ecr_uri || '(connect first)');
+            $('#aws_s3_bucket').val(data.config.s3_bucket || 'edu-gw-app-passwords');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading AWS configuration:', error);
+    });
+}
+
+function saveAwsConfiguration() {
+    console.log('Saving AWS configuration...');
+    
+    const config = {
+        access_key_id: $('#aws_access_key_id').val().trim(),
+        secret_access_key: $('#aws_secret_access_key').val().trim(),
+        region: $('#aws_region').val(),
+        ecr_uri: $('#aws_ecr_uri').val().trim(),
+        s3_bucket: $('#aws_s3_bucket').val().trim() || 'edu-gw-app-passwords'
+    };
+    
+    // Validate required fields
+    if (!config.access_key_id || !config.secret_access_key || !config.region) {
+        showStatus('Please fill in all required fields', 'error');
+        return;
+    }
+    
+    showStatus('Saving AWS configuration...', 'info');
+    
+    fetch('/api/aws/save-config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(config)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showStatus('✅ AWS configuration saved successfully', 'success');
+            // Clear secret key field for security
+            $('#aws_secret_access_key').val('');
+            // Reload configuration
+            loadAwsConfiguration();
+        } else {
+            showStatus('❌ Failed to save configuration: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving AWS configuration:', error);
+        showStatus('❌ Network error: ' + error, 'error');
+    });
+}
+
+function testAwsConnection() {
+    const accessKey = $('#aws_access_key_id').val().trim();
+    const secretKey = $('#aws_secret_access_key').val().trim();
+    const region = $('#aws_region').val();
+
+    if (!accessKey || !secretKey || !region) {
+        showStatus('Please provide Access Key ID, Secret Access Key and Region.', 'error');
+        return;
+    }
+
+    showStatus('Testing AWS connection...', 'info');
+    
+    fetch('/api/aws/test-connection', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            access_key: accessKey,
+            secret_key: secretKey,
+            region: region
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            $('#aws_ecr_uri').val(data.ecr_uri);
+            showStatus(`✅ Connected to AWS account ${data.account_id} (Region: ${data.region})`, 'success');
+            // Auto-save config after successful connection test
+            saveAwsConfiguration();
+        } else {
+            showStatus(`❌ Connection failed: ${data.error}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error testing AWS connection:', error);
         showStatus('❌ Network error: ' + error, 'error');
     });
 }

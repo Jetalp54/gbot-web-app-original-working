@@ -16,7 +16,7 @@ import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
 from functools import wraps
-from database import db, UserAppPassword, AwsGeneratedPassword
+from database import db, UserAppPassword, AwsGeneratedPassword, AwsConfig
 
 # Constants from aws.py
 LAMBDA_ROLE_NAME = "edu-gw-app-password-lambda-role"
@@ -106,6 +106,77 @@ def test_connection():
         })
     except Exception as e:
         logger.error(f"Error testing connection: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@aws_manager.route('/api/aws/save-config', methods=['POST'])
+@login_required
+def save_aws_config():
+    """Save AWS credentials configuration"""
+    try:
+        if session.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'Admin privileges required'}), 403
+        
+        data = request.get_json()
+        access_key_id = data.get('access_key_id', '').strip()
+        secret_access_key = data.get('secret_access_key', '').strip()
+        region = data.get('region', 'us-east-1').strip()
+        ecr_uri = data.get('ecr_uri', '').strip()
+        s3_bucket = data.get('s3_bucket', 'edu-gw-app-passwords').strip()
+
+        if not access_key_id or not secret_access_key or not region:
+            return jsonify({'success': False, 'error': 'Please provide Access Key ID, Secret Access Key and Region.'}), 400
+
+        # Get or create config
+        config = AwsConfig.query.first()
+        if not config:
+            config = AwsConfig()
+            db.session.add(config)
+        
+        # Update config
+        config.access_key_id = access_key_id
+        config.secret_access_key = secret_access_key
+        config.region = region
+        config.ecr_uri = ecr_uri if ecr_uri else None
+        config.s3_bucket = s3_bucket
+        config.is_configured = True
+        config.updated_at = db.func.current_timestamp()
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'AWS configuration saved successfully'})
+    except Exception as e:
+        logger.error(f"Error saving AWS config: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@aws_manager.route('/api/aws/get-config', methods=['GET'])
+@login_required
+def get_aws_config():
+    """Get AWS credentials configuration"""
+    try:
+        if session.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'Admin privileges required'}), 403
+        
+        config = AwsConfig.query.first()
+        if not config or not config.is_configured:
+            return jsonify({
+                'success': True,
+                'config': None,
+                'message': 'No AWS configuration found'
+            })
+        
+        return jsonify({
+            'success': True,
+            'config': {
+                'access_key_id': config.access_key_id,
+                'secret_access_key': config.secret_access_key,  # Note: In production, consider encrypting this
+                'region': config.region,
+                'ecr_uri': config.ecr_uri or '',
+                's3_bucket': config.s3_bucket
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error getting AWS config: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/aws/create-dynamodb', methods=['POST'])
@@ -262,7 +333,7 @@ def inspect_resources():
 @aws_manager.route('/api/aws/create-lambdas', methods=['POST'])
 @login_required
 def create_lambdas():
-    """Create/Update production Lambda"""
+    """Create/Update production Lambda(s) based on user count"""
     try:
         data = request.get_json()
         access_key = data.get('access_key', '').strip()
@@ -270,10 +341,9 @@ def create_lambdas():
         region = data.get('region', '').strip()
         ecr_uri = data.get('ecr_uri', '').strip()
         s3_bucket = data.get('s3_bucket', '').strip()
-        sftp_host = data.get('sftp_host', '').strip()
-        sftp_user = data.get('sftp_user', '').strip()
-        sftp_password = data.get('sftp_password', '').strip()
-        sftp_dir = data.get('sftp_dir', '/home/brightmindscampus/').strip()
+        user_count = data.get('user_count', 0)  # Number of users
+        users_per_function = data.get('users_per_function', 10)  # Users per Lambda function (default 10)
+        create_multiple = data.get('create_multiple', False)  # Whether to create multiple functions
 
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
@@ -283,9 +353,6 @@ def create_lambdas():
 
         if not s3_bucket:
             return jsonify({'success': False, 'error': 'Please enter S3 Bucket name for app passwords storage.'}), 400
-
-        if not sftp_host or not sftp_user:
-            return jsonify({'success': False, 'error': 'Please enter SFTP Host and User for secret key storage.'}), 400
 
         session = get_boto3_session(access_key, secret_key, region)
 
@@ -305,32 +372,51 @@ def create_lambdas():
         # Ensure IAM role
         role_arn = ensure_lambda_role(session)
 
-        # Environment variables
+        # Environment variables (removed SFTP)
         chromium_env = {
             "DYNAMODB_TABLE_NAME": "gbot-app-passwords",  # DynamoDB table for password storage
             "APP_PASSWORDS_S3_BUCKET": s3_bucket,
             "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
-            "SECRET_SFTP_HOST": sftp_host,
-            "SECRET_SFTP_USER": sftp_user,
-            "SECRET_SFTP_PASSWORD": sftp_password,
-            "SECRET_SFTP_PORT": "22",
-            "SECRET_SFTP_REMOTE_DIR": sftp_dir,
         }
 
-        # Create/Update Lambda
-        create_or_update_lambda(
-            session=session,
-            function_name=PRODUCTION_LAMBDA_NAME,
-            role_arn=role_arn,
-            timeout=600,
-            env_vars=chromium_env,
-            package_type="Image",
-            image_uri=ecr_uri,
-        )
+        # Calculate number of Lambda functions to create
+        if create_multiple and user_count > 0 and users_per_function > 0:
+            num_functions = (user_count + users_per_function - 1) // users_per_function  # Ceiling division
+            num_functions = max(1, num_functions)  # At least 1 function
+            logger.info(f"[LAMBDA] Creating {num_functions} Lambda function(s) for {user_count} users ({users_per_function} users per function)")
+        else:
+            num_functions = 1
+            logger.info(f"[LAMBDA] Creating single Lambda function")
+
+        created_functions = []
+        for i in range(num_functions):
+            if num_functions == 1:
+                function_name = PRODUCTION_LAMBDA_NAME
+            else:
+                function_name = f"{PRODUCTION_LAMBDA_NAME}-{i+1}"
+            
+            # Create/Update Lambda
+            create_or_update_lambda(
+                session=session,
+                function_name=function_name,
+                role_arn=role_arn,
+                timeout=600,
+                env_vars=chromium_env,
+                package_type="Image",
+                image_uri=ecr_uri,
+            )
+            created_functions.append(function_name)
+            logger.info(f"[LAMBDA] ✓ Created/Updated Lambda: {function_name}")
+
+        message = f'Created/Updated {len(created_functions)} Lambda function(s): {", ".join(created_functions)}'
+        if create_multiple:
+            message += f' (for {user_count} users, {users_per_function} users per function)'
 
         return jsonify({
             'success': True,
-            'message': 'PRODUCTION Lambda is ready.'
+            'message': message,
+            'functions_created': created_functions,
+            'num_functions': len(created_functions)
         })
     except Exception as e:
         logger.error(f"Error creating Lambda: {e}")

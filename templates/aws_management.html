@@ -10,77 +10,12 @@
             AWS Management
         </h1>
 
-        <!-- AWS & G-Workspace Credentials Section -->
-        <div class="github-card" style="margin-bottom: var(--spacing-lg);">
-            <div class="github-card-header">
-                <h3 class="github-card-title">
-                    <i class="fas fa-key"></i>
-                    AWS & G-Workspace Credentials
-                </h3>
-            </div>
-            <div class="github-card-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg);">
-                    <!-- AWS Setup -->
-                    <div class="section">
-                        <h4 style="margin-bottom: var(--spacing-md);">AWS Setup</h4>
-                        <div class="form-group-github">
-                            <label class="form-label-github">Access Key ID:</label>
-                            <input type="text" id="accessKey" class="form-control-github" placeholder="Enter AWS Access Key ID">
-                        </div>
-                        <div class="form-group-github">
-                            <label class="form-label-github">Secret Access Key:</label>
-                            <input type="password" id="secretKey" class="form-control-github" placeholder="Enter AWS Secret Access Key">
-                        </div>
-                        <div class="form-group-github">
-                            <label class="form-label-github">Region:</label>
-                            <input type="text" id="region" class="form-control-github" value="eu-west-1" placeholder="eu-west-1">
-                        </div>
-                        <button class="btn-github btn-github-primary" onclick="testConnection()" style="width: 100%; margin-top: var(--spacing-md);">
-                            <i class="fas fa-plug"></i>
-                            Test Connection
-                        </button>
-                    </div>
-
-                    <!-- ECR Image & Configuration -->
-                    <div class="section">
-                        <h4 style="margin-bottom: var(--spacing-md);">ECR Image & Configuration</h4>
-                        <div class="form-group-github">
-                            <label class="form-label-github">ECR Image URI (Chromium Lambda):</label>
-                            <input type="text" id="ecrUri" class="form-control-github" value="(connect first)" readonly>
-                        </div>
-                        <p style="font-size: 12px; color: var(--color-fg-muted); margin-top: -8px; margin-bottom: var(--spacing-md);">
-                            Built on EC2 from repo: docker-selenium-lambda
-                        </p>
-                        
-                        <div style="border-top: 1px solid var(--color-border-default); padding-top: var(--spacing-md); margin-top: var(--spacing-md);">
-                            <h5 style="margin-bottom: var(--spacing-sm); font-size: 14px;">S3 Configuration</h5>
-                            <div class="form-group-github">
-                                <label class="form-label-github">S3 Bucket (App Passwords):</label>
-                                <input type="text" id="s3Bucket" class="form-control-github" value="edu-gw-app-passwords">
-                            </div>
-                        </div>
-
-                        <div style="border-top: 1px solid var(--color-border-default); padding-top: var(--spacing-md); margin-top: var(--spacing-md);">
-                            <h5 style="margin-bottom: var(--spacing-sm); font-size: 14px;">SFTP Configuration</h5>
-                            <div class="form-group-github">
-                                <label class="form-label-github">SFTP Host:</label>
-                                <input type="text" id="sftpHost" class="form-control-github" value="46.224.9.127">
-                            </div>
-                            <div class="form-group-github">
-                                <label class="form-label-github">SFTP User:</label>
-                                <input type="text" id="sftpUser" class="form-control-github" placeholder="Enter SFTP username">
-                            </div>
-                            <div class="form-group-github">
-                                <label class="form-label-github">SFTP Password:</label>
-                                <input type="password" id="sftpPassword" class="form-control-github" placeholder="Enter SFTP password">
-                            </div>
-                            <div class="form-group-github">
-                                <label class="form-label-github">SFTP Remote Dir:</label>
-                                <input type="text" id="sftpDir" class="form-control-github" value="/home/brightmindscampus/">
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <!-- Info Message -->
+        <div class="alert-github" style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-lg);">
+            <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
+            <div>
+                <strong>Note:</strong> AWS credentials are now managed in <a href="/settings" style="color: var(--color-accent-fg); text-decoration: underline;">Settings</a>. 
+                Please configure your AWS credentials there before using this page.
             </div>
         </div>
 
@@ -139,9 +74,34 @@
                                 4) Invoke Lambda → Wait → Fetch from DynamoDB
                             </div>
                         </div>
+                        <!-- Lambda Creation Options -->
+                        <div class="section" style="margin-bottom: var(--spacing-md);">
+                            <h5 style="margin-bottom: var(--spacing-sm);">Lambda Creation Options</h5>
+                            <div class="form-group-github">
+                                <label style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer; margin-bottom: var(--spacing-sm);">
+                                    <input type="checkbox" id="createMultipleLambdas" onchange="toggleLambdaOptions()">
+                                    <span>Create multiple Lambda functions based on user count</span>
+                                </label>
+                            </div>
+                            <div id="lambdaOptions" style="display: none; margin-top: var(--spacing-md); padding: var(--spacing-md); background-color: var(--color-canvas-subtle); border-radius: var(--radius-md);">
+                                <div class="form-group-github">
+                                    <label class="form-label-github">Number of Users:</label>
+                                    <input type="number" id="userCount" class="form-control-github" min="1" value="100" placeholder="100">
+                                    <small style="color: var(--color-fg-muted); font-size: 12px;">Total number of users to process</small>
+                                </div>
+                                <div class="form-group-github">
+                                    <label class="form-label-github">Users per Function:</label>
+                                    <input type="number" id="usersPerFunction" class="form-control-github" min="1" value="10" placeholder="10">
+                                    <small style="color: var(--color-fg-muted); font-size: 12px;">Number of users each Lambda function will handle (default: 10)</small>
+                                </div>
+                                <div id="lambdaCalculation" style="margin-top: var(--spacing-sm); padding: var(--spacing-sm); background-color: var(--color-canvas-inset); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-fg-muted);">
+                                    <strong>Calculation:</strong> <span id="lambdaCount">1</span> function(s) will be created
+                                </div>
+                            </div>
+                        </div>
                         <button class="btn-github btn-github-primary" onclick="createLambdas()" style="width: 100%; margin-bottom: var(--spacing-sm);">
                             <i class="fas fa-sync-alt"></i>
-                            Create / Update Production Lambda
+                            Create / Update Production Lambda(s)
                         </button>
                         <button class="btn-github" onclick="checkAWSLimits()" style="width: 100%; margin-bottom: var(--spacing-sm); background-color: rgba(0, 123, 255, 0.1); border-color: #007bff;">
                             <i class="fas fa-search"></i>
@@ -371,57 +331,24 @@
         document.getElementById(`tab-${tabName}-btn`).classList.add('active');
     }
 
-    // Test Connection
-    function testConnection() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide Access Key, Secret Key and Region.');
-            return;
+    // Helper function to get AWS credentials
+    function getAwsCredentials() {
+        if (!window.awsConfig) {
+            alert('AWS credentials not loaded. Please configure them in Settings first.');
+            return null;
         }
-
-        log('Testing AWS connection...');
-        
-        fetch('/api/aws/test-connection', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                access_key: accessKey,
-                secret_key: secretKey,
-                region: region
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                log(`Connected to AWS account ${data.account_id} (Region: ${data.region})`);
-                document.getElementById('ecrUri').value = data.ecr_uri;
-                alert(`Connection OK\nConnected to AWS account ${data.account_id}`);
-            } else {
-                log(`ERROR connecting to AWS: ${data.error}`);
-                alert(`Connection Failed: ${data.error}`);
-            }
-        })
-        .catch(error => {
-            log(`ERROR: ${error.message}`);
-            alert(`Error: ${error.message}`);
-        });
+        return {
+            access_key: window.awsConfig.access_key_id,
+            secret_key: window.awsConfig.secret_access_key,
+            region: window.awsConfig.region
+        };
     }
 
     // Create Infrastructure
     function createDynamoDBTable() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         log('Creating DynamoDB table for app password storage...');
         
@@ -451,14 +378,9 @@
     }
 
     function createInfrastructure() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide Access Key, Secret Key and Region.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         log('Creating core infrastructure (IAM, ECR, S3)...');
         
@@ -492,14 +414,9 @@
 
     // Create ECR Manual
     function createECRManual() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide Access Key, Secret Key and Region.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         log('Manually creating ECR repository...');
         
@@ -532,14 +449,9 @@
 
     // Inspect Resources
     function inspectResources() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide Access Key, Secret Key and Region.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         log('Inspecting resources...');
         
@@ -591,37 +503,51 @@
 
     // Create Lambdas
     function createLambdas() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-        const ecrUri = document.getElementById('ecrUri').value.trim();
-        const s3Bucket = document.getElementById('s3Bucket').value.trim();
-        const sftpHost = document.getElementById('sftpHost').value.trim();
-        const sftpUser = document.getElementById('sftpUser').value.trim();
-        const sftpPassword = document.getElementById('sftpPassword').value.trim();
-        const sftpDir = document.getElementById('sftpDir').value.trim() || '/home/brightmindscampus/';
+        // Get AWS credentials from saved config or use defaults
+        let accessKey, secretKey, region, ecrUri, s3Bucket;
+        
+        if (window.awsConfig) {
+            accessKey = window.awsConfig.access_key_id;
+            secretKey = window.awsConfig.secret_access_key;
+            region = window.awsConfig.region;
+            ecrUri = window.awsConfig.ecr_uri || '';
+            s3Bucket = window.awsConfig.s3_bucket || 'edu-gw-app-passwords';
+        } else {
+            // Try to load from API
+            alert('AWS credentials not loaded. Please configure them in Settings first.');
+            return;
+        }
 
         if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
+            alert('AWS credentials not configured. Please configure them in Settings.');
             return;
         }
 
         if (!ecrUri || !ecrUri.includes('amazonaws.com')) {
-            alert('ECR Image URI is not set. Connect and prepare EC2 build box first.');
+            alert('ECR Image URI is not set. Please test connection in Settings first.');
             return;
         }
 
         if (!s3Bucket) {
-            alert('Please enter S3 Bucket name for app passwords storage.');
+            alert('S3 Bucket name is required.');
             return;
         }
 
-        if (!sftpHost || !sftpUser) {
-            alert('Please enter SFTP Host and User for secret key storage.');
+        // Get Lambda creation options
+        const createMultiple = document.getElementById('createMultipleLambdas').checked;
+        const userCount = createMultiple ? parseInt(document.getElementById('userCount').value) || 0 : 0;
+        const usersPerFunction = parseInt(document.getElementById('usersPerFunction').value) || 10;
+
+        if (createMultiple && userCount <= 0) {
+            alert('Please enter a valid number of users.');
             return;
         }
 
-        log('Creating / updating PRODUCTION Lambda (container image)...');
+        log(`Creating / updating PRODUCTION Lambda(s) (container image)...`);
+        if (createMultiple) {
+            const numFunctions = Math.ceil(userCount / usersPerFunction);
+            log(`Will create ${numFunctions} Lambda function(s) for ${userCount} users (${usersPerFunction} users per function)`);
+        }
         
         fetch('/api/aws/create-lambdas', {
             method: 'POST',
@@ -634,20 +560,20 @@
                 region: region,
                 ecr_uri: ecrUri,
                 s3_bucket: s3Bucket,
-                sftp_host: sftpHost,
-                sftp_user: sftpUser,
-                sftp_password: sftpPassword,
-                sftp_dir: sftpDir
+                user_count: userCount,
+                users_per_function: usersPerFunction,
+                create_multiple: createMultiple
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                log('PRODUCTION Lambda is ready.');
+                log('PRODUCTION Lambda(s) created/updated successfully.');
+                log(`Created ${data.num_functions} function(s): ${data.functions_created.join(', ')}`);
                 log(`Lambda configured using ECR image URI: ${ecrUri}`);
-                alert('Production Lambda created/updated successfully.');
+                alert(`Production Lambda(s) created/updated successfully.\n\nCreated ${data.num_functions} function(s): ${data.functions_created.join(', ')}`);
             } else {
-                log(`ERROR creating production Lambda: ${data.error}`);
+                log(`ERROR creating production Lambda(s): ${data.error}`);
                 alert(`Error: ${data.error}`);
             }
         })
@@ -662,14 +588,9 @@
 
     // Check AWS Limits (Diagnostic Tool)
     function checkAWSLimits() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please enter AWS credentials first.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         log('🔍 Checking ALL AWS limits that could cause 10-user bottleneck...');
         fetch('/api/aws/check-aws-limits', {
@@ -762,14 +683,9 @@
 
     // Fix Lambda Concurrency Limit
     function fixLambdaConcurrency() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please enter AWS credentials first.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         if (!confirm('This will remove the reserved concurrency limit (if set) to allow 1000+ concurrent executions. Continue?')) {
             return;
@@ -806,14 +722,9 @@
 
     // Request Quota Increase
     function requestQuotaIncrease() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please enter AWS credentials first.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         const requestedLimit = prompt('Enter desired concurrent execution limit (default: 1000):', '1000');
         if (!requestedLimit) {
@@ -872,16 +783,11 @@
             return;
         }
 
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
         const executionMode = document.querySelector('input[name="executionMode"]:checked').value;
         const usersText = document.getElementById('multipleUsers').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
-            return;
-        }
 
         if (!usersText) {
             alert('Please enter at least one account in the format \'email:password\' (one per line).');
@@ -914,9 +820,9 @@
 
     function invokeSingleAccount(userLine) {
         const [email, password] = userLine.split(':', 2);
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         log(`Using account: ${email}`);
         log('Invoking PRODUCTION Lambda for account processing...');
@@ -967,9 +873,9 @@
 
         // Updated to use new Bulk API
     function invokeMultipleAccounts(users) {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         log('='.repeat(60));
         log(`Starting bulk generation for ${users.length} accounts on the server...`);
@@ -1053,15 +959,10 @@
     }
 
     function fetchFromDynamoDB() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
         const usersText = document.getElementById('multipleUsers').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
-            return;
-        }
 
         if (!usersText) {
             alert('Please paste users in the "Multiple Accounts" field first.');
@@ -1133,14 +1034,9 @@
 
     // Delete All Lambdas
     function deleteAllLambdas() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         if (!confirm('Are you sure you want to delete all Lambdas? This action cannot be undone.')) {
             return;
@@ -1175,14 +1071,9 @@
 
     // Delete S3 Content
     function deleteS3Content() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         if (!confirm('Are you sure you want to delete all contents from the S3 bucket? This action cannot be undone.')) {
             return;
@@ -1217,14 +1108,9 @@
 
     // Delete ECR Repo
     function deleteECRRepo() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         if (!confirm('Are you sure you want to delete the ECR repository and all images? This action cannot be undone.')) {
             return;
@@ -1259,14 +1145,9 @@
 
     // Delete CloudWatch Logs
     function deleteCloudWatchLogs() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         if (!confirm('Are you sure you want to delete CloudWatch log groups? This action cannot be undone.')) {
             return;
@@ -1301,14 +1182,9 @@
 
     // EC2 Functions
     function ec2CreateBuildBox() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         log('Launching EC2 build box...');
 
@@ -1341,14 +1217,9 @@
     }
 
     function ec2ShowStatus() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         log('Checking EC2 build box status...');
 
@@ -1389,14 +1260,9 @@
     }
 
     function ec2Terminate() {
-        const accessKey = document.getElementById('accessKey').value.trim();
-        const secretKey = document.getElementById('secretKey').value.trim();
-        const region = document.getElementById('region').value.trim();
-
-        if (!accessKey || !secretKey || !region) {
-            alert('Please provide AWS credentials.');
-            return;
-        }
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
         if (!confirm('Are you sure you want to terminate the EC2 build box? This action cannot be undone.')) {
             return;
@@ -1430,6 +1296,61 @@
             alert(`Error: ${error.message}`);
         });
     }
+
+    // Load AWS credentials from settings
+    function loadAwsCredentials() {
+        fetch('/api/aws/get-config')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.config) {
+                    // Store credentials in hidden fields or use directly
+                    window.awsConfig = data.config;
+                    log('AWS credentials loaded from settings.');
+                } else {
+                    log('⚠️ No AWS credentials found. Please configure them in Settings.');
+                }
+            })
+            .catch(error => {
+                log(`ERROR loading AWS credentials: ${error.message}`);
+            });
+    }
+
+    // Toggle Lambda creation options
+    function toggleLambdaOptions() {
+        const createMultiple = document.getElementById('createMultipleLambdas').checked;
+        const optionsDiv = document.getElementById('lambdaOptions');
+        optionsDiv.style.display = createMultiple ? 'block' : 'none';
+        updateLambdaCalculation();
+    }
+
+    // Update Lambda calculation
+    function updateLambdaCalculation() {
+        const userCount = parseInt(document.getElementById('userCount').value) || 0;
+        const usersPerFunction = parseInt(document.getElementById('usersPerFunction').value) || 10;
+        
+        if (userCount > 0 && usersPerFunction > 0) {
+            const numFunctions = Math.ceil(userCount / usersPerFunction);
+            document.getElementById('lambdaCount').textContent = numFunctions;
+        } else {
+            document.getElementById('lambdaCount').textContent = '1';
+        }
+    }
+
+    // Add event listeners for calculation updates
+    document.addEventListener('DOMContentLoaded', function() {
+        const userCountInput = document.getElementById('userCount');
+        const usersPerFunctionInput = document.getElementById('usersPerFunction');
+        
+        if (userCountInput) {
+            userCountInput.addEventListener('input', updateLambdaCalculation);
+        }
+        if (usersPerFunctionInput) {
+            usersPerFunctionInput.addEventListener('input', updateLambdaCalculation);
+        }
+        
+        // Load AWS credentials on page load
+        loadAwsCredentials();
+    });
 
     // Initialize
     log('AWS Management page loaded. Ready.');
