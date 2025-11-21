@@ -2347,7 +2347,11 @@ function loadAwsConfiguration() {
         if (data.success && data.config) {
             // Populate form fields
             $('#aws_access_key_id').val(data.config.access_key_id || '');
-            $('#aws_secret_access_key').val(''); // Don't populate for security
+            // Don't populate secret key for security - only clear if it's already empty
+            // This way, if user is typing/pasting, we don't interfere
+            if ($('#aws_secret_access_key').val().trim() === '') {
+                $('#aws_secret_access_key').val(''); // Keep it empty
+            }
             $('#aws_region').val(data.config.region || 'eu-west-1');
             $('#aws_ecr_uri').val(data.config.ecr_uri || '(connect first)');
             $('#aws_s3_bucket').val(data.config.s3_bucket || 'edu-gw-app-passwords');
@@ -2403,15 +2407,16 @@ function saveAwsConfiguration() {
         console.log('Save response:', data);
         if (data.success) {
             showStatus('✅ AWS configuration saved successfully', 'success');
-            // Clear secret key field for security
+            // Clear secret key field for security ONLY after successful save
             $('#aws_secret_access_key').val('');
-            // Reload configuration
+            // Reload configuration (but don't reload secret key for security)
             setTimeout(() => {
                 loadAwsConfiguration();
             }, 500);
         } else {
             showStatus('❌ Failed to save configuration: ' + (data.error || 'Unknown error'), 'error');
             console.error('Save failed:', data);
+            // DON'T clear secret key on error - user can try saving again
         }
     })
     .catch(error => {
@@ -2441,20 +2446,30 @@ function testAwsConnection() {
             region: region
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.error || `HTTP ${response.status}`);
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
+            // Update ECR URI field but DON'T clear the secret key
             $('#aws_ecr_uri').val(data.ecr_uri);
             showStatus(`✅ Connected to AWS account ${data.account_id} (Region: ${data.region})`, 'success');
-            // Auto-save config after successful connection test
-            saveAwsConfiguration();
+            // Don't auto-save - let user decide when to save
+            // Secret key remains in the field so user can save if they want
         } else {
             showStatus(`❌ Connection failed: ${data.error}`, 'error');
+            // Don't clear secret key on error - user can try again
         }
     })
     .catch(error => {
         console.error('Error testing AWS connection:', error);
-        showStatus('❌ Network error: ' + error, 'error');
+        showStatus('❌ Network error: ' + error.message, 'error');
+        // Don't clear secret key on error - user can try again
     });
 }
 
