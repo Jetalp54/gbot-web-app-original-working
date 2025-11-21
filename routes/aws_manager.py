@@ -828,61 +828,61 @@ def bulk_generate():
                 # This is much more efficient than detecting for each user
                 lambda_functions = []
                 try:
-                session_boto = boto3.Session(
-                    aws_access_key_id=access_key,
-                    aws_secret_access_key=secret_key,
-                    region_name=region
-                )
-                lam_client = session_boto.client("lambda", config=Config(
-                    max_pool_connections=10,
-                    retries={'max_attempts': 3}
-                ))
-                
-                # List all Lambda functions that match our pattern
-                logger.info(f"[BULK] Detecting Lambda functions matching '{PRODUCTION_LAMBDA_NAME}'...")
-                all_functions = lam_client.list_functions()
-                
-                # Get all function names for debugging
-                all_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
-                logger.info(f"[BULK] All Lambda functions in account: {all_function_names[:20]}...")  # Show first 20
-                
-                # Match functions that start with PRODUCTION_LAMBDA_NAME (edu-gw-chromium)
-                # This will match: edu-gw-chromium, edu-gw-chromium-1, edu-gw-chromium-2, etc.
-                matching_functions = [
-                    fn['FunctionName'] for fn in all_functions.get('Functions', [])
-                    if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
-                ]
-                
-                # Sort to ensure consistent ordering (edu-gw-chromium, edu-gw-chromium-1, edu-gw-chromium-2, etc.)
-                # Custom sort: base name first, then numbered ones
-                def sort_key(name):
-                    if name == PRODUCTION_LAMBDA_NAME:
-                        return (0, 0)  # Base name comes first
-                    # Extract number from name like "edu-gw-chromium-5" -> 5
-                    try:
-                        num = int(name.split('-')[-1])
-                        return (1, num)  # Numbered functions come after
-                    except:
-                        return (2, name)  # Other variations come last
-                
-                matching_functions.sort(key=sort_key)
-                
-                if len(matching_functions) > 1:
-                    lambda_functions = matching_functions
-                    logger.info(f"[BULK] ✓ Found {len(lambda_functions)} Lambda functions: {', '.join(lambda_functions)}")
-                elif len(matching_functions) == 1:
-                    lambda_functions = matching_functions
-                    logger.info(f"[BULK] ✓ Found single Lambda function: {lambda_functions[0]}")
-                else:
-                    # No matching functions found, use default
+                    session_boto = boto3.Session(
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name=region
+                    )
+                    lam_client = session_boto.client("lambda", config=Config(
+                        max_pool_connections=10,
+                        retries={'max_attempts': 3}
+                    ))
+                    
+                    # List all Lambda functions that match our pattern
+                    logger.info(f"[BULK] Detecting Lambda functions matching '{PRODUCTION_LAMBDA_NAME}'...")
+                    all_functions = lam_client.list_functions()
+                    
+                    # Get all function names for debugging
+                    all_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
+                    logger.info(f"[BULK] All Lambda functions in account: {all_function_names[:20]}...")  # Show first 20
+                    
+                    # Match functions that start with PRODUCTION_LAMBDA_NAME (edu-gw-chromium)
+                    # This will match: edu-gw-chromium, edu-gw-chromium-1, edu-gw-chromium-2, etc.
+                    matching_functions = [
+                        fn['FunctionName'] for fn in all_functions.get('Functions', [])
+                        if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
+                    ]
+                    
+                    # Sort to ensure consistent ordering (edu-gw-chromium, edu-gw-chromium-1, edu-gw-chromium-2, etc.)
+                    # Custom sort: base name first, then numbered ones
+                    def sort_key(name):
+                        if name == PRODUCTION_LAMBDA_NAME:
+                            return (0, 0)  # Base name comes first
+                        # Extract number from name like "edu-gw-chromium-5" -> 5
+                        try:
+                            num = int(name.split('-')[-1])
+                            return (1, num)  # Numbered functions come after
+                        except:
+                            return (2, name)  # Other variations come last
+                    
+                    matching_functions.sort(key=sort_key)
+                    
+                    if len(matching_functions) > 1:
+                        lambda_functions = matching_functions
+                        logger.info(f"[BULK] ✓ Found {len(lambda_functions)} Lambda functions: {', '.join(lambda_functions)}")
+                    elif len(matching_functions) == 1:
+                        lambda_functions = matching_functions
+                        logger.info(f"[BULK] ✓ Found single Lambda function: {lambda_functions[0]}")
+                    else:
+                        # No matching functions found, use default
+                        lambda_functions = [PRODUCTION_LAMBDA_NAME]
+                        logger.warning(f"[BULK] ⚠️ No matching Lambda functions found, will use default: {PRODUCTION_LAMBDA_NAME}")
+                except Exception as list_err:
+                    logger.error(f"[BULK] Error detecting Lambda functions: {list_err}")
+                    logger.error(traceback.format_exc())
+                    # Fall back to default function name
                     lambda_functions = [PRODUCTION_LAMBDA_NAME]
-                    logger.warning(f"[BULK] ⚠️ No matching Lambda functions found, will use default: {PRODUCTION_LAMBDA_NAME}")
-            except Exception as list_err:
-                logger.error(f"[BULK] Error detecting Lambda functions: {list_err}")
-                logger.error(traceback.format_exc())
-                # Fall back to default function name
-                lambda_functions = [PRODUCTION_LAMBDA_NAME]
-                logger.warning(f"[BULK] Using default Lambda function: {PRODUCTION_LAMBDA_NAME}")
+                    logger.warning(f"[BULK] Using default Lambda function: {PRODUCTION_LAMBDA_NAME}")
             
             # Create user-to-function mapping using hash distribution
             user_function_map = {}
@@ -1126,9 +1126,10 @@ def bulk_generate():
                 # Warn if not all users were processed
                 if total_invocations < len(users):
                     logger.warning(f"[BULK] ⚠️ WARNING: Only {total_invocations} out of {len(users)} users were processed!")
-                
-                active_jobs[job_id]['status'] = 'completed'
-                logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {total_invocations}/{len(users)} users.")
+            
+            # Set job status to completed (outside ThreadPoolExecutor but inside app_context)
+            active_jobs[job_id]['status'] = 'completed'
+            logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {total_invocations}/{len(users)} users.")
         except Exception as bg_error:
             logger.error(f"[BULK] ❌ CRITICAL ERROR in background_process: {bg_error}")
             logger.error(f"[BULK] Traceback: {traceback.format_exc()}")
