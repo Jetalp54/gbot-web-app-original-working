@@ -874,13 +874,43 @@ def bulk_generate():
                     try:
                         logger.info(f"[BULK] Invoking Lambda for {email}")
                         
+                        # Determine which Lambda function to use
+                        # If multiple functions exist, distribute users across them
+                        lambda_function_name = PRODUCTION_LAMBDA_NAME
+                        try:
+                            # List all Lambda functions that match our pattern
+                            all_functions = lam_thread.list_functions()
+                            matching_functions = [
+                                fn['FunctionName'] for fn in all_functions.get('Functions', [])
+                                if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
+                            ]
+                            
+                            if len(matching_functions) > 1:
+                                # Multiple functions exist - distribute users across them
+                                # Use hash of email to consistently assign user to same function
+                                import hashlib
+                                user_hash = int(hashlib.md5(email.encode()).hexdigest(), 16)
+                                function_index = user_hash % len(matching_functions)
+                                lambda_function_name = matching_functions[function_index]
+                                logger.info(f"[BULK] Using Lambda function {lambda_function_name} for {email} (distributed across {len(matching_functions)} functions)")
+                            elif len(matching_functions) == 1:
+                                # Only one function exists, use it
+                                lambda_function_name = matching_functions[0]
+                                logger.info(f"[BULK] Using Lambda function {lambda_function_name} for {email}")
+                            else:
+                                # No matching functions found, use default
+                                logger.warning(f"[BULK] No matching Lambda functions found, using default {PRODUCTION_LAMBDA_NAME}")
+                        except Exception as list_err:
+                            logger.warning(f"[BULK] Could not list Lambda functions, using default: {list_err}")
+                            # Fall back to default function name
+                        
                         # Retry logic for rate limiting (optimized for high concurrency)
                         max_retries = 5  # Increased retries for high concurrency scenarios
                         for attempt in range(max_retries):
                             try:
                                 # Use thread-specific Lambda client (no connection pool contention)
                                 resp = lam_thread.invoke(
-                                    FunctionName=PRODUCTION_LAMBDA_NAME,
+                                    FunctionName=lambda_function_name,
                                     InvocationType="RequestResponse", # Sync
                                     Payload=json.dumps({"email": email, "password": password}).encode("utf-8"),
                                 )
@@ -1112,6 +1142,33 @@ def invoke_lambda():
         session = get_boto3_session(access_key, secret_key, region)
         lam = session.client("lambda")
 
+        # Determine which Lambda function to use
+        lambda_function_name = PRODUCTION_LAMBDA_NAME
+        try:
+            # List all Lambda functions that match our pattern
+            all_functions = lam.list_functions()
+            matching_functions = [
+                fn['FunctionName'] for fn in all_functions.get('Functions', [])
+                if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
+            ]
+            
+            if len(matching_functions) > 1:
+                # Multiple functions exist - use hash to pick one consistently
+                import hashlib
+                user_hash = int(hashlib.md5(email.encode()).hexdigest(), 16)
+                function_index = user_hash % len(matching_functions)
+                lambda_function_name = matching_functions[function_index]
+                logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} for {email} (distributed across {len(matching_functions)} functions)")
+            elif len(matching_functions) == 1:
+                # Only one function exists, use it
+                lambda_function_name = matching_functions[0]
+                logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} for {email}")
+            else:
+                # No matching functions found, use default
+                logger.warning(f"[INVOKE] No matching Lambda functions found, using default {PRODUCTION_LAMBDA_NAME}")
+        except Exception as list_err:
+            logger.warning(f"[INVOKE] Could not list Lambda functions, using default: {list_err}")
+
         event = {
             "email": email,
             "password": password,
@@ -1119,7 +1176,7 @@ def invoke_lambda():
 
         invocation_type = "Event" if async_mode else "RequestResponse"
         resp = lam.invoke(
-            FunctionName=PRODUCTION_LAMBDA_NAME,
+            FunctionName=lambda_function_name,
             InvocationType=invocation_type,
             Payload=json.dumps(event).encode("utf-8"),
         )
