@@ -13,6 +13,7 @@ import traceback
 import logging
 import threading
 import random
+import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
 from functools import wraps
@@ -820,11 +821,93 @@ def bulk_generate():
     
     def background_process(app, job_id, users, access_key, secret_key, region):
         with app.app_context():
+            # Pre-detect Lambda functions ONCE before parallel processing
+            # This is much more efficient than detecting for each user
+            lambda_functions = []
+            try:
+                session_boto = boto3.Session(
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                    region_name=region
+                )
+                lam_client = session_boto.client("lambda", config=Config(
+                    max_pool_connections=10,
+                    retries={'max_attempts': 3}
+                ))
+                
+                # List all Lambda functions that match our pattern
+                logger.info(f"[BULK] Detecting Lambda functions matching '{PRODUCTION_LAMBDA_NAME}'...")
+                all_functions = lam_client.list_functions()
+                
+                # Get all function names for debugging
+                all_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
+                logger.info(f"[BULK] All Lambda functions in account: {all_function_names[:20]}...")  # Show first 20
+                
+                # Match functions that start with PRODUCTION_LAMBDA_NAME (edu-gw-chromium)
+                # This will match: edu-gw-chromium, edu-gw-chromium-1, edu-gw-chromium-2, etc.
+                matching_functions = [
+                    fn['FunctionName'] for fn in all_functions.get('Functions', [])
+                    if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
+                ]
+                
+                # Sort to ensure consistent ordering (edu-gw-chromium, edu-gw-chromium-1, edu-gw-chromium-2, etc.)
+                # Custom sort: base name first, then numbered ones
+                def sort_key(name):
+                    if name == PRODUCTION_LAMBDA_NAME:
+                        return (0, 0)  # Base name comes first
+                    # Extract number from name like "edu-gw-chromium-5" -> 5
+                    try:
+                        num = int(name.split('-')[-1])
+                        return (1, num)  # Numbered functions come after
+                    except:
+                        return (2, name)  # Other variations come last
+                
+                matching_functions.sort(key=sort_key)
+                
+                if len(matching_functions) > 1:
+                    lambda_functions = matching_functions
+                    logger.info(f"[BULK] ✓ Found {len(lambda_functions)} Lambda functions: {', '.join(lambda_functions)}")
+                elif len(matching_functions) == 1:
+                    lambda_functions = matching_functions
+                    logger.info(f"[BULK] ✓ Found single Lambda function: {lambda_functions[0]}")
+                else:
+                    # No matching functions found, use default
+                    lambda_functions = [PRODUCTION_LAMBDA_NAME]
+                    logger.warning(f"[BULK] ⚠️ No matching Lambda functions found, will use default: {PRODUCTION_LAMBDA_NAME}")
+            except Exception as list_err:
+                logger.error(f"[BULK] Error detecting Lambda functions: {list_err}")
+                logger.error(traceback.format_exc())
+                # Fall back to default function name
+                lambda_functions = [PRODUCTION_LAMBDA_NAME]
+                logger.warning(f"[BULK] Using default Lambda function: {PRODUCTION_LAMBDA_NAME}")
+            
+            # Create user-to-function mapping using hash distribution
+            user_function_map = {}
+            for user in users:
+                email = user['email']
+                user_hash = int(hashlib.md5(email.encode()).hexdigest(), 16)
+                function_index = user_hash % len(lambda_functions)
+                user_function_map[email] = lambda_functions[function_index]
+            
+            # Log distribution statistics
+            function_counts = {}
+            for email, func_name in user_function_map.items():
+                function_counts[func_name] = function_counts.get(func_name, 0) + 1
+            
+            logger.info("=" * 60)
+            logger.info(f"[BULK] Lambda Function Distribution Summary")
+            logger.info(f"[BULK] Total users: {len(users)}")
+            logger.info(f"[BULK] Available Lambda functions: {lambda_functions}")
+            logger.info(f"[BULK] User distribution per function:")
+            for func_name, count in sorted(function_counts.items()):
+                logger.info(f"[BULK]   - {func_name}: {count} user(s)")
+            logger.info("=" * 60)
+            
             # NUCLEAR FIX: Create independent boto3 clients per thread to eliminate ANY connection pool contention
             # Each thread gets its own client with its own connection pool
             # This guarantees 1000+ concurrent invocations without blocking
             
-            def process_single_user(user):
+            def process_single_user(user, assigned_function_name):
                 with app.app_context():
                     email = user['email']
                     password = user['password']
@@ -872,37 +955,10 @@ def bulk_generate():
                         processing_emails.add(email)
                     
                     try:
-                        logger.info(f"[BULK] Invoking Lambda for {email}")
+                        logger.info(f"[BULK] Invoking Lambda {assigned_function_name} for {email}")
                         
-                        # Determine which Lambda function to use
-                        # If multiple functions exist, distribute users across them
-                        lambda_function_name = PRODUCTION_LAMBDA_NAME
-                        try:
-                            # List all Lambda functions that match our pattern
-                            all_functions = lam_thread.list_functions()
-                            matching_functions = [
-                                fn['FunctionName'] for fn in all_functions.get('Functions', [])
-                                if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
-                            ]
-                            
-                            if len(matching_functions) > 1:
-                                # Multiple functions exist - distribute users across them
-                                # Use hash of email to consistently assign user to same function
-                                import hashlib
-                                user_hash = int(hashlib.md5(email.encode()).hexdigest(), 16)
-                                function_index = user_hash % len(matching_functions)
-                                lambda_function_name = matching_functions[function_index]
-                                logger.info(f"[BULK] Using Lambda function {lambda_function_name} for {email} (distributed across {len(matching_functions)} functions)")
-                            elif len(matching_functions) == 1:
-                                # Only one function exists, use it
-                                lambda_function_name = matching_functions[0]
-                                logger.info(f"[BULK] Using Lambda function {lambda_function_name} for {email}")
-                            else:
-                                # No matching functions found, use default
-                                logger.warning(f"[BULK] No matching Lambda functions found, using default {PRODUCTION_LAMBDA_NAME}")
-                        except Exception as list_err:
-                            logger.warning(f"[BULK] Could not list Lambda functions, using default: {list_err}")
-                            # Fall back to default function name
+                        # Use the pre-assigned function name
+                        lambda_function_name = assigned_function_name
                         
                         # Retry logic for rate limiting (optimized for high concurrency)
                         max_retries = 5  # Increased retries for high concurrency scenarios
@@ -917,6 +973,18 @@ def bulk_generate():
                                 break  # Success, exit retry loop
                             except ClientError as ce:
                                 error_code = ce.response['Error']['Code']
+                                error_message = ce.response['Error'].get('Message', '')
+                                
+                                if error_code == 'ResourceNotFoundException':
+                                    logger.error(f"[BULK] Lambda function {lambda_function_name} not found for {email}")
+                                    # Try to fall back to default function if assigned function doesn't exist
+                                    if lambda_function_name != PRODUCTION_LAMBDA_NAME:
+                                        logger.warning(f"[BULK] Falling back to default function {PRODUCTION_LAMBDA_NAME} for {email}")
+                                        lambda_function_name = PRODUCTION_LAMBDA_NAME
+                                        continue  # Retry with default function
+                                    else:
+                                        return {'email': email, 'success': False, 'error': f'Lambda function {lambda_function_name} not found'}
+                                
                                 if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
                                     if attempt < max_retries - 1:
                                         # Exponential backoff with jitter to prevent thundering herd
@@ -928,6 +996,7 @@ def bulk_generate():
                                     else:
                                         raise  # Final attempt failed
                                 else:
+                                    logger.error(f"[BULK] AWS error for {email}: {error_code} - {error_message}")
                                     raise  # Other AWS error, don't retry
                         
                         payload = resp.get("Payload")
@@ -972,7 +1041,11 @@ def bulk_generate():
             # Execute in parallel
             # Use 1000 workers for maximum concurrency (Lambda supports up to 1000 concurrent executions)
             with ThreadPoolExecutor(max_workers=1000) as pool: 
-                futures = {pool.submit(process_single_user, u): u for u in users}
+                # Pass both user and assigned function name to each task
+                futures = {
+                    pool.submit(process_single_user, u, user_function_map[u['email']]): u 
+                    for u in users
+                }
                 
                 for future in as_completed(futures):
                     result = future.result()
@@ -1154,7 +1227,6 @@ def invoke_lambda():
             
             if len(matching_functions) > 1:
                 # Multiple functions exist - use hash to pick one consistently
-                import hashlib
                 user_hash = int(hashlib.md5(email.encode()).hexdigest(), 16)
                 function_index = user_hash % len(matching_functions)
                 lambda_function_name = matching_functions[function_index]
