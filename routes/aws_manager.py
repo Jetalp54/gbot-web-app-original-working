@@ -425,35 +425,57 @@ def create_lambdas():
             num_functions = 1
             logger.info(f"[LAMBDA] Creating single Lambda function")
 
+        # Return immediately and create functions in background to avoid nginx timeout
+        # Creating 5 functions sequentially can take 5+ minutes, which exceeds nginx timeout
         created_functions = []
         for i in range(num_functions):
             if num_functions == 1:
                 function_name = PRODUCTION_LAMBDA_NAME
             else:
                 function_name = f"{PRODUCTION_LAMBDA_NAME}-{i+1}"
-            
-            # Create/Update Lambda
-            create_or_update_lambda(
-                session=session,
-                function_name=function_name,
-                role_arn=role_arn,
-                timeout=600,
-                env_vars=chromium_env,
-                package_type="Image",
-                image_uri=ecr_uri,
-            )
             created_functions.append(function_name)
-            logger.info(f"[LAMBDA] ✓ Created/Updated Lambda: {function_name}")
-
-        message = f'Created/Updated {len(created_functions)} Lambda function(s): {", ".join(created_functions)}'
+        
+        # Start background thread to create/update Lambda functions
+        def create_lambdas_background(session, function_names, role_arn, timeout, env_vars, package_type, image_uri):
+            try:
+                for function_name in function_names:
+                    try:
+                        create_or_update_lambda(
+                            session=session,
+                            function_name=function_name,
+                            role_arn=role_arn,
+                            timeout=timeout,
+                            env_vars=env_vars,
+                            package_type=package_type,
+                            image_uri=image_uri,
+                        )
+                        logger.info(f"[LAMBDA] ✓ Created/Updated Lambda: {function_name}")
+                    except Exception as func_error:
+                        logger.error(f"[LAMBDA] ✗ Failed to create/update {function_name}: {func_error}")
+                        logger.error(traceback.format_exc())
+            except Exception as bg_error:
+                logger.error(f"[LAMBDA] Background Lambda creation error: {bg_error}")
+                logger.error(traceback.format_exc())
+        
+        # Start background thread
+        threading.Thread(
+            target=create_lambdas_background,
+            args=(session, created_functions, role_arn, 600, chromium_env, "Image", ecr_uri),
+            daemon=True
+        ).start()
+        
+        message = f'Started creating/updating {len(created_functions)} Lambda function(s): {", ".join(created_functions)}'
         if create_multiple:
-            message += f' (for {user_count} users, {users_per_function} users per function)'
+            message += f' (for {user_count} users, {users_per_function} users per function). Functions are being created in the background.'
+        else:
+            message += '. Function is being created in the background.'
 
         return jsonify({
             'success': True,
             'message': message,
             'functions_created': created_functions,
-            'num_functions': len(created_functions)
+            'num_functions': len(created_functions),
+            'note': 'Lambda functions are being created/updated in the background. This may take a few minutes.'
         })
     except Exception as e:
         logger.error(f"Error creating Lambda: {e}")
