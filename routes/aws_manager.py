@@ -805,6 +805,8 @@ def bulk_generate():
     if not users:
         return jsonify({'success': False, 'error': 'No valid user:password pairs found'}), 400
 
+    logger.info(f"[BULK] Received {len(users_raw)} raw user entries, parsed {len(users)} valid users")
+
     job_id = str(int(time.time()))
     active_jobs[job_id] = {
         'total': len(users),
@@ -955,10 +957,9 @@ def bulk_generate():
                         processing_emails.add(email)
                     
                     try:
-                        logger.info(f"[BULK] Invoking Lambda {assigned_function_name} for {email}")
-                        
                         # Use the pre-assigned function name
                         lambda_function_name = assigned_function_name
+                        logger.info(f"[BULK] [{lambda_function_name}] Invoking Lambda for user {email}")
                         
                         # Retry logic for rate limiting (optimized for high concurrency)
                         max_retries = 5  # Increased retries for high concurrency scenarios
@@ -1038,32 +1039,77 @@ def bulk_generate():
                         with processing_lock:
                             processing_emails.discard(email)
 
+            # Verify all users are assigned to functions
+            logger.info(f"[BULK] Verifying user assignments...")
+            unassigned_users = [u for u in users if u['email'] not in user_function_map]
+            if unassigned_users:
+                logger.error(f"[BULK] ERROR: {len(unassigned_users)} users not assigned to any function!")
+                for u in unassigned_users:
+                    logger.error(f"[BULK]   - {u['email']}")
+            
             # Execute in parallel
             # Use 1000 workers for maximum concurrency (Lambda supports up to 1000 concurrent executions)
+            logger.info(f"[BULK] Starting parallel processing of {len(users)} users across {len(lambda_functions)} Lambda functions...")
+            
             with ThreadPoolExecutor(max_workers=1000) as pool: 
                 # Pass both user and assigned function name to each task
-                futures = {
-                    pool.submit(process_single_user, u, user_function_map[u['email']]): u 
-                    for u in users
-                }
+                futures = {}
+                submitted_count = 0
+                for u in users:
+                    assigned_function = user_function_map.get(u['email'], PRODUCTION_LAMBDA_NAME)
+                    future = pool.submit(process_single_user, u, assigned_function)
+                    futures[future] = u
+                    submitted_count += 1
+                
+                logger.info(f"[BULK] ✓ Submitted {submitted_count} user(s) to thread pool")
+                
+                # Track which functions are being used
+                function_invocations = {}
                 
                 for future in as_completed(futures):
-                    result = future.result()
-                    active_jobs[job_id]['completed'] += 1
-                    if result['success']:
-                        active_jobs[job_id]['success'] += 1
-                        active_jobs[job_id]['results'].append({
-                            'email': result['email'],
-                            'app_password': result['app_password'],
-                            'success': True
-                        })
-                    else:
+                    try:
+                        result = future.result()
+                        user_email = result['email']
+                        assigned_function = user_function_map.get(user_email, 'unknown')
+                        function_invocations[assigned_function] = function_invocations.get(assigned_function, 0) + 1
+                        
+                        active_jobs[job_id]['completed'] += 1
+                        if result['success']:
+                            active_jobs[job_id]['success'] += 1
+                            active_jobs[job_id]['results'].append({
+                                'email': result['email'],
+                                'app_password': result['app_password'],
+                                'success': True
+                            })
+                        else:
+                            active_jobs[job_id]['failed'] += 1
+                            active_jobs[job_id]['results'].append({
+                                'email': result['email'],
+                                'error': result.get('error'),
+                                'success': False
+                            })
+                    except Exception as e:
+                        logger.error(f"[BULK] Exception processing future result: {e}")
+                        logger.error(traceback.format_exc())
                         active_jobs[job_id]['failed'] += 1
-                        active_jobs[job_id]['results'].append({
-                            'email': result['email'],
-                            'error': result.get('error'),
-                            'success': False
-                        })
+                        active_jobs[job_id]['completed'] += 1
+                
+                # Log final invocation statistics
+                total_invocations = sum(function_invocations.values())
+                logger.info("=" * 60)
+                logger.info(f"[BULK] Processing completed. Final statistics:")
+                logger.info(f"[BULK] Total users processed: {total_invocations} / {len(users)}")
+                logger.info(f"[BULK] Invocation breakdown by Lambda function:")
+                for func_name in sorted(lambda_functions):
+                    count = function_invocations.get(func_name, 0)
+                    expected = function_counts.get(func_name, 0)
+                    status = "✓" if count == expected else "⚠️"
+                    logger.info(f"[BULK]   {status} {func_name}: {count} invocation(s) (expected: {expected})")
+                logger.info("=" * 60)
+                
+                # Warn if not all users were processed
+                if total_invocations < len(users):
+                    logger.warning(f"[BULK] ⚠️ WARNING: Only {total_invocations} out of {len(users)} users were processed!")
             
             active_jobs[job_id]['status'] = 'completed'
 
