@@ -28,7 +28,7 @@ from email.mime.multipart import MIMEMultipart
 import re
 
 from core_logic import google_api
-from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation
+from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig
 from routes.dns_manager import dns_manager
 from routes.aws_manager import aws_manager
 
@@ -2981,6 +2981,16 @@ def settings():
     if session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
+    
+    # Ensure AWS config table exists
+    try:
+        inspector = db.inspect(db.engine)
+        if 'aws_config' not in inspector.get_table_names():
+            db.create_all()
+            app.logger.info("Created aws_config table")
+    except Exception as e:
+        app.logger.error(f"Error ensuring aws_config table exists: {e}")
+    
     return render_template('settings.html', user=session.get('user'), role=session.get('role'))
 
 # Server configuration API routes

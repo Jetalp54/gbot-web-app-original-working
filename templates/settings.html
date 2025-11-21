@@ -2369,6 +2369,14 @@ function saveAwsConfiguration() {
         s3_bucket: $('#aws_s3_bucket').val().trim() || 'edu-gw-app-passwords'
     };
     
+    console.log('Config to save:', {
+        access_key_id: config.access_key_id ? config.access_key_id.substring(0, 4) + '***' : 'empty',
+        secret_access_key: config.secret_access_key ? '***' : 'empty',
+        region: config.region,
+        ecr_uri: config.ecr_uri,
+        s3_bucket: config.s3_bucket
+    });
+    
     // Validate required fields
     if (!config.access_key_id || !config.secret_access_key || !config.region) {
         showStatus('Please fill in all required fields', 'error');
@@ -2382,21 +2390,33 @@ function saveAwsConfiguration() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(config)
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.error || `HTTP ${response.status}`);
+            });
+        }
+        return response.json();
+    })
     .then(data => {
+        console.log('Save response:', data);
         if (data.success) {
             showStatus('✅ AWS configuration saved successfully', 'success');
             // Clear secret key field for security
             $('#aws_secret_access_key').val('');
             // Reload configuration
-            loadAwsConfiguration();
+            setTimeout(() => {
+                loadAwsConfiguration();
+            }, 500);
         } else {
-            showStatus('❌ Failed to save configuration: ' + data.error, 'error');
+            showStatus('❌ Failed to save configuration: ' + (data.error || 'Unknown error'), 'error');
+            console.error('Save failed:', data);
         }
     })
     .catch(error => {
         console.error('Error saving AWS configuration:', error);
-        showStatus('❌ Network error: ' + error, 'error');
+        showStatus('❌ Error saving configuration: ' + error.message, 'error');
     });
 }
 

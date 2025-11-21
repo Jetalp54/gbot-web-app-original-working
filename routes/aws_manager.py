@@ -74,7 +74,10 @@ def aws_management():
     # Ensure table exists to prevent 500 errors if migration wasn't run
     try:
         inspector = db.inspect(db.engine)
-        if 'aws_generated_password' not in inspector.get_table_names():
+        tables = inspector.get_table_names()
+        if 'aws_generated_password' not in tables:
+            db.create_all()
+        if 'aws_config' not in tables:
             db.create_all()
     except Exception as e:
         logger.error(f"Auto-migration failed: {e}")
@@ -116,7 +119,18 @@ def save_aws_config():
         if session.get('role') != 'admin':
             return jsonify({'success': False, 'error': 'Admin privileges required'}), 403
         
+        # Ensure table exists
+        try:
+            inspector = db.inspect(db.engine)
+            if 'aws_config' not in inspector.get_table_names():
+                db.create_all()
+        except Exception as e:
+            logger.warning(f"Could not check/create aws_config table: {e}")
+        
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+            
         access_key_id = data.get('access_key_id', '').strip()
         secret_access_key = data.get('secret_access_key', '').strip()
         region = data.get('region', 'us-east-1').strip()
@@ -131,21 +145,26 @@ def save_aws_config():
         if not config:
             config = AwsConfig()
             db.session.add(config)
+            logger.info("[AWS_CONFIG] Creating new AWS config entry")
+        else:
+            logger.info("[AWS_CONFIG] Updating existing AWS config entry")
         
         # Update config
         config.access_key_id = access_key_id
         config.secret_access_key = secret_access_key
         config.region = region
-        config.ecr_uri = ecr_uri if ecr_uri else None
+        config.ecr_uri = ecr_uri if ecr_uri and ecr_uri != '(connect first)' else None
         config.s3_bucket = s3_bucket
         config.is_configured = True
-        config.updated_at = db.func.current_timestamp()
         
+        # Commit the changes
         db.session.commit()
+        logger.info("[AWS_CONFIG] ✓ AWS configuration saved successfully")
         
         return jsonify({'success': True, 'message': 'AWS configuration saved successfully'})
     except Exception as e:
         logger.error(f"Error saving AWS config: {e}")
+        logger.error(traceback.format_exc())
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -157,14 +176,24 @@ def get_aws_config():
         if session.get('role') != 'admin':
             return jsonify({'success': False, 'error': 'Admin privileges required'}), 403
         
+        # Ensure table exists
+        try:
+            inspector = db.inspect(db.engine)
+            if 'aws_config' not in inspector.get_table_names():
+                db.create_all()
+        except Exception as e:
+            logger.warning(f"Could not check/create aws_config table: {e}")
+        
         config = AwsConfig.query.first()
         if not config or not config.is_configured:
+            logger.info("[AWS_CONFIG] No AWS configuration found")
             return jsonify({
                 'success': True,
                 'config': None,
                 'message': 'No AWS configuration found'
             })
         
+        logger.info("[AWS_CONFIG] ✓ AWS configuration loaded successfully")
         return jsonify({
             'success': True,
             'config': {
@@ -177,6 +206,7 @@ def get_aws_config():
         })
     except Exception as e:
         logger.error(f"Error getting AWS config: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/aws/create-dynamodb', methods=['POST'])
