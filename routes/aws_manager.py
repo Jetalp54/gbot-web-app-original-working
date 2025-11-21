@@ -38,10 +38,16 @@ aws_manager = Blueprint('aws_manager', __name__)
 # Global executor for background tasks
 executor = ThreadPoolExecutor(max_workers=20)
 active_jobs = {}
+jobs_lock = threading.Lock()  # Lock for job storage
 
 # Global set to track emails currently being processed (prevent duplicates within a job)
 processing_emails = set()
 processing_lock = threading.Lock()
+
+# Rate limiting semaphore - AWS account limit is typically 10-100 concurrent executions
+# Using 10 as safe default (can be increased if account limit is higher)
+MAX_CONCURRENT_LAMBDA_INVOCATIONS = 10
+lambda_invocation_semaphore = threading.Semaphore(MAX_CONCURRENT_LAMBDA_INVOCATIONS)
 
 # Login required decorator
 def login_required(f):
@@ -808,14 +814,17 @@ def bulk_generate():
     logger.info(f"[BULK] Received {len(users_raw)} raw user entries, parsed {len(users)} valid users")
 
     job_id = str(int(time.time()))
-    active_jobs[job_id] = {
-        'total': len(users),
-        'completed': 0,
-        'success': 0,
-        'failed': 0,
-        'results': [],
-        'status': 'processing'
-    }
+    with jobs_lock:
+        active_jobs[job_id] = {
+            'total': len(users),
+            'completed': 0,
+            'success': 0,
+            'failed': 0,
+            'results': [],
+            'status': 'processing'
+        }
+    
+    logger.info(f"[BULK] Created job {job_id} for {len(users)} users")
 
     # Start background thread
     # We pass app_context explicitly if needed, but db operations need app context inside the thread
@@ -962,17 +971,24 @@ def bulk_generate():
                         lambda_function_name = assigned_function_name
                         logger.info(f"[BULK] [{lambda_function_name}] Invoking Lambda for user {email}")
                         
-                        # Retry logic for rate limiting (optimized for high concurrency)
-                        max_retries = 5  # Increased retries for high concurrency scenarios
-                        for attempt in range(max_retries):
-                            try:
-                                # Use thread-specific Lambda client (no connection pool contention)
-                                resp = lam_thread.invoke(
-                                    FunctionName=lambda_function_name,
-                                    InvocationType="RequestResponse", # Sync
-                                    Payload=json.dumps({"email": email, "password": password}).encode("utf-8"),
-                                )
-                                break  # Success, exit retry loop
+                        # Rate limiting: Acquire semaphore to limit concurrent invocations
+                        # This ensures we don't exceed AWS account's concurrent execution limit (typically 10)
+                        lambda_invocation_semaphore.acquire()
+                        try:
+                            # Retry logic for rate limiting (optimized for high concurrency)
+                            max_retries = 5  # Increased retries for high concurrency scenarios
+                            for attempt in range(max_retries):
+                                try:
+                                    # Use thread-specific Lambda client (no connection pool contention)
+                                    resp = lam_thread.invoke(
+                                        FunctionName=lambda_function_name,
+                                        InvocationType="RequestResponse", # Sync
+                                        Payload=json.dumps({"email": email, "password": password}).encode("utf-8"),
+                                    )
+                                    break  # Success, exit retry loop
+                        finally:
+                            # Always release semaphore, even if invocation fails
+                            lambda_invocation_semaphore.release()
                             except ClientError as ce:
                                 error_code = ce.response['Error']['Code']
                                 error_message = ce.response['Error'].get('Message', '')
@@ -1089,26 +1105,33 @@ def bulk_generate():
                         assigned_function = user_function_map.get(user_email, 'unknown')
                         function_invocations[assigned_function] = function_invocations.get(assigned_function, 0) + 1
                         
-                        active_jobs[job_id]['completed'] += 1
-                        if result['success']:
-                            active_jobs[job_id]['success'] += 1
-                            active_jobs[job_id]['results'].append({
-                                'email': result['email'],
-                                'app_password': result['app_password'],
-                                'success': True
-                            })
-                        else:
-                            active_jobs[job_id]['failed'] += 1
-                            active_jobs[job_id]['results'].append({
-                                'email': result['email'],
-                                'error': result.get('error'),
-                                'success': False
-                            })
+                        # Update job status with lock protection
+                        with jobs_lock:
+                            if job_id in active_jobs:
+                                active_jobs[job_id]['completed'] += 1
+                                if result['success']:
+                                    active_jobs[job_id]['success'] += 1
+                                    active_jobs[job_id]['results'].append({
+                                        'email': result['email'],
+                                        'app_password': result['app_password'],
+                                        'success': True
+                                    })
+                                else:
+                                    active_jobs[job_id]['failed'] += 1
+                                    active_jobs[job_id]['results'].append({
+                                        'email': result['email'],
+                                        'error': result.get('error'),
+                                        'success': False
+                                    })
+                            else:
+                                logger.warning(f"[BULK] Job {job_id} not found when updating status for {user_email}")
                     except Exception as e:
                         logger.error(f"[BULK] Exception processing future result: {e}")
                         logger.error(traceback.format_exc())
-                        active_jobs[job_id]['failed'] += 1
-                        active_jobs[job_id]['completed'] += 1
+                        with jobs_lock:
+                            if job_id in active_jobs:
+                                active_jobs[job_id]['failed'] += 1
+                                active_jobs[job_id]['completed'] += 1
                 
                 # Log final invocation statistics
                 total_invocations = sum(function_invocations.values())
@@ -1128,14 +1151,33 @@ def bulk_generate():
                     logger.warning(f"[BULK] ⚠️ WARNING: Only {total_invocations} out of {len(users)} users were processed!")
             
             # Set job status to completed (outside ThreadPoolExecutor but inside app_context)
-            active_jobs[job_id]['status'] = 'completed'
-            logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {total_invocations}/{len(users)} users.")
+            # Use lock to ensure thread-safe access
+            with jobs_lock:
+                if job_id in active_jobs:
+                    active_jobs[job_id]['status'] = 'completed'
+                    logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {total_invocations}/{len(users)} users.")
+                else:
+                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in active_jobs when trying to mark as completed!")
+                    # Try to create it if it doesn't exist (shouldn't happen, but safety check)
+                    active_jobs[job_id] = {
+                        'total': len(users),
+                        'completed': total_invocations,
+                        'success': sum(1 for r in function_invocations.values() if r > 0),  # Approximate
+                        'failed': len(users) - total_invocations,
+                        'results': [],
+                        'status': 'completed'
+                    }
         except Exception as bg_error:
             logger.error(f"[BULK] ❌ CRITICAL ERROR in background_process: {bg_error}")
             logger.error(f"[BULK] Traceback: {traceback.format_exc()}")
-            active_jobs[job_id]['status'] = 'failed'
-            active_jobs[job_id]['error'] = str(bg_error)
-            active_jobs[job_id]['completed'] = active_jobs[job_id].get('completed', 0)
+            # Use lock to ensure thread-safe access
+            with jobs_lock:
+                if job_id in active_jobs:
+                    active_jobs[job_id]['status'] = 'failed'
+                    active_jobs[job_id]['error'] = str(bg_error)
+                    active_jobs[job_id]['completed'] = active_jobs[job_id].get('completed', 0)
+                else:
+                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in active_jobs when trying to mark as failed!")
 
     threading.Thread(target=background_process, args=(app, job_id, users, access_key, secret_key, region)).start()
 
@@ -1145,8 +1187,10 @@ def bulk_generate():
 @login_required
 def get_job_status(job_id):
     try:
-        job = active_jobs.get(job_id)
+        with jobs_lock:
+            job = active_jobs.get(job_id)
         if not job:
+            logger.warning(f"[JOB_STATUS] Job {job_id} not found. Available jobs: {list(active_jobs.keys())}")
             return jsonify({'success': False, 'error': 'Job not found'}), 404
         # Return the job status including the results list (which has the new passwords)
         return jsonify({'success': True, 'job': job})
