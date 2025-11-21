@@ -986,36 +986,36 @@ def bulk_generate():
                                         Payload=json.dumps({"email": email, "password": password}).encode("utf-8"),
                                     )
                                     break  # Success, exit retry loop
+                                except ClientError as ce:
+                                    error_code = ce.response['Error']['Code']
+                                    error_message = ce.response['Error'].get('Message', '')
+                                    
+                                    if error_code == 'ResourceNotFoundException':
+                                        logger.error(f"[BULK] Lambda function {lambda_function_name} not found for {email}")
+                                        # Try to fall back to default function if assigned function doesn't exist
+                                        if lambda_function_name != PRODUCTION_LAMBDA_NAME:
+                                            logger.warning(f"[BULK] Falling back to default function {PRODUCTION_LAMBDA_NAME} for {email}")
+                                            lambda_function_name = PRODUCTION_LAMBDA_NAME
+                                            continue  # Retry with default function
+                                        else:
+                                            return {'email': email, 'success': False, 'error': f'Lambda function {lambda_function_name} not found'}
+                                    
+                                    if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
+                                        if attempt < max_retries - 1:
+                                            # Exponential backoff with jitter to prevent thundering herd
+                                            base_wait = (2 ** attempt) * 2  # 2s, 4s, 8s, 16s, 32s
+                                            jitter = random.uniform(0, 1)  # Add random jitter
+                                            wait_time = base_wait + jitter
+                                            logger.warning(f"[BULK] Rate limited for {email}, retrying in {wait_time:.2f}s (attempt {attempt + 1}/{max_retries})")
+                                            time.sleep(wait_time)
+                                        else:
+                                            raise  # Final attempt failed
+                                    else:
+                                        logger.error(f"[BULK] AWS error for {email}: {error_code} - {error_message}")
+                                        raise  # Other AWS error, don't retry
                         finally:
                             # Always release semaphore, even if invocation fails
                             lambda_invocation_semaphore.release()
-                            except ClientError as ce:
-                                error_code = ce.response['Error']['Code']
-                                error_message = ce.response['Error'].get('Message', '')
-                                
-                                if error_code == 'ResourceNotFoundException':
-                                    logger.error(f"[BULK] Lambda function {lambda_function_name} not found for {email}")
-                                    # Try to fall back to default function if assigned function doesn't exist
-                                    if lambda_function_name != PRODUCTION_LAMBDA_NAME:
-                                        logger.warning(f"[BULK] Falling back to default function {PRODUCTION_LAMBDA_NAME} for {email}")
-                                        lambda_function_name = PRODUCTION_LAMBDA_NAME
-                                        continue  # Retry with default function
-                                    else:
-                                        return {'email': email, 'success': False, 'error': f'Lambda function {lambda_function_name} not found'}
-                                
-                                if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
-                                    if attempt < max_retries - 1:
-                                        # Exponential backoff with jitter to prevent thundering herd
-                                        base_wait = (2 ** attempt) * 2  # 2s, 4s, 8s, 16s, 32s
-                                        jitter = random.uniform(0, 1)  # Add random jitter
-                                        wait_time = base_wait + jitter
-                                        logger.warning(f"[BULK] Rate limited for {email}, retrying in {wait_time:.2f}s (attempt {attempt + 1}/{max_retries})")
-                                        time.sleep(wait_time)
-                                    else:
-                                        raise  # Final attempt failed
-                                else:
-                                    logger.error(f"[BULK] AWS error for {email}: {error_code} - {error_message}")
-                                    raise  # Other AWS error, don't retry
                         
                         payload = resp.get("Payload")
                         body = payload.read().decode("utf-8") if payload else "{}"
