@@ -822,11 +822,12 @@ def bulk_generate():
     from app import app
     
     def background_process(app, job_id, users, access_key, secret_key, region):
-        with app.app_context():
-            # Pre-detect Lambda functions ONCE before parallel processing
-            # This is much more efficient than detecting for each user
-            lambda_functions = []
-            try:
+        try:
+            with app.app_context():
+                # Pre-detect Lambda functions ONCE before parallel processing
+                # This is much more efficient than detecting for each user
+                lambda_functions = []
+                try:
                 session_boto = boto3.Session(
                     aws_access_key_id=access_key,
                     aws_secret_access_key=secret_key,
@@ -1047,21 +1048,36 @@ def bulk_generate():
                 for u in unassigned_users:
                     logger.error(f"[BULK]   - {u['email']}")
             
+            # Verify we have all users in the map
+            if len(user_function_map) != len(users):
+                logger.error(f"[BULK] CRITICAL: User map size ({len(user_function_map)}) doesn't match users list ({len(users)})!")
+                missing_emails = [u['email'] for u in users if u['email'] not in user_function_map]
+                logger.error(f"[BULK] Missing emails: {missing_emails[:10]}...")  # Show first 10
+            
             # Execute in parallel
             # Use 1000 workers for maximum concurrency (Lambda supports up to 1000 concurrent executions)
             logger.info(f"[BULK] Starting parallel processing of {len(users)} users across {len(lambda_functions)} Lambda functions...")
+            logger.info(f"[BULK] User list size: {len(users)}, User map size: {len(user_function_map)}")
             
             with ThreadPoolExecutor(max_workers=1000) as pool: 
                 # Pass both user and assigned function name to each task
                 futures = {}
                 submitted_count = 0
+                submitted_emails = []
                 for u in users:
-                    assigned_function = user_function_map.get(u['email'], PRODUCTION_LAMBDA_NAME)
+                    email = u['email']
+                    assigned_function = user_function_map.get(email, PRODUCTION_LAMBDA_NAME)
+                    if not assigned_function:
+                        logger.error(f"[BULK] No function assigned for {email}, using default")
+                        assigned_function = PRODUCTION_LAMBDA_NAME
                     future = pool.submit(process_single_user, u, assigned_function)
                     futures[future] = u
                     submitted_count += 1
+                    submitted_emails.append(email)
                 
                 logger.info(f"[BULK] ✓ Submitted {submitted_count} user(s) to thread pool")
+                logger.info(f"[BULK] First 10 submitted emails: {submitted_emails[:10]}")
+                logger.info(f"[BULK] Last 10 submitted emails: {submitted_emails[-10:]}")
                 
                 # Track which functions are being used
                 function_invocations = {}
@@ -1110,8 +1126,15 @@ def bulk_generate():
                 # Warn if not all users were processed
                 if total_invocations < len(users):
                     logger.warning(f"[BULK] ⚠️ WARNING: Only {total_invocations} out of {len(users)} users were processed!")
-            
-            active_jobs[job_id]['status'] = 'completed'
+                
+                active_jobs[job_id]['status'] = 'completed'
+                logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {total_invocations}/{len(users)} users.")
+        except Exception as bg_error:
+            logger.error(f"[BULK] ❌ CRITICAL ERROR in background_process: {bg_error}")
+            logger.error(f"[BULK] Traceback: {traceback.format_exc()}")
+            active_jobs[job_id]['status'] = 'failed'
+            active_jobs[job_id]['error'] = str(bg_error)
+            active_jobs[job_id]['completed'] = active_jobs[job_id].get('completed', 0)
 
     threading.Thread(target=background_process, args=(app, job_id, users, access_key, secret_key, region)).start()
 
@@ -1120,11 +1143,16 @@ def bulk_generate():
 @aws_manager.route('/api/aws/job-status/<job_id>', methods=['GET'])
 @login_required
 def get_job_status(job_id):
-    job = active_jobs.get(job_id)
-    if not job:
-        return jsonify({'success': False, 'error': 'Job not found'}), 404
-    # Return the job status including the results list (which has the new passwords)
-    return jsonify({'success': True, 'job': job})
+    try:
+        job = active_jobs.get(job_id)
+        if not job:
+            return jsonify({'success': False, 'error': 'Job not found'}), 404
+        # Return the job status including the results list (which has the new passwords)
+        return jsonify({'success': True, 'job': job})
+    except Exception as e:
+        logger.error(f"Error getting job status: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/aws/fetch-from-dynamodb', methods=['POST'])
 @login_required

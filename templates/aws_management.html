@@ -797,6 +797,13 @@
         // Parse users cleanly
         const usersRaw = usersText.split('\n').filter(line => line.trim() && line.includes(':'));
         
+        // Log parsing results
+        console.log(`[FRONTEND] Parsed ${usersRaw.length} users from input`);
+        if (usersRaw.length === 0) {
+            alert('No valid users found. Please enter users in format: email:password (one per line)');
+            return;
+        }
+        
         if (executionMode === 'single') {
             if (usersRaw.length > 1) {
                 if (!confirm(`Single Account mode selected, but ${usersRaw.length} accounts found.\n\nUsing first account only. Switch to 'Multiple Accounts' mode to process all accounts.\n\nContinue with first account only?`)) {
@@ -879,9 +886,14 @@
 
         log('='.repeat(60));
         log(`Starting bulk generation for ${users.length} accounts on the server...`);
+        log(`📊 Users to process: ${users.length}`);
+        log(`📋 First 5 users: ${users.slice(0, 5).join(', ')}`);
+        if (users.length > 5) {
+            log(`📋 Last 5 users: ${users.slice(-5).join(', ')}`);
+        }
         log('='.repeat(60));
 
-        document.getElementById('multiStatus').textContent = `Starting job...`;
+        document.getElementById('multiStatus').textContent = `Starting job for ${users.length} users...`;
         document.getElementById('resultsOutput').value = ''; // Clear previous results
 
         fetch('/api/aws/bulk-generate', {
@@ -896,10 +908,20 @@
                 users: users
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                return response.text().then(text => {
+                    throw new Error(`Server returned HTML instead of JSON. Response: ${text.substring(0, 200)}`);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 log(`✅ Job started: ${data.job_id}`);
+                log(`📊 Processing ${users.length} users...`);
                 pollJobStatus(data.job_id);
             } else {
                 log(`❌ ERROR starting bulk job: ${data.error}`);
@@ -909,15 +931,37 @@
         })
         .catch(error => {
             log(`❌ ERROR: ${error.message}`);
-            alert(`Error: ${error.message}`);
+            if (error.message.includes('HTML')) {
+                alert(`Server Error: The server returned an HTML error page. This usually means a timeout or server crash. Check server logs.`);
+            } else {
+                alert(`Error: ${error.message}`);
+            }
             isProcessing = false; // Reset flag on error
         });
     }
 
     function pollJobStatus(jobId) {
+        let pollCount = 0;
+        const maxPolls = 1800; // 60 minutes max (2 second intervals)
         const statusInterval = setInterval(() => {
+            pollCount++;
+            if (pollCount > maxPolls) {
+                clearInterval(statusInterval);
+                log('⚠️ Polling timeout after 60 minutes. Job may still be running on server.');
+                isProcessing = false;
+                return;
+            }
+            
             fetch(`/api/aws/job-status/${jobId}`)
-            .then(response => response.json())
+            .then(response => {
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    return response.text().then(text => {
+                        throw new Error(`Server returned HTML instead of JSON. Response: ${text.substring(0, 200)}`);
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     const job = data.job;
@@ -934,27 +978,40 @@
                         }
                     }
 
-                    if (job.status === 'completed') {
+                    if (job.status === 'completed' || job.status === 'failed') {
                         clearInterval(statusInterval);
                         isProcessing = false; // Reset flag when job completes
                         log('='.repeat(60));
-                        log('✅ BULK JOB COMPLETED');
-                        log(`Success: ${job.success}, Failed: ${job.failed}`);
-                        
-                        // Log errors
-                        job.results.forEach(r => {
-                            if (!r.success) {
-                                log(`❌ Failed: ${r.email} - ${r.error}`);
-                            }
-                        });
-                        
-                        log('='.repeat(60));
-                        // Do NOT fetch all passwords here, rely on job.results
-                        alert('Bulk generation completed. Check the results list.');
+                        if (job.status === 'completed') {
+                            log('✅ BULK JOB COMPLETED');
+                            log(`Success: ${job.success}, Failed: ${job.failed}`);
+                            
+                            // Log errors
+                            job.results.forEach(r => {
+                                if (!r.success) {
+                                    log(`❌ Failed: ${r.email} - ${r.error}`);
+                                }
+                            });
+                            
+                            log('='.repeat(60));
+                            alert('Bulk generation completed. Check the results list.');
+                        } else {
+                            log('❌ BULK JOB FAILED');
+                            log(`Error: ${job.error || 'Unknown error'}`);
+                            log(`Processed: ${job.completed}/${job.total} before failure`);
+                            alert(`Bulk generation failed: ${job.error || 'Unknown error'}`);
+                        }
                     }
+                } else {
+                    log(`❌ Error getting job status: ${data.error}`);
                 }
             })
-            .catch(err => console.error(err));
+            .catch(err => {
+                log(`❌ Error polling job status: ${err.message}`);
+                if (err.message.includes('HTML')) {
+                    log('⚠️ Server returned HTML error. Job may have crashed. Check server logs.');
+                }
+            });
         }, 2000);
     }
 
