@@ -84,18 +84,16 @@
                                 </label>
                             </div>
                             <div id="lambdaOptions" style="display: none; margin-top: var(--spacing-md); padding: var(--spacing-md); background-color: var(--color-canvas-subtle); border-radius: var(--radius-md);">
-                                <div class="form-group-github">
-                                    <label class="form-label-github">Number of Users:</label>
-                                    <input type="number" id="userCount" class="form-control-github" min="1" value="100" placeholder="100">
-                                    <small style="color: var(--color-fg-muted); font-size: 12px;">Total number of users to process</small>
+                                <div style="margin-bottom: var(--spacing-md); padding: var(--spacing-sm); background-color: var(--color-success-subtle); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-success-fg);">
+                                    <strong>ℹ️ Auto-calculation:</strong> Users will be automatically counted from the "Multiple Accounts" field above.
                                 </div>
                                 <div class="form-group-github">
                                     <label class="form-label-github">Users per Function:</label>
-                                    <input type="number" id="usersPerFunction" class="form-control-github" min="1" value="10" placeholder="10">
-                                    <small style="color: var(--color-fg-muted); font-size: 12px;">Number of users each Lambda function will handle (default: 10)</small>
+                                    <input type="number" id="usersPerFunction" class="form-control-github" min="1" value="10" placeholder="10" readonly style="background-color: var(--color-canvas-inset);">
+                                    <small style="color: var(--color-fg-muted); font-size: 12px;">Fixed at 10 users per Lambda function (maximum)</small>
                                 </div>
                                 <div id="lambdaCalculation" style="margin-top: var(--spacing-sm); padding: var(--spacing-sm); background-color: var(--color-canvas-inset); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-fg-muted);">
-                                    <strong>Calculation:</strong> <span id="lambdaCount">1</span> function(s) will be created
+                                    <strong>Calculation:</strong> <span id="lambdaCount">0</span> function(s) will be created for <span id="detectedUserCount">0</span> user(s)
                                 </div>
                             </div>
                         </div>
@@ -535,12 +533,27 @@
 
         // Get Lambda creation options
         const createMultiple = document.getElementById('createMultipleLambdas').checked;
-        const userCount = createMultiple ? parseInt(document.getElementById('userCount').value) || 0 : 0;
-        const usersPerFunction = parseInt(document.getElementById('usersPerFunction').value) || 10;
-
-        if (createMultiple && userCount <= 0) {
-            alert('Please enter a valid number of users.');
-            return;
+        let userCount = 0;
+        const usersPerFunction = 10; // Fixed at 10 users per function as requested
+        
+        // If createMultiple is checked, automatically count users from the input field
+        if (createMultiple) {
+            const usersText = document.getElementById('multipleUsers').value.trim();
+            if (!usersText) {
+                alert('Please enter users in the "Multiple Accounts" field to automatically calculate the number of Lambda functions needed.');
+                return;
+            }
+            
+            // Parse users from textarea (same format as bulk processing)
+            const usersRaw = usersText.split('\n').filter(line => line.trim() && line.includes(':'));
+            userCount = usersRaw.length;
+            
+            if (userCount <= 0) {
+                alert('No valid users found. Please enter users in format: email:password (one per line)');
+                return;
+            }
+            
+            log(`Automatically detected ${userCount} user(s) from input field`);
         }
 
         log(`Creating / updating PRODUCTION Lambda(s) (container image)...`);
@@ -561,7 +574,7 @@
                 ecr_uri: ecrUri,
                 s3_bucket: s3Bucket,
                 user_count: userCount,
-                users_per_function: usersPerFunction,
+                users_per_function: 10,  // Fixed at 10 as requested
                 create_multiple: createMultiple
             })
         })
@@ -1380,33 +1393,49 @@
         updateLambdaCalculation();
     }
 
-    // Update Lambda calculation
+    // Update Lambda calculation - automatically counts users from input field
     function updateLambdaCalculation() {
-        const userCount = parseInt(document.getElementById('userCount').value) || 0;
-        const usersPerFunction = parseInt(document.getElementById('usersPerFunction').value) || 10;
+        const createMultiple = document.getElementById('createMultipleLambdas').checked;
+        const usersPerFunction = 10; // Fixed at 10 users per function
         
-        if (userCount > 0 && usersPerFunction > 0) {
-            const numFunctions = Math.ceil(userCount / usersPerFunction);
-            document.getElementById('lambdaCount').textContent = numFunctions;
+        if (createMultiple) {
+            // Automatically count users from the "Multiple Accounts" textarea
+            const usersText = document.getElementById('multipleUsers').value.trim();
+            const usersRaw = usersText.split('\n').filter(line => line.trim() && line.includes(':'));
+            const userCount = usersRaw.length;
+            
+            // Update display
+            document.getElementById('detectedUserCount').textContent = userCount;
+            
+            if (userCount > 0 && usersPerFunction > 0) {
+                const numFunctions = Math.ceil(userCount / usersPerFunction);
+                document.getElementById('lambdaCount').textContent = numFunctions;
+            } else {
+                document.getElementById('lambdaCount').textContent = '0';
+            }
         } else {
             document.getElementById('lambdaCount').textContent = '1';
+            document.getElementById('detectedUserCount').textContent = '0';
         }
     }
 
     // Add event listeners for calculation updates
     document.addEventListener('DOMContentLoaded', function() {
-        const userCountInput = document.getElementById('userCount');
-        const usersPerFunctionInput = document.getElementById('usersPerFunction');
-        
-        if (userCountInput) {
-            userCountInput.addEventListener('input', updateLambdaCalculation);
-        }
-        if (usersPerFunctionInput) {
-            usersPerFunctionInput.addEventListener('input', updateLambdaCalculation);
+        // Add listener to multipleUsers textarea for auto-calculation when checkbox is checked
+        const multipleUsersInput = document.getElementById('multipleUsers');
+        if (multipleUsersInput) {
+            multipleUsersInput.addEventListener('input', function() {
+                if (document.getElementById('createMultipleLambdas').checked) {
+                    updateLambdaCalculation();
+                }
+            });
         }
         
         // Load AWS credentials on page load
         loadAwsCredentials();
+        
+        // Initial calculation update
+        updateLambdaCalculation();
     });
 
     // Initialize
@@ -1415,3 +1444,4 @@
     // fetchGeneratedPasswords(); 
 </script>
 {% endblock %}
+
