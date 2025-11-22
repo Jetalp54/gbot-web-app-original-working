@@ -40,6 +40,10 @@ executor = ThreadPoolExecutor(max_workers=20)
 active_jobs = {}
 jobs_lock = threading.Lock()  # Lock for job storage
 
+# Track Lambda creation jobs
+lambda_creation_jobs = {}
+lambda_creation_lock = threading.Lock()
+
 # Global set to track emails currently being processed (prevent duplicates within a job)
 processing_emails = set()
 processing_lock = threading.Lock()
@@ -485,7 +489,7 @@ def create_lambdas():
         
         # Start background thread to create/update Lambda functions across geos
         # Use 900 seconds (15 minutes) timeout for batch processing (10 users can take 5-10 minutes)
-        def create_lambdas_background(functions_by_geo_dict, access_key, secret_key, role_arn, timeout, env_vars, package_type, base_ecr_uri):
+        def create_lambdas_background(functions_by_geo_dict, access_key, secret_key, role_arn, timeout, env_vars, package_type, base_ecr_uri, job_id=None):
             """
             Create Lambda functions distributed across geos.
             Each geo gets its own boto3 session and creates functions in its region.
@@ -493,6 +497,15 @@ def create_lambdas():
             success_count = 0
             failure_count = 0
             errors_by_geo = {}
+            
+            def update_job_status():
+                """Update the job status in the tracking dictionary"""
+                if job_id:
+                    with lambda_creation_lock:
+                        if job_id in lambda_creation_jobs:
+                            lambda_creation_jobs[job_id]['success_count'] = success_count
+                            lambda_creation_jobs[job_id]['failure_count'] = failure_count
+                            lambda_creation_jobs[job_id]['errors'] = errors_by_geo.copy()
             
             try:
                 logger.info("=" * 60)
@@ -557,6 +570,7 @@ def create_lambdas():
                                 logger.info(f"[LAMBDA] [{geo}] ✓✓✓ SUCCESS: Created/Updated Lambda: {function_name}")
                                 success_count += 1
                                 geo_success += 1
+                                update_job_status()
                                 
                                 # Verify function exists
                                 try:
@@ -572,6 +586,7 @@ def create_lambdas():
                                 logger.error(traceback.format_exc())
                                 failure_count += 1
                                 geo_failures.append(f"{function_name}: {error_msg}")
+                                update_job_status()
                         
                         if geo_failures:
                             errors_by_geo[geo] = geo_failures
@@ -594,16 +609,50 @@ def create_lambdas():
                         logger.error(f"[LAMBDA]   {geo}: {errors}")
                 logger.info("=" * 60)
                 
+                # Final job status update
+                update_job_status()
+                
             except Exception as bg_error:
                 logger.error(f"[LAMBDA] ✗✗✗ CRITICAL: Background Lambda creation error: {bg_error}")
                 logger.error(traceback.format_exc())
         
+        # Create a job ID for tracking Lambda creation
+        creation_job_id = f"lambda_creation_{int(time.time())}"
+        with lambda_creation_lock:
+            lambda_creation_jobs[creation_job_id] = {
+                'status': 'processing',
+                'total_functions': len(created_functions),
+                'success_count': 0,
+                'failure_count': 0,
+                'functions_by_geo': {geo: [name for _, name in func_list] for geo, func_list in functions_by_geo.items()},
+                'errors': {},
+                'started_at': time.time()
+            }
+        
         # Start background thread
         # Use 900 seconds (15 minutes) - AWS Lambda maximum timeout
         # This allows processing up to 10 users per batch (each user takes ~30-60 seconds)
+        def create_lambdas_with_tracking(*args, **kwargs):
+            job_id = kwargs.get('job_id')
+            try:
+                create_lambdas_background(*args, job_id=job_id)
+                # Update job status on completion
+                with lambda_creation_lock:
+                    if job_id and job_id in lambda_creation_jobs:
+                        lambda_creation_jobs[job_id]['status'] = 'completed'
+                        lambda_creation_jobs[job_id]['completed_at'] = time.time()
+            except Exception as e:
+                logger.error(f"[LAMBDA] Critical error in background thread: {e}")
+                logger.error(traceback.format_exc())
+                with lambda_creation_lock:
+                    if job_id and job_id in lambda_creation_jobs:
+                        lambda_creation_jobs[job_id]['status'] = 'failed'
+                        lambda_creation_jobs[job_id]['error'] = str(e)
+        
         threading.Thread(
-            target=create_lambdas_background,
+            target=create_lambdas_with_tracking,
             args=(functions_by_geo, access_key, secret_key, role_arn, 900, chromium_env, "Image", ecr_uri),
+            kwargs={'job_id': creation_job_id},
             daemon=True
         ).start()
         
@@ -624,7 +673,8 @@ def create_lambdas():
             'functions_created': created_functions,
             'num_functions': len(created_functions),
             'functions_by_geo': {geo: [name for _, name in func_list] for geo, func_list in functions_by_geo.items()},
-            'note': 'Lambda functions are being created/updated in the background across multiple AWS regions. This may take a few minutes.'
+            'creation_job_id': creation_job_id,
+            'note': 'Lambda functions are being created/updated in the background across multiple AWS regions. This may take a few minutes. Check creation status using the job ID.'
         })
     except Exception as e:
         logger.error(f"Error creating Lambda: {e}")
@@ -1659,6 +1709,29 @@ def bulk_generate():
     threading.Thread(target=background_process, args=(app, job_id, users, access_key, secret_key, region)).start()
 
     return jsonify({'success': True, 'job_id': job_id, 'message': f'Started processing {len(users)} users'})
+
+@aws_manager.route('/api/aws/lambda-creation-status/<job_id>', methods=['GET'])
+@login_required
+def get_lambda_creation_status(job_id):
+    """Get status of Lambda function creation job"""
+    try:
+        with lambda_creation_lock:
+            if job_id not in lambda_creation_jobs:
+                return jsonify({'success': False, 'error': 'Creation job not found'}), 404
+            
+            job = lambda_creation_jobs[job_id].copy()
+            # Calculate elapsed time
+            if 'started_at' in job:
+                elapsed = time.time() - job['started_at']
+                job['elapsed_seconds'] = int(elapsed)
+            
+            return jsonify({
+                'success': True,
+                'job': job
+            })
+    except Exception as e:
+        logger.error(f"Error getting Lambda creation status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/aws/job-status/<job_id>', methods=['GET'])
 @login_required
