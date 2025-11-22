@@ -535,11 +535,76 @@ def create_lambdas():
                             failure_count += len(func_list)
                             continue
                         
-                        # Use base ECR URI for all functions
-                        # Note: ECR repositories are region-specific, but Lambda can pull images from other regions
-                        # Using the base ECR URI ensures all functions use the same image source
-                        geo_ecr_uri = base_ecr_uri
-                        logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri} (Lambda will pull cross-region if needed)")
+                        # CRITICAL: ECR repositories are region-specific.
+                        # Lambda CANNOT pull ECR images from other regions directly.
+                        # Solution: Only create functions in regions where ECR image exists,
+                        # OR use the same region as the ECR image for all functions.
+                        
+                        import re
+                        geo_ecr_uri = None
+                        repo_name = ECR_REPO_NAME
+                        image_tag = ECR_IMAGE_TAG
+                        base_region = None
+                        
+                        # Extract account ID and base region from base ECR URI
+                        # Format: account_id.dkr.ecr.region.amazonaws.com/repo:tag
+                        try:
+                            ecr_match = re.match(r'(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com/([^:]+):(.+)', base_ecr_uri)
+                            if ecr_match:
+                                account_id, base_region, repo_name, image_tag = ecr_match.groups()
+                                logger.info(f"[LAMBDA] [{geo}] Parsed ECR URI - Account: {account_id}, Base Region: {base_region}, Repo: {repo_name}, Tag: {image_tag}")
+                            else:
+                                # Fallback: try to get account ID from STS
+                                sts = geo_session.client('sts')
+                                account_id = sts.get_caller_identity()['Account']
+                                logger.warning(f"[LAMBDA] [{geo}] Could not parse ECR URI, using account ID from STS: {account_id}")
+                        except Exception as parse_err:
+                            logger.error(f"[LAMBDA] [{geo}] Could not parse ECR URI or get account ID: {parse_err}")
+                            errors_by_geo[geo] = f"Could not determine ECR configuration: {parse_err}"
+                            failure_count += len(func_list)
+                            continue
+                        
+                        # If target geo is the same as base region, use the base ECR URI directly
+                        if geo == base_region:
+                            geo_ecr_uri = base_ecr_uri
+                            logger.info(f"[LAMBDA] [{geo}] Using base ECR URI (same region): {geo_ecr_uri}")
+                        else:
+                            # For other regions, check if ECR image exists there
+                            geo_ecr_uri = f"{account_id}.dkr.ecr.{geo}.amazonaws.com/{repo_name}:{image_tag}"
+                            logger.info(f"[LAMBDA] [{geo}] Checking for ECR image in target region: {geo_ecr_uri}")
+                            
+                            try:
+                                ecr_client = geo_session.client('ecr')
+                                # Check if repository and image exist
+                                ecr_client.describe_images(
+                                    repositoryName=repo_name,
+                                    imageIds=[{"imageTag": image_tag}],
+                                )
+                                logger.info(f"[LAMBDA] [{geo}] ✓ ECR image exists in region {geo}")
+                            except ClientError as ecr_err:
+                                error_code = ecr_err.response.get('Error', {}).get('Code', '')
+                                if error_code in ['RepositoryNotFoundException', 'ImageNotFoundException']:
+                                    logger.error(f"[LAMBDA] [{geo}] ✗ ECR image not found in {geo}. Lambda cannot pull images cross-region.")
+                                    logger.error(f"[LAMBDA] [{geo}] Solution: Push the image to {geo} first:")
+                                    logger.error(f"[LAMBDA] [{geo}]   1. docker pull {base_ecr_uri}")
+                                    logger.error(f"[LAMBDA] [{geo}]   2. docker tag {base_ecr_uri} {geo_ecr_uri}")
+                                    logger.error(f"[LAMBDA] [{geo}]   3. aws ecr get-login-password --region {geo} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{geo}.amazonaws.com")
+                                    logger.error(f"[LAMBDA] [{geo}]   4. docker push {geo_ecr_uri}")
+                                    errors_by_geo[geo] = f"ECR image not found in {geo}. Lambda cannot pull images cross-region. Push image to {geo} first."
+                                    failure_count += len(func_list)
+                                    continue
+                                else:
+                                    logger.error(f"[LAMBDA] [{geo}] ✗ ECR check failed: {error_code} - {ecr_err}")
+                                    errors_by_geo[geo] = f"ECR access failed: {error_code}"
+                                    failure_count += len(func_list)
+                                    continue
+                            except Exception as ecr_check_err:
+                                logger.error(f"[LAMBDA] [{geo}] ✗ ECR verification error: {ecr_check_err}")
+                                errors_by_geo[geo] = f"ECR verification failed: {ecr_check_err}"
+                                failure_count += len(func_list)
+                                continue
+                        
+                        logger.info(f"[LAMBDA] [{geo}] ✓ Using ECR URI: {geo_ecr_uri}")
                         
                         # Ensure IAM role exists (IAM is global, but we use the session for consistency)
                         try:
