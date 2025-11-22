@@ -50,7 +50,7 @@ FLASK_ENV = os.environ.get('FLASK_ENV', 'production')
 SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
+PERMANENT_SESSION_LIFETIME = 86400  # 24 hours
 
 # Timeout Settings for long-running operations
 MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB

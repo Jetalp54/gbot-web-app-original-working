@@ -340,6 +340,129 @@ def create_ecr_manual():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@aws_manager.route('/api/aws/generate-ecr-push-script', methods=['POST'])
+@login_required
+def generate_ecr_push_script():
+    """Generate a bash script to push ECR image to all regions"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        base_ecr_uri = data.get('ecr_uri', '').strip()
+        source_region_override = data.get('source_region', '').strip()
+        
+        if not access_key or not secret_key or not base_ecr_uri:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials and ECR URI.'}), 400
+        
+        if 'amazonaws.com' not in base_ecr_uri:
+            return jsonify({'success': False, 'error': 'Invalid ECR URI format.'}), 400
+        
+        # Parse ECR URI
+        import re
+        ecr_match = re.match(r'(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com/([^:]+):(.+)', base_ecr_uri)
+        if not ecr_match:
+            return jsonify({'success': False, 'error': 'Could not parse ECR URI.'}), 400
+        
+        account_id, parsed_region, repo_name, image_tag = ecr_match.groups()
+        source_region = source_region_override if source_region_override else parsed_region
+        source_ecr_uri = f"{account_id}.dkr.ecr.{source_region}.amazonaws.com/{repo_name}:{image_tag}"
+        
+        # Get all available regions
+        AVAILABLE_GEO_REGIONS = [
+            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            'af-south-1', 'ap-east-1', 'ap-south-1', 'ap-northeast-1',
+            'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
+            'ap-southeast-2', 'ap-southeast-3', 'ca-central-1',
+            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
+            'eu-north-1', 'eu-south-1', 'me-south-1', 'me-central-1',
+            'sa-east-1',
+        ]
+        
+        target_regions = [r for r in AVAILABLE_GEO_REGIONS if r != source_region]
+        
+        # Generate bash script
+        script_lines = [
+            "#!/bin/bash",
+            "# ECR Image Push Script - Push image to all AWS regions",
+            f"# Source: {source_ecr_uri}",
+            f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            "set -e  # Exit on error",
+            "",
+            f"SOURCE_ECR_URI=\"{source_ecr_uri}\"",
+            f"ACCOUNT_ID=\"{account_id}\"",
+            f"REPO_NAME=\"{repo_name}\"",
+            f"IMAGE_TAG=\"{image_tag}\"",
+            f"SOURCE_REGION=\"{source_region}\"",
+            "",
+            "# Set AWS credentials",
+            f"export AWS_ACCESS_KEY_ID=\"{access_key}\"",
+            f"export AWS_SECRET_ACCESS_KEY=\"{secret_key}\"",
+            "",
+            "echo \"========================================\"",
+            f"echo \"Pushing ECR image to {len(target_regions)} regions\"",
+            f"echo \"Source: $SOURCE_ECR_URI\"",
+            "echo \"========================================\"",
+            "",
+            "# Authenticate with source region",
+            f"echo \"Authenticating with source region {source_region}...\"",
+            f"aws ecr get-login-password --region $SOURCE_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$SOURCE_REGION.amazonaws.com",
+            "",
+            "# Pull image from source",
+            "echo \"Pulling image from source region...\"",
+            "docker pull $SOURCE_ECR_URI",
+            "",
+        ]
+        
+        # Add push commands for each target region
+        for target_region in target_regions:
+            target_ecr_uri = f"{account_id}.dkr.ecr.{target_region}.amazonaws.com/{repo_name}:{image_tag}"
+            script_lines.extend([
+                f"",
+                f"echo \"\"",
+                f"echo \"========================================\"",
+                f"echo \"Processing {target_region}...\"",
+                f"echo \"========================================\"",
+                f"",
+                f"# Authenticate with {target_region}",
+                f"aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.{target_region}.amazonaws.com",
+                f"",
+                f"# Tag image for {target_region}",
+                f"docker tag $SOURCE_ECR_URI {target_ecr_uri}",
+                f"",
+                f"# Push image to {target_region}",
+                f"docker push {target_ecr_uri}",
+                f"",
+                f"echo \"✓ Successfully pushed to {target_region}\"",
+            ])
+        
+        script_lines.extend([
+            "",
+            "echo \"\"",
+            "echo \"========================================\"",
+            "echo \"All images pushed successfully!\"",
+            "echo \"========================================\"",
+        ])
+        
+        script_content = "\n".join(script_lines)
+        
+        return jsonify({
+            'success': True,
+            'script': script_content,
+            'filename': 'push-ecr-to-all-regions.sh',
+            'instructions': [
+                '1. Save the script to a file (e.g., push-ecr-to-all-regions.sh)',
+                '2. Make it executable: chmod +x push-ecr-to-all-regions.sh',
+                '3. Run it on a machine with Docker and AWS CLI installed',
+                '4. Or run it on your EC2 build box via SSH'
+            ]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating ECR push script: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @aws_manager.route('/api/aws/push-ecr-to-all-regions', methods=['POST'])
 @login_required
 def push_ecr_to_all_regions():
@@ -499,9 +622,114 @@ def push_ecr_to_all_regions():
                         # Image doesn't exist - attempt to push it using Docker
                         logger.info(f"[ECR] [{target_region}] Image not found. Attempting to push from {source_region}...")
                         
-                        # Check if Docker is available
+                        # Try to use EC2 build box if available (it has Docker)
+                        # Otherwise fall back to local Docker or provide instructions
+                        ec2_instance_id = None
+                        try:
+                            ec2_instance = find_ec2_build_instance(source_session)
+                            if ec2_instance:
+                                ec2_instance_id = ec2_instance['InstanceId']
+                                logger.info(f"[ECR] [{target_region}] Found EC2 build box: {ec2_instance_id}, will use it for Docker operations")
+                        except Exception as ec2_err:
+                            logger.debug(f"[ECR] [{target_region}] Could not find EC2 build box: {ec2_err}")
+                        
+                        # Check if Docker is available locally
                         docker_available = shutil.which('docker') is not None
                         aws_cli_available = shutil.which('aws') is not None
+                        
+                        # If EC2 build box is available, use it instead of local Docker
+                        if ec2_instance_id and not docker_available:
+                            logger.info(f"[ECR] [{target_region}] Using EC2 build box {ec2_instance_id} for Docker operations")
+                            # Use SSM to run Docker commands on EC2
+                            try:
+                                ssm_client = source_session.client('ssm')
+                                
+                                # Create a script to push image to target region
+                                push_script = f"""#!/bin/bash
+set -e
+export AWS_ACCESS_KEY_ID={access_key}
+export AWS_SECRET_ACCESS_KEY={secret_key}
+export AWS_DEFAULT_REGION={target_region}
+
+# Authenticate with target region ECR
+echo "Authenticating with ECR in {target_region}..."
+aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com
+
+# Authenticate with source region ECR
+echo "Authenticating with ECR in {source_region}..."
+aws ecr get-login-password --region {source_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{source_region}.amazonaws.com
+
+# Pull image from source region
+echo "Pulling image from {source_region}..."
+docker pull {source_ecr_uri}
+
+# Tag image for target region
+echo "Tagging image for {target_region}..."
+docker tag {source_ecr_uri} {target_ecr_uri}
+
+# Push image to target region
+echo "Pushing image to {target_region}..."
+docker push {target_ecr_uri}
+
+echo "Successfully pushed image to {target_region}"
+"""
+                                
+                                # Run command via SSM
+                                response = ssm_client.send_command(
+                                    InstanceIds=[ec2_instance_id],
+                                    DocumentName="AWS-RunShellScript",
+                                    Parameters={
+                                        'commands': [push_script],
+                                        'workingDirectory': ['/home/ec2-user']
+                                    },
+                                    TimeoutSeconds=1800  # 30 minutes
+                                )
+                                
+                                command_id = response['Command']['CommandId']
+                                logger.info(f"[ECR] [{target_region}] Started SSM command {command_id} on EC2 instance")
+                                
+                                # Wait for command to complete (with timeout)
+                                import time
+                                max_wait = 1800  # 30 minutes
+                                wait_interval = 10
+                                waited = 0
+                                
+                                while waited < max_wait:
+                                    time.sleep(wait_interval)
+                                    waited += wait_interval
+                                    
+                                    cmd_response = ssm_client.get_command_invocation(
+                                        CommandId=command_id,
+                                        InstanceId=ec2_instance_id
+                                    )
+                                    
+                                    status = cmd_response['Status']
+                                    if status in ['Success', 'Failed', 'Cancelled', 'TimedOut']:
+                                        if status == 'Success':
+                                            logger.info(f"[ECR] [{target_region}] ✓✓✓ SUCCESS: Pushed image via EC2 build box")
+                                            results[target_region] = {'success': True, 'message': f'Image pushed successfully via EC2 build box'}
+                                            success_count += 1
+                                        else:
+                                            error_details = cmd_response.get('StandardErrorContent', 'Unknown error')
+                                            logger.error(f"[ECR] [{target_region}] ✗ SSM command failed: {status} - {error_details}")
+                                            results[target_region] = {'success': False, 'error': f'EC2 push failed: {status} - {error_details}'}
+                                            failure_count += 1
+                                        break
+                                    
+                                    if waited % 60 == 0:  # Log every minute
+                                        logger.info(f"[ECR] [{target_region}] Waiting for EC2 push... ({waited}/{max_wait}s)")
+                                else:
+                                    # Timeout
+                                    logger.error(f"[ECR] [{target_region}] ✗ EC2 push timed out after {max_wait}s")
+                                    results[target_region] = {'success': False, 'error': f'EC2 push timed out after {max_wait} seconds'}
+                                    failure_count += 1
+                                
+                                continue  # Skip to next region
+                                
+                            except Exception as ssm_err:
+                                logger.error(f"[ECR] [{target_region}] ✗ Failed to use EC2 build box: {ssm_err}")
+                                logger.error(traceback.format_exc())
+                                # Fall through to manual instructions
                         
                         if not docker_available:
                             logger.warning(f"[ECR] [{target_region}] ⚠️ Docker not available. Manual push required.")

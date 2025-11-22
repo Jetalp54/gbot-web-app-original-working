@@ -131,7 +131,7 @@ RATE_LIMITING_ENABLED = False
 app.config['SESSION_COOKIE_SECURE'] = False  # Allow HTTP
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
 
 # Configure file upload settings
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # File size limit removed
@@ -9789,7 +9789,7 @@ def api_execute_automation_process():
         app.logger.info(f"✅ Automation process completed: {authenticated_count}/{len(accounts)} authenticated, {users_retrieved} users retrieved")
         
         # Check session validity before returning response
-        if 'user_id' not in session:
+        if 'user' not in session:
             app.logger.error("Session expired during automation process")
             return jsonify({'success': False, 'error': 'Session expired. Please log in again.'})
         
