@@ -1634,7 +1634,14 @@ def delete_all_lambdas():
 @aws_manager.route('/api/aws/delete-s3-content', methods=['POST'])
 @login_required
 def delete_s3_content():
-    """Delete all contents from S3 bucket"""
+    """Delete all contents from S3 bucket
+    
+    Required AWS IAM permissions:
+    - s3:ListBucket (to list objects)
+    - s3:DeleteObject (to delete objects)
+    - s3:ListBucketVersions (if versioning is enabled)
+    - s3:DeleteObjectVersion (if versioning is enabled)
+    """
     try:
         data = request.get_json()
         access_key = data.get('access_key', '').strip()
@@ -1647,34 +1654,129 @@ def delete_s3_content():
         session = get_boto3_session(access_key, secret_key, region)
         s3 = session.client("s3")
 
+        # First, check if bucket exists and we have ListBucket permission
+        try:
+            s3.head_bucket(Bucket=S3_BUCKET_NAME)
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == '404' or error_code == 'NoSuchBucket':
+                return jsonify({
+                    'success': False,
+                    'error': f'S3 bucket {S3_BUCKET_NAME} does not exist.'
+                }), 404
+            elif error_code == '403' or 'AccessDenied' in str(e):
+                return jsonify({
+                    'success': False,
+                    'error': f'Access Denied to S3 bucket {S3_BUCKET_NAME}. Your AWS credentials need the following IAM permissions:\n'
+                             f'- s3:ListBucket\n'
+                             f'- s3:DeleteObject\n'
+                             f'- s3:ListBucketVersions (if versioning enabled)\n'
+                             f'- s3:DeleteObjectVersion (if versioning enabled)\n\n'
+                             f'You can attach the "AmazonS3FullAccess" policy to your IAM user, or create a custom policy with these permissions for bucket "{S3_BUCKET_NAME}".'
+                }), 403
+            else:
+                raise e
+
         deleted_count = 0
-        paginator = s3.get_paginator('list_objects_v2')
-        for page in paginator.paginate(Bucket=S3_BUCKET_NAME):
-            objects = page.get('Contents', [])
-            if objects:
-                delete_keys = [{'Key': obj['Key']} for obj in objects]
-                s3.delete_objects(
-                    Bucket=S3_BUCKET_NAME,
-                    Delete={'Objects': delete_keys}
-                )
-                deleted_count += len(delete_keys)
+        
+        # Delete regular objects
+        try:
+            paginator = s3.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=S3_BUCKET_NAME):
+                objects = page.get('Contents', [])
+                if objects:
+                    delete_keys = [{'Key': obj['Key']} for obj in objects]
+                    try:
+                        s3.delete_objects(
+                            Bucket=S3_BUCKET_NAME,
+                            Delete={'Objects': delete_keys}
+                        )
+                        deleted_count += len(delete_keys)
+                        logger.info(f"[S3] Deleted {len(delete_keys)} objects from {S3_BUCKET_NAME}")
+                    except ClientError as delete_err:
+                        error_code = delete_err.response.get('Error', {}).get('Code', '')
+                        if error_code == 'AccessDenied':
+                            return jsonify({
+                                'success': False,
+                                'error': f'Access Denied when deleting objects. Your AWS credentials need s3:DeleteObject permission for bucket "{S3_BUCKET_NAME}".'
+                            }), 403
+                        raise delete_err
+        except ClientError as list_err:
+            error_code = list_err.response.get('Error', {}).get('Code', '')
+            if error_code == 'AccessDenied':
+                return jsonify({
+                    'success': False,
+                    'error': f'Access Denied when listing objects. Your AWS credentials need s3:ListBucket permission for bucket "{S3_BUCKET_NAME}".'
+                }), 403
+            raise list_err
+        
+        # Delete object versions if versioning is enabled
+        try:
+            version_paginator = s3.get_paginator('list_object_versions')
+            for page in version_paginator.paginate(Bucket=S3_BUCKET_NAME):
+                versions = page.get('Versions', [])
+                delete_markers = page.get('DeleteMarkers', [])
+                
+                to_delete = []
+                for version in versions:
+                    to_delete.append({'Key': version['Key'], 'VersionId': version['VersionId']})
+                for marker in delete_markers:
+                    to_delete.append({'Key': marker['Key'], 'VersionId': marker['VersionId']})
+                
+                if to_delete:
+                    try:
+                        s3.delete_objects(
+                            Bucket=S3_BUCKET_NAME,
+                            Delete={'Objects': to_delete}
+                        )
+                        deleted_count += len(to_delete)
+                        logger.info(f"[S3] Deleted {len(to_delete)} versions/markers from {S3_BUCKET_NAME}")
+                    except ClientError as version_err:
+                        error_code = version_err.response.get('Error', {}).get('Code', '')
+                        if error_code == 'AccessDenied':
+                            logger.warning(f"[S3] Access Denied when deleting versions (may not have s3:DeleteObjectVersion permission)")
+                        else:
+                            logger.warning(f"[S3] Could not delete versions: {version_err}")
+        except ClientError as version_list_err:
+            error_code = version_list_err.response.get('Error', {}).get('Code', '')
+            if error_code == 'AccessDenied':
+                logger.warning(f"[S3] Access Denied when listing versions (versioning may not be enabled or missing s3:ListBucketVersions permission)")
+            else:
+                logger.warning(f"[S3] Could not list versions (versioning may not be enabled): {version_list_err}")
+        except Exception as version_err:
+            logger.warning(f"[S3] Error handling versions: {version_err}")
 
         return jsonify({
             'success': True,
             'deleted_count': deleted_count,
-            'message': f'S3 bucket {S3_BUCKET_NAME} contents deleted successfully.'
+            'message': f'S3 bucket {S3_BUCKET_NAME} contents deleted successfully. Deleted {deleted_count} object(s).'
         })
     except ClientError as e:
         error_code = e.response.get('Error', {}).get('Code', '')
+        error_message = e.response.get('Error', {}).get('Message', str(e))
+        
         if error_code == 'NoSuchBucket':
             return jsonify({
                 'success': False,
                 'error': f'S3 bucket {S3_BUCKET_NAME} does not exist.'
             }), 404
-        return jsonify({'success': False, 'error': str(e)}), 500
+        elif error_code == 'AccessDenied' or 'Access Denied' in error_message:
+            return jsonify({
+                'success': False,
+                'error': f'Access Denied: {error_message}\n\n'
+                         f'Required IAM permissions for bucket "{S3_BUCKET_NAME}":\n'
+                         f'- s3:ListBucket\n'
+                         f'- s3:DeleteObject\n'
+                         f'- s3:ListBucketVersions (if versioning enabled)\n'
+                         f'- s3:DeleteObjectVersion (if versioning enabled)\n\n'
+                         f'Attach "AmazonS3FullAccess" policy to your IAM user, or create a custom policy.'
+            }), 403
+        else:
+            logger.error(f"Error deleting S3 contents: {e}")
+            return jsonify({'success': False, 'error': f'AWS Error ({error_code}): {error_message}'}), 500
     except Exception as e:
         logger.error(f"Error deleting S3 contents: {e}")
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/aws/delete-ecr-repo', methods=['POST'])

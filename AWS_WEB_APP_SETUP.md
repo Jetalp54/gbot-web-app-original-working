@@ -31,8 +31,12 @@ Your AWS credentials (Access Key ID + Secret Access Key) MUST have these permiss
         "s3:PutObject",
         "s3:GetObject",
         "s3:ListBucket",
+        "s3:DeleteObject",
+        "s3:ListBucketVersions",
+        "s3:DeleteObjectVersion",
         "s3:PutBucketVersioning",
-        "s3:PutPublicAccessBlock"
+        "s3:PutPublicAccessBlock",
+        "s3:HeadBucket"
       ],
       "Resource": [
         "arn:aws:s3:::edu-gw-app-passwords*",
