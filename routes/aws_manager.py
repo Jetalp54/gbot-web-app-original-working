@@ -490,50 +490,112 @@ def create_lambdas():
             Create Lambda functions distributed across geos.
             Each geo gets its own boto3 session and creates functions in its region.
             """
+            success_count = 0
+            failure_count = 0
+            errors_by_geo = {}
+            
             try:
+                logger.info("=" * 60)
+                logger.info(f"[LAMBDA] Starting background Lambda creation across {len(functions_by_geo_dict)} geo(s)")
+                logger.info("=" * 60)
+                
                 for geo, func_list in functions_by_geo_dict.items():
-                    logger.info(f"[LAMBDA] [{geo}] Creating {len(func_list)} function(s) in region {geo}")
+                    logger.info(f"[LAMBDA] [{geo}] ===== Starting creation of {len(func_list)} function(s) in region {geo} =====")
                     
-                    # Create boto3 session for this geo's region
-                    geo_session = boto3.Session(
-                        aws_access_key_id=access_key,
-                        aws_secret_access_key=secret_key,
-                        region_name=geo
-                    )
-                    
-                    # Use base ECR URI for all functions
-                    # Note: ECR repositories are region-specific, but Lambda can pull images from other regions
-                    # Using the base ECR URI ensures all functions use the same image source
-                    geo_ecr_uri = base_ecr_uri
-                    logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri} (Lambda will pull cross-region if needed)")
-                    
-                    # Ensure IAM role exists in this region (or use cross-region role)
                     try:
-                        geo_role_arn = ensure_lambda_role(geo_session)
-                    except Exception as role_err:
-                        logger.warning(f"[LAMBDA] [{geo}] Could not ensure role in {geo}, using provided role: {role_err}")
-                        geo_role_arn = role_arn  # Fall back to provided role
-                    
-                    # Create each function in this geo
-                    for func_num, function_name in func_list:
+                        # Create boto3 session for this geo's region
+                        geo_session = boto3.Session(
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
+                            region_name=geo
+                        )
+                        logger.info(f"[LAMBDA] [{geo}] ✓ Created boto3 session for region {geo}")
+                        
+                        # Verify credentials work by testing STS
                         try:
-                            create_or_update_lambda(
-                                session=geo_session,
-                                function_name=function_name,
-                                role_arn=geo_role_arn,
-                                timeout=timeout,
-                                env_vars=env_vars,
-                                package_type=package_type,
-                                image_uri=geo_ecr_uri,
-                            )
-                            logger.info(f"[LAMBDA] [{geo}] ✓ Created/Updated Lambda: {function_name}")
-                        except Exception as func_error:
-                            logger.error(f"[LAMBDA] [{geo}] ✗ Failed to create/update {function_name}: {func_error}")
+                            sts = geo_session.client('sts')
+                            identity = sts.get_caller_identity()
+                            logger.info(f"[LAMBDA] [{geo}] ✓ Credentials verified. Account: {identity.get('Account')}")
+                        except Exception as sts_err:
+                            logger.error(f"[LAMBDA] [{geo}] ✗ Credential verification failed: {sts_err}")
+                            errors_by_geo[geo] = f"Credential verification failed: {sts_err}"
+                            failure_count += len(func_list)
+                            continue
+                        
+                        # Use base ECR URI for all functions
+                        # Note: ECR repositories are region-specific, but Lambda can pull images from other regions
+                        # Using the base ECR URI ensures all functions use the same image source
+                        geo_ecr_uri = base_ecr_uri
+                        logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri} (Lambda will pull cross-region if needed)")
+                        
+                        # Ensure IAM role exists (IAM is global, but we use the session for consistency)
+                        try:
+                            geo_role_arn = ensure_lambda_role(geo_session)
+                            logger.info(f"[LAMBDA] [{geo}] ✓ IAM role verified/created: {geo_role_arn}")
+                        except Exception as role_err:
+                            logger.error(f"[LAMBDA] [{geo}] ✗ IAM role creation failed: {role_err}")
                             logger.error(traceback.format_exc())
-                    
-                    logger.info(f"[LAMBDA] [{geo}] Completed creating {len(func_list)} function(s)")
+                            # Try using the provided role ARN (should work since IAM is global)
+                            geo_role_arn = role_arn
+                            logger.warning(f"[LAMBDA] [{geo}] Using fallback role ARN: {geo_role_arn}")
+                        
+                        # Create each function in this geo
+                        geo_success = 0
+                        geo_failures = []
+                        for func_num, function_name in func_list:
+                            try:
+                                logger.info(f"[LAMBDA] [{geo}] Creating function {function_name}...")
+                                create_or_update_lambda(
+                                    session=geo_session,
+                                    function_name=function_name,
+                                    role_arn=geo_role_arn,
+                                    timeout=timeout,
+                                    env_vars=env_vars,
+                                    package_type=package_type,
+                                    image_uri=geo_ecr_uri,
+                                )
+                                logger.info(f"[LAMBDA] [{geo}] ✓✓✓ SUCCESS: Created/Updated Lambda: {function_name}")
+                                success_count += 1
+                                geo_success += 1
+                                
+                                # Verify function exists
+                                try:
+                                    lam_client = geo_session.client("lambda")
+                                    func_info = lam_client.get_function(FunctionName=function_name)
+                                    logger.info(f"[LAMBDA] [{geo}] ✓ Verified function exists: {function_name} (State: {func_info.get('Configuration', {}).get('State', 'Unknown')})")
+                                except Exception as verify_err:
+                                    logger.warning(f"[LAMBDA] [{geo}] ⚠️ Could not verify function {function_name}: {verify_err}")
+                                
+                            except Exception as func_error:
+                                error_msg = str(func_error)
+                                logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED to create/update {function_name}: {error_msg}")
+                                logger.error(traceback.format_exc())
+                                failure_count += 1
+                                geo_failures.append(f"{function_name}: {error_msg}")
+                        
+                        if geo_failures:
+                            errors_by_geo[geo] = geo_failures
+                        
+                        logger.info(f"[LAMBDA] [{geo}] ===== Completed: {geo_success}/{len(func_list)} success, {len(geo_failures)} failed =====")
+                        
+                    except Exception as geo_error:
+                        error_msg = str(geo_error)
+                        logger.error(f"[LAMBDA] [{geo}] ✗✗✗ CRITICAL ERROR processing geo {geo}: {error_msg}")
+                        logger.error(traceback.format_exc())
+                        errors_by_geo[geo] = f"Geo processing failed: {error_msg}"
+                        failure_count += len(func_list)
+                
+                logger.info("=" * 60)
+                logger.info(f"[LAMBDA] Background Lambda creation completed")
+                logger.info(f"[LAMBDA] Total Success: {success_count}, Total Failed: {failure_count}")
+                if errors_by_geo:
+                    logger.info(f"[LAMBDA] Errors by geo:")
+                    for geo, errors in errors_by_geo.items():
+                        logger.error(f"[LAMBDA]   {geo}: {errors}")
+                logger.info("=" * 60)
+                
             except Exception as bg_error:
-                logger.error(f"[LAMBDA] Background Lambda creation error: {bg_error}")
+                logger.error(f"[LAMBDA] ✗✗✗ CRITICAL: Background Lambda creation error: {bg_error}")
                 logger.error(traceback.format_exc())
         
         # Start background thread
