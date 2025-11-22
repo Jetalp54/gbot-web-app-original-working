@@ -417,43 +417,121 @@ def create_lambdas():
         }
 
         # Calculate number of Lambda functions to create
+        import math
         if create_multiple and user_count > 0 and users_per_function > 0:
-            num_functions = (user_count + users_per_function - 1) // users_per_function  # Ceiling division
+            num_functions = math.ceil(user_count / users_per_function)  # Ceiling division
             num_functions = max(1, num_functions)  # At least 1 function
             logger.info(f"[LAMBDA] Creating {num_functions} Lambda function(s) for {user_count} users ({users_per_function} users per function)")
         else:
             num_functions = 1
             logger.info(f"[LAMBDA] Creating single Lambda function")
 
-        # Return immediately and create functions in background to avoid nginx timeout
-        # Creating 5 functions sequentially can take 5+ minutes, which exceeds nginx timeout
+        # Get all available AWS regions (geos) for distribution
+        AVAILABLE_GEO_REGIONS = [
+            'us-east-1',      # US East (N. Virginia)
+            'us-east-2',      # US East (Ohio)
+            'us-west-1',      # US West (N. California)
+            'us-west-2',      # US West (Oregon)
+            'af-south-1',     # Africa (Cape Town)
+            'ap-east-1',      # Asia Pacific (Hong Kong)
+            'ap-south-1',     # Asia Pacific (Mumbai)
+            'ap-northeast-1', # Asia Pacific (Tokyo)
+            'ap-northeast-2', # Asia Pacific (Seoul)
+            'ap-northeast-3', # Asia Pacific (Osaka)
+            'ap-southeast-1', # Asia Pacific (Singapore)
+            'ap-southeast-2', # Asia Pacific (Sydney)
+            'ap-southeast-3', # Asia Pacific (Jakarta)
+            'ca-central-1',   # Canada (Central)
+            'eu-central-1',   # Europe (Frankfurt)
+            'eu-west-1',      # Europe (Ireland)
+            'eu-west-2',      # Europe (London)
+            'eu-west-3',      # Europe (Paris)
+            'eu-north-1',     # Europe (Stockholm)
+            'eu-south-1',     # Europe (Milan)
+            'me-south-1',     # Middle East (Bahrain)
+            'me-central-1',   # Middle East (UAE)
+            'sa-east-1',      # South America (São Paulo)
+        ]
+        
+        # Distribute functions evenly across all available geos using round-robin
+        functions_by_geo = {}  # {geo: [(function_number, function_name), ...]}
         created_functions = []
-        for i in range(num_functions):
+        
+        for func_num in range(num_functions):
+            # Round-robin distribution: function 0 → geo 0, function 1 → geo 1, etc.
+            geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
+            geo = AVAILABLE_GEO_REGIONS[geo_index]
+            
+            # Generate function name: edu-gw-chromium-{geo_code}-{func_num}
+            geo_code = geo.replace('-', '')  # Remove dashes: us-east-1 -> useast1
             if num_functions == 1:
                 function_name = PRODUCTION_LAMBDA_NAME
             else:
-                function_name = f"{PRODUCTION_LAMBDA_NAME}-{i+1}"
+                function_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num + 1}"
+            
+            if geo not in functions_by_geo:
+                functions_by_geo[geo] = []
+            functions_by_geo[geo].append((func_num + 1, function_name))
             created_functions.append(function_name)
         
-        # Start background thread to create/update Lambda functions
+        logger.info("=" * 60)
+        logger.info(f"[LAMBDA] Function Distribution Across Geos")
+        logger.info(f"[LAMBDA] Total functions: {num_functions}")
+        logger.info(f"[LAMBDA] Functions per geo:")
+        for geo, func_list in sorted(functions_by_geo.items()):
+            func_names = [name for _, name in func_list]
+            logger.info(f"[LAMBDA]   - {geo}: {len(func_list)} function(s) {func_names}")
+        logger.info("=" * 60)
+        
+        # Start background thread to create/update Lambda functions across geos
         # Use 900 seconds (15 minutes) timeout for batch processing (10 users can take 5-10 minutes)
-        def create_lambdas_background(session, function_names, role_arn, timeout, env_vars, package_type, image_uri):
+        def create_lambdas_background(functions_by_geo_dict, access_key, secret_key, role_arn, timeout, env_vars, package_type, base_ecr_uri):
+            """
+            Create Lambda functions distributed across geos.
+            Each geo gets its own boto3 session and creates functions in its region.
+            """
             try:
-                for function_name in function_names:
+                for geo, func_list in functions_by_geo_dict.items():
+                    logger.info(f"[LAMBDA] [{geo}] Creating {len(func_list)} function(s) in region {geo}")
+                    
+                    # Create boto3 session for this geo's region
+                    geo_session = boto3.Session(
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name=geo
+                    )
+                    
+                    # Use base ECR URI for all functions
+                    # Note: ECR repositories are region-specific, but Lambda can pull images from other regions
+                    # Using the base ECR URI ensures all functions use the same image source
+                    geo_ecr_uri = base_ecr_uri
+                    logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri} (Lambda will pull cross-region if needed)")
+                    
+                    # Ensure IAM role exists in this region (or use cross-region role)
                     try:
-                        create_or_update_lambda(
-                            session=session,
-                            function_name=function_name,
-                            role_arn=role_arn,
-                            timeout=timeout,
-                            env_vars=env_vars,
-                            package_type=package_type,
-                            image_uri=image_uri,
-                        )
-                        logger.info(f"[LAMBDA] ✓ Created/Updated Lambda: {function_name}")
-                    except Exception as func_error:
-                        logger.error(f"[LAMBDA] ✗ Failed to create/update {function_name}: {func_error}")
-                        logger.error(traceback.format_exc())
+                        geo_role_arn = ensure_lambda_role(geo_session)
+                    except Exception as role_err:
+                        logger.warning(f"[LAMBDA] [{geo}] Could not ensure role in {geo}, using provided role: {role_err}")
+                        geo_role_arn = role_arn  # Fall back to provided role
+                    
+                    # Create each function in this geo
+                    for func_num, function_name in func_list:
+                        try:
+                            create_or_update_lambda(
+                                session=geo_session,
+                                function_name=function_name,
+                                role_arn=geo_role_arn,
+                                timeout=timeout,
+                                env_vars=env_vars,
+                                package_type=package_type,
+                                image_uri=geo_ecr_uri,
+                            )
+                            logger.info(f"[LAMBDA] [{geo}] ✓ Created/Updated Lambda: {function_name}")
+                        except Exception as func_error:
+                            logger.error(f"[LAMBDA] [{geo}] ✗ Failed to create/update {function_name}: {func_error}")
+                            logger.error(traceback.format_exc())
+                    
+                    logger.info(f"[LAMBDA] [{geo}] Completed creating {len(func_list)} function(s)")
             except Exception as bg_error:
                 logger.error(f"[LAMBDA] Background Lambda creation error: {bg_error}")
                 logger.error(traceback.format_exc())
@@ -463,22 +541,28 @@ def create_lambdas():
         # This allows processing up to 10 users per batch (each user takes ~30-60 seconds)
         threading.Thread(
             target=create_lambdas_background,
-            args=(session, created_functions, role_arn, 900, chromium_env, "Image", ecr_uri),
+            args=(functions_by_geo, access_key, secret_key, role_arn, 900, chromium_env, "Image", ecr_uri),
             daemon=True
         ).start()
         
-        message = f'Started creating/updating {len(created_functions)} Lambda function(s): {", ".join(created_functions)}'
+        # Build summary message
+        geo_summary = []
+        for geo, func_list in sorted(functions_by_geo.items()):
+            func_names = [name for _, name in func_list]
+            geo_summary.append(f"{geo}: {len(func_list)} function(s)")
+        
+        message = f'Started creating/updating {len(created_functions)} Lambda function(s) distributed across {len(functions_by_geo)} geo(s): {", ".join(created_functions)}'
         if create_multiple:
-            message += f' (for {user_count} users, {users_per_function} users per function). Functions are being created in the background.'
-        else:
-            message += '. Function is being created in the background.'
+            message += f' (for {user_count} users, {users_per_function} users per function).'
+        message += f' Distribution: {"; ".join(geo_summary)}. Functions are being created in the background.'
 
         return jsonify({
             'success': True,
             'message': message,
             'functions_created': created_functions,
             'num_functions': len(created_functions),
-            'note': 'Lambda functions are being created/updated in the background. This may take a few minutes.'
+            'functions_by_geo': {geo: [name for _, name in func_list] for geo, func_list in functions_by_geo.items()},
+            'note': 'Lambda functions are being created/updated in the background across multiple AWS regions. This may take a few minutes.'
         })
     except Exception as e:
         logger.error(f"Error creating Lambda: {e}")
