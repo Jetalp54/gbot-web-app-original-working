@@ -347,6 +347,7 @@ def push_ecr_to_all_regions():
         access_key = data.get('access_key', '').strip()
         secret_key = data.get('secret_key', '').strip()
         base_ecr_uri = data.get('ecr_uri', '').strip()
+        source_region_override = data.get('source_region', '').strip()  # Allow manual selection
         
         if not access_key or not secret_key or not base_ecr_uri:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials and ECR URI.'}), 400
@@ -360,7 +361,16 @@ def push_ecr_to_all_regions():
         if not ecr_match:
             return jsonify({'success': False, 'error': 'Could not parse ECR URI. Format: account.dkr.ecr.region.amazonaws.com/repo:tag'}), 400
         
-        account_id, source_region, repo_name, image_tag = ecr_match.groups()
+        account_id, parsed_region, repo_name, image_tag = ecr_match.groups()
+        
+        # Use override if provided, otherwise use parsed region from URI
+        source_region = source_region_override if source_region_override else parsed_region
+        
+        # Construct source ECR URI using the selected source region
+        source_ecr_uri = f"{account_id}.dkr.ecr.{source_region}.amazonaws.com/{repo_name}:{image_tag}"
+        
+        logger.info(f"[ECR] Source region: {source_region} (override: {source_region_override}, parsed: {parsed_region})")
+        logger.info(f"[ECR] Source ECR URI: {source_ecr_uri}")
         
         # Get all available AWS regions
         AVAILABLE_GEO_REGIONS = [
@@ -378,7 +388,8 @@ def push_ecr_to_all_regions():
         
         logger.info("=" * 60)
         logger.info(f"[ECR] Starting image replication to {len(target_regions)} regions")
-        logger.info(f"[ECR] Source: {base_ecr_uri}")
+        logger.info(f"[ECR] Source region: {source_region}")
+        logger.info(f"[ECR] Source ECR URI: {source_ecr_uri}")
         logger.info(f"[ECR] Target regions: {', '.join(target_regions)}")
         logger.info("=" * 60)
         
@@ -479,8 +490,8 @@ def push_ecr_to_all_regions():
                         # We'll provide instructions instead of actually pushing
                         logger.warning(f"[ECR] [{target_region}] ⚠️ Image not found. Manual push required.")
                         logger.warning(f"[ECR] [{target_region}] To push manually:")
-                        logger.warning(f"[ECR] [{target_region}]   1. docker pull {base_ecr_uri}")
-                        logger.warning(f"[ECR] [{target_region}]   2. docker tag {base_ecr_uri} {target_ecr_uri}")
+                        logger.warning(f"[ECR] [{target_region}]   1. docker pull {source_ecr_uri}")
+                        logger.warning(f"[ECR] [{target_region}]   2. docker tag {source_ecr_uri} {target_ecr_uri}")
                         logger.warning(f"[ECR] [{target_region}]   3. aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com")
                         logger.warning(f"[ECR] [{target_region}]   4. docker push {target_ecr_uri}")
                         
@@ -488,8 +499,8 @@ def push_ecr_to_all_regions():
                             'success': False,
                             'error': 'Image not found. Manual push required.',
                             'instructions': [
-                                f'docker pull {base_ecr_uri}',
-                                f'docker tag {base_ecr_uri} {target_ecr_uri}',
+                                f'docker pull {source_ecr_uri}',
+                                f'docker tag {source_ecr_uri} {target_ecr_uri}',
                                 f'aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com',
                                 f'docker push {target_ecr_uri}'
                             ]
@@ -528,9 +539,10 @@ def push_ecr_to_all_regions():
         
         return jsonify({
             'success': True,
-            'message': f'Started pushing ECR image to {len(target_regions)} regions. This may take several minutes.',
+            'message': f'Started pushing ECR image from {source_region} to {len(target_regions)} regions. This may take several minutes.',
             'job_id': job_id,
             'source_region': source_region,
+            'source_ecr_uri': source_ecr_uri,
             'target_regions': target_regions,
             'note': 'Check status using /api/aws/lambda-creation-status/<job_id>'
         })

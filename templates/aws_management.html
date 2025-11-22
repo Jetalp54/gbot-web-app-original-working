@@ -63,6 +63,40 @@
                                 <strong>Multi-Region Lambda:</strong> Push your ECR image to all AWS regions to enable Lambda functions across geos. This creates ECR repositories in all regions and provides push instructions.
                             </div>
                         </div>
+                        <div id="ecrPushOptions" style="display: none; margin-bottom: var(--spacing-sm); padding: var(--spacing-md); background-color: var(--color-canvas-subtle); border-radius: var(--radius-md);">
+                            <div class="form-group-github">
+                                <label class="form-label-github">
+                                    <i class="fas fa-map-marker-alt"></i> Source Region (where ECR image exists)
+                                </label>
+                                <select id="sourceRegionSelect" class="form-control-github">
+                                    <option value="">Auto-detect from ECR URI</option>
+                                    <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
+                                    <option value="us-east-2">US East (Ohio) - us-east-2</option>
+                                    <option value="us-west-1">US West (N. California) - us-west-1</option>
+                                    <option value="us-west-2">US West (Oregon) - us-west-2</option>
+                                    <option value="af-south-1">Africa (Cape Town) - af-south-1</option>
+                                    <option value="ap-east-1">Asia Pacific (Hong Kong) - ap-east-1</option>
+                                    <option value="ap-south-1">Asia Pacific (Mumbai) - ap-south-1</option>
+                                    <option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
+                                    <option value="ap-northeast-2">Asia Pacific (Seoul) - ap-northeast-2</option>
+                                    <option value="ap-northeast-3">Asia Pacific (Osaka) - ap-northeast-3</option>
+                                    <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
+                                    <option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
+                                    <option value="ap-southeast-3">Asia Pacific (Jakarta) - ap-southeast-3</option>
+                                    <option value="ca-central-1">Canada (Central) - ca-central-1</option>
+                                    <option value="eu-central-1">Europe (Frankfurt) - eu-central-1</option>
+                                    <option value="eu-west-1" selected>Europe (Ireland) - eu-west-1</option>
+                                    <option value="eu-west-2">Europe (London) - eu-west-2</option>
+                                    <option value="eu-west-3">Europe (Paris) - eu-west-3</option>
+                                    <option value="eu-north-1">Europe (Stockholm) - eu-north-1</option>
+                                    <option value="eu-south-1">Europe (Milan) - eu-south-1</option>
+                                    <option value="me-south-1">Middle East (Bahrain) - me-south-1</option>
+                                    <option value="me-central-1">Middle East (UAE) - me-central-1</option>
+                                    <option value="sa-east-1">South America (São Paulo) - sa-east-1</option>
+                                </select>
+                                <small style="color: var(--color-fg-muted); font-size: 12px;">Select the region where your ECR image currently exists</small>
+                            </div>
+                        </div>
                         <button class="btn-github" onclick="inspectResources()" style="width: 100%;">
                             <i class="fas fa-search"></i>
                             Inspect Resources (IAM / ECR / Lambdas)
@@ -426,6 +460,13 @@
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
         
+        // Show options dialog
+        const optionsDiv = document.getElementById('ecrPushOptions');
+        if (optionsDiv.style.display === 'none') {
+            optionsDiv.style.display = 'block';
+            return; // Show options first
+        }
+        
         // Get ECR URI from settings or input
         const ecrUri = window.awsConfig?.ecr_uri || prompt('Enter ECR Image URI (e.g., account.dkr.ecr.region.amazonaws.com/repo:tag):');
         if (!ecrUri) {
@@ -433,11 +474,18 @@
             return;
         }
 
-        if (!confirm('This will create ECR repositories in all AWS regions and provide push instructions. Continue?')) {
+        // Get selected source region
+        const sourceRegionSelect = document.getElementById('sourceRegionSelect');
+        const sourceRegion = sourceRegionSelect.value;
+
+        if (!confirm(`This will create ECR repositories in all AWS regions${sourceRegion ? ` and push image from ${sourceRegion}` : ''}. Continue?`)) {
             return;
         }
 
         log('🌍 Starting ECR image push to all regions...');
+        if (sourceRegion) {
+            log(`📍 Source region: ${sourceRegion}`);
+        }
         log('This may take several minutes. Check status using the job ID.');
         
         fetch('/api/aws/push-ecr-to-all-regions', {
@@ -448,7 +496,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                ecr_uri: ecrUri
+                ecr_uri: ecrUri,
+                source_region: sourceRegion || null
             })
         })
         .then(response => response.json())
@@ -457,8 +506,12 @@
                 log(`✅ Started pushing ECR image to ${data.target_regions.length} regions`);
                 log(`📋 Job ID: ${data.job_id}`);
                 log(`📍 Source region: ${data.source_region}`);
+                log(`📍 Source ECR URI: ${data.source_ecr_uri}`);
                 log(`🎯 Target regions: ${data.target_regions.join(', ')}`);
                 log('💡 Check status: /api/aws/lambda-creation-status/' + data.job_id);
+                
+                // Hide options after starting
+                document.getElementById('ecrPushOptions').style.display = 'none';
                 
                 // Start polling for status
                 pollECRPushStatus(data.job_id);
