@@ -689,7 +689,6 @@ echo "Successfully pushed image to {target_region}"
                                 logger.info(f"[ECR] [{target_region}] Started SSM command {command_id} on EC2 instance")
                                 
                                 # Wait for command to complete (with timeout)
-                                import time
                                 max_wait = 1800  # 30 minutes
                                 wait_interval = 10
                                 waited = 0
@@ -3592,6 +3591,100 @@ echo "Verifying image push..."
 aws ecr describe-images --repository-name {ECR_REPO_NAME} --image-ids imageTag={ECR_IMAGE_TAG} --region {region}
 
 touch /home/ec2-user/ECR_PUSH_DONE
+echo "=== ECR Push to Source Region Completed ==="
+
+# Now push image to all other AWS regions for multi-region Lambda support
+echo ""
+echo "=========================================="
+echo "Starting Multi-Region ECR Push"
+echo "=========================================="
+
+SOURCE_ECR_URI="{repo_uri_base}:{ECR_IMAGE_TAG}"
+ACCOUNT_ID="{account_id}"
+REPO_NAME="{ECR_REPO_NAME}"
+IMAGE_TAG="{ECR_IMAGE_TAG}"
+SOURCE_REGION="{region}"
+
+# List of all AWS regions
+TARGET_REGIONS=(
+    "us-east-1" "us-east-2" "us-west-1" "us-west-2"
+    "af-south-1" "ap-east-1" "ap-south-1" "ap-northeast-1"
+    "ap-northeast-2" "ap-northeast-3" "ap-southeast-1"
+    "ap-southeast-2" "ap-southeast-3" "ca-central-1"
+    "eu-central-1" "eu-west-1" "eu-west-2" "eu-west-3"
+    "eu-north-1" "eu-south-1" "me-south-1" "me-central-1"
+    "sa-east-1"
+)
+
+SUCCESS_COUNT=0
+FAILED_COUNT=0
+FAILED_REGIONS=()
+
+for TARGET_REGION in "${{TARGET_REGIONS[@]}}"; do
+    # Skip source region
+    if [ "$TARGET_REGION" = "$SOURCE_REGION" ]; then
+        continue
+    fi
+    
+    echo ""
+    echo "=========================================="
+    echo "Processing region: $TARGET_REGION"
+    echo "=========================================="
+    
+    TARGET_ECR_URI="$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com/$REPO_NAME:$IMAGE_TAG"
+    
+    # Check if image already exists
+    if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" --region "$TARGET_REGION" 2>/dev/null; then
+        echo "✓ Image already exists in $TARGET_REGION, skipping..."
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+        continue
+    fi
+    
+    # Create ECR repository if it doesn't exist
+    echo "Ensuring ECR repository exists in $TARGET_REGION..."
+    if ! aws ecr describe-repositories --repository-names "$REPO_NAME" --region "$TARGET_REGION" 2>/dev/null; then
+        echo "Creating ECR repository in $TARGET_REGION..."
+        aws ecr create-repository --repository-name "$REPO_NAME" --region "$TARGET_REGION" --image-tag-mutability MUTABLE 2>/dev/null || echo "Repository may already exist or creation failed"
+        sleep 2
+    fi
+    
+    # Authenticate with target region
+    echo "Authenticating with ECR in $TARGET_REGION..."
+    if ! aws ecr get-login-password --region "$TARGET_REGION" | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com" 2>/dev/null; then
+        echo "✗ Failed to authenticate with $TARGET_REGION"
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+        FAILED_REGIONS+=("$TARGET_REGION")
+        continue
+    fi
+    
+    # Tag image for target region
+    echo "Tagging image for $TARGET_REGION..."
+    docker tag "$SOURCE_ECR_URI" "$TARGET_ECR_URI"
+    
+    # Push image to target region
+    echo "Pushing image to $TARGET_REGION..."
+    if docker push "$TARGET_ECR_URI" 2>/dev/null; then
+        echo "✓ Successfully pushed to $TARGET_REGION"
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+    else
+        echo "✗ Failed to push to $TARGET_REGION"
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+        FAILED_REGIONS+=("$TARGET_REGION")
+    fi
+done
+
+echo ""
+echo "=========================================="
+echo "Multi-Region Push Summary"
+echo "=========================================="
+echo "Success: $SUCCESS_COUNT regions"
+echo "Failed: $FAILED_COUNT regions"
+if [ $FAILED_COUNT -gt 0 ]; then
+    echo "Failed regions: ${{FAILED_REGIONS[*]}}"
+fi
+echo "=========================================="
+
+touch /home/ec2-user/MULTI_REGION_PUSH_DONE
 echo "=== EC2 Build Box User Data Script Completed Successfully ==="
 date
 """
