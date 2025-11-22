@@ -1985,6 +1985,7 @@ def bulk_generate():
                     }
                     
                     logger.info(f"[BULK] [{assigned_function_name}] Invoking Lambda SYNC with batch of {len(users_to_process)} user(s)")
+                    logger.info(f"[BULK] [{assigned_function_name}] Batch payload contains users: {[u['email'] for u in users_to_process]}")
                     
                     # Rate limiting: Acquire semaphore to limit concurrent invocations
                     lambda_invocation_semaphore.acquire()
@@ -2276,6 +2277,7 @@ def bulk_generate():
                     
                     # Process this batch synchronously (wait for completion)
                     # Use the geo's region for Lambda client
+                    logger.info(f"[BULK] [{geo}] About to process batch with {len(batch_users)} user(s): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
                     batch_results = process_user_batch_sync(batch_users, func_name, lambda_region=geo)
                     geo_results.extend(batch_results)
                     
@@ -3747,7 +3749,7 @@ SUCCESS_COUNT=0
 FAILED_COUNT=0
 FAILED_REGIONS=()
 
-for TARGET_REGION in "${{TARGET_REGIONS[@]}}"; do
+for TARGET_REGION in "${TARGET_REGIONS[@]}"; do
     # Skip source region
     if [ "$TARGET_REGION" = "$SOURCE_REGION" ]; then
         continue
