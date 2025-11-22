@@ -3639,7 +3639,8 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
     repo_uri_base = f"{account_id}.dkr.ecr.{region}.amazonaws.com/{ECR_REPO_NAME}"
 
     # User data script that downloads custom main.py from S3
-    user_data = f"""#!/bin/bash
+    # Using .format() instead of f-string to avoid issues with bash array syntax [@]
+    user_data = """#!/bin/bash
 set -xe
 exec > >(tee /var/log/user-data.log) 2>&1
 echo "=== EC2 Build Box User Data Script Started ==="
@@ -3662,7 +3663,7 @@ git clone https://github.com/umihico/docker-selenium-lambda.git
 cd docker-selenium-lambda
 
 echo "Downloading custom files from S3..."
-aws s3 cp s3://{S3_BUCKET_NAME}/{s3_build_prefix}/main.py ./main.py
+aws s3 cp s3://{s3_bucket}/{s3_prefix}/main.py ./main.py
 if [ $? -eq 0 ]; then
     echo "Custom main.py downloaded successfully"
     chmod 644 main.py
@@ -3670,7 +3671,7 @@ else
     echo "WARNING: Failed to download custom main.py, using default from repo"
 fi
 
-aws s3 cp s3://{S3_BUCKET_NAME}/{s3_build_prefix}/Dockerfile ./Dockerfile
+aws s3 cp s3://{s3_bucket}/{s3_prefix}/Dockerfile ./Dockerfile
 if [ $? -eq 0 ]; then
     echo "Custom Dockerfile downloaded successfully"
     chmod 644 Dockerfile
@@ -3681,7 +3682,7 @@ fi
 echo "Verifying ECR repository exists..."
 ECR_FOUND=0
 for i in {{1..60}}; do
-    if aws ecr describe-repositories --repository-names {ECR_REPO_NAME} --region {region} 2>/dev/null; then
+    if aws ecr describe-repositories --repository-names {ecr_repo} --region {region} 2>/dev/null; then
         echo "ECR repository found!"
         ECR_FOUND=1
         break
@@ -3691,8 +3692,8 @@ for i in {{1..60}}; do
 done
 
 if [ $ECR_FOUND -eq 0 ]; then
-    echo "WARNING: ECR repository {ECR_REPO_NAME} not found after 60 seconds!"
-    if aws ecr create-repository --repository-name {ECR_REPO_NAME} --region {region} --image-tag-mutability MUTABLE 2>/dev/null; then
+    echo "WARNING: ECR repository {ecr_repo} not found after 60 seconds!"
+    if aws ecr create-repository --repository-name {ecr_repo} --region {region} --image-tag-mutability MUTABLE 2>/dev/null; then
         echo "ECR repository created successfully!"
         sleep 3
         ECR_FOUND=1
@@ -3708,16 +3709,16 @@ echo "Logging into ECR..."
 aws ecr get-login-password --region {region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{region}.amazonaws.com
 
 echo "Building Docker image..."
-docker build -t {ECR_REPO_NAME}:{ECR_IMAGE_TAG} .
+docker build -t {ecr_repo}:{image_tag} .
 
 echo "Tagging Docker image..."
-docker tag {ECR_REPO_NAME}:{ECR_IMAGE_TAG} {repo_uri_base}:{ECR_IMAGE_TAG}
+docker tag {ecr_repo}:{image_tag} {repo_uri}:{image_tag}
 
 echo "Pushing Docker image to ECR..."
-docker push {repo_uri_base}:{ECR_IMAGE_TAG}
+docker push {repo_uri}:{image_tag}
 
 echo "Verifying image push..."
-aws ecr describe-images --repository-name {ECR_REPO_NAME} --image-ids imageTag={ECR_IMAGE_TAG} --region {region}
+aws ecr describe-images --repository-name {ecr_repo} --image-ids imageTag={image_tag} --region {region}
 
 touch /home/ec2-user/ECR_PUSH_DONE
 echo "=== ECR Push to Source Region Completed ==="
@@ -3728,10 +3729,10 @@ echo "=========================================="
 echo "Starting Multi-Region ECR Push"
 echo "=========================================="
 
-SOURCE_ECR_URI="{repo_uri_base}:{ECR_IMAGE_TAG}"
+SOURCE_ECR_URI="{repo_uri}:{image_tag}"
 ACCOUNT_ID="{account_id}"
-REPO_NAME="{ECR_REPO_NAME}"
-IMAGE_TAG="{ECR_IMAGE_TAG}"
+REPO_NAME="{ecr_repo}"
+IMAGE_TAG="{image_tag}"
 SOURCE_REGION="{region}"
 
 # List of all AWS regions
@@ -3749,7 +3750,7 @@ SUCCESS_COUNT=0
 FAILED_COUNT=0
 FAILED_REGIONS=()
 
-for TARGET_REGION in "${TARGET_REGIONS[@]}"; do
+for TARGET_REGION in "${{" + "TARGET_REGIONS[@]" + "}}"; do
     # Skip source region
     if [ "$TARGET_REGION" = "$SOURCE_REGION" ]; then
         continue
@@ -3816,7 +3817,15 @@ echo "=========================================="
 touch /home/ec2-user/MULTI_REGION_PUSH_DONE
 echo "=== EC2 Build Box User Data Script Completed Successfully ==="
 date
-"""
+""".format(
+        s3_bucket=S3_BUCKET_NAME,
+        s3_prefix=s3_build_prefix,
+        ecr_repo=ECR_REPO_NAME,
+        region=region,
+        account_id=account_id,
+        image_tag=ECR_IMAGE_TAG,
+        repo_uri=repo_uri_base
+    )
 
     resp = ec2.run_instances(
         ImageId=ami_id,
