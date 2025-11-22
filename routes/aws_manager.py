@@ -1741,65 +1741,17 @@ def bulk_generate():
         
         try:
             with app.app_context():
-                # Pre-detect Lambda functions ONCE before parallel processing
-                # This is much more efficient than detecting for each user
+                # Pre-detect Lambda functions across ALL geos
+                # This is necessary because functions are distributed across multiple AWS regions
                 lambda_functions = []
                 try:
-                    session_boto = boto3.Session(
-                        aws_access_key_id=access_key,
-                        aws_secret_access_key=secret_key,
-                        region_name=region
-                    )
-                    lam_client = session_boto.client("lambda", config=Config(
-                        max_pool_connections=10,
-                        retries={'max_attempts': 3}
-                    ))
-                    
-                    # List all Lambda functions that match our pattern
-                    logger.info(f"[BULK] Detecting Lambda functions matching '{PRODUCTION_LAMBDA_NAME}'...")
-                    all_functions = lam_client.list_functions()
-                    
-                    # Get all function names for debugging
-                    all_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
-                    logger.info(f"[BULK] All Lambda functions in account: {all_function_names[:20]}...")  # Show first 20
-                    
-                    # Match functions that start with PRODUCTION_LAMBDA_NAME (edu-gw-chromium)
-                    # This will match: edu-gw-chromium, edu-gw-chromium-1, edu-gw-chromium-2, etc.
-                    matching_functions = [
-                        fn['FunctionName'] for fn in all_functions.get('Functions', [])
-                        if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
-                    ]
-                    
-                    # Sort to ensure consistent ordering (edu-gw-chromium, edu-gw-chromium-1, edu-gw-chromium-2, etc.)
-                    # Custom sort: base name first, then numbered ones
-                    def sort_key(name):
-                        if name == PRODUCTION_LAMBDA_NAME:
-                            return (0, 0)  # Base name comes first
-                        # Extract number from name like "edu-gw-chromium-5" -> 5
-                        try:
-                            num = int(name.split('-')[-1])
-                            return (1, num)  # Numbered functions come after
-                        except:
-                            return (2, name)  # Other variations come last
-                    
-                    matching_functions.sort(key=sort_key)
-                    
-                    if len(matching_functions) > 1:
-                        lambda_functions = matching_functions
-                        logger.info(f"[BULK] ✓ Found {len(lambda_functions)} Lambda functions: {', '.join(lambda_functions)}")
-                    elif len(matching_functions) == 1:
-                        lambda_functions = matching_functions
-                        logger.info(f"[BULK] ✓ Found single Lambda function: {lambda_functions[0]}")
-                    else:
-                        # No matching functions found, use default
-                        lambda_functions = [PRODUCTION_LAMBDA_NAME]
-                        logger.warning(f"[BULK] ⚠️ No matching Lambda functions found, will use default: {PRODUCTION_LAMBDA_NAME}")
+                    # We no longer pre-detect Lambda functions across all regions
+                    # Instead, we'll look for functions in their assigned regions during processing
+                    logger.info(f"[BULK] Will process users using geo-distributed Lambda functions")
+                
                 except Exception as list_err:
-                    logger.error(f"[BULK] Error detecting Lambda functions: {list_err}")
+                    logger.error(f"[BULK] Error initializing: {list_err}")
                     logger.error(traceback.format_exc())
-                    # Fall back to default function name
-                    lambda_functions = [PRODUCTION_LAMBDA_NAME]
-                    logger.warning(f"[BULK] Using default Lambda function: {PRODUCTION_LAMBDA_NAME}")
             
             # NEW LOGIC: Calculate total functions based on user count
             # Distribute functions evenly across ALL available geos
@@ -1930,52 +1882,20 @@ def bulk_generate():
                     ))
                     table_batch = dynamodb_batch.Table("gbot-app-passwords")
                     
-                    # Check DynamoDB first for all users in batch
+                    # Prepare all users for processing - NO pre-filtering
+                    # Lambda will handle deduplication if needed
                     batch_results = []
-                    users_to_process = []
+                    users_to_process = user_batch  # Process ALL users in the batch
                     
-                    for user in user_batch:
+                    logger.info(f"[BULK] [{assigned_function_name}] Will process ALL {len(users_to_process)} user(s) in batch")
+                    
+                    # Mark emails as being processed (for duplicate detection across parallel geos)
+                    for user in users_to_process:
                         email = user['email']
-                        password = user['password']
-                        
-                        # Check if already exists in DynamoDB
-                        try:
-                            response = table_batch.get_item(Key={'email': email})
-                            if 'Item' in response:
-                                existing_password = response['Item'].get('app_password')
-                                logger.info(f"[BULK] ✓ SKIPPED: {email} already has password in DynamoDB")
-                                # Save to local DB too
-                                try:
-                                    save_app_password(email, existing_password)
-                                except:
-                                    pass
-                                batch_results.append({
-                                    'email': email,
-                                    'success': True,
-                                    'app_password': existing_password,
-                                    'skipped': True
-                                })
-                                continue
-                        except Exception as e:
-                            logger.warning(f"[BULK] Could not check DynamoDB for {email}: {e}")
-                        
-                        # Check if email is already being processed
                         with processing_lock:
                             if email in processing_emails:
-                                logger.warning(f"[BULK] ⚠️ SKIPPED: {email} is already being processed")
-                                batch_results.append({
-                                    'email': email,
-                                    'success': False,
-                                    'error': 'Duplicate - already processing'
-                                })
-                                continue
+                                logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
                             processing_emails.add(email)
-                        
-                        users_to_process.append(user)
-                    
-                    # If all users were skipped, return early
-                    if not users_to_process:
-                        return batch_results
                     
                     # Prepare batch payload for Lambda
                     batch_payload = {
@@ -1991,6 +1911,7 @@ def bulk_generate():
                     logger.info(f"[BULK] [{assigned_function_name}] Users in batch: {[u['email'] for u in users_to_process]}")
                     logger.info(f"[BULK] [{assigned_function_name}] Payload structure: {{'users': [{{'email': ..., 'password': ...}}]}}")
                     logger.info(f"[BULK] [{assigned_function_name}] Payload JSON length: {len(json.dumps(batch_payload))} bytes")
+                    logger.info(f"[BULK] [{assigned_function_name}] Payload preview: {json.dumps(batch_payload)[:500]}...")
                     logger.info("=" * 60)
                     
                     # Rate limiting: Acquire semaphore to limit concurrent invocations
@@ -2014,7 +1935,7 @@ def bulk_generate():
                                 logger.info("=" * 60)
                                 logger.info(f"[BULK] [{assigned_function_name}] LAMBDA RESPONSE RECEIVED")
                                 logger.info(f"[BULK] [{assigned_function_name}] Response status code: {resp.get('StatusCode')}")
-                                logger.info(f"[BULK] [{assigned_function_name}] Response body (first 1000 chars): {body[:1000]}")
+                                logger.info(f"[BULK] [{assigned_function_name}] Response body (first 2000 chars): {body[:2000]}")
                                 logger.info("=" * 60)
                                 
                                 try:
@@ -2034,6 +1955,7 @@ def bulk_generate():
                                 if lambda_response.get("status") == "completed" and "results" in lambda_response:
                                     # Batch processing response
                                     lambda_results = lambda_response.get("results", [])
+                                    logger.info(f"[BULK] [{assigned_function_name}] Lambda returned {len(lambda_results)} results for {len(users_to_process)} users sent")
                                     for lambda_result in lambda_results:
                                         email = lambda_result.get("email", "unknown")
                                         lambda_status = lambda_result.get("status", "unknown")
