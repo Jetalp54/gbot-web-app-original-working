@@ -1875,6 +1875,7 @@ def bulk_generate():
             # Split users into batches of 10, assigning each batch to a function
             # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
             user_batches = []  # List of (function_number, geo, user_batch) tuples
+            logger.info(f"[BULK] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
             for func_num in range(num_functions):
                 start_idx = func_num * USERS_PER_FUNCTION
                 end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
@@ -1885,7 +1886,9 @@ def bulk_generate():
                     geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
                     geo = AVAILABLE_GEO_REGIONS[geo_index]
                     user_batches.append((func_num + 1, geo, batch_users))
-                    logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s)")
+                    logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                else:
+                    logger.warning(f"[BULK] Function {func_num + 1} has empty batch (start_idx={start_idx}, end_idx={end_idx}, total_users={total_users})")
             
             # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
             USERS_PER_BATCH = 10
@@ -2175,10 +2178,13 @@ def bulk_generate():
             
             # Group batches by geo for sequential processing within each geo
             batches_by_geo = {}  # {geo: [(function_number, user_batch), ...]}
+            logger.info(f"[BULK] Grouping {len(user_batches)} batches by geo...")
             for func_num, geo, batch_users in user_batches:
+                logger.info(f"[BULK] Processing batch: func_num={func_num}, geo={geo}, batch_size={len(batch_users)}, users={[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
                 if geo not in batches_by_geo:
                     batches_by_geo[geo] = []
                 batches_by_geo[geo].append((func_num, batch_users))
+                logger.info(f"[BULK] Added to geo {geo}: Function {func_num} with {len(batch_users)} user(s)")
             
             logger.info("=" * 60)
             logger.info(f"[BULK] Batches per geo:")
