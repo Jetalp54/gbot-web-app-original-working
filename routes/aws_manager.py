@@ -14,6 +14,8 @@ import logging
 import threading
 import random
 import hashlib
+import subprocess
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
 from functools import wraps
@@ -413,6 +415,15 @@ def push_ecr_to_all_regions():
             results = {}
             
             try:
+                # Check if Docker and AWS CLI are available
+                docker_available = shutil.which('docker') is not None
+                aws_cli_available = shutil.which('aws') is not None
+                
+                if not docker_available:
+                    logger.warning("[ECR] ⚠️ Docker not found. Will only create repositories and provide push instructions.")
+                if not aws_cli_available:
+                    logger.warning("[ECR] ⚠️ AWS CLI not found. Cannot authenticate with ECR for Docker operations.")
+                
                 # Create source region session
                 source_session = boto3.Session(
                     aws_access_key_id=access_key,
@@ -485,27 +496,183 @@ def push_ecr_to_all_regions():
                                 failure_count += 1
                                 continue
                         
-                        # Image doesn't exist - need to push it
-                        # Note: This requires Docker to be available on the server
-                        # We'll provide instructions instead of actually pushing
-                        logger.warning(f"[ECR] [{target_region}] ⚠️ Image not found. Manual push required.")
-                        logger.warning(f"[ECR] [{target_region}] To push manually:")
-                        logger.warning(f"[ECR] [{target_region}]   1. docker pull {source_ecr_uri}")
-                        logger.warning(f"[ECR] [{target_region}]   2. docker tag {source_ecr_uri} {target_ecr_uri}")
-                        logger.warning(f"[ECR] [{target_region}]   3. aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com")
-                        logger.warning(f"[ECR] [{target_region}]   4. docker push {target_ecr_uri}")
+                        # Image doesn't exist - attempt to push it using Docker
+                        logger.info(f"[ECR] [{target_region}] Image not found. Attempting to push from {source_region}...")
                         
-                        results[target_region] = {
-                            'success': False,
-                            'error': 'Image not found. Manual push required.',
-                            'instructions': [
-                                f'docker pull {source_ecr_uri}',
-                                f'docker tag {source_ecr_uri} {target_ecr_uri}',
-                                f'aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com',
-                                f'docker push {target_ecr_uri}'
+                        # Check if Docker is available
+                        docker_available = shutil.which('docker') is not None
+                        aws_cli_available = shutil.which('aws') is not None
+                        
+                        if not docker_available:
+                            logger.warning(f"[ECR] [{target_region}] ⚠️ Docker not available. Manual push required.")
+                            logger.warning(f"[ECR] [{target_region}] To push manually:")
+                            logger.warning(f"[ECR] [{target_region}]   1. docker pull {source_ecr_uri}")
+                            logger.warning(f"[ECR] [{target_region}]   2. docker tag {source_ecr_uri} {target_ecr_uri}")
+                            logger.warning(f"[ECR] [{target_region}]   3. aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com")
+                            logger.warning(f"[ECR] [{target_region}]   4. docker push {target_ecr_uri}")
+                            
+                            results[target_region] = {
+                                'success': False,
+                                'error': 'Docker not available. Manual push required.',
+                                'instructions': [
+                                    f'docker pull {source_ecr_uri}',
+                                    f'docker tag {source_ecr_uri} {target_ecr_uri}',
+                                    f'aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com',
+                                    f'docker push {target_ecr_uri}'
+                                ]
+                            }
+                            failure_count += 1
+                            continue
+                        
+                        if not aws_cli_available:
+                            logger.warning(f"[ECR] [{target_region}] ⚠️ AWS CLI not available. Cannot authenticate with ECR.")
+                            results[target_region] = {
+                                'success': False,
+                                'error': 'AWS CLI not available. Cannot authenticate with ECR.',
+                                'instructions': [
+                                    f'Install AWS CLI and run:',
+                                    f'aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com',
+                                    f'docker pull {source_ecr_uri}',
+                                    f'docker tag {source_ecr_uri} {target_ecr_uri}',
+                                    f'docker push {target_ecr_uri}'
+                                ]
+                            }
+                            failure_count += 1
+                            continue
+                        
+                        # Attempt to push using Docker
+                        try:
+                            logger.info(f"[ECR] [{target_region}] Step 1: Authenticating with ECR...")
+                            # Authenticate with ECR
+                            login_cmd = [
+                                'aws', 'ecr', 'get-login-password',
+                                '--region', target_region
                             ]
-                        }
-                        failure_count += 1
+                            
+                            # Set AWS credentials as environment variables for AWS CLI
+                            env = os.environ.copy()
+                            env['AWS_ACCESS_KEY_ID'] = access_key
+                            env['AWS_SECRET_ACCESS_KEY'] = secret_key
+                            env['AWS_DEFAULT_REGION'] = target_region
+                            
+                            login_process = subprocess.run(
+                                login_cmd,
+                                capture_output=True,
+                                text=True,
+                                env=env,
+                                timeout=30
+                            )
+                            
+                            if login_process.returncode != 0:
+                                raise Exception(f"AWS CLI login failed: {login_process.stderr}")
+                            
+                            ecr_password = login_process.stdout.strip()
+                            
+                            # Docker login
+                            docker_login_cmd = [
+                                'docker', 'login',
+                                '--username', 'AWS',
+                                '--password-stdin',
+                                f'{account_id}.dkr.ecr.{target_region}.amazonaws.com'
+                            ]
+                            
+                            docker_login_process = subprocess.run(
+                                docker_login_cmd,
+                                input=ecr_password,
+                                text=True,
+                                capture_output=True,
+                                timeout=30
+                            )
+                            
+                            if docker_login_process.returncode != 0:
+                                raise Exception(f"Docker login failed: {docker_login_process.stderr}")
+                            
+                            logger.info(f"[ECR] [{target_region}] ✓ Authenticated with ECR")
+                            
+                            # Pull image from source region
+                            logger.info(f"[ECR] [{target_region}] Step 2: Pulling image from {source_region}...")
+                            # Authenticate with source region first
+                            source_login_cmd = [
+                                'aws', 'ecr', 'get-login-password',
+                                '--region', source_region
+                            ]
+                            source_login_process = subprocess.run(
+                                source_login_cmd,
+                                capture_output=True,
+                                text=True,
+                                env=env,
+                                timeout=30
+                            )
+                            if source_login_process.returncode == 0:
+                                source_password = source_login_process.stdout.strip()
+                                source_docker_login = subprocess.run(
+                                    ['docker', 'login', '--username', 'AWS', '--password-stdin', f'{account_id}.dkr.ecr.{source_region}.amazonaws.com'],
+                                    input=source_password,
+                                    text=True,
+                                    capture_output=True,
+                                    timeout=30
+                                )
+                            
+                            pull_process = subprocess.run(
+                                ['docker', 'pull', source_ecr_uri],
+                                capture_output=True,
+                                text=True,
+                                timeout=600  # 10 minutes timeout for pull
+                            )
+                            
+                            if pull_process.returncode != 0:
+                                raise Exception(f"Docker pull failed: {pull_process.stderr}")
+                            
+                            logger.info(f"[ECR] [{target_region}] ✓ Pulled image from {source_region}")
+                            
+                            # Tag image for target region
+                            logger.info(f"[ECR] [{target_region}] Step 3: Tagging image for {target_region}...")
+                            tag_process = subprocess.run(
+                                ['docker', 'tag', source_ecr_uri, target_ecr_uri],
+                                capture_output=True,
+                                text=True,
+                                timeout=30
+                            )
+                            
+                            if tag_process.returncode != 0:
+                                raise Exception(f"Docker tag failed: {tag_process.stderr}")
+                            
+                            logger.info(f"[ECR] [{target_region}] ✓ Tagged image")
+                            
+                            # Push image to target region
+                            logger.info(f"[ECR] [{target_region}] Step 4: Pushing image to {target_region}...")
+                            push_process = subprocess.run(
+                                ['docker', 'push', target_ecr_uri],
+                                capture_output=True,
+                                text=True,
+                                timeout=600  # 10 minutes timeout for push
+                            )
+                            
+                            if push_process.returncode != 0:
+                                raise Exception(f"Docker push failed: {push_process.stderr}")
+                            
+                            logger.info(f"[ECR] [{target_region}] ✓✓✓ SUCCESS: Pushed image to {target_region}")
+                            results[target_region] = {'success': True, 'message': f'Image pushed successfully from {source_region}'}
+                            success_count += 1
+                            
+                        except subprocess.TimeoutExpired:
+                            logger.error(f"[ECR] [{target_region}] ✗ Timeout during Docker operation")
+                            results[target_region] = {'success': False, 'error': 'Timeout during Docker operation. Image may be large.'}
+                            failure_count += 1
+                        except Exception as push_err:
+                            logger.error(f"[ECR] [{target_region}] ✗ Failed to push image: {push_err}")
+                            logger.error(traceback.format_exc())
+                            results[target_region] = {
+                                'success': False,
+                                'error': f'Docker push failed: {str(push_err)}',
+                                'instructions': [
+                                    f'docker pull {source_ecr_uri}',
+                                    f'docker tag {source_ecr_uri} {target_ecr_uri}',
+                                    f'aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com',
+                                    f'docker push {target_ecr_uri}'
+                                ]
+                            }
+                            failure_count += 1
                         
                     except Exception as region_err:
                         logger.error(f"[ECR] [{target_region}] ✗ Error processing region: {region_err}")
