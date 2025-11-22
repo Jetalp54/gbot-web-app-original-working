@@ -1987,8 +1987,13 @@ def bulk_generate():
                         ]
                     }
                     
-                    logger.info(f"[BULK] [{assigned_function_name}] Invoking Lambda SYNC with batch of {len(users_to_process)} user(s)")
-                    logger.info(f"[BULK] [{assigned_function_name}] Batch payload contains users: {[u['email'] for u in users_to_process]}")
+                    logger.info("=" * 60)
+                    logger.info(f"[BULK] [{assigned_function_name}] PREPARING TO INVOKE LAMBDA")
+                    logger.info(f"[BULK] [{assigned_function_name}] Batch size: {len(users_to_process)} user(s)")
+                    logger.info(f"[BULK] [{assigned_function_name}] Users in batch: {[u['email'] for u in users_to_process]}")
+                    logger.info(f"[BULK] [{assigned_function_name}] Payload structure: {{'users': [{{'email': ..., 'password': ...}}]}}")
+                    logger.info(f"[BULK] [{assigned_function_name}] Payload JSON length: {len(json.dumps(batch_payload))} bytes")
+                    logger.info("=" * 60)
                     
                     # Rate limiting: Acquire semaphore to limit concurrent invocations
                     lambda_invocation_semaphore.acquire()
@@ -2008,7 +2013,11 @@ def bulk_generate():
                                 # Parse Lambda response
                                 payload = resp.get("Payload")
                                 body = payload.read().decode("utf-8") if payload else "{}"
-                                logger.info(f"[BULK] Lambda batch response: {body[:500]}")
+                                logger.info("=" * 60)
+                                logger.info(f"[BULK] [{assigned_function_name}] LAMBDA RESPONSE RECEIVED")
+                                logger.info(f"[BULK] [{assigned_function_name}] Response status code: {resp.get('StatusCode')}")
+                                logger.info(f"[BULK] [{assigned_function_name}] Response body (first 1000 chars): {body[:1000]}")
+                                logger.info("=" * 60)
                                 
                                 try:
                                     lambda_response = json.loads(body)
