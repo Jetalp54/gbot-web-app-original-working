@@ -937,14 +937,246 @@ def bulk_generate():
                 logger.info(f"[BULK]   - {func_name}: {count} user(s)")
             logger.info("=" * 60)
             
-            # NUCLEAR FIX: Create independent boto3 clients per thread to eliminate ANY connection pool contention
-            # Each thread gets its own client with its own connection pool
-            # This guarantees 1000+ concurrent invocations without blocking
+            # BATCH PROCESSING: Group users into batches of 10 per Lambda invocation
+            # This reduces Lambda invocations and improves efficiency
+            USERS_PER_BATCH = 10
             
-            def process_single_user(user, assigned_function_name):
+            def process_user_batch(user_batch, assigned_function_name):
+                """
+                Process a batch of up to 10 users in a single Lambda invocation.
+                Returns list of results, one per user.
+                """
                 with app.app_context():
-                    email = user['email']
-                    password = user['password']
+                    # Create INDEPENDENT boto3 session and clients for this batch
+                    session_batch = boto3.Session(
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name=region
+                    )
+                    
+                    # Each batch gets its own Lambda client
+                    lam_batch = session_batch.client("lambda", config=Config(
+                        max_pool_connections=10,
+                        retries={'max_attempts': 0}
+                    ))
+                    
+                    # Each batch gets its own DynamoDB resource
+                    dynamodb_batch = session_batch.resource('dynamodb', config=Config(
+                        max_pool_connections=10
+                    ))
+                    table_batch = dynamodb_batch.Table("gbot-app-passwords")
+                    
+                    # Check DynamoDB first for all users in batch
+                    batch_results = []
+                    users_to_process = []
+                    
+                    for user in user_batch:
+                        email = user['email']
+                        password = user['password']
+                        
+                        # Check if already exists in DynamoDB
+                        try:
+                            response = table_batch.get_item(Key={'email': email})
+                            if 'Item' in response:
+                                existing_password = response['Item'].get('app_password')
+                                logger.info(f"[BULK] ✓ SKIPPED: {email} already has password in DynamoDB")
+                                # Save to local DB too
+                                try:
+                                    save_app_password(email, existing_password)
+                                except:
+                                    pass
+                                batch_results.append({
+                                    'email': email,
+                                    'success': True,
+                                    'app_password': existing_password,
+                                    'skipped': True
+                                })
+                                continue
+                        except Exception as e:
+                            logger.warning(f"[BULK] Could not check DynamoDB for {email}: {e}")
+                        
+                        # Check if email is already being processed
+                        with processing_lock:
+                            if email in processing_emails:
+                                logger.warning(f"[BULK] ⚠️ SKIPPED: {email} is already being processed")
+                                batch_results.append({
+                                    'email': email,
+                                    'success': False,
+                                    'error': 'Duplicate - already processing'
+                                })
+                                continue
+                            processing_emails.add(email)
+                        
+                        users_to_process.append(user)
+                    
+                    # If all users were skipped, return early
+                    if not users_to_process:
+                        return batch_results
+                    
+                    # Prepare batch payload for Lambda
+                    batch_payload = {
+                        "users": [
+                            {"email": u['email'], "password": u['password']}
+                            for u in users_to_process
+                        ]
+                    }
+                    
+                    logger.info(f"[BULK] [{assigned_function_name}] Invoking Lambda with batch of {len(users_to_process)} user(s)")
+                    
+                    # Rate limiting: Acquire semaphore to limit concurrent invocations
+                    lambda_invocation_semaphore.acquire()
+                    try:
+                        # Retry logic for rate limiting
+                        max_retries = 5
+                        resp = None
+                        for attempt in range(max_retries):
+                            try:
+                                resp = lam_batch.invoke(
+                                    FunctionName=assigned_function_name,
+                                    InvocationType="RequestResponse",  # Sync for batch processing
+                                    Payload=json.dumps(batch_payload).encode("utf-8"),
+                                )
+                                break  # Success, exit retry loop
+                            except ClientError as ce:
+                                error_code = ce.response['Error']['Code']
+                                error_message = ce.response['Error'].get('Message', '')
+                                
+                                if error_code == 'ResourceNotFoundException':
+                                    logger.error(f"[BULK] Lambda function {assigned_function_name} not found")
+                                    # Try to fall back to default function
+                                    if assigned_function_name != PRODUCTION_LAMBDA_NAME:
+                                        logger.warning(f"[BULK] Falling back to default function {PRODUCTION_LAMBDA_NAME}")
+                                        assigned_function_name = PRODUCTION_LAMBDA_NAME
+                                        continue  # Retry with default function
+                                    else:
+                                        # All users in batch fail
+                                        for u in users_to_process:
+                                            batch_results.append({
+                                                'email': u['email'],
+                                                'success': False,
+                                                'error': f'Lambda function {assigned_function_name} not found'
+                                            })
+                                        return batch_results
+                                
+                                if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
+                                    if attempt < max_retries - 1:
+                                        base_wait = (2 ** attempt) * 2
+                                        jitter = random.uniform(0, 1)
+                                        wait_time = base_wait + jitter
+                                        logger.warning(f"[BULK] Rate limited for batch, retrying in {wait_time:.2f}s (attempt {attempt + 1}/{max_retries})")
+                                        time.sleep(wait_time)
+                                    else:
+                                        raise  # Final attempt failed
+                                else:
+                                    logger.error(f"[BULK] AWS error: {error_code} - {error_message}")
+                                    raise  # Other AWS error, don't retry
+                    finally:
+                        lambda_invocation_semaphore.release()
+                    
+                    if not resp:
+                        # All users in batch fail
+                        for u in users_to_process:
+                            batch_results.append({
+                                'email': u['email'],
+                                'success': False,
+                                'error': 'Lambda invocation failed'
+                            })
+                        return batch_results
+                    
+                    # Parse Lambda response
+                    payload = resp.get("Payload")
+                    body = payload.read().decode("utf-8") if payload else "{}"
+                    logger.info(f"[BULK] Lambda batch response: {body[:500]}")
+                    
+                    try:
+                        lambda_response = json.loads(body)
+                    except json.JSONDecodeError as je:
+                        logger.error(f"[BULK] Failed to parse Lambda response as JSON: {je}")
+                        # All users in batch fail
+                        for u in users_to_process:
+                            batch_results.append({
+                                'email': u['email'],
+                                'success': False,
+                                'error': f'Invalid JSON response: {body[:200]}'
+                            })
+                        return batch_results
+                    
+                    # Handle batch response format
+                    if lambda_response.get("status") == "completed" and "results" in lambda_response:
+                        # Batch processing response
+                        lambda_results = lambda_response.get("results", [])
+                        for lambda_result in lambda_results:
+                            email = lambda_result.get("email", "unknown")
+                            lambda_status = lambda_result.get("status", "unknown")
+                            app_password = lambda_result.get("app_password")
+                            error_msg = lambda_result.get("error_message", "Unknown error")
+                            
+                            if lambda_status == 'success' and app_password:
+                                logger.info(f"[BULK] Saving password for {email} to DB")
+                                try:
+                                    save_app_password(email, app_password)
+                                    logger.info(f"[BULK] ✓ Successfully processed {email}")
+                                except Exception as db_err:
+                                    logger.error(f"[BULK] Failed to save to DB for {email}: {db_err}")
+                                batch_results.append({
+                                    'email': email,
+                                    'success': True,
+                                    'app_password': app_password
+                                })
+                            else:
+                                logger.warning(f"[BULK] ✗ Lambda failed for {email}: {error_msg}")
+                                batch_results.append({
+                                    'email': email,
+                                    'success': False,
+                                    'error': error_msg
+                                })
+                    else:
+                        # Fallback: single user response format (backward compatibility)
+                        lambda_status = lambda_response.get('status', 'unknown')
+                        app_password = lambda_response.get('app_password')
+                        error_msg = lambda_response.get('error_message', 'Unknown error')
+                        
+                        # If only one user in batch, use single response format
+                        if len(users_to_process) == 1:
+                            email = users_to_process[0]['email']
+                            if lambda_status == 'success' and app_password:
+                                try:
+                                    save_app_password(email, app_password)
+                                    logger.info(f"[BULK] ✓ Successfully processed {email}")
+                                except Exception as db_err:
+                                    logger.error(f"[BULK] Failed to save to DB for {email}: {db_err}")
+                                batch_results.append({
+                                    'email': email,
+                                    'success': True,
+                                    'app_password': app_password
+                                })
+                            else:
+                                batch_results.append({
+                                    'email': email,
+                                    'success': False,
+                                    'error': error_msg
+                                })
+                        else:
+                            # Multiple users but got single response - all fail
+                            logger.error(f"[BULK] Expected batch response but got single user format")
+                            for u in users_to_process:
+                                batch_results.append({
+                                    'email': u['email'],
+                                    'success': False,
+                                    'error': 'Invalid response format from Lambda'
+                                })
+                    
+                    # Remove processed emails from tracking set
+                    for u in users_to_process:
+                        with processing_lock:
+                            processing_emails.discard(u['email'])
+                    
+                    return batch_results
+            
+            # Batch processing function (process_user_batch) is defined above
+            
+            # Verify all users are assigned to functions
+            logger.info(f"[BULK] Verifying user assignments...")
                     
                     # Create INDEPENDENT boto3 session and clients for this thread
                     # This eliminates connection pool sharing issues completely
@@ -1092,68 +1324,114 @@ def bulk_generate():
                 missing_emails = [u['email'] for u in users if u['email'] not in user_function_map]
                 logger.error(f"[BULK] Missing emails: {missing_emails[:10]}...")  # Show first 10
             
-            # Execute in parallel
-            # Use 1000 workers for maximum concurrency (Lambda supports up to 1000 concurrent executions)
-            logger.info(f"[BULK] Starting parallel processing of {len(users)} users across {len(lambda_functions)} Lambda functions...")
-            logger.info(f"[BULK] User list size: {len(users)}, User map size: {len(user_function_map)}")
+            # Group users into batches by assigned function
+            # Each batch contains up to 10 users for the same Lambda function
+            function_batches = {}  # {function_name: [list of user batches]}
             
-            with ThreadPoolExecutor(max_workers=1000) as pool: 
-                # Pass both user and assigned function name to each task
-                futures = {}
-                submitted_count = 0
-                submitted_emails = []
-                for u in users:
-                    email = u['email']
-                    assigned_function = user_function_map.get(email, PRODUCTION_LAMBDA_NAME)
-                    if not assigned_function:
-                        logger.error(f"[BULK] No function assigned for {email}, using default")
-                        assigned_function = PRODUCTION_LAMBDA_NAME
-                    future = pool.submit(process_single_user, u, assigned_function)
-                    futures[future] = u
-                    submitted_count += 1
-                    submitted_emails.append(email)
+            for func_name in lambda_functions:
+                function_batches[func_name] = []
+            
+            # Group users by function and create batches of 10
+            current_batches = {func_name: [] for func_name in lambda_functions}
+            
+            for u in users:
+                email = u['email']
+                assigned_function = user_function_map.get(email, PRODUCTION_LAMBDA_NAME)
+                if not assigned_function:
+                    logger.error(f"[BULK] No function assigned for {email}, using default")
+                    assigned_function = PRODUCTION_LAMBDA_NAME
                 
-                logger.info(f"[BULK] ✓ Submitted {submitted_count} user(s) to thread pool")
-                logger.info(f"[BULK] First 10 submitted emails: {submitted_emails[:10]}")
-                logger.info(f"[BULK] Last 10 submitted emails: {submitted_emails[-10:]}")
+                # Add user to current batch for this function
+                current_batches[assigned_function].append(u)
+                
+                # If batch is full (10 users), add it to function_batches and start new batch
+                if len(current_batches[assigned_function]) >= USERS_PER_BATCH:
+                    function_batches[assigned_function].append(current_batches[assigned_function].copy())
+                    current_batches[assigned_function] = []
+            
+            # Add remaining partial batches
+            for func_name, remaining_users in current_batches.items():
+                if remaining_users:
+                    function_batches[func_name].append(remaining_users)
+            
+            # Log batch statistics
+            total_batches = sum(len(batches) for batches in function_batches.values())
+            total_invocations = total_batches
+            logger.info("=" * 60)
+            logger.info(f"[BULK] Batch Processing Summary")
+            logger.info(f"[BULK] Total users: {len(users)}")
+            logger.info(f"[BULK] Users per batch: {USERS_PER_BATCH}")
+            logger.info(f"[BULK] Total Lambda invocations: {total_invocations} (vs {len(users)} without batching)")
+            logger.info(f"[BULK] Batch breakdown by function:")
+            for func_name in sorted(function_batches.keys()):
+                batches = function_batches[func_name]
+                batch_users = sum(len(batch) for batch in batches)
+                logger.info(f"[BULK]   - {func_name}: {len(batches)} batch(es), {batch_users} user(s)")
+            logger.info("=" * 60)
+            
+            # Execute batches in parallel
+            # Use fewer workers since we're batching (each worker handles up to 10 users)
+            max_workers = min(100, total_batches)  # Cap at 100 workers for batch processing
+            logger.info(f"[BULK] Starting parallel batch processing with {max_workers} workers...")
+            
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                # Submit all batches
+                futures = {}
+                for func_name, batches in function_batches.items():
+                    for batch in batches:
+                        future = pool.submit(process_user_batch, batch, func_name)
+                        futures[future] = (func_name, batch)
+                
+                logger.info(f"[BULK] ✓ Submitted {len(futures)} batch(es) to thread pool")
                 
                 # Track which functions are being used
                 function_invocations = {}
                 
                 for future in as_completed(futures):
                     try:
-                        result = future.result()
-                        user_email = result['email']
-                        assigned_function = user_function_map.get(user_email, 'unknown')
-                        function_invocations[assigned_function] = function_invocations.get(assigned_function, 0) + 1
+                        batch_results = future.result()  # Returns list of results
+                        func_name, batch = futures[future]
+                        function_invocations[func_name] = function_invocations.get(func_name, 0) + 1
                         
-                        # Update job status with lock protection
+                        # Process each result in the batch
+                        for result in batch_results:
+                            user_email = result['email']
+                            
+                            # Update job status with lock protection
+                            with jobs_lock:
+                                if job_id in active_jobs:
+                                    active_jobs[job_id]['completed'] += 1
+                                    if result['success']:
+                                        active_jobs[job_id]['success'] += 1
+                                        active_jobs[job_id]['results'].append({
+                                            'email': result['email'],
+                                            'app_password': result.get('app_password'),
+                                            'success': True
+                                        })
+                                    else:
+                                        active_jobs[job_id]['failed'] += 1
+                                        active_jobs[job_id]['results'].append({
+                                            'email': result['email'],
+                                            'error': result.get('error'),
+                                            'success': False
+                                        })
+                                else:
+                                    logger.warning(f"[BULK] Job {job_id} not found when updating status for {user_email}")
+                    except Exception as e:
+                        logger.error(f"[BULK] Exception processing batch result: {e}")
+                        logger.error(traceback.format_exc())
+                        # Mark all users in the batch as failed
+                        func_name, batch = futures[future]
                         with jobs_lock:
                             if job_id in active_jobs:
-                                active_jobs[job_id]['completed'] += 1
-                                if result['success']:
-                                    active_jobs[job_id]['success'] += 1
-                                    active_jobs[job_id]['results'].append({
-                                        'email': result['email'],
-                                        'app_password': result['app_password'],
-                                        'success': True
-                                    })
-                                else:
+                                for u in batch:
                                     active_jobs[job_id]['failed'] += 1
+                                    active_jobs[job_id]['completed'] += 1
                                     active_jobs[job_id]['results'].append({
-                                        'email': result['email'],
-                                        'error': result.get('error'),
+                                        'email': u['email'],
+                                        'error': f'Batch processing exception: {str(e)}',
                                         'success': False
                                     })
-                            else:
-                                logger.warning(f"[BULK] Job {job_id} not found when updating status for {user_email}")
-                    except Exception as e:
-                        logger.error(f"[BULK] Exception processing future result: {e}")
-                        logger.error(traceback.format_exc())
-                        with jobs_lock:
-                            if job_id in active_jobs:
-                                active_jobs[job_id]['failed'] += 1
-                                active_jobs[job_id]['completed'] += 1
                 
                 # Log final invocation statistics
                 total_invocations = sum(function_invocations.values())
