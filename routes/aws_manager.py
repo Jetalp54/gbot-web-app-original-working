@@ -370,7 +370,7 @@ def generate_ecr_push_script():
         # Get all available regions
         AVAILABLE_GEO_REGIONS = [
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'af-south-1', 'ap-east-1', 'ap-south-1', 'ap-northeast-1',
+            'ap-east-1', 'ap-south-1', 'ap-northeast-1',
             'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
             'ap-southeast-2', 'ap-southeast-3', 'ca-central-1',
             'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
@@ -500,7 +500,7 @@ def push_ecr_to_all_regions():
         # Get all available AWS regions
         AVAILABLE_GEO_REGIONS = [
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'af-south-1', 'ap-east-1', 'ap-south-1', 'ap-northeast-1',
+            'ap-east-1', 'ap-south-1', 'ap-northeast-1',
             'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
             'ap-southeast-2', 'ap-southeast-3', 'ca-central-1',
             'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
@@ -1044,7 +1044,6 @@ def create_lambdas():
             'us-east-2',      # US East (Ohio)
             'us-west-1',      # US West (N. California)
             'us-west-2',      # US West (Oregon)
-            'af-south-1',     # Africa (Cape Town)
             'ap-east-1',      # Asia Pacific (Hong Kong)
             'ap-south-1',     # Asia Pacific (Mumbai)
             'ap-northeast-1', # Asia Pacific (Tokyo)
@@ -1828,7 +1827,6 @@ def bulk_generate():
                 'us-east-2',      # US East (Ohio)
                 'us-west-1',      # US West (N. California)
                 'us-west-2',      # US West (Oregon)
-                'af-south-1',     # Africa (Cape Town)
                 'ap-east-1',      # Asia Pacific (Hong Kong)
                 'ap-south-1',     # Asia Pacific (Mumbai)
                 'ap-northeast-1', # Asia Pacific (Tokyo)
@@ -2678,7 +2676,7 @@ def delete_all_lambdas():
         # List of all AWS regions
         AVAILABLE_GEO_REGIONS = [
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'af-south-1', 'ap-east-1', 'ap-south-1', 'ap-northeast-1',
+            'ap-east-1', 'ap-south-1', 'ap-northeast-1',
             'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
             'ap-southeast-2', 'ap-southeast-3', 'ca-central-1',
             'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
@@ -2923,7 +2921,7 @@ def delete_ecr_repo():
         # List of all AWS regions
         AVAILABLE_GEO_REGIONS = [
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'af-south-1', 'ap-east-1', 'ap-south-1', 'ap-northeast-1',
+            'ap-east-1', 'ap-south-1', 'ap-northeast-1',
             'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
             'ap-southeast-2', 'ap-southeast-3', 'ca-central-1',
             'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
@@ -2996,7 +2994,7 @@ def delete_cloudwatch_logs():
         # List of all AWS regions
         AVAILABLE_GEO_REGIONS = [
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'af-south-1', 'ap-east-1', 'ap-south-1', 'ap-northeast-1',
+            'ap-east-1', 'ap-south-1', 'ap-northeast-1',
             'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
             'ap-southeast-2', 'ap-southeast-3', 'ca-central-1',
             'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
@@ -3753,7 +3751,7 @@ SOURCE_REGION="{region}"
 # List of all AWS regions
 TARGET_REGIONS=(
     "us-east-1" "us-east-2" "us-west-1" "us-west-2"
-    "af-south-1" "ap-east-1" "ap-south-1" "ap-northeast-1"
+    "ap-east-1" "ap-south-1" "ap-northeast-1"
     "ap-northeast-2" "ap-northeast-3" "ap-southeast-1"
     "ap-southeast-2" "ap-southeast-3" "ca-central-1"
     "eu-central-1" "eu-west-1" "eu-west-2" "eu-west-3"
