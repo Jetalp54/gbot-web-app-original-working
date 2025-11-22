@@ -53,6 +53,16 @@
                             <i class="fas fa-box"></i>
                             Create ECR Repository (Manual)
                         </button>
+                        <button class="btn-github btn-github-primary" onclick="pushECRToAllRegions()" style="width: 100%; margin-bottom: var(--spacing-sm); background-color: var(--color-success-emphasis);">
+                            <i class="fas fa-globe"></i>
+                            Push ECR Image to All Regions
+                        </button>
+                        <div class="alert-github" style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-sm); font-size: 12px;">
+                            <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
+                            <div>
+                                <strong>Multi-Region Lambda:</strong> Push your ECR image to all AWS regions to enable Lambda functions across geos. This creates ECR repositories in all regions and provides push instructions.
+                            </div>
+                        </div>
                         <button class="btn-github" onclick="inspectResources()" style="width: 100%;">
                             <i class="fas fa-search"></i>
                             Inspect Resources (IAM / ECR / Lambdas)
@@ -411,6 +421,99 @@
     }
 
     // Create ECR Manual
+    function pushECRToAllRegions() {
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        
+        // Get ECR URI from settings or input
+        const ecrUri = window.awsConfig?.ecr_uri || prompt('Enter ECR Image URI (e.g., account.dkr.ecr.region.amazonaws.com/repo:tag):');
+        if (!ecrUri) {
+            log('❌ ECR URI is required', 'error');
+            return;
+        }
+
+        if (!confirm('This will create ECR repositories in all AWS regions and provide push instructions. Continue?')) {
+            return;
+        }
+
+        log('🌍 Starting ECR image push to all regions...');
+        log('This may take several minutes. Check status using the job ID.');
+        
+        fetch('/api/aws/push-ecr-to-all-regions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                ecr_uri: ecrUri
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`✅ Started pushing ECR image to ${data.target_regions.length} regions`);
+                log(`📋 Job ID: ${data.job_id}`);
+                log(`📍 Source region: ${data.source_region}`);
+                log(`🎯 Target regions: ${data.target_regions.join(', ')}`);
+                log('💡 Check status: /api/aws/lambda-creation-status/' + data.job_id);
+                
+                // Start polling for status
+                pollECRPushStatus(data.job_id);
+            } else {
+                log(`❌ Error: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            log(`❌ Error: ${error.message}`, 'error');
+        });
+    }
+
+    function pollECRPushStatus(jobId) {
+        const pollInterval = setInterval(() => {
+            fetch(`/api/aws/lambda-creation-status/${jobId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.job) {
+                        const job = data.job;
+                        if (job.status === 'completed' || job.status === 'failed') {
+                            clearInterval(pollInterval);
+                            if (job.status === 'completed') {
+                                log(`✅ ECR push completed: ${job.success_count} success, ${job.failure_count} failed`);
+                                if (job.results) {
+                                    Object.entries(job.results).forEach(([region, result]) => {
+                                        if (result.success) {
+                                            log(`  ✓ ${region}: ${result.message || 'Success'}`);
+                                        } else {
+                                            log(`  ✗ ${region}: ${result.error}`, 'error');
+                                            if (result.instructions) {
+                                                log(`    Instructions:`, 'info');
+                                                result.instructions.forEach((cmd, idx) => {
+                                                    log(`      ${idx + 1}. ${cmd}`, 'info');
+                                                });
+                                            }
+                                        }
+                                    });
+                                }
+                            } else {
+                                log(`❌ ECR push failed: ${job.error}`, 'error');
+                            }
+                        } else {
+                            log(`⏳ Processing... ${job.success_count || 0} success, ${job.failure_count || 0} failed`);
+                        }
+                    }
+                })
+                .catch(error => {
+                    log(`❌ Error checking status: ${error.message}`, 'error');
+                });
+        }, 5000); // Poll every 5 seconds
+        
+        // Stop polling after 10 minutes
+        setTimeout(() => clearInterval(pollInterval), 600000);
+    }
+
     function createECRManual() {
         const creds = getAwsCredentials();
         if (!creds) return;

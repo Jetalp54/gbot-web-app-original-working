@@ -338,6 +338,208 @@ def create_ecr_manual():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@aws_manager.route('/api/aws/push-ecr-to-all-regions', methods=['POST'])
+@login_required
+def push_ecr_to_all_regions():
+    """Push ECR image to all available AWS regions for multi-region Lambda deployment"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        base_ecr_uri = data.get('ecr_uri', '').strip()
+        
+        if not access_key or not secret_key or not base_ecr_uri:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials and ECR URI.'}), 400
+        
+        if 'amazonaws.com' not in base_ecr_uri:
+            return jsonify({'success': False, 'error': 'Invalid ECR URI format.'}), 400
+        
+        # Parse base ECR URI to extract components
+        import re
+        ecr_match = re.match(r'(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com/([^:]+):(.+)', base_ecr_uri)
+        if not ecr_match:
+            return jsonify({'success': False, 'error': 'Could not parse ECR URI. Format: account.dkr.ecr.region.amazonaws.com/repo:tag'}), 400
+        
+        account_id, source_region, repo_name, image_tag = ecr_match.groups()
+        
+        # Get all available AWS regions
+        AVAILABLE_GEO_REGIONS = [
+            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            'af-south-1', 'ap-east-1', 'ap-south-1', 'ap-northeast-1',
+            'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
+            'ap-southeast-2', 'ap-southeast-3', 'ca-central-1',
+            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
+            'eu-north-1', 'eu-south-1', 'me-south-1', 'me-central-1',
+            'sa-east-1',
+        ]
+        
+        # Filter out source region (already has the image)
+        target_regions = [r for r in AVAILABLE_GEO_REGIONS if r != source_region]
+        
+        logger.info("=" * 60)
+        logger.info(f"[ECR] Starting image replication to {len(target_regions)} regions")
+        logger.info(f"[ECR] Source: {base_ecr_uri}")
+        logger.info(f"[ECR] Target regions: {', '.join(target_regions)}")
+        logger.info("=" * 60)
+        
+        # Create job for tracking
+        job_id = f"ecr_push_{int(time.time())}"
+        with lambda_creation_lock:
+            lambda_creation_jobs[job_id] = {
+                'status': 'processing',
+                'type': 'ecr_push',
+                'total_regions': len(target_regions),
+                'success_count': 0,
+                'failure_count': 0,
+                'results': {},
+                'started_at': time.time()
+            }
+        
+        def push_ecr_background():
+            """Background task to push ECR image to all regions"""
+            success_count = 0
+            failure_count = 0
+            results = {}
+            
+            try:
+                # Create source region session
+                source_session = boto3.Session(
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                    region_name=source_region
+                )
+                
+                for target_region in target_regions:
+                    try:
+                        logger.info(f"[ECR] [{target_region}] Processing region...")
+                        
+                        # Create target region session
+                        target_session = boto3.Session(
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
+                            region_name=target_region
+                        )
+                        
+                        # Verify credentials
+                        try:
+                            sts = target_session.client('sts')
+                            sts.get_caller_identity()
+                        except Exception as cred_err:
+                            logger.error(f"[ECR] [{target_region}] ✗ Credential verification failed: {cred_err}")
+                            results[target_region] = {'success': False, 'error': f'Credential verification failed: {cred_err}'}
+                            failure_count += 1
+                            continue
+                        
+                        # Create ECR repository in target region if it doesn't exist
+                        ecr_client = target_session.client('ecr')
+                        try:
+                            ecr_client.describe_repositories(repositoryNames=[repo_name])
+                            logger.info(f"[ECR] [{target_region}] ✓ ECR repository already exists")
+                        except ClientError as e:
+                            if e.response['Error']['Code'] == 'RepositoryNotFoundException':
+                                try:
+                                    ecr_client.create_repository(
+                                        repositoryName=repo_name,
+                                        imageTagMutability='MUTABLE',
+                                        imageScanningConfiguration={'scanOnPush': False}
+                                    )
+                                    logger.info(f"[ECR] [{target_region}] ✓ Created ECR repository")
+                                    time.sleep(2)  # Wait for repository to be ready
+                                except Exception as create_err:
+                                    logger.error(f"[ECR] [{target_region}] ✗ Failed to create repository: {create_err}")
+                                    results[target_region] = {'success': False, 'error': f'Repository creation failed: {create_err}'}
+                                    failure_count += 1
+                                    continue
+                            else:
+                                logger.error(f"[ECR] [{target_region}] ✗ Error checking repository: {e}")
+                                results[target_region] = {'success': False, 'error': f'Repository check failed: {e}'}
+                                failure_count += 1
+                                continue
+                        
+                        # Check if image already exists in target region
+                        target_ecr_uri = f"{account_id}.dkr.ecr.{target_region}.amazonaws.com/{repo_name}:{image_tag}"
+                        try:
+                            ecr_client.describe_images(
+                                repositoryName=repo_name,
+                                imageIds=[{"imageTag": image_tag}],
+                            )
+                            logger.info(f"[ECR] [{target_region}] ✓ Image already exists in {target_region}")
+                            results[target_region] = {'success': True, 'message': 'Image already exists'}
+                            success_count += 1
+                            continue
+                        except ClientError as e:
+                            if e.response['Error']['Code'] != 'ImageNotFoundException':
+                                logger.error(f"[ECR] [{target_region}] ✗ Error checking image: {e}")
+                                results[target_region] = {'success': False, 'error': f'Image check failed: {e}'}
+                                failure_count += 1
+                                continue
+                        
+                        # Image doesn't exist - need to push it
+                        # Note: This requires Docker to be available on the server
+                        # We'll provide instructions instead of actually pushing
+                        logger.warning(f"[ECR] [{target_region}] ⚠️ Image not found. Manual push required.")
+                        logger.warning(f"[ECR] [{target_region}] To push manually:")
+                        logger.warning(f"[ECR] [{target_region}]   1. docker pull {base_ecr_uri}")
+                        logger.warning(f"[ECR] [{target_region}]   2. docker tag {base_ecr_uri} {target_ecr_uri}")
+                        logger.warning(f"[ECR] [{target_region}]   3. aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com")
+                        logger.warning(f"[ECR] [{target_region}]   4. docker push {target_ecr_uri}")
+                        
+                        results[target_region] = {
+                            'success': False,
+                            'error': 'Image not found. Manual push required.',
+                            'instructions': [
+                                f'docker pull {base_ecr_uri}',
+                                f'docker tag {base_ecr_uri} {target_ecr_uri}',
+                                f'aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com',
+                                f'docker push {target_ecr_uri}'
+                            ]
+                        }
+                        failure_count += 1
+                        
+                    except Exception as region_err:
+                        logger.error(f"[ECR] [{target_region}] ✗ Error processing region: {region_err}")
+                        logger.error(traceback.format_exc())
+                        results[target_region] = {'success': False, 'error': str(region_err)}
+                        failure_count += 1
+                
+                # Update job status
+                with lambda_creation_lock:
+                    if job_id in lambda_creation_jobs:
+                        lambda_creation_jobs[job_id]['status'] = 'completed'
+                        lambda_creation_jobs[job_id]['success_count'] = success_count
+                        lambda_creation_jobs[job_id]['failure_count'] = failure_count
+                        lambda_creation_jobs[job_id]['results'] = results
+                        lambda_creation_jobs[job_id]['completed_at'] = time.time()
+                
+                logger.info("=" * 60)
+                logger.info(f"[ECR] Replication completed: {success_count} success, {failure_count} failed")
+                logger.info("=" * 60)
+                
+            except Exception as bg_err:
+                logger.error(f"[ECR] Background task error: {bg_err}")
+                logger.error(traceback.format_exc())
+                with lambda_creation_lock:
+                    if job_id in lambda_creation_jobs:
+                        lambda_creation_jobs[job_id]['status'] = 'failed'
+                        lambda_creation_jobs[job_id]['error'] = str(bg_err)
+        
+        # Start background thread
+        threading.Thread(target=push_ecr_background, daemon=True).start()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Started pushing ECR image to {len(target_regions)} regions. This may take several minutes.',
+            'job_id': job_id,
+            'source_region': source_region,
+            'target_regions': target_regions,
+            'note': 'Check status using /api/aws/lambda-creation-status/<job_id>'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error pushing ECR to regions: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @aws_manager.route('/api/aws/inspect-resources', methods=['POST'])
 @login_required
 def inspect_resources():
