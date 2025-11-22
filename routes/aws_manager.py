@@ -1480,19 +1480,24 @@ def bulk_generate():
             # Use lock to ensure thread-safe access
             with jobs_lock:
                 if job_id in active_jobs:
+                    completed_count = active_jobs[job_id].get('completed', 0)
+                    success_count = active_jobs[job_id].get('success', 0)
+                    failed_count = active_jobs[job_id].get('failed', 0)
                     active_jobs[job_id]['status'] = 'completed'
-                    logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {total_invocations}/{len(users)} users.")
+                    logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {completed_count}/{len(users)} users. Success: {success_count}, Failed: {failed_count}")
                 else:
                     logger.error(f"[BULK] ⚠️ Job {job_id} not found in active_jobs when trying to mark as completed!")
                     # Try to create it if it doesn't exist (shouldn't happen, but safety check)
+                    # Since we don't have the actual counts, use defaults
                     active_jobs[job_id] = {
                         'total': len(users),
-                        'completed': total_invocations,
-                        'success': sum(1 for r in function_invocations.values() if r > 0),  # Approximate
-                        'failed': len(users) - total_invocations,
+                        'completed': 0,
+                        'success': 0,
+                        'failed': len(users),
                         'results': [],
                         'status': 'completed'
                     }
+                    logger.warning(f"[BULK] Created fallback job entry for {job_id} with default values")
         except Exception as bg_error:
             logger.error(f"[BULK] ❌ CRITICAL ERROR in background_process: {bg_error}")
             logger.error(f"[BULK] Traceback: {traceback.format_exc()}")
