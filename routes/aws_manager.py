@@ -2648,7 +2648,7 @@ def invoke_lambda():
 @aws_manager.route('/api/aws/delete-all-lambdas', methods=['POST'])
 @login_required
 def delete_all_lambdas():
-    """Delete all production Lambdas"""
+    """Delete all production Lambdas across all AWS regions"""
     try:
         data = request.get_json()
         access_key = data.get('access_key', '').strip()
@@ -2658,31 +2658,84 @@ def delete_all_lambdas():
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
 
-        session = get_boto3_session(access_key, secret_key, region)
-        lam = session.client("lambda")
+        # List of all AWS regions
+        AVAILABLE_GEO_REGIONS = [
+            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            'af-south-1', 'ap-east-1', 'ap-south-1', 'ap-northeast-1',
+            'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
+            'ap-southeast-2', 'ap-southeast-3', 'ca-central-1',
+            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
+            'eu-north-1', 'eu-south-1', 'me-south-1', 'me-central-1',
+            'sa-east-1',
+        ]
 
-        deleted = []
-        try:
-            lam.delete_function(FunctionName=PRODUCTION_LAMBDA_NAME)
-            deleted.append(PRODUCTION_LAMBDA_NAME)
-        except lam.exceptions.ResourceNotFoundException:
-            pass
+        all_deleted = []
+        all_errors = []
+        total_deleted = 0
+        total_errors = 0
 
-        # Also check for any other edu-gw lambdas
-        paginator = lam.get_paginator("list_functions")
-        for page in paginator.paginate():
-            for fn in page.get("Functions", []):
-                if "edu-gw" in fn["FunctionName"] and fn["FunctionName"] not in deleted:
-                    try:
-                        lam.delete_function(FunctionName=fn["FunctionName"])
-                        deleted.append(fn["FunctionName"])
-                    except Exception as e:
-                        logger.error(f"Error deleting {fn['FunctionName']}: {e}")
+        for target_region in AVAILABLE_GEO_REGIONS:
+            try:
+                logger.info(f"[DELETE LAMBDA] Processing region: {target_region}")
+                session = get_boto3_session(access_key, secret_key, target_region)
+                lam = session.client("lambda")
+
+                region_deleted = []
+                
+                # Try to delete production lambda
+                try:
+                    lam.delete_function(FunctionName=PRODUCTION_LAMBDA_NAME)
+                    region_deleted.append(f"{PRODUCTION_LAMBDA_NAME} ({target_region})")
+                    total_deleted += 1
+                except lam.exceptions.ResourceNotFoundException:
+                    pass
+                except Exception as e:
+                    error_msg = f"{target_region}: {PRODUCTION_LAMBDA_NAME} - {str(e)}"
+                    logger.error(f"[DELETE LAMBDA] [{target_region}] Error: {error_msg}")
+                    all_errors.append(error_msg)
+                    total_errors += 1
+
+                # Also check for any other edu-gw lambdas
+                try:
+                    paginator = lam.get_paginator("list_functions")
+                    for page in paginator.paginate():
+                        for fn in page.get("Functions", []):
+                            fn_name = fn["FunctionName"]
+                            if "edu-gw" in fn_name:
+                                try:
+                                    lam.delete_function(FunctionName=fn_name)
+                                    region_deleted.append(f"{fn_name} ({target_region})")
+                                    total_deleted += 1
+                                except lam.exceptions.ResourceNotFoundException:
+                                    pass
+                                except Exception as e:
+                                    error_msg = f"{target_region}: {fn_name} - {str(e)}"
+                                    logger.error(f"[DELETE LAMBDA] [{target_region}] Error deleting {fn_name}: {e}")
+                                    all_errors.append(error_msg)
+                                    total_errors += 1
+                except Exception as e:
+                    error_msg = f"{target_region}: Failed to list functions - {str(e)}"
+                    logger.error(f"[DELETE LAMBDA] [{target_region}] Error listing functions: {e}")
+                    all_errors.append(error_msg)
+                    total_errors += 1
+
+                if region_deleted:
+                    all_deleted.extend(region_deleted)
+                    logger.info(f"[DELETE LAMBDA] [{target_region}] Deleted {len(region_deleted)} function(s)")
+
+            except Exception as e:
+                error_msg = f"{target_region}: Region processing failed - {str(e)}"
+                logger.error(f"[DELETE LAMBDA] [{target_region}] Error: {e}")
+                all_errors.append(error_msg)
+                total_errors += 1
 
         return jsonify({
             'success': True,
-            'deleted': deleted,
-            'message': 'Lambda cleanup completed.'
+            'deleted': all_deleted,
+            'deleted_count': total_deleted,
+            'error_count': total_errors,
+            'errors': all_errors if all_errors else None,
+            'message': f'Lambda cleanup completed across all regions. Deleted: {total_deleted}, Errors: {total_errors}'
         })
     except Exception as e:
         logger.error(f"Error deleting Lambdas: {e}")
@@ -2840,7 +2893,7 @@ def delete_s3_content():
 @aws_manager.route('/api/aws/delete-ecr-repo', methods=['POST'])
 @login_required
 def delete_ecr_repo():
-    """Delete ECR repository and all images"""
+    """Delete ECR repository and all images across all AWS regions"""
     try:
         data = request.get_json()
         access_key = data.get('access_key', '').strip()
@@ -2850,32 +2903,70 @@ def delete_ecr_repo():
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
 
-        session = get_boto3_session(access_key, secret_key, region)
-        ecr = session.client("ecr")
+        # List of all AWS regions
+        AVAILABLE_GEO_REGIONS = [
+            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            'af-south-1', 'ap-east-1', 'ap-south-1', 'ap-northeast-1',
+            'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
+            'ap-southeast-2', 'ap-southeast-3', 'ca-central-1',
+            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
+            'eu-north-1', 'eu-south-1', 'me-south-1', 'me-central-1',
+            'sa-east-1',
+        ]
 
-        ecr.delete_repository(
-            repositoryName=ECR_REPO_NAME,
-            force=True
-        )
+        deleted_regions = []
+        not_found_regions = []
+        error_regions = []
+        total_deleted = 0
+        total_errors = 0
+
+        for target_region in AVAILABLE_GEO_REGIONS:
+            try:
+                logger.info(f"[DELETE ECR] Processing region: {target_region}")
+                session = get_boto3_session(access_key, secret_key, target_region)
+                ecr = session.client("ecr")
+
+                try:
+                    ecr.delete_repository(
+                        repositoryName=ECR_REPO_NAME,
+                        force=True
+                    )
+                    deleted_regions.append(target_region)
+                    total_deleted += 1
+                    logger.info(f"[DELETE ECR] [{target_region}] ✓ Repository deleted successfully")
+                except ecr.exceptions.RepositoryNotFoundException:
+                    not_found_regions.append(target_region)
+                    logger.info(f"[DELETE ECR] [{target_region}] Repository not found (skipping)")
+                except Exception as e:
+                    error_msg = f"{target_region}: {str(e)}"
+                    error_regions.append(error_msg)
+                    total_errors += 1
+                    logger.error(f"[DELETE ECR] [{target_region}] ✗ Error: {e}")
+
+            except Exception as e:
+                error_msg = f"{target_region}: Region processing failed - {str(e)}"
+                error_regions.append(error_msg)
+                total_errors += 1
+                logger.error(f"[DELETE ECR] [{target_region}] Error: {e}")
 
         return jsonify({
             'success': True,
-            'message': f'ECR repository {ECR_REPO_NAME} deleted successfully.'
+            'deleted_regions': deleted_regions,
+            'deleted_count': total_deleted,
+            'not_found_regions': not_found_regions,
+            'error_regions': error_regions if error_regions else None,
+            'error_count': total_errors,
+            'message': f'ECR repository cleanup completed across all regions. Deleted: {total_deleted}, Not found: {len(not_found_regions)}, Errors: {total_errors}'
         })
-    except ecr.exceptions.RepositoryNotFoundException:
-        return jsonify({
-            'success': False,
-            'error': f'ECR repository {ECR_REPO_NAME} not found.'
-        }), 404
     except Exception as e:
-        logger.error(f"Error deleting ECR repository: {e}")
+        logger.error(f"Error deleting ECR repositories: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/aws/delete-cloudwatch-logs', methods=['POST'])
 @login_required
 def delete_cloudwatch_logs():
-    """Delete CloudWatch log groups for Lambdas"""
+    """Delete CloudWatch log groups for Lambdas across all AWS regions"""
     try:
         data = request.get_json()
         access_key = data.get('access_key', '').strip()
@@ -2885,25 +2976,61 @@ def delete_cloudwatch_logs():
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
 
-        session = get_boto3_session(access_key, secret_key, region)
-        logs = session.client("logs")
+        # List of all AWS regions
+        AVAILABLE_GEO_REGIONS = [
+            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            'af-south-1', 'ap-east-1', 'ap-south-1', 'ap-northeast-1',
+            'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
+            'ap-southeast-2', 'ap-southeast-3', 'ca-central-1',
+            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
+            'eu-north-1', 'eu-south-1', 'me-south-1', 'me-central-1',
+            'sa-east-1',
+        ]
 
-        deleted_count = 0
-        paginator = logs.get_paginator('describe_log_groups')
-        for page in paginator.paginate():
-            for log_group in page.get('logGroups', []):
-                log_group_name = log_group['logGroupName']
-                if '/aws/lambda/edu-gw' in log_group_name:
-                    try:
-                        logs.delete_log_group(logGroupName=log_group_name)
-                        deleted_count += 1
-                    except Exception as e:
-                        logger.error(f"Error deleting {log_group_name}: {e}")
+        all_deleted = []
+        all_errors = []
+        total_deleted = 0
+        total_errors = 0
+
+        for target_region in AVAILABLE_GEO_REGIONS:
+            try:
+                logger.info(f"[DELETE CLOUDWATCH] Processing region: {target_region}")
+                session = get_boto3_session(access_key, secret_key, target_region)
+                logs = session.client("logs")
+
+                region_deleted = []
+                paginator = logs.get_paginator('describe_log_groups')
+                for page in paginator.paginate():
+                    for log_group in page.get('logGroups', []):
+                        log_group_name = log_group['logGroupName']
+                        if '/aws/lambda/edu-gw' in log_group_name:
+                            try:
+                                logs.delete_log_group(logGroupName=log_group_name)
+                                region_deleted.append(f"{log_group_name} ({target_region})")
+                                total_deleted += 1
+                            except Exception as e:
+                                error_msg = f"{target_region}: {log_group_name} - {str(e)}"
+                                logger.error(f"[DELETE CLOUDWATCH] [{target_region}] Error deleting {log_group_name}: {e}")
+                                all_errors.append(error_msg)
+                                total_errors += 1
+
+                if region_deleted:
+                    all_deleted.extend(region_deleted)
+                    logger.info(f"[DELETE CLOUDWATCH] [{target_region}] Deleted {len(region_deleted)} log group(s)")
+
+            except Exception as e:
+                error_msg = f"{target_region}: Region processing failed - {str(e)}"
+                logger.error(f"[DELETE CLOUDWATCH] [{target_region}] Error: {e}")
+                all_errors.append(error_msg)
+                total_errors += 1
 
         return jsonify({
             'success': True,
-            'deleted_count': deleted_count,
-            'message': f'CloudWatch log cleanup completed. Deleted {deleted_count} log groups.'
+            'deleted': all_deleted,
+            'deleted_count': total_deleted,
+            'error_count': total_errors,
+            'errors': all_errors if all_errors else None,
+            'message': f'CloudWatch log cleanup completed across all regions. Deleted: {total_deleted}, Errors: {total_errors}'
         })
     except Exception as e:
         logger.error(f"Error deleting CloudWatch logs: {e}")
