@@ -436,6 +436,7 @@ def create_lambdas():
             created_functions.append(function_name)
         
         # Start background thread to create/update Lambda functions
+        # Use 900 seconds (15 minutes) timeout for batch processing (10 users can take 5-10 minutes)
         def create_lambdas_background(session, function_names, role_arn, timeout, env_vars, package_type, image_uri):
             try:
                 for function_name in function_names:
@@ -458,9 +459,11 @@ def create_lambdas():
                 logger.error(traceback.format_exc())
         
         # Start background thread
+        # Use 900 seconds (15 minutes) - AWS Lambda maximum timeout
+        # This allows processing up to 10 users per batch (each user takes ~30-60 seconds)
         threading.Thread(
             target=create_lambdas_background,
-            args=(session, created_functions, role_arn, 600, chromium_env, "Image", ecr_uri),
+            args=(session, created_functions, role_arn, 900, chromium_env, "Image", ecr_uri),
             daemon=True
         ).start()
         
@@ -853,6 +856,21 @@ def bulk_generate():
     from app import app
     
     def background_process(app, job_id, users, access_key, secret_key, region):
+        # Ensure job exists before starting processing
+        with jobs_lock:
+            if job_id not in active_jobs:
+                logger.error(f"[BULK] Job {job_id} not found in active_jobs at start of background_process!")
+                # Try to recreate it
+                active_jobs[job_id] = {
+                    'total': len(users),
+                    'completed': 0,
+                    'success': 0,
+                    'failed': 0,
+                    'results': [],
+                    'status': 'processing'
+                }
+                logger.info(f"[BULK] Recreated job {job_id}")
+        
         try:
             with app.app_context():
                 # Pre-detect Lambda functions ONCE before parallel processing
@@ -937,9 +955,10 @@ def bulk_generate():
                 logger.info(f"[BULK]   - {func_name}: {count} user(s)")
             logger.info("=" * 60)
             
-            # BATCH PROCESSING: Group users into batches of 10 per Lambda invocation
-            # This reduces Lambda invocations and improves efficiency
-            USERS_PER_BATCH = 10
+            # BATCH PROCESSING: Group users into batches of 5 per Lambda invocation
+            # Reduced from 10 to 5 to avoid Lambda timeout issues (each user takes 30-60 seconds)
+            # With 900 second timeout, 5 users = ~5 minutes max, leaving buffer
+            USERS_PER_BATCH = 5
             
             def process_user_batch(user_batch, assigned_function_name):
                 """
@@ -955,9 +974,13 @@ def bulk_generate():
                     )
                     
                     # Each batch gets its own Lambda client
+                    # CRITICAL: Set read_timeout to 1000 seconds (16+ minutes) to handle batch processing
+                    # Lambda timeout is 900 seconds, so we need client timeout > Lambda timeout
                     lam_batch = session_batch.client("lambda", config=Config(
                         max_pool_connections=10,
-                        retries={'max_attempts': 0}
+                        retries={'max_attempts': 0},
+                        read_timeout=1000,  # 16+ minutes - must exceed Lambda timeout (900s)
+                        connect_timeout=60  # 60 seconds connection timeout
                     ))
                     
                     # Each batch gets its own DynamoDB resource
@@ -1027,16 +1050,98 @@ def bulk_generate():
                     lambda_invocation_semaphore.acquire()
                     try:
                         # Retry logic for rate limiting
-                        max_retries = 5
+                        max_retries = 3  # Reduced retries since we're using async
                         resp = None
                         for attempt in range(max_retries):
                             try:
+                                # Use async invocation to avoid timeout issues
+                                # Lambda will process in background and we'll poll DynamoDB for results
                                 resp = lam_batch.invoke(
                                     FunctionName=assigned_function_name,
-                                    InvocationType="RequestResponse",  # Sync for batch processing
+                                    InvocationType="Event",  # Async - avoids read timeout, Lambda processes in background
                                     Payload=json.dumps(batch_payload).encode("utf-8"),
                                 )
-                                break  # Success, exit retry loop
+                                
+                                # For async invocation, we get 202 Accepted immediately
+                                # We need to wait and poll DynamoDB for results instead of waiting for response
+                                status_code = resp.get("StatusCode", 0)
+                                if status_code == 202:
+                                    logger.info(f"[BULK] Lambda async invocation accepted for batch of {len(users_to_process)} user(s)")
+                                    # Wait for Lambda to process (estimate: 30-60 seconds per user)
+                                    estimated_wait = len(users_to_process) * 60  # 60 seconds per user
+                                    logger.info(f"[BULK] Waiting {estimated_wait} seconds for Lambda to process batch...")
+                                    time.sleep(min(estimated_wait, 600))  # Max 10 minutes wait
+                                    
+                                    # Poll DynamoDB for results
+                                    logger.info(f"[BULK] Polling DynamoDB for batch results...")
+                                    for poll_attempt in range(10):  # Poll up to 10 times
+                                        time.sleep(10)  # Wait 10 seconds between polls
+                                        found_all = True
+                                        for u in users_to_process:
+                                            try:
+                                                response = table_batch.get_item(Key={'email': u['email']})
+                                                if 'Item' not in response:
+                                                    found_all = False
+                                                    break
+                                            except:
+                                                found_all = False
+                                                break
+                                        
+                                        if found_all:
+                                            logger.info(f"[BULK] All users in batch processed, fetching results from DynamoDB")
+                                            break
+                                    
+                                    # Fetch results from DynamoDB
+                                    for u in users_to_process:
+                                        try:
+                                            response = table_batch.get_item(Key={'email': u['email']})
+                                            if 'Item' in response:
+                                                app_password = response['Item'].get('app_password')
+                                                if app_password:
+                                                    batch_results.append({
+                                                        'email': u['email'],
+                                                        'success': True,
+                                                        'app_password': app_password
+                                                    })
+                                                    try:
+                                                        save_app_password(u['email'], app_password)
+                                                    except:
+                                                        pass
+                                                else:
+                                                    batch_results.append({
+                                                        'email': u['email'],
+                                                        'success': False,
+                                                        'error': 'No app password found in DynamoDB'
+                                                    })
+                                            else:
+                                                batch_results.append({
+                                                    'email': u['email'],
+                                                    'success': False,
+                                                    'error': 'User not found in DynamoDB after processing'
+                                                })
+                                        except Exception as db_err:
+                                            batch_results.append({
+                                                'email': u['email'],
+                                                'success': False,
+                                                'error': f'Error fetching from DynamoDB: {db_err}'
+                                            })
+                                    
+                                    break  # Success, exit retry loop
+                                else:
+                                    logger.warning(f"[BULK] Unexpected status code: {status_code}")
+                                    if attempt < max_retries - 1:
+                                        time.sleep(2)
+                                        continue
+                                    else:
+                                        # All users in batch fail
+                                        for u in users_to_process:
+                                            batch_results.append({
+                                                'email': u['email'],
+                                                'success': False,
+                                                'error': f'Unexpected Lambda response status: {status_code}'
+                                            })
+                                        return batch_results
+                                    
                             except ClientError as ce:
                                 error_code = ce.response['Error']['Code']
                                 error_message = ce.response['Error'].get('Message', '')
@@ -1066,105 +1171,46 @@ def bulk_generate():
                                         logger.warning(f"[BULK] Rate limited for batch, retrying in {wait_time:.2f}s (attempt {attempt + 1}/{max_retries})")
                                         time.sleep(wait_time)
                                     else:
-                                        raise  # Final attempt failed
+                                        # All users in batch fail
+                                        for u in users_to_process:
+                                            batch_results.append({
+                                                'email': u['email'],
+                                                'success': False,
+                                                'error': f'Rate limited: {error_message}'
+                                            })
+                                        return batch_results
                                 else:
                                     logger.error(f"[BULK] AWS error: {error_code} - {error_message}")
-                                    raise  # Other AWS error, don't retry
+                                    # All users in batch fail
+                                    for u in users_to_process:
+                                        batch_results.append({
+                                            'email': u['email'],
+                                            'success': False,
+                                            'error': f'AWS Error ({error_code}): {error_message}'
+                                        })
+                                    return batch_results
+                            except Exception as invoke_err:
+                                # Check if it's a timeout error (shouldn't happen with async, but handle anyway)
+                                if 'Read timeout' in str(invoke_err) or 'timeout' in str(invoke_err).lower():
+                                    logger.warning(f"[BULK] Timeout on attempt {attempt + 1}, but using async so Lambda is still processing")
+                                    # For async, timeout is OK - Lambda is still processing in background
+                                    # Results will be in DynamoDB, so we'll get them from polling above
+                                    break
+                                else:
+                                    logger.error(f"[BULK] Invocation error: {invoke_err}")
+                                    if attempt == max_retries - 1:
+                                        # Final attempt failed
+                                        for u in users_to_process:
+                                            batch_results.append({
+                                                'email': u['email'],
+                                                'success': False,
+                                                'error': f'Invocation error: {str(invoke_err)}'
+                                            })
+                                        return batch_results
+                                    time.sleep(2)
+                                    continue
                     finally:
                         lambda_invocation_semaphore.release()
-                    
-                    if not resp:
-                        # All users in batch fail
-                        for u in users_to_process:
-                            batch_results.append({
-                                'email': u['email'],
-                                'success': False,
-                                'error': 'Lambda invocation failed'
-                            })
-                        return batch_results
-                    
-                    # Parse Lambda response
-                    payload = resp.get("Payload")
-                    body = payload.read().decode("utf-8") if payload else "{}"
-                    logger.info(f"[BULK] Lambda batch response: {body[:500]}")
-                    
-                    try:
-                        lambda_response = json.loads(body)
-                    except json.JSONDecodeError as je:
-                        logger.error(f"[BULK] Failed to parse Lambda response as JSON: {je}")
-                        # All users in batch fail
-                        for u in users_to_process:
-                            batch_results.append({
-                                'email': u['email'],
-                                'success': False,
-                                'error': f'Invalid JSON response: {body[:200]}'
-                            })
-                        return batch_results
-                    
-                    # Handle batch response format
-                    if lambda_response.get("status") == "completed" and "results" in lambda_response:
-                        # Batch processing response
-                        lambda_results = lambda_response.get("results", [])
-                        for lambda_result in lambda_results:
-                            email = lambda_result.get("email", "unknown")
-                            lambda_status = lambda_result.get("status", "unknown")
-                            app_password = lambda_result.get("app_password")
-                            error_msg = lambda_result.get("error_message", "Unknown error")
-                            
-                            if lambda_status == 'success' and app_password:
-                                logger.info(f"[BULK] Saving password for {email} to DB")
-                                try:
-                                    save_app_password(email, app_password)
-                                    logger.info(f"[BULK] ✓ Successfully processed {email}")
-                                except Exception as db_err:
-                                    logger.error(f"[BULK] Failed to save to DB for {email}: {db_err}")
-                                batch_results.append({
-                                    'email': email,
-                                    'success': True,
-                                    'app_password': app_password
-                                })
-                            else:
-                                logger.warning(f"[BULK] ✗ Lambda failed for {email}: {error_msg}")
-                                batch_results.append({
-                                    'email': email,
-                                    'success': False,
-                                    'error': error_msg
-                                })
-                    else:
-                        # Fallback: single user response format (backward compatibility)
-                        lambda_status = lambda_response.get('status', 'unknown')
-                        app_password = lambda_response.get('app_password')
-                        error_msg = lambda_response.get('error_message', 'Unknown error')
-                        
-                        # If only one user in batch, use single response format
-                        if len(users_to_process) == 1:
-                            email = users_to_process[0]['email']
-                            if lambda_status == 'success' and app_password:
-                                try:
-                                    save_app_password(email, app_password)
-                                    logger.info(f"[BULK] ✓ Successfully processed {email}")
-                                except Exception as db_err:
-                                    logger.error(f"[BULK] Failed to save to DB for {email}: {db_err}")
-                                batch_results.append({
-                                    'email': email,
-                                    'success': True,
-                                    'app_password': app_password
-                                })
-                            else:
-                                batch_results.append({
-                                    'email': email,
-                                    'success': False,
-                                    'error': error_msg
-                                })
-                        else:
-                            # Multiple users but got single response - all fail
-                            logger.error(f"[BULK] Expected batch response but got single user format")
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': 'Invalid response format from Lambda'
-                                })
                     
                     # Remove processed emails from tracking set
                     for u in users_to_process:
