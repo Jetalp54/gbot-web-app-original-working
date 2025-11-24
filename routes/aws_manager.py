@@ -274,6 +274,91 @@ def create_dynamodb_table():
 
 @aws_manager.route('/api/aws/create-infrastructure', methods=['POST'])
 @login_required
+def ensure_user_s3_permissions(session):
+    """Ensure the IAM user or role (associated with the access key) has S3 permissions for bucket operations"""
+    try:
+        # Get the IAM user/role name from the access key
+        sts = session.client("sts")
+        caller_identity = sts.get_caller_identity()
+        user_arn = caller_identity.get("Arn", "")
+        
+        iam = session.client("iam")
+        s3_full_access_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+        
+        # Extract user/role name from ARN (format: arn:aws:iam::ACCOUNT:user/USERNAME or arn:aws:iam::ACCOUNT:role/ROLENAME)
+        if ":user/" in user_arn:
+            user_name = user_arn.split(":user/")[-1]
+            
+            # Check if user already has AmazonS3FullAccess policy
+            try:
+                attached_policies = iam.list_attached_user_policies(UserName=user_name)
+                policy_arns = [p['PolicyArn'] for p in attached_policies.get('AttachedPolicies', [])]
+                
+                if s3_full_access_arn in policy_arns:
+                    logger.info(f"[IAM] User {user_name} already has AmazonS3FullAccess policy attached")
+                    return True
+                
+                # Attach AmazonS3FullAccess policy to the user
+                logger.info(f"[IAM] Attaching AmazonS3FullAccess policy to user {user_name}...")
+                iam.attach_user_policy(
+                    UserName=user_name,
+                    PolicyArn=s3_full_access_arn
+                )
+                logger.info(f"[IAM] ✓ Successfully attached AmazonS3FullAccess policy to user {user_name}")
+                time.sleep(2)  # Wait for propagation
+                return True
+                
+            except iam.exceptions.NoSuchEntityException:
+                logger.warning(f"[IAM] User {user_name} not found. Cannot attach S3 permissions.")
+                return False
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', '')
+                if error_code == 'AccessDenied':
+                    logger.warning(f"[IAM] Access denied when trying to attach S3 policy to user {user_name}. User may need admin permissions.")
+                    return False
+                raise e
+                
+        elif ":role/" in user_arn:
+            # Handle IAM role
+            role_name = user_arn.split(":role/")[-1].split("/")[-1]  # Handle role paths like role/path/name
+            
+            # Check if role already has AmazonS3FullAccess policy
+            try:
+                attached_policies = iam.list_attached_role_policies(RoleName=role_name)
+                policy_arns = [p['PolicyArn'] for p in attached_policies.get('AttachedPolicies', [])]
+                
+                if s3_full_access_arn in policy_arns:
+                    logger.info(f"[IAM] Role {role_name} already has AmazonS3FullAccess policy attached")
+                    return True
+                
+                # Attach AmazonS3FullAccess policy to the role
+                logger.info(f"[IAM] Attaching AmazonS3FullAccess policy to role {role_name}...")
+                iam.attach_role_policy(
+                    RoleName=role_name,
+                    PolicyArn=s3_full_access_arn
+                )
+                logger.info(f"[IAM] ✓ Successfully attached AmazonS3FullAccess policy to role {role_name}")
+                time.sleep(2)  # Wait for propagation
+                return True
+                
+            except iam.exceptions.NoSuchEntityException:
+                logger.warning(f"[IAM] Role {role_name} not found. Cannot attach S3 permissions.")
+                return False
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', '')
+                if error_code == 'AccessDenied':
+                    logger.warning(f"[IAM] Access denied when trying to attach S3 policy to role {role_name}. Role may need admin permissions.")
+                    return False
+                raise e
+        else:
+            logger.warning(f"[IAM] Could not determine IAM user/role from ARN: {user_arn}")
+            return False
+            
+    except Exception as e:
+        logger.warning(f"[IAM] Could not ensure S3 permissions: {e}")
+        logger.warning(f"[IAM] You may need to manually attach AmazonS3FullAccess policy to your IAM user/role")
+        return False
+
 def create_infrastructure():
     """Create core AWS infrastructure (IAM, ECR, S3)"""
     try:
@@ -287,11 +372,16 @@ def create_infrastructure():
 
         session = get_boto3_session(access_key, secret_key, region)
         
-        # Create IAM role
+        # Ensure user's IAM user has S3 permissions for bucket operations
+        logger.info("[INFRA] Ensuring IAM user has S3 permissions...")
+        ensure_user_s3_permissions(session)
+        
+        # Create IAM role for Lambda
         lambda_policies = [
             "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
             "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
             "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+            "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess",  # For app password storage
         ]
         role_arn = create_iam_role(session, LAMBDA_ROLE_NAME, "lambda.amazonaws.com", lambda_policies)
 
@@ -304,7 +394,7 @@ def create_infrastructure():
         return jsonify({
             'success': True,
             'role_arn': role_arn,
-            'message': 'Infrastructure setup completed.'
+            'message': 'Infrastructure setup completed. S3 permissions have been ensured for your IAM user.'
         })
     except Exception as e:
         logger.error(f"Error creating infrastructure: {e}")
