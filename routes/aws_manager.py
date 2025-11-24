@@ -1248,7 +1248,7 @@ def create_lambdas():
                             logger.warning(f"[LAMBDA] [{geo}] Using fallback role ARN: {geo_role_arn}")
                         
                         # Create each function in this geo
-                        geo_success = 0
+                        # Re-initialize counters (they were initialized at function start but need to be here too)
                         geo_failures = []
                         for func_num, function_name in func_list:
                             try:
@@ -1263,7 +1263,6 @@ def create_lambdas():
                                     image_uri=geo_ecr_uri,
                                 )
                                 logger.info(f"[LAMBDA] [{geo}] ✓✓✓ SUCCESS: Created/Updated Lambda: {function_name}")
-                                success_count += 1
                                 geo_success += 1
                                 update_job_status()
                                 
@@ -1279,7 +1278,7 @@ def create_lambdas():
                                 error_msg = str(func_error)
                                 logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED to create/update {function_name}: {error_msg}")
                                 logger.error(traceback.format_exc())
-                                failure_count += 1
+                                geo_failure += 1
                                 geo_failures.append(f"{function_name}: {error_msg}")
                                 update_job_status()
                         
