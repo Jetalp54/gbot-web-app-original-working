@@ -1799,7 +1799,7 @@ def bulk_generate():
                 # Example: 17 functions, 23 geos → 1 function per geo (first 17 geos get 1 function each)
                 # Example: 50 functions, 23 geos → ~2-3 functions per geo (distributed evenly)
                 functions_per_geo = {}  # {geo: [list of function_numbers]}
-            
+                
                 for func_num in range(num_functions):
                     # Round-robin distribution: function 0 → geo 0, function 1 → geo 1, etc.
                     geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
@@ -1817,7 +1817,7 @@ def bulk_generate():
                 for geo, func_numbers in sorted(functions_per_geo.items()):
                     logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
                 logger.info("=" * 60)
-            
+                
                 # Split users into batches of 10, assigning each batch to a function
                 # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
                 user_batches = []  # List of (function_number, geo, user_batch) tuples
@@ -1835,10 +1835,10 @@ def bulk_generate():
                         logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
                     else:
                         logger.warning(f"[BULK] Function {func_num + 1} has empty batch (start_idx={start_idx}, end_idx={end_idx}, total_users={total_users})")
-            
+                
                 # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
                 USERS_PER_BATCH = 10
-            
+                
                 def process_user_batch_sync(user_batch, assigned_function_name, lambda_region=None):
                     """
                     Process a batch of up to 10 users synchronously (wait for completion).
