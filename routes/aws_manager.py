@@ -272,8 +272,6 @@ def create_dynamodb_table():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@aws_manager.route('/api/aws/create-infrastructure', methods=['POST'])
-@login_required
 def ensure_user_s3_permissions(session):
     """Ensure the IAM user or role (associated with the access key) has S3 permissions for bucket operations"""
     try:
@@ -359,6 +357,8 @@ def ensure_user_s3_permissions(session):
         logger.warning(f"[IAM] You may need to manually attach AmazonS3FullAccess policy to your IAM user/role")
         return False
 
+@aws_manager.route('/api/aws/create-infrastructure', methods=['POST'])
+@login_required
 def create_infrastructure():
     """Create core AWS infrastructure (IAM, ECR, S3)"""
     try:
