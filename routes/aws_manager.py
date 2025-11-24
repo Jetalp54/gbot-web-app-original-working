@@ -1107,10 +1107,17 @@ def create_lambdas():
             
             try:
                 logger.info("=" * 60)
-                logger.info(f"[LAMBDA] Starting background Lambda creation across {len(functions_by_geo_dict)} geo(s)")
+                logger.info(f"[LAMBDA] Starting PARALLEL Lambda creation across {len(functions_by_geo_dict)} geo(s)")
                 logger.info("=" * 60)
                 
-                for geo, func_list in functions_by_geo_dict.items():
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                
+                def create_functions_in_geo(geo, func_list):
+                    """Create Lambda functions in a specific geo region (thread-safe)"""
+                    geo_errors = []
+                    geo_success = 0
+                    geo_failure = 0
+                    
                     logger.info(f"[LAMBDA] [{geo}] ===== Starting creation of {len(func_list)} function(s) in region {geo} =====")
                     
                     try:
@@ -1129,9 +1136,14 @@ def create_lambdas():
                             logger.info(f"[LAMBDA] [{geo}] ✓ Credentials verified. Account: {identity.get('Account')}")
                         except Exception as sts_err:
                             logger.error(f"[LAMBDA] [{geo}] ✗ Credential verification failed: {sts_err}")
-                            errors_by_geo[geo] = f"Credential verification failed: {sts_err}"
-                            failure_count += len(func_list)
-                            continue
+                            geo_errors.append(f"Credential verification failed: {sts_err}")
+                            geo_failure = len(func_list)
+                            return {
+                                'geo': geo,
+                                'success_count': 0,
+                                'failure_count': geo_failure,
+                                'errors': geo_errors
+                            }
                         
                         # CRITICAL: ECR repositories are region-specific.
                         # Lambda CANNOT pull ECR images from other regions directly.
@@ -1158,9 +1170,14 @@ def create_lambdas():
                                 logger.warning(f"[LAMBDA] [{geo}] Could not parse ECR URI, using account ID from STS: {account_id}")
                         except Exception as parse_err:
                             logger.error(f"[LAMBDA] [{geo}] Could not parse ECR URI or get account ID: {parse_err}")
-                            errors_by_geo[geo] = f"Could not determine ECR configuration: {parse_err}"
-                            failure_count += len(func_list)
-                            continue
+                            geo_errors.append(f"Could not determine ECR configuration: {parse_err}")
+                            geo_failure = len(func_list)
+                            return {
+                                'geo': geo,
+                                'success_count': 0,
+                                'failure_count': geo_failure,
+                                'errors': geo_errors
+                            }
                         
                         # If target geo is the same as base region, use the base ECR URI directly
                         if geo == base_region:
@@ -1188,19 +1205,34 @@ def create_lambdas():
                                     logger.error(f"[LAMBDA] [{geo}]   2. docker tag {base_ecr_uri} {geo_ecr_uri}")
                                     logger.error(f"[LAMBDA] [{geo}]   3. aws ecr get-login-password --region {geo} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{geo}.amazonaws.com")
                                     logger.error(f"[LAMBDA] [{geo}]   4. docker push {geo_ecr_uri}")
-                                    errors_by_geo[geo] = f"ECR image not found in {geo}. Lambda cannot pull images cross-region. Push image to {geo} first."
-                                    failure_count += len(func_list)
-                                    continue
+                                    geo_errors.append(f"ECR image not found in {geo}. Lambda cannot pull images cross-region. Push image to {geo} first.")
+                                    geo_failure = len(func_list)
+                                    return {
+                                        'geo': geo,
+                                        'success_count': 0,
+                                        'failure_count': geo_failure,
+                                        'errors': geo_errors
+                                    }
                                 else:
                                     logger.error(f"[LAMBDA] [{geo}] ✗ ECR check failed: {error_code} - {ecr_err}")
-                                    errors_by_geo[geo] = f"ECR access failed: {error_code}"
-                                    failure_count += len(func_list)
-                                    continue
+                                    geo_errors.append(f"ECR access failed: {error_code}")
+                                    geo_failure = len(func_list)
+                                    return {
+                                        'geo': geo,
+                                        'success_count': 0,
+                                        'failure_count': geo_failure,
+                                        'errors': geo_errors
+                                    }
                             except Exception as ecr_check_err:
                                 logger.error(f"[LAMBDA] [{geo}] ✗ ECR verification error: {ecr_check_err}")
-                                errors_by_geo[geo] = f"ECR verification failed: {ecr_check_err}"
-                                failure_count += len(func_list)
-                                continue
+                                geo_errors.append(f"ECR verification failed: {ecr_check_err}")
+                                geo_failure = len(func_list)
+                                return {
+                                    'geo': geo,
+                                    'success_count': 0,
+                                    'failure_count': geo_failure,
+                                    'errors': geo_errors
+                                }
                         
                         logger.info(f"[LAMBDA] [{geo}] ✓ Using ECR URI: {geo_ecr_uri}")
                         
@@ -1252,7 +1284,7 @@ def create_lambdas():
                                 update_job_status()
                         
                         if geo_failures:
-                            errors_by_geo[geo] = geo_failures
+                            geo_errors = geo_failures
                         
                         logger.info(f"[LAMBDA] [{geo}] ===== Completed: {geo_success}/{len(func_list)} success, {len(geo_failures)} failed =====")
                         
@@ -1260,8 +1292,43 @@ def create_lambdas():
                         error_msg = str(geo_error)
                         logger.error(f"[LAMBDA] [{geo}] ✗✗✗ CRITICAL ERROR processing geo {geo}: {error_msg}")
                         logger.error(traceback.format_exc())
-                        errors_by_geo[geo] = f"Geo processing failed: {error_msg}"
-                        failure_count += len(func_list)
+                        geo_errors.append(f"Geo processing failed: {error_msg}")
+                        geo_failure = len(func_list)
+                    
+                    return {
+                        'geo': geo,
+                        'success_count': geo_success,
+                        'failure_count': geo_failure,
+                        'errors': geo_errors
+                    }
+                
+                # Execute Lambda creation in parallel across all geos
+                max_workers = min(len(functions_by_geo_dict), 10)  # Up to 10 regions in parallel
+                logger.info(f"[LAMBDA] Using ThreadPoolExecutor with {max_workers} workers for {len(functions_by_geo_dict)} regions")
+                
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    # Submit all geo creation tasks
+                    future_to_geo = {
+                        executor.submit(create_functions_in_geo, geo, func_list): geo
+                        for geo, func_list in functions_by_geo_dict.items()
+                    }
+                    
+                    # Process results as they complete
+                    for future in as_completed(future_to_geo):
+                        geo = future_to_geo[future]
+                        try:
+                            result = future.result()
+                            success_count += result['success_count']
+                            failure_count += result['failure_count']
+                            if result['errors']:
+                                errors_by_geo[result['geo']] = result['errors']
+                            logger.info(f"[LAMBDA] [{geo}] Thread completed: {result['success_count']} success, {result['failure_count']} failures")
+                            update_job_status()
+                        except Exception as thread_err:
+                            logger.error(f"[LAMBDA] [{geo}] Thread execution error: {thread_err}")
+                            logger.error(traceback.format_exc())
+                            errors_by_geo[geo] = f"Thread execution error: {thread_err}"
+                            failure_count += len(functions_by_geo_dict[geo])
                 
                 logger.info("=" * 60)
                 logger.info(f"[LAMBDA] Background Lambda creation completed")
