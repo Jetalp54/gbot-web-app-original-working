@@ -50,10 +50,17 @@ _dynamodb_resource = None
 _s3_client = None
 
 def get_dynamodb_resource():
-    """Get or create DynamoDB resource (reused across invocations)"""
+    """Get or create DynamoDB resource (reused across invocations)
+    Uses a fixed region (eu-west-1) so all Lambda functions save to the same table
+    This saves resources by having 1 table instead of 1 per region
+    """
     global _dynamodb_resource
     if _dynamodb_resource is None:
-        _dynamodb_resource = boto3.resource("dynamodb")
+        # Use fixed region for DynamoDB - all Lambda functions save to same table
+        # This saves resources (1 table instead of 17 tables)
+        dynamodb_region = os.environ.get("DYNAMODB_REGION", "eu-west-1")
+        _dynamodb_resource = boto3.resource("dynamodb", region_name=dynamodb_region)
+        logger.info(f"[DYNAMODB] Using DynamoDB region: {dynamodb_region} (centralized storage)")
     return _dynamodb_resource
 
 def get_s3_client():
@@ -1571,11 +1578,14 @@ def generate_app_password(driver, email):
 def ensure_dynamodb_table_exists(table_name="gbot-app-passwords"):
     """
     Ensure DynamoDB table exists. Creates it if it doesn't exist.
+    Uses a fixed region (eu-west-1) so all Lambda functions use the same table.
     Returns True if table exists or was created, False on error.
     Note: Table creation is asynchronous, so we don't wait for it to be active.
     """
     try:
-        dynamodb_client = boto3.client("dynamodb")
+        # Use fixed region for DynamoDB - centralized storage
+        dynamodb_region = os.environ.get("DYNAMODB_REGION", "eu-west-1")
+        dynamodb_client = boto3.client("dynamodb", region_name=dynamodb_region)
         
         # Check if table exists
         try:

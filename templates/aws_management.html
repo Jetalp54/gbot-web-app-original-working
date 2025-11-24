@@ -237,9 +237,13 @@
                                 <i class="fas fa-trash-alt"></i>
                                 Delete ECR Repository
                             </button>
-                            <button class="btn-github" onclick="deleteCloudWatchLogs()" style="width: 100%;">
+                            <button class="btn-github" onclick="deleteCloudWatchLogs()" style="width: 100%; margin-bottom: var(--spacing-sm);">
                                 <i class="fas fa-trash-alt"></i>
                                 Delete CloudWatch Logs
+                            </button>
+                            <button class="btn-github" onclick="deleteDynamoDBTable()" style="width: 100%;">
+                                <i class="fas fa-database"></i>
+                                Delete DynamoDB Table
                             </button>
                         </div>
                     </div>
@@ -1466,6 +1470,51 @@
                 alert(`Deleted ${data.deleted_count} log groups`);
             } else {
                 log(`ERROR deleting CloudWatch logs: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Delete DynamoDB Table
+    function deleteDynamoDBTable() {
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
+
+        if (!confirm('Are you sure you want to delete the DynamoDB table "gbot-app-passwords" across all regions? This will delete ALL stored app passwords. This action cannot be undone.')) {
+            return;
+        }
+
+        log('Deleting DynamoDB table across all regions...');
+
+        fetch('/api/aws/delete-dynamodb-table', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`DynamoDB table cleanup completed. Deleted: ${data.deleted_count}, Not found: ${data.not_found_regions?.length || 0}, Errors: ${data.error_count}`);
+                if (data.deleted_regions && data.deleted_regions.length > 0) {
+                    log(`Deleted in regions: ${data.deleted_regions.join(', ')}`);
+                }
+                if (data.error_regions && data.error_regions.length > 0) {
+                    log(`Errors in regions: ${data.error_regions.join(', ')}`);
+                }
+                alert(`DynamoDB cleanup completed. Deleted: ${data.deleted_count} table(s)`);
+            } else {
+                log(`ERROR deleting DynamoDB table: ${data.error}`);
                 alert(`Error: ${data.error}`);
             }
         })

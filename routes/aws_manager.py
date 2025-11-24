@@ -1108,8 +1108,10 @@ def create_lambdas():
         role_arn = ensure_lambda_role(session)
 
         # Environment variables (removed SFTP)
+        # Use centralized DynamoDB in eu-west-1 (all Lambda functions save to same table)
         chromium_env = {
             "DYNAMODB_TABLE_NAME": "gbot-app-passwords",  # DynamoDB table for password storage
+            "DYNAMODB_REGION": "eu-west-1",  # Centralized region - all Lambda functions use this
             "APP_PASSWORDS_S3_BUCKET": s3_bucket,
             "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
         }
@@ -2316,6 +2318,7 @@ def bulk_generate():
                                 role_arn = ensure_lambda_role(session_boto)
                                 chromium_env = {
                                     "DYNAMODB_TABLE_NAME": "gbot-app-passwords",
+                                    "DYNAMODB_REGION": "eu-west-1",  # Centralized region - all Lambda functions use this
                                     "APP_PASSWORDS_S3_BUCKET": S3_BUCKET_NAME,
                                     "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
                                 }
@@ -2514,7 +2517,9 @@ def get_job_status(job_id):
 @aws_manager.route('/api/aws/fetch-from-dynamodb', methods=['POST'])
 @login_required
 def fetch_from_dynamodb():
-    """Fetch app passwords from DynamoDB for specific users"""
+    """Fetch app passwords from DynamoDB for specific users
+    Uses centralized DynamoDB table in eu-west-1 (all Lambda functions save to same table)
+    """
     try:
         data = request.get_json()
         access_key = data.get('access_key', '').strip()
@@ -2528,14 +2533,20 @@ def fetch_from_dynamodb():
         if not emails:
             return jsonify({'success': False, 'error': 'No emails provided'}), 400
         
-        session = get_boto3_session(access_key, secret_key, region)
-        dynamodb = session.resource('dynamodb')
+        # Centralized DynamoDB region - all Lambda functions save to this single table
+        # This saves resources (1 table instead of 17 tables)
+        dynamodb_region = "eu-west-1"  # Fixed region for centralized storage
         table_name = "gbot-app-passwords"
+        
+        logger.info(f"[DYNAMODB] Fetching {len(emails)} email(s) from DynamoDB in {dynamodb_region} (centralized storage)...")
+        
+        session = get_boto3_session(access_key, secret_key, dynamodb_region)
+        dynamodb = session.resource('dynamodb')
         
         try:
             table = dynamodb.Table(table_name)
         except Exception as e:
-            return jsonify({'success': False, 'error': f'DynamoDB table {table_name} not found: {e}'}), 404
+            return jsonify({'success': False, 'error': f'DynamoDB table {table_name} not found in {dynamodb_region}: {e}'}), 404
         
         results = []
         for email in emails:
@@ -2557,6 +2568,7 @@ def fetch_from_dynamodb():
                         'email': item['email'],
                         'app_password': app_password,
                         'created_at': item.get('created_at', ''),
+                        'region': dynamodb_region,
                         'success': True
                     })
                 else:
@@ -2574,7 +2586,18 @@ def fetch_from_dynamodb():
                     'success': False
                 })
         
-        return jsonify({'success': True, 'results': results})
+        success_count = sum(1 for r in results if r.get('success'))
+        logger.info(f"[DYNAMODB] Fetch complete: {success_count}/{len(emails)} found")
+        
+        return jsonify({
+            'success': True, 
+            'results': results,
+            'summary': {
+                'total': len(emails),
+                'found': success_count,
+                'not_found': len(emails) - success_count
+            }
+        })
     except Exception as e:
         logger.error(f"Error fetching from DynamoDB: {e}")
         traceback.print_exc()
