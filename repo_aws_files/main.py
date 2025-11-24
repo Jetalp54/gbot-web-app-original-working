@@ -1769,6 +1769,14 @@ def handler(event, context):
                     "secret_key": None
                 }
             
+            # Stagger Chrome initialization to avoid resource contention
+            # Each thread waits a bit before starting to spread out resource usage
+            # This prevents all Chrome instances from initializing at exactly the same time
+            stagger_delay = idx * 1.0  # 1 second between each Chrome start
+            if stagger_delay > 0:
+                logger.info(f"[LAMBDA] [THREAD] Staggering Chrome start for user {idx + 1}: waiting {stagger_delay}s")
+                time.sleep(stagger_delay)
+            
             logger.info(f"[LAMBDA] [THREAD] Starting parallel processing of user {idx + 1}/{len(users_batch)}: {email}")
             try:
                 user_result = process_single_user(email, password, start_time)
@@ -1785,9 +1793,14 @@ def handler(event, context):
                     "secret_key": None
                 }
         
-        # Use ThreadPoolExecutor to process all users in parallel
-        # Each thread will create its own Chrome driver instance
-        with ThreadPoolExecutor(max_workers=len(users_batch)) as executor:
+        # Use ThreadPoolExecutor to process users in parallel
+        # Limit concurrent workers to avoid resource exhaustion in Lambda
+        # Each Chrome instance uses ~200-300 MB, so 3 concurrent instances is safe for 2048 MB Lambda
+        # Running more than 3 simultaneously causes renderer timeouts due to resource contention
+        max_concurrent = min(3, len(users_batch))  # Max 3 concurrent Chrome instances
+        logger.info(f"[LAMBDA] Using {max_concurrent} concurrent workers for {len(users_batch)} users (to avoid resource exhaustion)")
+        
+        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             # Submit all tasks
             future_to_user = {
                 executor.submit(process_user_wrapper, user_data, idx): (idx, user_data)
