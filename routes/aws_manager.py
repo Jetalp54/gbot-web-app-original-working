@@ -459,11 +459,26 @@ def generate_ecr_push_script():
         
         # Get all available regions (only active regions)
         AVAILABLE_GEO_REGIONS = [
+            # US
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'ap-south-1', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ca-central-1',
+            # Africa
+            'af-south-1',
+            # Asia Pacific
+            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
+            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
+            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3',
+            'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            # Canada
+            'ca-central-1', 'ca-west-1',
+            # Europe
             'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'sa-east-1',
+            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            # Mexico
+            'mx-central-1',
+            # Middle East
+            'me-south-1', 'me-central-1', 'il-central-1',
+            # South America
+            'sa-east-1',
         ]
         
         target_regions = [r for r in AVAILABLE_GEO_REGIONS if r != source_region]
@@ -587,11 +602,26 @@ def push_ecr_to_all_regions():
         
         # Get all available AWS regions
         AVAILABLE_GEO_REGIONS = [
+            # US
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'ap-south-1', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ca-central-1',
+            # Africa
+            'af-south-1',
+            # Asia Pacific
+            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
+            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
+            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3',
+            'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            # Canada
+            'ca-central-1', 'ca-west-1',
+            # Europe
             'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'sa-east-1',
+            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            # Mexico
+            'mx-central-1',
+            # Middle East
+            'me-south-1', 'me-central-1', 'il-central-1',
+            # South America
+            'sa-east-1',
         ]
         
         # Filter out source region (already has the image)
@@ -1128,22 +1158,46 @@ def create_lambdas():
 
         # Get all available AWS regions (geos) for distribution
         AVAILABLE_GEO_REGIONS = [
+            # US
             'us-east-1',      # US East (N. Virginia)
             'us-east-2',      # US East (Ohio)
             'us-west-1',      # US West (N. California)
             'us-west-2',      # US West (Oregon)
+            # Africa
+            'af-south-1',     # Africa (Cape Town)
+            # Asia Pacific
+            'ap-east-1',      # Asia Pacific (Hong Kong)
+            'ap-east-2',      # Asia Pacific (Taipei)
             'ap-south-1',     # Asia Pacific (Mumbai)
+            'ap-south-2',     # Asia Pacific (Hyderabad)
             'ap-northeast-1', # Asia Pacific (Tokyo)
             'ap-northeast-2', # Asia Pacific (Seoul)
             'ap-northeast-3', # Asia Pacific (Osaka)
             'ap-southeast-1', # Asia Pacific (Singapore)
             'ap-southeast-2', # Asia Pacific (Sydney)
+            'ap-southeast-3', # Asia Pacific (Jakarta)
+            'ap-southeast-4', # Asia Pacific (Melbourne)
+            'ap-southeast-5', # Asia Pacific (Malaysia)
+            'ap-southeast-6', # Asia Pacific (New Zealand)
+            'ap-southeast-7', # Asia Pacific (Thailand)
+            # Canada
             'ca-central-1',   # Canada (Central)
+            'ca-west-1',     # Canada (Calgary)
+            # Europe
             'eu-central-1',   # Europe (Frankfurt)
             'eu-west-1',      # Europe (Ireland)
             'eu-west-2',      # Europe (London)
             'eu-west-3',      # Europe (Paris)
             'eu-north-1',     # Europe (Stockholm)
+            'eu-south-1',     # Europe (Milan)
+            'eu-south-2',     # Europe (Spain)
+            # Mexico
+            'mx-central-1',  # Mexico (Central)
+            # Middle East
+            'me-south-1',     # Middle East (Bahrain)
+            'me-central-1',   # Middle East (UAE)
+            'il-central-1',   # Middle East (Israel Tel Aviv)
+            # South America
             'sa-east-1',      # South America (São Paulo)
         ]
         
@@ -1934,22 +1988,46 @@ def bulk_generate():
                 # Get all available AWS regions (geos)
                 # These are all AWS regions where Lambda can be deployed
                 AVAILABLE_GEO_REGIONS = [
+                    # US
                     'us-east-1',      # US East (N. Virginia)
                     'us-east-2',      # US East (Ohio)
                     'us-west-1',      # US West (N. California)
                     'us-west-2',      # US West (Oregon)
+                    # Africa
+                    'af-south-1',     # Africa (Cape Town)
+                    # Asia Pacific
+                    'ap-east-1',      # Asia Pacific (Hong Kong)
+                    'ap-east-2',      # Asia Pacific (Taipei)
                     'ap-south-1',     # Asia Pacific (Mumbai)
+                    'ap-south-2',     # Asia Pacific (Hyderabad)
                     'ap-northeast-1', # Asia Pacific (Tokyo)
                     'ap-northeast-2', # Asia Pacific (Seoul)
                     'ap-northeast-3', # Asia Pacific (Osaka)
                     'ap-southeast-1', # Asia Pacific (Singapore)
                     'ap-southeast-2', # Asia Pacific (Sydney)
+                    'ap-southeast-3', # Asia Pacific (Jakarta)
+                    'ap-southeast-4', # Asia Pacific (Melbourne)
+                    'ap-southeast-5', # Asia Pacific (Malaysia)
+                    'ap-southeast-6', # Asia Pacific (New Zealand)
+                    'ap-southeast-7', # Asia Pacific (Thailand)
+                    # Canada
                     'ca-central-1',   # Canada (Central)
+                    'ca-west-1',     # Canada (Calgary)
+                    # Europe
                     'eu-central-1',   # Europe (Frankfurt)
                     'eu-west-1',      # Europe (Ireland)
                     'eu-west-2',      # Europe (London)
                     'eu-west-3',      # Europe (Paris)
                     'eu-north-1',     # Europe (Stockholm)
+                    'eu-south-1',     # Europe (Milan)
+                    'eu-south-2',     # Europe (Spain)
+                    # Mexico
+                    'mx-central-1',  # Mexico (Central)
+                    # Middle East
+                    'me-south-1',     # Middle East (Bahrain)
+                    'me-central-1',   # Middle East (UAE)
+                    'il-central-1',   # Middle East (Israel Tel Aviv)
+                    # South America
                     'sa-east-1',      # South America (São Paulo)
                 ]
                 
@@ -2282,7 +2360,11 @@ def bulk_generate():
                     Creates Lambda functions as needed and processes them one at a time.
                     Waits for each function to complete before starting the next.
                     """
-                    logger.info(f"[BULK] [{geo}] Starting sequential processing: {len(geo_batches_list)} function(s)")
+                    logger.info("=" * 60)
+                    logger.info(f"[BULK] [{geo}] ===== STARTING SEQUENTIAL PROCESSING =====")
+                    logger.info(f"[BULK] [{geo}] Total functions to process: {len(geo_batches_list)}")
+                    logger.info(f"[BULK] [{geo}] Function numbers: {[func_num for func_num, _ in geo_batches_list]}")
+                    logger.info("=" * 60)
                 
                     # Create boto3 session for this geo (use the geo's region)
                     try:
@@ -2305,7 +2387,12 @@ def bulk_generate():
                     # Process each batch sequentially
                     geo_results = []
                     for batch_idx, (func_num, batch_users) in enumerate(geo_batches_list):
-                        logger.info(f"[BULK] [{geo}] Processing function {func_num}/{len(geo_batches_list)} ({len(batch_users)} user(s))")
+                        logger.info("=" * 60)
+                        logger.info(f"[BULK] [{geo}] ===== FUNCTION {batch_idx + 1}/{len(geo_batches_list)} =====")
+                        logger.info(f"[BULK] [{geo}] Function number: {func_num}")
+                        logger.info(f"[BULK] [{geo}] Users in batch: {len(batch_users)}")
+                        logger.info(f"[BULK] [{geo}] User emails: {[u['email'] for u in batch_users[:5]]}{'...' if len(batch_users) > 5 else ''}")
+                        logger.info("=" * 60)
                     
                         # Generate function name: edu-gw-chromium-{geo_code}-{func_num}
                         geo_code = geo.replace('-', '')  # Remove dashes: us-east-1 -> useast1
@@ -2365,11 +2452,45 @@ def bulk_generate():
                                 # Fall back to default function
                                 func_name = PRODUCTION_LAMBDA_NAME
                     
+                        # Verify function exists before invoking
+                        try:
+                            lam_client.get_function(FunctionName=func_name)
+                            logger.info(f"[BULK] [{geo}] ✓ Verified function exists: {func_name}")
+                        except ClientError as check_err:
+                            if check_err.response['Error']['Code'] == 'ResourceNotFoundException':
+                                logger.error(f"[BULK] [{geo}] ✗ Function {func_name} NOT FOUND in region {geo}!")
+                                logger.error(f"[BULK] [{geo}] Available functions in {geo}: {existing_function_names}")
+                                # Mark all users as failed and continue to next function
+                                for u in batch_users:
+                                    geo_results.append({
+                                        'email': u['email'],
+                                        'success': False,
+                                        'error': f'Lambda function {func_name} not found in region {geo}'
+                                    })
+                                logger.warning(f"[BULK] [{geo}] Skipping function {func_num} and continuing to next...")
+                                continue
+                            else:
+                                logger.warning(f"[BULK] [{geo}] Could not verify function existence: {check_err}, proceeding anyway...")
+                        
                         # Process this batch synchronously (wait for completion)
                         # Use the geo's region for Lambda client
                         logger.info(f"[BULK] [{geo}] About to process batch with {len(batch_users)} user(s): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
-                        batch_results = process_user_batch_sync(batch_users, func_name, lambda_region=geo)
-                        geo_results.extend(batch_results)
+                        logger.info(f"[BULK] [{geo}] Invoking Lambda function: {func_name} in region: {geo}")
+                        try:
+                            batch_results = process_user_batch_sync(batch_users, func_name, lambda_region=geo)
+                            geo_results.extend(batch_results)
+                            logger.info(f"[BULK] [{geo}] ✓ Function {func_num} completed: {sum(1 for r in batch_results if r['success'])}/{len(batch_results)} success")
+                        except Exception as batch_err:
+                            logger.error(f"[BULK] [{geo}] ✗ CRITICAL: Function {func_num} ({func_name}) failed with exception: {batch_err}")
+                            logger.error(f"[BULK] [{geo}] Traceback: {traceback.format_exc()}")
+                            # Mark all users in this batch as failed, but continue to next function
+                            for u in batch_users:
+                                geo_results.append({
+                                    'email': u['email'],
+                                    'success': False,
+                                    'error': f'Function invocation failed: {str(batch_err)}'
+                                })
+                            logger.warning(f"[BULK] [{geo}] Continuing to next function despite error...")
                     
                         # Update job status after each batch
                         with jobs_lock:
@@ -2398,7 +2519,13 @@ def bulk_generate():
                             logger.info(f"[BULK] [{geo}] Waiting for next function to start...")
                             time.sleep(2)  # Small delay between functions
                 
-                    logger.info(f"[BULK] [{geo}] Sequential processing completed: {sum(1 for r in geo_results if r['success'])}/{len(geo_results)} success")
+                    logger.info("=" * 60)
+                    logger.info(f"[BULK] [{geo}] ===== SEQUENTIAL PROCESSING COMPLETED =====")
+                    logger.info(f"[BULK] [{geo}] Total functions processed: {len(geo_batches_list)}")
+                    logger.info(f"[BULK] [{geo}] Total users processed: {len(geo_results)}")
+                    logger.info(f"[BULK] [{geo}] Success: {sum(1 for r in geo_results if r['success'])}")
+                    logger.info(f"[BULK] [{geo}] Failed: {sum(1 for r in geo_results if not r['success'])}")
+                    logger.info("=" * 60)
                     return geo_results
             
                 # Process all geos in parallel (each geo processes its functions sequentially)
@@ -2772,11 +2899,26 @@ def delete_all_lambdas():
 
         # List of all AWS regions
         AVAILABLE_GEO_REGIONS = [
+            # US
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'ap-south-1', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ca-central-1',
+            # Africa
+            'af-south-1',
+            # Asia Pacific
+            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
+            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
+            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3',
+            'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            # Canada
+            'ca-central-1', 'ca-west-1',
+            # Europe
             'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'sa-east-1',
+            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            # Mexico
+            'mx-central-1',
+            # Middle East
+            'me-south-1', 'me-central-1', 'il-central-1',
+            # South America
+            'sa-east-1',
         ]
 
         all_deleted = []
@@ -3015,11 +3157,26 @@ def delete_ecr_repo():
 
         # List of all AWS regions
         AVAILABLE_GEO_REGIONS = [
+            # US
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'ap-south-1', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ca-central-1',
+            # Africa
+            'af-south-1',
+            # Asia Pacific
+            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
+            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
+            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3',
+            'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            # Canada
+            'ca-central-1', 'ca-west-1',
+            # Europe
             'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'sa-east-1',
+            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            # Mexico
+            'mx-central-1',
+            # Middle East
+            'me-south-1', 'me-central-1', 'il-central-1',
+            # South America
+            'sa-east-1',
         ]
 
         deleted_regions = []
@@ -3086,11 +3243,26 @@ def delete_cloudwatch_logs():
 
         # List of all AWS regions
         AVAILABLE_GEO_REGIONS = [
+            # US
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'ap-south-1', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ca-central-1',
+            # Africa
+            'af-south-1',
+            # Asia Pacific
+            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
+            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
+            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3',
+            'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            # Canada
+            'ca-central-1', 'ca-west-1',
+            # Europe
             'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'sa-east-1',
+            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            # Mexico
+            'mx-central-1',
+            # Middle East
+            'me-south-1', 'me-central-1', 'il-central-1',
+            # South America
+            'sa-east-1',
         ]
 
         all_deleted = []
