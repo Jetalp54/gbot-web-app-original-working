@@ -2154,9 +2154,10 @@ def api_bulk_retrieve_account_users():
                     # Get the password for this account (from account_passwords mapping)
                     account_password = account_passwords_dict.get(account_name, None)
                     if account_password:
-                        app.logger.info(f"[BULK RETRIEVE] [{account_name}] Using stored password for all users")
+                        app.logger.info(f"[BULK RETRIEVE] [{account_name}] ✓ Using stored password for all users (length: {len(account_password)})")
                     else:
-                        app.logger.warning(f"[BULK RETRIEVE] [{account_name}] No password found for account, will try to find app passwords from database")
+                        app.logger.warning(f"[BULK RETRIEVE] [{account_name}] ⚠️ No password found in account_passwords dict. Available accounts: {list(account_passwords_dict.keys())}")
+                        app.logger.warning(f"[BULK RETRIEVE] [{account_name}] Will try to find app passwords from database")
                     
                     app.logger.info(f"[BULK RETRIEVE] [{account_name}] Retrieving users...")
                     
@@ -2207,8 +2208,13 @@ def api_bulk_retrieve_account_users():
                                 user_app_password = UserAppPassword.query.filter_by(user_email=email).first()
                                 if user_app_password:
                                     user_password = user_app_password.app_password
+                                    app.logger.debug(f"[BULK RETRIEVE] [{account_name}] Found app password from DB for {email}")
                             except Exception as db_err:
                                 app.logger.debug(f"[BULK RETRIEVE] [{account_name}] Could not get app password for {email}: {db_err}")
+                        
+                        # Log if password is missing
+                        if not user_password:
+                            app.logger.warning(f"[BULK RETRIEVE] [{account_name}] ⚠️ No password available for {email}")
                         
                         account_result['users'].append({
                             'email': email,

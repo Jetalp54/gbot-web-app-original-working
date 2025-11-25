@@ -5769,18 +5769,44 @@ function displayBulkAccountResults(data) {
         data.results.forEach(accountResult => {
             if (accountResult.account && accountResult.authenticated) {
                 accountsToStore.push(accountResult.account);
-                // Get password from first user in the account (all users have same password)
+                // Get password from first successful user in the account (all users have same password)
                 if (accountResult.users && accountResult.users.length > 0) {
+                    // Try to find a successful user with password
                     const firstUser = accountResult.users.find(u => u.success && u.password);
                     if (firstUser && firstUser.password) {
                         accountPasswords[accountResult.account] = firstUser.password;
+                        console.log(`[BULK] Stored password for account ${accountResult.account}: ${firstUser.password.substring(0, 5)}...`);
+                    } else {
+                        // If no password in user object, try to get it from the account data
+                        // Check if password was passed in the original request
+                        console.warn(`[BULK] No password found for account ${accountResult.account} in user results`);
                     }
                 }
             }
         });
     }
+    
+    // Also get passwords from the table if they exist (for immediate retrieval)
+    const tbody = document.getElementById('bulk-accounts-tbody');
+    if (tbody) {
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach((row) => {
+            const accountInput = row.querySelector('input[data-field="account"]');
+            const passwordInput = row.querySelector('input[data-field="password"]');
+            if (accountInput && passwordInput) {
+                const account = accountInput.value.trim();
+                const password = passwordInput.value.trim();
+                if (account && password && account.includes('@')) {
+                    accountPasswords[account] = password;
+                    console.log(`[BULK] Stored password from table for account ${account}: ${password.substring(0, 5)}...`);
+                }
+            }
+        });
+    }
+    
     setProcessedAccounts(accountsToStore); // Store in localStorage for persistence
     setAccountPasswords(accountPasswords); // Store account passwords mapping
+    console.log(`[BULK] Stored ${Object.keys(accountPasswords).length} account password(s) in localStorage`);
     
     // Build user:password list from ALL accounts
     let userPasswordList = [];
@@ -5797,7 +5823,20 @@ function displayBulkAccountResults(data) {
             if (accountResult.users) {
                 accountResult.users.forEach(user => {
                     if (user.success) {
-                        userPasswordList.push(`${user.email}:${user.password}`);
+                        // Ensure password is included - check multiple possible fields
+                        const password = user.password || user.app_password || '';
+                        if (password) {
+                            userPasswordList.push(`${user.email}:${password}`);
+                        } else {
+                            // If no password in user object, try to get from account passwords
+                            const accountPassword = accountPasswords[accountName];
+                            if (accountPassword) {
+                                userPasswordList.push(`${user.email}:${accountPassword}`);
+                            } else {
+                                userPasswordList.push(`${user.email}:`);
+                                console.warn(`[BULK] No password found for user ${user.email} from account ${accountName}`);
+                            }
+                        }
                         totalCreated++;
                         accountCreated++;
                     } else {
@@ -6043,12 +6082,31 @@ function retrieveUsersFromProcessedAccounts(accounts = null, buttonElement = nul
     
     // Get account passwords from localStorage (stored during creation or from table)
     const accountPasswords = getAccountPasswords();
+    console.log(`[BULK RETRIEVE] Retrieved ${Object.keys(accountPasswords).length} account password(s) from localStorage`);
+    console.log(`[BULK RETRIEVE] Accounts to retrieve: ${accountsToRetrieve.join(', ')}`);
+    console.log(`[BULK RETRIEVE] Passwords available for: ${Object.keys(accountPasswords).join(', ')}`);
     
-    // Build accounts with passwords for backend
-    const accountsWithPasswords = accountsToRetrieve.map(account => ({
-        account: account,
-        password: accountPasswords[account] || null  // null if password not found
-    }));
+    // Also check table for passwords if not in localStorage
+    const tbody = document.getElementById('bulk-accounts-tbody');
+    if (tbody) {
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach((row) => {
+            const accountInput = row.querySelector('input[data-field="account"]');
+            const passwordInput = row.querySelector('input[data-field="password"]');
+            if (accountInput && passwordInput) {
+                const account = accountInput.value.trim();
+                const password = passwordInput.value.trim();
+                if (account && password && account.includes('@') && !accountPasswords[account]) {
+                    accountPasswords[account] = password;
+                    console.log(`[BULK RETRIEVE] Added password from table for ${account}`);
+                }
+            }
+        });
+        // Update localStorage with any passwords found in table
+        if (Object.keys(accountPasswords).length > 0) {
+            setAccountPasswords(accountPasswords);
+        }
+    }
     
     // Call API to retrieve users from all processed accounts
     fetch('/api/bulk-retrieve-account-users', {
