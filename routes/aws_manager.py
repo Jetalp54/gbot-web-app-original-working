@@ -1241,6 +1241,7 @@ def create_lambdas():
             success_count = 0
             failure_count = 0
             errors_by_geo = {}
+            successfully_created_functions = []  # Track only successfully created functions
             
             def update_job_status():
                 """Update the job status in the tracking dictionary"""
@@ -1399,6 +1400,8 @@ def create_lambdas():
                         for func_num, function_name in func_list:
                             try:
                                 logger.info(f"[LAMBDA] [{geo}] Creating function {function_name}...")
+                                logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri}")
+                                
                                 create_or_update_lambda(
                                     session=geo_session,
                                     function_name=function_name,
@@ -1408,21 +1411,50 @@ def create_lambdas():
                                     package_type=package_type,
                                     image_uri=geo_ecr_uri,
                                 )
-                                logger.info(f"[LAMBDA] [{geo}] ✓✓✓ SUCCESS: Created/Updated Lambda: {function_name}")
-                                geo_success += 1
-                                update_job_status()
                                 
-                                # Verify function exists
+                                # CRITICAL: Verify function was actually created and is in Active state
+                                lam_client = geo_session.client("lambda")
                                 try:
-                                    lam_client = geo_session.client("lambda")
                                     func_info = lam_client.get_function(FunctionName=function_name)
-                                    logger.info(f"[LAMBDA] [{geo}] ✓ Verified function exists: {function_name} (State: {func_info.get('Configuration', {}).get('State', 'Unknown')})")
-                                except Exception as verify_err:
-                                    logger.warning(f"[LAMBDA] [{geo}] ⚠️ Could not verify function {function_name}: {verify_err}")
+                                    func_state = func_info.get('Configuration', {}).get('State', 'Unknown')
+                                    
+                                    if func_state == 'Active':
+                                        logger.info(f"[LAMBDA] [{geo}] ✓✓✓ SUCCESS: Created/Updated Lambda: {function_name} (State: {func_state})")
+                                        geo_success += 1
+                                        successfully_created_functions.append(function_name)  # Track successful creation
+                                        update_job_status()
+                                    else:
+                                        logger.warning(f"[LAMBDA] [{geo}] ⚠️ Function created but not Active: {function_name} (State: {func_state})")
+                                        # Wait a bit and check again
+                                        import time
+                                        time.sleep(5)
+                                        func_info = lam_client.get_function(FunctionName=function_name)
+                                        func_state = func_info.get('Configuration', {}).get('State', 'Unknown')
+                                        if func_state == 'Active':
+                                            logger.info(f"[LAMBDA] [{geo}] ✓✓✓ SUCCESS: Lambda is now Active: {function_name}")
+                                            geo_success += 1
+                                            successfully_created_functions.append(function_name)  # Track successful creation
+                                            update_job_status()
+                                        else:
+                                            raise Exception(f"Function created but not in Active state. Current state: {func_state}")
+                                    
+                                except ClientError as verify_err:
+                                    error_code = verify_err.response.get('Error', {}).get('Code', '')
+                                    if error_code == 'ResourceNotFoundException':
+                                        # Function was not actually created despite no exception
+                                        raise Exception(f"Function creation appeared to succeed but function does not exist: {function_name}")
+                                    else:
+                                        raise
                                 
                             except Exception as func_error:
                                 error_msg = str(func_error)
                                 logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED to create/update {function_name}: {error_msg}")
+                                
+                                # Check if it's an ECR image error
+                                if 'ECR image not found' in error_msg or 'is not valid' in error_msg or 'Source image' in error_msg:
+                                    logger.error(f"[LAMBDA] [{geo}] ⚠️ ECR IMAGE MISSING in region {geo}")
+                                    logger.error(f"[LAMBDA] [{geo}] Solution: Use 'Push ECR to All Regions' button to push image to {geo}")
+                                
                                 logger.error(traceback.format_exc())
                                 geo_failure += 1
                                 geo_failures.append(f"{function_name}: {error_msg}")
@@ -1478,14 +1510,26 @@ def create_lambdas():
                 logger.info("=" * 60)
                 logger.info(f"[LAMBDA] Background Lambda creation completed")
                 logger.info(f"[LAMBDA] Total Success: {success_count}, Total Failed: {failure_count}")
+                logger.info(f"[LAMBDA] Successfully created functions: {len(successfully_created_functions)}")
+                if successfully_created_functions:
+                    logger.info(f"[LAMBDA] Created function names: {', '.join(successfully_created_functions[:10])}{'...' if len(successfully_created_functions) > 10 else ''}")
                 if errors_by_geo:
                     logger.info(f"[LAMBDA] Errors by geo:")
                     for geo, errors in errors_by_geo.items():
                         logger.error(f"[LAMBDA]   {geo}: {errors}")
                 logger.info("=" * 60)
                 
-                # Final job status update
+                # Final job status update - include successfully created functions
+                if job_id:
+                    with lambda_creation_lock:
+                        if job_id in lambda_creation_jobs:
+                            lambda_creation_jobs[job_id]['successfully_created_functions'] = successfully_created_functions
+                            lambda_creation_jobs[job_id]['total_functions'] = len(successfully_created_functions)
+                
                 update_job_status()
+                
+                # Return successfully created functions for use by caller
+                return successfully_created_functions
                 
             except Exception as bg_error:
                 logger.error(f"[LAMBDA] ✗✗✗ CRITICAL: Background Lambda creation error: {bg_error}")
@@ -1537,10 +1581,11 @@ def create_lambdas():
             func_names = [name for _, name in func_list]
             geo_summary.append(f"{geo}: {len(func_list)} function(s)")
         
-        message = f'Started creating/updating {len(created_functions)} Lambda function(s) distributed across {len(functions_by_geo)} geo(s): {", ".join(created_functions)}'
+        message = f'Started creating/updating {len(created_functions)} Lambda function(s) distributed across {len(functions_by_geo)} geo(s).'
         if create_multiple:
             message += f' (for {user_count} users, {users_per_function} users per function).'
         message += f' Distribution: {"; ".join(geo_summary)}. Functions are being created in the background.'
+        message += f' Note: Functions will only be created in regions where the ECR image exists. Check the creation status for actual results.'
 
         return jsonify({
             'success': True,
@@ -3774,7 +3819,23 @@ def create_or_update_lambda(session, function_name, role_arn, timeout, env_vars,
             "Environment": {"Variables": env_vars},
             "EphemeralStorage": {"Size": 2048}
         }
-        lam.create_function(**create_params)
+        try:
+            lam.create_function(**create_params)
+        except ClientError as create_err:
+            error_code = create_err.response.get('Error', {}).get('Code', '')
+            error_msg = create_err.response.get('Error', {}).get('Message', str(create_err))
+            
+            # Check for ECR image validation errors
+            if error_code == 'InvalidParameterValueException' and ('is not valid' in error_msg or 'Source image' in error_msg):
+                logger.error(f"[LAMBDA] ✗✗✗ CRITICAL: ECR image not found in region for {function_name}")
+                logger.error(f"[LAMBDA] Error: {error_msg}")
+                logger.error(f"[LAMBDA] Image URI: {image_uri}")
+                logger.error(f"[LAMBDA] Lambda cannot pull ECR images from other regions.")
+                logger.error(f"[LAMBDA] Solution: Push the ECR image to this region first using the 'Push ECR to All Regions' button.")
+                raise ValueError(f"ECR image not found in region. Lambda cannot pull images cross-region. Error: {error_msg}")
+            else:
+                # Re-raise other errors
+                raise
         
         # CRITICAL: Wait for function to be Active before modifying concurrency
         try:
