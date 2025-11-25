@@ -457,28 +457,49 @@ def generate_ecr_push_script():
         source_region = source_region_override if source_region_override else parsed_region
         source_ecr_uri = f"{account_id}.dkr.ecr.{source_region}.amazonaws.com/{repo_name}:{image_tag}"
         
-        # Get all available regions (only active regions)
+        # Get all available regions (as specified by user)
         AVAILABLE_GEO_REGIONS = [
-            # US
-            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            # United States
+            'us-east-1',      # N. Virginia
+            'us-east-2',      # Ohio
+            'us-west-1',      # N. California
+            'us-west-2',      # Oregon
             # Africa
-            'af-south-1',
+            'af-south-1',     # Cape Town
             # Asia Pacific
-            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
-            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3',
-            'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            'ap-east-1',      # Hong Kong
+            'ap-east-2',      # Taipei
+            'ap-south-1',     # Mumbai
+            'ap-south-2',     # Hyderabad
+            'ap-northeast-1', # Tokyo
+            'ap-northeast-2', # Seoul
+            'ap-northeast-3', # Osaka
+            'ap-southeast-1', # Singapore
+            'ap-southeast-2', # Sydney
+            'ap-southeast-3', # Jakarta
+            'ap-southeast-4', # Melbourne
+            'ap-southeast-5', # Malaysia
+            'ap-southeast-6', # New Zealand
+            'ap-southeast-7', # Thailand
             # Canada
-            'ca-central-1', 'ca-west-1',
+            'ca-central-1',   # Central
+            'ca-west-1',      # Calgary
             # Europe
-            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            'eu-central-1',   # Frankfurt
+            'eu-west-1',      # Ireland
+            'eu-west-2',      # London
+            'eu-west-3',      # Paris
+            'eu-north-1',     # Stockholm
+            'eu-south-1',     # Milan
+            'eu-south-2',     # Spain
             # Mexico
-            'mx-central-1',
+            'mx-central-1',   # Central
             # Middle East
-            'me-south-1', 'me-central-1', 'il-central-1',
+            'me-south-1',     # Bahrain
+            'me-central-1',   # UAE
+            'il-central-1',   # Israel (Tel Aviv)
             # South America
-            'sa-east-1',
+            'sa-east-1',      # São Paulo
         ]
         
         target_regions = [r for r in AVAILABLE_GEO_REGIONS if r != source_region]
@@ -600,26 +621,49 @@ def push_ecr_to_all_regions():
         logger.info(f"[ECR] Source region: {source_region} (override: {source_region_override}, parsed: {parsed_region})")
         logger.info(f"[ECR] Source ECR URI: {source_ecr_uri}")
         
-        # Get all available AWS regions (excluding af-south-1 as requested)
+        # Get all available AWS regions (as specified by user)
         AVAILABLE_GEO_REGIONS = [
-            # US
-            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            # United States
+            'us-east-1',      # N. Virginia
+            'us-east-2',      # Ohio
+            'us-west-1',      # N. California
+            'us-west-2',      # Oregon
+            # Africa
+            'af-south-1',     # Cape Town
             # Asia Pacific
-            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
-            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3',
-            'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            'ap-east-1',      # Hong Kong
+            'ap-east-2',      # Taipei
+            'ap-south-1',     # Mumbai
+            'ap-south-2',     # Hyderabad
+            'ap-northeast-1', # Tokyo
+            'ap-northeast-2', # Seoul
+            'ap-northeast-3', # Osaka
+            'ap-southeast-1', # Singapore
+            'ap-southeast-2', # Sydney
+            'ap-southeast-3', # Jakarta
+            'ap-southeast-4', # Melbourne
+            'ap-southeast-5', # Malaysia
+            'ap-southeast-6', # New Zealand
+            'ap-southeast-7', # Thailand
             # Canada
-            'ca-central-1', 'ca-west-1',
+            'ca-central-1',   # Central
+            'ca-west-1',      # Calgary
             # Europe
-            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            'eu-central-1',   # Frankfurt
+            'eu-west-1',      # Ireland
+            'eu-west-2',      # London
+            'eu-west-3',      # Paris
+            'eu-north-1',     # Stockholm
+            'eu-south-1',     # Milan
+            'eu-south-2',     # Spain
             # Mexico
-            'mx-central-1',
+            'mx-central-1',   # Central
             # Middle East
-            'me-south-1', 'me-central-1', 'il-central-1',
+            'me-south-1',     # Bahrain
+            'me-central-1',   # UAE
+            'il-central-1',   # Israel (Tel Aviv)
             # South America
-            'sa-east-1',
+            'sa-east-1',      # São Paulo
         ]
         
         # Filter out source region (already has the image)
@@ -1155,48 +1199,49 @@ def create_lambdas():
             logger.info(f"[LAMBDA] Creating single Lambda function")
 
         # Get all available AWS regions (geos) for distribution
+        # Regions as specified by user
         AVAILABLE_GEO_REGIONS = [
-            # US
-            'us-east-1',      # US East (N. Virginia)
-            'us-east-2',      # US East (Ohio)
-            'us-west-1',      # US West (N. California)
-            'us-west-2',      # US West (Oregon)
+            # United States
+            'us-east-1',      # N. Virginia
+            'us-east-2',      # Ohio
+            'us-west-1',      # N. California
+            'us-west-2',      # Oregon
             # Africa
-            'af-south-1',     # Africa (Cape Town)
+            'af-south-1',     # Cape Town
             # Asia Pacific
-            'ap-east-1',      # Asia Pacific (Hong Kong)
-            'ap-east-2',      # Asia Pacific (Taipei)
-            'ap-south-1',     # Asia Pacific (Mumbai)
-            'ap-south-2',     # Asia Pacific (Hyderabad)
-            'ap-northeast-1', # Asia Pacific (Tokyo)
-            'ap-northeast-2', # Asia Pacific (Seoul)
-            'ap-northeast-3', # Asia Pacific (Osaka)
-            'ap-southeast-1', # Asia Pacific (Singapore)
-            'ap-southeast-2', # Asia Pacific (Sydney)
-            'ap-southeast-3', # Asia Pacific (Jakarta)
-            'ap-southeast-4', # Asia Pacific (Melbourne)
-            'ap-southeast-5', # Asia Pacific (Malaysia)
-            'ap-southeast-6', # Asia Pacific (New Zealand)
-            'ap-southeast-7', # Asia Pacific (Thailand)
+            'ap-east-1',      # Hong Kong
+            'ap-east-2',      # Taipei
+            'ap-south-1',     # Mumbai
+            'ap-south-2',     # Hyderabad
+            'ap-northeast-1', # Tokyo
+            'ap-northeast-2', # Seoul
+            'ap-northeast-3', # Osaka
+            'ap-southeast-1', # Singapore
+            'ap-southeast-2', # Sydney
+            'ap-southeast-3', # Jakarta
+            'ap-southeast-4', # Melbourne
+            'ap-southeast-5', # Malaysia
+            'ap-southeast-6', # New Zealand
+            'ap-southeast-7', # Thailand
             # Canada
-            'ca-central-1',   # Canada (Central)
-            'ca-west-1',     # Canada (Calgary)
+            'ca-central-1',   # Central
+            'ca-west-1',      # Calgary
             # Europe
-            'eu-central-1',   # Europe (Frankfurt)
-            'eu-west-1',      # Europe (Ireland)
-            'eu-west-2',      # Europe (London)
-            'eu-west-3',      # Europe (Paris)
-            'eu-north-1',     # Europe (Stockholm)
-            'eu-south-1',     # Europe (Milan)
-            'eu-south-2',     # Europe (Spain)
+            'eu-central-1',   # Frankfurt
+            'eu-west-1',      # Ireland
+            'eu-west-2',      # London
+            'eu-west-3',      # Paris
+            'eu-north-1',     # Stockholm
+            'eu-south-1',     # Milan
+            'eu-south-2',     # Spain
             # Mexico
-            'mx-central-1',  # Mexico (Central)
+            'mx-central-1',   # Central
             # Middle East
-            'me-south-1',     # Middle East (Bahrain)
-            'me-central-1',   # Middle East (UAE)
-            'il-central-1',   # Middle East (Israel Tel Aviv)
+            'me-south-1',     # Bahrain
+            'me-central-1',   # UAE
+            'il-central-1',   # Israel (Tel Aviv)
             # South America
-            'sa-east-1',      # South America (São Paulo)
+            'sa-east-1',      # São Paulo
         ]
         
         # Distribute functions evenly across all available geos using round-robin
@@ -2031,47 +2076,47 @@ def bulk_generate():
                 # Get all available AWS regions (geos)
                 # These are all AWS regions where Lambda can be deployed
                 AVAILABLE_GEO_REGIONS = [
-                    # US
-                    'us-east-1',      # US East (N. Virginia)
-                    'us-east-2',      # US East (Ohio)
-                    'us-west-1',      # US West (N. California)
-                    'us-west-2',      # US West (Oregon)
+                    # United States
+                    'us-east-1',      # N. Virginia
+                    'us-east-2',      # Ohio
+                    'us-west-1',      # N. California
+                    'us-west-2',      # Oregon
                     # Africa
-                    'af-south-1',     # Africa (Cape Town)
+                    'af-south-1',     # Cape Town
                     # Asia Pacific
-                    'ap-east-1',      # Asia Pacific (Hong Kong)
-                    'ap-east-2',      # Asia Pacific (Taipei)
-                    'ap-south-1',     # Asia Pacific (Mumbai)
-                    'ap-south-2',     # Asia Pacific (Hyderabad)
-                    'ap-northeast-1', # Asia Pacific (Tokyo)
-                    'ap-northeast-2', # Asia Pacific (Seoul)
-                    'ap-northeast-3', # Asia Pacific (Osaka)
-                    'ap-southeast-1', # Asia Pacific (Singapore)
-                    'ap-southeast-2', # Asia Pacific (Sydney)
-                    'ap-southeast-3', # Asia Pacific (Jakarta)
-                    'ap-southeast-4', # Asia Pacific (Melbourne)
-                    'ap-southeast-5', # Asia Pacific (Malaysia)
-                    'ap-southeast-6', # Asia Pacific (New Zealand)
-                    'ap-southeast-7', # Asia Pacific (Thailand)
+                    'ap-east-1',      # Hong Kong
+                    'ap-east-2',      # Taipei
+                    'ap-south-1',     # Mumbai
+                    'ap-south-2',     # Hyderabad
+                    'ap-northeast-1', # Tokyo
+                    'ap-northeast-2', # Seoul
+                    'ap-northeast-3', # Osaka
+                    'ap-southeast-1', # Singapore
+                    'ap-southeast-2', # Sydney
+                    'ap-southeast-3', # Jakarta
+                    'ap-southeast-4', # Melbourne
+                    'ap-southeast-5', # Malaysia
+                    'ap-southeast-6', # New Zealand
+                    'ap-southeast-7', # Thailand
                     # Canada
-                    'ca-central-1',   # Canada (Central)
-                    'ca-west-1',     # Canada (Calgary)
+                    'ca-central-1',   # Central
+                    'ca-west-1',      # Calgary
                     # Europe
-                    'eu-central-1',   # Europe (Frankfurt)
-                    'eu-west-1',      # Europe (Ireland)
-                    'eu-west-2',      # Europe (London)
-                    'eu-west-3',      # Europe (Paris)
-                    'eu-north-1',     # Europe (Stockholm)
-                    'eu-south-1',     # Europe (Milan)
-                    'eu-south-2',     # Europe (Spain)
+                    'eu-central-1',   # Frankfurt
+                    'eu-west-1',      # Ireland
+                    'eu-west-2',      # London
+                    'eu-west-3',      # Paris
+                    'eu-north-1',     # Stockholm
+                    'eu-south-1',     # Milan
+                    'eu-south-2',     # Spain
                     # Mexico
-                    'mx-central-1',  # Mexico (Central)
+                    'mx-central-1',   # Central
                     # Middle East
-                    'me-south-1',     # Middle East (Bahrain)
-                    'me-central-1',   # Middle East (UAE)
-                    'il-central-1',   # Middle East (Israel Tel Aviv)
+                    'me-south-1',     # Bahrain
+                    'me-central-1',   # UAE
+                    'il-central-1',   # Israel (Tel Aviv)
                     # South America
-                    'sa-east-1',      # South America (São Paulo)
+                    'sa-east-1',      # São Paulo
                 ]
                 
                 # Distribute functions evenly across all available geos using round-robin
@@ -2993,28 +3038,49 @@ def delete_all_lambdas():
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
 
-        # List of all AWS regions
+        # List of all AWS regions (as specified by user)
         AVAILABLE_GEO_REGIONS = [
-            # US
-            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            # United States
+            'us-east-1',      # N. Virginia
+            'us-east-2',      # Ohio
+            'us-west-1',      # N. California
+            'us-west-2',      # Oregon
             # Africa
-            'af-south-1',
+            'af-south-1',     # Cape Town
             # Asia Pacific
-            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
-            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3',
-            'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            'ap-east-1',      # Hong Kong
+            'ap-east-2',      # Taipei
+            'ap-south-1',     # Mumbai
+            'ap-south-2',     # Hyderabad
+            'ap-northeast-1', # Tokyo
+            'ap-northeast-2', # Seoul
+            'ap-northeast-3', # Osaka
+            'ap-southeast-1', # Singapore
+            'ap-southeast-2', # Sydney
+            'ap-southeast-3', # Jakarta
+            'ap-southeast-4', # Melbourne
+            'ap-southeast-5', # Malaysia
+            'ap-southeast-6', # New Zealand
+            'ap-southeast-7', # Thailand
             # Canada
-            'ca-central-1', 'ca-west-1',
+            'ca-central-1',   # Central
+            'ca-west-1',      # Calgary
             # Europe
-            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            'eu-central-1',   # Frankfurt
+            'eu-west-1',      # Ireland
+            'eu-west-2',      # London
+            'eu-west-3',      # Paris
+            'eu-north-1',     # Stockholm
+            'eu-south-1',     # Milan
+            'eu-south-2',     # Spain
             # Mexico
-            'mx-central-1',
+            'mx-central-1',   # Central
             # Middle East
-            'me-south-1', 'me-central-1', 'il-central-1',
+            'me-south-1',     # Bahrain
+            'me-central-1',   # UAE
+            'il-central-1',   # Israel (Tel Aviv)
             # South America
-            'sa-east-1',
+            'sa-east-1',      # São Paulo
         ]
 
         all_deleted = []
@@ -3251,28 +3317,49 @@ def delete_ecr_repo():
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
 
-        # List of all AWS regions
+        # List of all AWS regions (as specified by user)
         AVAILABLE_GEO_REGIONS = [
-            # US
-            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            # United States
+            'us-east-1',      # N. Virginia
+            'us-east-2',      # Ohio
+            'us-west-1',      # N. California
+            'us-west-2',      # Oregon
             # Africa
-            'af-south-1',
+            'af-south-1',     # Cape Town
             # Asia Pacific
-            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
-            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3',
-            'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            'ap-east-1',      # Hong Kong
+            'ap-east-2',      # Taipei
+            'ap-south-1',     # Mumbai
+            'ap-south-2',     # Hyderabad
+            'ap-northeast-1', # Tokyo
+            'ap-northeast-2', # Seoul
+            'ap-northeast-3', # Osaka
+            'ap-southeast-1', # Singapore
+            'ap-southeast-2', # Sydney
+            'ap-southeast-3', # Jakarta
+            'ap-southeast-4', # Melbourne
+            'ap-southeast-5', # Malaysia
+            'ap-southeast-6', # New Zealand
+            'ap-southeast-7', # Thailand
             # Canada
-            'ca-central-1', 'ca-west-1',
+            'ca-central-1',   # Central
+            'ca-west-1',      # Calgary
             # Europe
-            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            'eu-central-1',   # Frankfurt
+            'eu-west-1',      # Ireland
+            'eu-west-2',      # London
+            'eu-west-3',      # Paris
+            'eu-north-1',     # Stockholm
+            'eu-south-1',     # Milan
+            'eu-south-2',     # Spain
             # Mexico
-            'mx-central-1',
+            'mx-central-1',   # Central
             # Middle East
-            'me-south-1', 'me-central-1', 'il-central-1',
+            'me-south-1',     # Bahrain
+            'me-central-1',   # UAE
+            'il-central-1',   # Israel (Tel Aviv)
             # South America
-            'sa-east-1',
+            'sa-east-1',      # São Paulo
         ]
 
         deleted_regions = []
@@ -3337,28 +3424,49 @@ def delete_cloudwatch_logs():
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
 
-        # List of all AWS regions
+        # List of all AWS regions (as specified by user)
         AVAILABLE_GEO_REGIONS = [
-            # US
-            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            # United States
+            'us-east-1',      # N. Virginia
+            'us-east-2',      # Ohio
+            'us-west-1',      # N. California
+            'us-west-2',      # Oregon
             # Africa
-            'af-south-1',
+            'af-south-1',     # Cape Town
             # Asia Pacific
-            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
-            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3',
-            'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            'ap-east-1',      # Hong Kong
+            'ap-east-2',      # Taipei
+            'ap-south-1',     # Mumbai
+            'ap-south-2',     # Hyderabad
+            'ap-northeast-1', # Tokyo
+            'ap-northeast-2', # Seoul
+            'ap-northeast-3', # Osaka
+            'ap-southeast-1', # Singapore
+            'ap-southeast-2', # Sydney
+            'ap-southeast-3', # Jakarta
+            'ap-southeast-4', # Melbourne
+            'ap-southeast-5', # Malaysia
+            'ap-southeast-6', # New Zealand
+            'ap-southeast-7', # Thailand
             # Canada
-            'ca-central-1', 'ca-west-1',
+            'ca-central-1',   # Central
+            'ca-west-1',      # Calgary
             # Europe
-            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            'eu-central-1',   # Frankfurt
+            'eu-west-1',      # Ireland
+            'eu-west-2',      # London
+            'eu-west-3',      # Paris
+            'eu-north-1',     # Stockholm
+            'eu-south-1',     # Milan
+            'eu-south-2',     # Spain
             # Mexico
-            'mx-central-1',
+            'mx-central-1',   # Central
             # Middle East
-            'me-south-1', 'me-central-1', 'il-central-1',
+            'me-south-1',     # Bahrain
+            'me-central-1',   # UAE
+            'il-central-1',   # Israel (Tel Aviv)
             # South America
-            'sa-east-1',
+            'sa-east-1',      # São Paulo
         ]
 
         all_deleted = []
