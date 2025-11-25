@@ -546,7 +546,7 @@
                         <i class="fas fa-play"></i>
                         Start Bulk Creation
                     </button>
-                    <button onclick="executeBulkAccountDeletion()" class="btn-github" style="flex: 1; min-width: 150px; background-color: #d73a49; border-color: #d73a49; color: white;">
+                    <button onclick="executeBulkAccountDeletion(event)" class="btn-github" style="flex: 1; min-width: 150px; background-color: #d73a49; border-color: #d73a49; color: white;">
                         <i class="fas fa-trash"></i>
                         Authenticate & Delete All Users
                     </button>
@@ -5742,8 +5742,15 @@ function copyBulkAccountResults() {
     }
 }
 
-function executeBulkAccountDeletion() {
+function executeBulkAccountDeletion(event) {
+    console.log('executeBulkAccountDeletion called');
+    
     const tbody = document.getElementById('bulk-accounts-tbody');
+    if (!tbody) {
+        alert('Error: Table body not found');
+        return;
+    }
+    
     const rows = tbody.querySelectorAll('tr');
     
     if (rows.length === 0) {
@@ -5755,10 +5762,11 @@ function executeBulkAccountDeletion() {
     const accounts = [];
     rows.forEach((row) => {
         const accountInput = row.querySelector('input[data-field="account"]');
-        const account = accountInput.value.trim();
-        
-        if (account && account.includes('@')) {
-            accounts.push(account);
+        if (accountInput) {
+            const account = accountInput.value.trim();
+            if (account && account.includes('@')) {
+                accounts.push(account);
+            }
         }
     });
     
@@ -5773,14 +5781,29 @@ function executeBulkAccountDeletion() {
     }
     
     // Show progress
-    document.getElementById('bulk-account-progress').style.display = 'block';
-    document.getElementById('bulk-account-progress-bar').style.width = '0%';
-    document.getElementById('bulk-account-progress-text').textContent = `Authenticating and deleting users from ${accounts.length} account(s)...`;
+    const progressDiv = document.getElementById('bulk-account-progress');
+    const progressBar = document.getElementById('bulk-account-progress-bar');
+    const progressText = document.getElementById('bulk-account-progress-text');
     
-    // Disable button
-    const btn = event.target;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    if (progressDiv) progressDiv.style.display = 'block';
+    if (progressBar) progressBar.style.width = '0%';
+    if (progressText) progressText.textContent = `Authenticating and deleting users from ${accounts.length} account(s)...`;
+    
+    // Disable button - get button from event or find it
+    let btn = null;
+    if (event && event.target) {
+        btn = event.target.closest('button');
+    }
+    if (!btn) {
+        // Fallback: find the button by its onclick attribute
+        const buttons = document.querySelectorAll('button[onclick*="executeBulkAccountDeletion"]');
+        btn = buttons[0];
+    }
+    
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    }
     
     // Call API
     fetch('/api/bulk-delete-account-users', {
@@ -5802,24 +5825,32 @@ function executeBulkAccountDeletion() {
         return response.json();
     })
     .then(data => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
+        }
         
         if (data.success) {
-            document.getElementById('bulk-account-progress-bar').style.width = '100%';
-            document.getElementById('bulk-account-progress-text').textContent = `✅ Deletion completed! ${data.total_deleted} users deleted from ${data.total_accounts} account(s)`;
+            const progressBar = document.getElementById('bulk-account-progress-bar');
+            const progressText = document.getElementById('bulk-account-progress-text');
+            if (progressBar) progressBar.style.width = '100%';
+            if (progressText) progressText.textContent = `✅ Deletion completed! ${data.total_deleted} users deleted from ${data.total_accounts} account(s)`;
             
             // Display results
             displayBulkAccountDeletionResults(data);
         } else {
-            document.getElementById('bulk-account-progress-text').textContent = `❌ Error: ${data.error}`;
+            const progressText = document.getElementById('bulk-account-progress-text');
+            if (progressText) progressText.textContent = `❌ Error: ${data.error}`;
             alert(`Error: ${data.error}`);
         }
     })
     .catch(error => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
-        document.getElementById('bulk-account-progress-text').textContent = `❌ Network error: ${error.message}`;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
+        }
+        const progressText = document.getElementById('bulk-account-progress-text');
+        if (progressText) progressText.textContent = `❌ Network error: ${error.message}`;
         console.error('Delete error:', error);
         alert(`Network error: ${error.message}`);
     });
