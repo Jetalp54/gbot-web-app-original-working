@@ -5598,16 +5598,6 @@ function executeBulkAccountCreation() {
     // Show progress
     document.getElementById('bulk-account-progress').style.display = 'block';
     document.getElementById('bulk-account-progress-bar').style.width = '0%';
-    document.getElementById('bulk-account-progress-text').textContent = `Starting bulk creation for ${accounts.length} account(s)...`;
-    
-    // Disable button
-    const btn = event.target;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-    
-    // Show progress
-    document.getElementById('bulk-account-progress').style.display = 'block';
-    document.getElementById('bulk-account-progress-bar').style.width = '0%';
     document.getElementById('bulk-account-progress-text').textContent = `Starting bulk creation for ${accountsData.length} account(s)...`;
     
     // Disable button
@@ -9799,6 +9789,7 @@ function clearAutomationList() {
     </div>
 </div>
 
+</script>
 {% endblock %}
 
 {% block scripts %}
@@ -9914,7 +9905,6 @@ function clearAutomationList() {
 
 <script>
 // CRITICAL: This MUST execute - if you don't see this, script isn't loading
-alert('SCRIPT IS LOADING - CHECK CONSOLE');
 console.log('=== DOMAIN VERIFICATION SCRIPT LOADING ===');
 console.log('Script execution started at:', new Date().toISOString());
 
@@ -9925,7 +9915,6 @@ let domainVerificationPollInterval = null;
 // Define function DIRECTLY on window - SIMPLE AND DIRECT
 console.log('About to define window.startDomainVerification...');
 window.startDomainVerification = function() {
-    alert('FUNCTION CALLED!');
     console.log('🚀 startDomainVerification() called');
     
     try {
@@ -10305,7 +10294,7 @@ if (typeof window.startDomainVerification === 'function') {
     console.error('❌❌❌ CRITICAL ERROR: startDomainVerification IS NOT A FUNCTION ❌❌❌');
     console.error('Type is:', typeof window.startDomainVerification);
     console.error('Value is:', window.startDomainVerification);
-    alert('CRITICAL: startDomainVerification function not found! Check console.');
+    console.error('CRITICAL: startDomainVerification function not found! Check console.');
 }
 
 // Force reload if needed
