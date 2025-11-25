@@ -5761,16 +5761,26 @@ function displayBulkAccountResults(data) {
     const resultsTextarea = document.getElementById('bulk-account-results-text');
     const summaryDiv = document.getElementById('bulk-account-summary');
     
-    // Store processed accounts for later retrieval (persist in localStorage)
+    // Store processed accounts with their passwords for later retrieval (persist in localStorage)
     const accountsToStore = [];
+    const accountPasswords = {}; // Store account -> password mapping
+    
     if (data.results) {
         data.results.forEach(accountResult => {
             if (accountResult.account && accountResult.authenticated) {
                 accountsToStore.push(accountResult.account);
+                // Get password from first user in the account (all users have same password)
+                if (accountResult.users && accountResult.users.length > 0) {
+                    const firstUser = accountResult.users.find(u => u.success && u.password);
+                    if (firstUser && firstUser.password) {
+                        accountPasswords[accountResult.account] = firstUser.password;
+                    }
+                }
             }
         });
     }
     setProcessedAccounts(accountsToStore); // Store in localStorage for persistence
+    setAccountPasswords(accountPasswords); // Store account passwords mapping
     
     // Build user:password list from ALL accounts
     let userPasswordList = [];
@@ -5870,7 +5880,7 @@ let processedAccountsList = [];
 
 function getProcessedAccounts() {
     try {
-        const stored = localStorage.getItem('bulkProcessedAccounts');
+        const stored = localStorage.getItem('bulk_processed_accounts');
         return stored ? JSON.parse(stored) : [];
     } catch (e) {
         return [];
@@ -5879,11 +5889,28 @@ function getProcessedAccounts() {
 
 function setProcessedAccounts(accounts) {
     try {
-        localStorage.setItem('bulkProcessedAccounts', JSON.stringify(accounts));
+        localStorage.setItem('bulk_processed_accounts', JSON.stringify(accounts));
         processedAccountsList = accounts;
     } catch (e) {
         console.error('Failed to store processed accounts:', e);
         processedAccountsList = accounts;
+    }
+}
+
+function getAccountPasswords() {
+    try {
+        const stored = localStorage.getItem('bulk_account_passwords');
+        return stored ? JSON.parse(stored) : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function setAccountPasswords(passwords) {
+    try {
+        localStorage.setItem('bulk_account_passwords', JSON.stringify(passwords));
+    } catch (e) {
+        console.error('Failed to store account passwords:', e);
     }
 }
 
@@ -6014,12 +6041,22 @@ function retrieveUsersFromProcessedAccounts(accounts = null, buttonElement = nul
         mainResultsSection.style.display = 'block';
     }
     
+    // Get account passwords from localStorage (stored during creation or from table)
+    const accountPasswords = getAccountPasswords();
+    
+    // Build accounts with passwords for backend
+    const accountsWithPasswords = accountsToRetrieve.map(account => ({
+        account: account,
+        password: accountPasswords[account] || null  // null if password not found
+    }));
+    
     // Call API to retrieve users from all processed accounts
     fetch('/api/bulk-retrieve-account-users', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-            accounts: accountsToRetrieve
+            accounts: accountsToRetrieve,
+            account_passwords: accountPasswords  // Send password mapping to backend
         })
     })
     .then(response => {

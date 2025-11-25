@@ -2080,11 +2080,14 @@ def api_bulk_retrieve_account_users():
     try:
         data = request.get_json()
         accounts = data.get('accounts', [])
+        account_passwords = data.get('account_passwords', {})  # Account -> password mapping
         
         if not accounts or len(accounts) == 0:
             return jsonify({'success': False, 'error': 'No accounts provided'})
         
         app.logger.info(f"[BULK RETRIEVE] Starting bulk user retrieval for {len(accounts)} account(s)")
+        if account_passwords:
+            app.logger.info(f"[BULK RETRIEVE] Received passwords for {len(account_passwords)} account(s)")
         
         # Step 1: Authenticate all accounts in parallel
         def authenticate_account(account_name):
@@ -2126,6 +2129,9 @@ def api_bulk_retrieve_account_users():
         app.logger.info(f"[BULK RETRIEVE] Authenticated {len(authenticated_accounts)}/{len(accounts)} account(s)")
         
         # Step 2: Retrieve users in parallel across all authenticated accounts
+        # Make account_passwords accessible in the closure
+        account_passwords_dict = account_passwords  # Store in a variable accessible to the closure
+        
         def retrieve_account_users(account_name):
             """Retrieve all users from a single account"""
             with app.app_context():
@@ -2144,6 +2150,13 @@ def api_bulk_retrieve_account_users():
                     auth_data = authenticated_accounts[account_name]
                     service = auth_data['service']
                     account_result['authenticated'] = True
+                    
+                    # Get the password for this account (from account_passwords mapping)
+                    account_password = account_passwords_dict.get(account_name, None)
+                    if account_password:
+                        app.logger.info(f"[BULK RETRIEVE] [{account_name}] Using stored password for all users")
+                    else:
+                        app.logger.warning(f"[BULK RETRIEVE] [{account_name}] No password found for account, will try to find app passwords from database")
                     
                     app.logger.info(f"[BULK RETRIEVE] [{account_name}] Retrieving users...")
                     
@@ -2177,7 +2190,7 @@ def api_bulk_retrieve_account_users():
                     
                     app.logger.info(f"[BULK RETRIEVE] [{account_name}] Found {len(all_users)} user(s)")
                     
-                    # Get app passwords from database for these users
+                    # Use account password for all users, or try to find app passwords from database
                     for user in all_users:
                         email = user.get('primaryEmail', '')
                         if not email:
@@ -2187,24 +2200,25 @@ def api_bulk_retrieve_account_users():
                         if email.lower().startswith('admin') or 'administrator' in email.lower():
                             continue
                         
-                        # Try to get app password from database
-                        app_password = None
-                        try:
-                            user_app_password = UserAppPassword.query.filter_by(user_email=email).first()
-                            if user_app_password:
-                                app_password = user_app_password.app_password
-                        except Exception as db_err:
-                            app.logger.debug(f"[BULK RETRIEVE] [{account_name}] Could not get app password for {email}: {db_err}")
+                        # Use account password if available, otherwise try to find app password from database
+                        user_password = account_password
+                        if not user_password:
+                            try:
+                                user_app_password = UserAppPassword.query.filter_by(user_email=email).first()
+                                if user_app_password:
+                                    user_password = user_app_password.app_password
+                            except Exception as db_err:
+                                app.logger.debug(f"[BULK RETRIEVE] [{account_name}] Could not get app password for {email}: {db_err}")
                         
                         account_result['users'].append({
                             'email': email,
-                            'password': app_password or '',  # Empty if not found
-                            'app_password': app_password or '',
+                            'password': user_password or '',  # Use account password or empty if not found
+                            'app_password': user_password or '',
                             'first_name': user.get('name', {}).get('givenName', ''),
                             'last_name': user.get('name', {}).get('familyName', '')
                         })
                     
-                    app.logger.info(f"[BULK RETRIEVE] [{account_name}] ✓ Retrieved {len(account_result['users'])} user(s)")
+                    app.logger.info(f"[BULK RETRIEVE] [{account_name}] ✓ Retrieved {len(account_result['users'])} user(s) with password: {'Yes' if account_password else 'No (from DB)'}")
                     
                 except Exception as e:
                     account_result['error'] = str(e)
