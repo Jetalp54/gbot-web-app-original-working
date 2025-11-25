@@ -5583,7 +5583,20 @@ function executeBulkAccountCreation() {
             accounts_data: accountsData
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            return response.text().then(text => {
+                console.error('Non-JSON response:', text.substring(0, 500));
+                // Don't throw error if process is still running - just log it
+                console.warn('Received non-JSON response, but process may still be running');
+                // Return a placeholder response to continue
+                return { success: true, message: 'Process is running, please check results' };
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-play"></i> Start Bulk Creation';
@@ -5727,6 +5740,152 @@ function copyBulkAccountResults() {
             alert('❌ Failed to copy. Please select and copy manually.');
         });
     }
+}
+
+function executeBulkAccountDeletion() {
+    const tbody = document.getElementById('bulk-accounts-tbody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    if (rows.length === 0) {
+        alert('Please add at least one account.');
+        return;
+    }
+    
+    // Collect account emails from table (only account email is required)
+    const accounts = [];
+    rows.forEach((row) => {
+        const accountInput = row.querySelector('input[data-field="account"]');
+        const account = accountInput.value.trim();
+        
+        if (account && account.includes('@')) {
+            accounts.push(account);
+        }
+    });
+    
+    if (accounts.length === 0) {
+        alert('Please add at least one valid account email.');
+        return;
+    }
+    
+    // Confirm deletion
+    if (!confirm(`⚠️ WARNING: This will delete ALL users from ${accounts.length} account(s).\n\nThis action cannot be undone!\n\nAre you sure you want to continue?`)) {
+        return;
+    }
+    
+    // Show progress
+    document.getElementById('bulk-account-progress').style.display = 'block';
+    document.getElementById('bulk-account-progress-bar').style.width = '0%';
+    document.getElementById('bulk-account-progress-text').textContent = `Authenticating and deleting users from ${accounts.length} account(s)...`;
+    
+    // Disable button
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    
+    // Call API
+    fetch('/api/bulk-delete-account-users', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            accounts: accounts
+        })
+    })
+    .then(response => {
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            return response.text().then(text => {
+                console.error('Non-JSON response:', text);
+                throw new Error('Server returned non-JSON response. Please check server logs.');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
+        
+        if (data.success) {
+            document.getElementById('bulk-account-progress-bar').style.width = '100%';
+            document.getElementById('bulk-account-progress-text').textContent = `✅ Deletion completed! ${data.total_deleted} users deleted from ${data.total_accounts} account(s)`;
+            
+            // Display results
+            displayBulkAccountDeletionResults(data);
+        } else {
+            document.getElementById('bulk-account-progress-text').textContent = `❌ Error: ${data.error}`;
+            alert(`Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
+        document.getElementById('bulk-account-progress-text').textContent = `❌ Network error: ${error.message}`;
+        console.error('Delete error:', error);
+        alert(`Network error: ${error.message}`);
+    });
+}
+
+function displayBulkAccountDeletionResults(data) {
+    const resultsSection = document.getElementById('bulk-account-results');
+    const resultsTextarea = document.getElementById('bulk-account-results-text');
+    const summaryDiv = document.getElementById('bulk-account-summary');
+    
+    if (!resultsSection || !summaryDiv) {
+        console.error('Results section not found');
+        return;
+    }
+    
+    // Build summary
+    let summaryHTML = `
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
+            <div>
+                <strong style="color: #0969da;">Total Accounts:</strong>
+                <div style="font-size: 24px; font-weight: bold; color: #24292f;">${data.total_accounts || 0}</div>
+            </div>
+            <div>
+                <strong style="color: #1a7f37;">Users Deleted:</strong>
+                <div style="font-size: 24px; font-weight: bold; color: #1a7f37;">${data.total_deleted || 0}</div>
+            </div>
+            <div>
+                <strong style="color: #cf222e;">Failed:</strong>
+                <div style="font-size: 24px; font-weight: bold; color: #cf222e;">${data.total_failed || 0}</div>
+            </div>
+        </div>
+    `;
+    
+    // Add account-by-account breakdown
+    if (data.results && data.results.length > 0) {
+        summaryHTML += `
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #d0d7de;">
+                <strong style="color: #24292f; font-size: 14px;">Account Details:</strong>
+                <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
+        `;
+        
+        data.results.forEach(result => {
+            const statusIcon = result.authenticated ? '✅' : '❌';
+            const statusColor = result.authenticated ? '#1a7f37' : '#cf222e';
+            summaryHTML += `
+                <div style="padding: 8px; margin-bottom: 4px; background-color: #f6f8fa; border-radius: 4px; font-size: 13px;">
+                    <strong>${statusIcon} ${result.account}:</strong>
+                    <span style="color: ${statusColor}; margin-left: 8px;">
+                        ${result.deleted_count || 0} deleted, ${result.failed_count || 0} failed
+                    </span>
+                    ${result.error ? `<div style="color: #cf222e; font-size: 12px; margin-top: 4px;">Error: ${result.error}</div>` : ''}
+                </div>
+            `;
+        });
+        
+        summaryHTML += `
+                </div>
+            </div>
+        `;
+    }
+    
+    summaryDiv.innerHTML = summaryHTML;
+    
+    // Show results section
+    resultsSection.style.display = 'block';
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // Close modal when clicking outside

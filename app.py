@@ -1879,7 +1879,7 @@ def api_bulk_create_account_users():
     except Exception as e:
         app.logger.error(f"[BULK ACCOUNTS] ✗✗✗ CRITICAL ERROR: {e}")
         app.logger.error(traceback.format_exc())
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/bulk-delete-account-users', methods=['POST'])
 @login_required
