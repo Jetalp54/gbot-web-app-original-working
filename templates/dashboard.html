@@ -502,8 +502,26 @@
             <div class="modal-body">
                 <p style="color: #656d76; margin-bottom: 16px;">
                     <i class="fas fa-info-circle"></i>
-                    Each account can have its own number of users, domain, and password. Add accounts using the button below.
+                    Each account can have its own number of users, domain, and password. Add accounts using the button below or paste bulk data.
                 </p>
+                
+                <!-- Bulk Paste Field -->
+                <div class="form-group-github" style="margin-bottom: 16px; padding: 16px; background-color: #f6f8fa; border-radius: 6px; border: 1px solid #d0d7de;">
+                    <label for="bulk-accounts-paste" class="form-label-github">
+                        <i class="fas fa-paste"></i>
+                        Bulk Paste Accounts (one per line)
+                    </label>
+                    <textarea id="bulk-accounts-paste" class="form-control-github" rows="4" 
+                              placeholder="Paste accounts in one of these formats:&#10;account@domain.com,password&#10;account@domain.com,domain.com,password&#10;&#10;Example:&#10;admin@example.com,example.com,MyPass123&#10;user@test.com,TestPass456"></textarea>
+                    <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
+                        <i class="fas fa-info-circle"></i>
+                        Format: <code>account,password</code> or <code>account,domain,password</code> (one per line). Default: 50 users per account.
+                    </small>
+                    <button onclick="parseBulkAccountsPaste()" class="btn-github" style="margin-top: 8px; width: 100%;">
+                        <i class="fas fa-magic"></i>
+                        Parse & Fill Table
+                    </button>
+                </div>
                 
                 <!-- Accounts Table -->
                 <div style="overflow-x: auto; margin-bottom: 16px;">
@@ -563,6 +581,27 @@
                             <div id="bulk-account-progress-bar" class="progress-fill"></div>
                         </div>
                         <div id="bulk-account-progress-text" class="progress-text">Starting bulk account creation...</div>
+                    </div>
+                </div>
+                
+                <!-- Results Display Section (inside modal) -->
+                <div id="bulk-account-results" style="display: none; margin-top: 24px; padding-top: 24px; border-top: 1px solid #d0d7de;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h4 style="color: #24292f; margin: 0; font-size: 16px;">
+                            <i class="fas fa-list"></i>
+                            Created Users (user:password format)
+                        </h4>
+                        <button onclick="copyBulkAccountResults()" class="btn-github" style="margin-left: 8px;">
+                            <i class="fas fa-copy"></i>
+                            Copy All
+                        </button>
+                    </div>
+                    <div class="form-group-github">
+                        <textarea id="bulk-account-results-text" class="form-control-github" rows="15" readonly 
+                                  style="font-family: 'Courier New', monospace; font-size: 13px; background-color: #f6f8fa;"></textarea>
+                    </div>
+                    <div id="bulk-account-summary" style="margin-top: 12px; padding: 12px; background-color: #f6f8fa; border-radius: 6px;">
+                        <!-- Summary will be displayed here -->
                     </div>
                 </div>
             </div>
@@ -5430,10 +5469,100 @@ function openBulkAccountModal() {
     document.getElementById('bulk-account-modal').style.display = 'block';
     // Clear previous inputs
     document.getElementById('bulk-accounts-tbody').innerHTML = '';
+    const pasteField = document.getElementById('bulk-accounts-paste');
+    if (pasteField) pasteField.value = '';
     document.getElementById('bulk-account-progress').style.display = 'none';
+    const resultsSection = document.getElementById('bulk-account-results');
+    if (resultsSection) resultsSection.style.display = 'none';
     bulkAccountRowCounter = 0;
     // Add one empty row by default
     addBulkAccountRow();
+}
+
+function parseBulkAccountsPaste() {
+    const pasteText = document.getElementById('bulk-accounts-paste').value.trim();
+    
+    if (!pasteText) {
+        alert('Please paste account data first.');
+        return;
+    }
+    
+    const lines = pasteText.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+    
+    if (lines.length === 0) {
+        alert('No valid lines found in pasted data.');
+        return;
+    }
+    
+    // Clear existing rows
+    const tbody = document.getElementById('bulk-accounts-tbody');
+    tbody.innerHTML = '';
+    bulkAccountRowCounter = 0;
+    
+    let parsedCount = 0;
+    let errorCount = 0;
+    const errors = [];
+    
+    lines.forEach((line, index) => {
+        // Split by comma
+        const parts = line.split(',').map(p => p.trim()).filter(p => p);
+        
+        if (parts.length < 2) {
+            errors.push(`Line ${index + 1}: Invalid format (need at least account,password)`);
+            errorCount++;
+            return;
+        }
+        
+        let account = '';
+        let domain = '';
+        let password = '';
+        
+        if (parts.length === 2) {
+            // Format: account,password
+            account = parts[0];
+            password = parts[1];
+            domain = ''; // Will use default domain
+        } else if (parts.length === 3) {
+            // Format: account,domain,password
+            account = parts[0];
+            domain = parts[1];
+            password = parts[2];
+        } else {
+            errors.push(`Line ${index + 1}: Too many fields (expected 2 or 3, got ${parts.length})`);
+            errorCount++;
+            return;
+        }
+        
+        // Validate account email
+        if (!account.includes('@')) {
+            errors.push(`Line ${index + 1}: Invalid account email: ${account}`);
+            errorCount++;
+            return;
+        }
+        
+        // Validate password
+        if (!password || password.length < 1) {
+            errors.push(`Line ${index + 1}: Password is required`);
+            errorCount++;
+            return;
+        }
+        
+        // Add row with parsed data
+        addBulkAccountRow(account, 50, domain, password); // Default 50 users
+        parsedCount++;
+    });
+    
+    // Show results
+    if (errorCount > 0) {
+        alert(`Parsed ${parsedCount} account(s) successfully.\n\nErrors (${errorCount}):\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`);
+    } else {
+        alert(`✅ Successfully parsed and added ${parsedCount} account(s) to the table!`);
+    }
+    
+    // Clear paste field
+    document.getElementById('bulk-accounts-paste').value = '';
 }
 
 function closeBulkAccountModal() {
@@ -5609,10 +5738,7 @@ function executeBulkAccountCreation() {
             // Display results
             displayBulkAccountResults(data);
             
-            // Close modal after 2 seconds
-            setTimeout(() => {
-                closeBulkAccountModal();
-            }, 2000);
+            // Keep modal open to show results - don't auto-close
         } else {
             document.getElementById('bulk-account-progress-text').textContent = `❌ Error: ${data.error}`;
             alert(`Error: ${data.error}`);
