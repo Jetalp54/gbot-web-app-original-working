@@ -491,7 +491,7 @@
     
     <!-- Bulk Account Modal -->
     <div id="bulk-account-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-content" style="max-width: 1200px; width: 95%;">
             <div class="modal-header">
                 <h3 style="margin: 0;">
                     <i class="fas fa-users-cog"></i>
@@ -500,49 +500,63 @@
                 <span class="close" onclick="closeBulkAccountModal()">&times;</span>
             </div>
             <div class="modal-body">
-                <div class="form-group-github">
-                    <label for="bulk-accounts-list" class="form-label-github">
-                        <i class="fas fa-list"></i>
-                        Accounts (one per line)
+                <p style="color: #656d76; margin-bottom: 16px;">
+                    <i class="fas fa-info-circle"></i>
+                    Each account can have its own number of users, domain, and password. Add accounts using the button below.
+                </p>
+                
+                <!-- Accounts Table -->
+                <div style="overflow-x: auto; margin-bottom: 16px;">
+                    <table id="bulk-accounts-table" style="width: 100%; border-collapse: collapse; background: white;">
+                        <thead>
+                            <tr style="background-color: #f6f8fa; border-bottom: 2px solid #d0d7de;">
+                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #24292f; border-right: 1px solid #d0d7de;">
+                                    <i class="fas fa-envelope"></i> Account Email
+                                </th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #24292f; border-right: 1px solid #d0d7de; width: 150px;">
+                                    <i class="fas fa-hashtag"></i> Users
+                                </th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #24292f; border-right: 1px solid #d0d7de;">
+                                    <i class="fas fa-globe"></i> Domain
+                                </th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #24292f; border-right: 1px solid #d0d7de;">
+                                    <i class="fas fa-lock"></i> Password
+                                </th>
+                                <th style="padding: 12px; text-align: center; font-weight: 600; color: #24292f; width: 80px;">
+                                    <i class="fas fa-trash"></i> Action
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="bulk-accounts-tbody">
+                            <!-- Rows will be added here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Add Account Button -->
+                <div style="margin-bottom: 16px;">
+                    <button onclick="addBulkAccountRow()" class="btn-github" style="width: 100%;">
+                        <i class="fas fa-plus"></i>
+                        Add Account Row
+                    </button>
+                </div>
+                
+                <!-- Quick Add Multiple Accounts -->
+                <div class="form-group-github" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #d0d7de;">
+                    <label for="bulk-accounts-quick-add" class="form-label-github">
+                        <i class="fas fa-bolt"></i>
+                        Quick Add Accounts (one per line)
                     </label>
-                    <textarea id="bulk-accounts-list" class="form-control-github" rows="8" 
+                    <textarea id="bulk-accounts-quick-add" class="form-control-github" rows="4" 
                               placeholder="Enter account emails, one per line:&#10;account1@domain.com&#10;account2@domain.com&#10;account3@domain.com"></textarea>
                     <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
                         <i class="fas fa-info-circle"></i>
-                        Enter one account email per line. These accounts must have saved Authenticators.
+                        Click "Add Accounts" to add all accounts with default values (50 users, you'll need to set domain/password per account).
                     </small>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
-                    <div class="form-group-github">
-                        <label for="bulk-users-per-account" class="form-label-github">
-                            <i class="fas fa-hashtag"></i>
-                            Users per Account
-                        </label>
-                        <input type="number" id="bulk-users-per-account" class="form-control-github" 
-                               min="1" max="1000" placeholder="e.g., 10" value="10">
-                    </div>
-                    <div class="form-group-github">
-                        <label for="bulk-account-domain" class="form-label-github">
-                            <i class="fas fa-globe"></i>
-                            Domain
-                        </label>
-                        <input type="text" id="bulk-account-domain" class="form-control-github" 
-                               placeholder="example.com">
-                    </div>
-                </div>
-                
-                <div class="form-group-github" style="margin-top: 16px;">
-                    <label for="bulk-account-password" class="form-label-github">
-                        <i class="fas fa-lock"></i>
-                        Password (for all users)
-                    </label>
-                    <input type="text" id="bulk-account-password" class="form-control-github" 
-                           placeholder="Enter password for all users">
-                    <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
-                        <i class="fas fa-info-circle"></i>
-                        This password will be used for all created users across all accounts.
-                    </small>
+                    <button onclick="quickAddBulkAccounts()" class="btn-github" style="margin-top: 8px; width: 100%;">
+                        <i class="fas fa-plus-circle"></i>
+                        Add Accounts
+                    </button>
                 </div>
                 
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
@@ -5371,54 +5385,173 @@ function createSingleUser() {
 
 // ===== Bulk Account Management Functions =====
 
+let bulkAccountRowCounter = 0;
+
 function openBulkAccountModal() {
     document.getElementById('bulk-account-modal').style.display = 'block';
     // Clear previous inputs
-    document.getElementById('bulk-accounts-list').value = '';
-    document.getElementById('bulk-users-per-account').value = '10';
-    document.getElementById('bulk-account-domain').value = '';
-    document.getElementById('bulk-account-password').value = '';
+    document.getElementById('bulk-accounts-tbody').innerHTML = '';
+    document.getElementById('bulk-accounts-quick-add').value = '';
     document.getElementById('bulk-account-progress').style.display = 'none';
+    bulkAccountRowCounter = 0;
+    // Add one empty row by default
+    addBulkAccountRow();
 }
 
 function closeBulkAccountModal() {
     document.getElementById('bulk-account-modal').style.display = 'none';
 }
 
-function executeBulkAccountCreation() {
-    const accountsText = document.getElementById('bulk-accounts-list').value.trim();
-    const usersPerAccount = parseInt(document.getElementById('bulk-users-per-account').value);
-    const domain = document.getElementById('bulk-account-domain').value.trim();
-    const password = document.getElementById('bulk-account-password').value.trim();
+function addBulkAccountRow(accountEmail = '', users = 50, domain = '', password = '') {
+    const tbody = document.getElementById('bulk-accounts-tbody');
+    const rowId = `bulk-account-row-${bulkAccountRowCounter++}`;
     
-    // Validation
+    const row = document.createElement('tr');
+    row.id = rowId;
+    row.style.borderBottom = '1px solid #d0d7de';
+    row.style.backgroundColor = '#ffffff';
+    row.innerHTML = `
+        <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle;">
+            <input type="email" class="form-control-github" style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px;" 
+                   placeholder="account@domain.com" value="${accountEmail}" 
+                   data-field="account">
+        </td>
+        <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle;">
+            <input type="number" class="form-control-github" style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px;" 
+                   min="1" max="1000" placeholder="50" value="${users}" 
+                   data-field="users">
+        </td>
+        <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle;">
+            <input type="text" class="form-control-github" style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px;" 
+                   placeholder="example.com" value="${domain}" 
+                   data-field="domain">
+        </td>
+        <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle;">
+            <input type="text" class="form-control-github" style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px;" 
+                   placeholder="Password" value="${password}" 
+                   data-field="password">
+        </td>
+        <td style="padding: 12px; text-align: center; vertical-align: middle;">
+            <button onclick="removeBulkAccountRow('${rowId}')" class="btn-github" 
+                    style="background-color: #da3633; color: white; border-color: #da3633; padding: 6px 12px; cursor: pointer;">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(row);
+    
+    // Add hover effect
+    row.addEventListener('mouseenter', function() {
+        this.style.backgroundColor = '#f6f8fa';
+    });
+    row.addEventListener('mouseleave', function() {
+        this.style.backgroundColor = '#ffffff';
+    });
+}
+
+function removeBulkAccountRow(rowId) {
+    const row = document.getElementById(rowId);
+    if (row) {
+        row.remove();
+    }
+}
+
+function quickAddBulkAccounts() {
+    const accountsText = document.getElementById('bulk-accounts-quick-add').value.trim();
     if (!accountsText) {
-        alert('Please enter at least one account.');
+        alert('Please enter at least one account email.');
         return;
     }
     
-    if (!usersPerAccount || usersPerAccount < 1 || usersPerAccount > 1000) {
-        alert('Please enter a valid number of users per account (1-1000).');
-        return;
-    }
-    
-    if (!domain) {
-        alert('Please enter a domain.');
-        return;
-    }
-    
-    if (!password || password.length < 8) {
-        alert('Password must be at least 8 characters long.');
-        return;
-    }
-    
-    // Parse accounts
     const accounts = accountsText.split('\n')
         .map(line => line.trim())
-        .filter(line => line.length > 0);
+        .filter(line => line.length > 0 && line.includes('@'));
     
     if (accounts.length === 0) {
-        alert('Please enter at least one valid account.');
+        alert('Please enter valid account emails (must contain @).');
+        return;
+    }
+    
+    // Add each account as a row with default values
+    accounts.forEach(account => {
+        addBulkAccountRow(account, 50, '', '');
+    });
+    
+    // Clear the quick add textarea
+    document.getElementById('bulk-accounts-quick-add').value = '';
+}
+
+function executeBulkAccountCreation() {
+    const tbody = document.getElementById('bulk-accounts-tbody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    if (rows.length === 0) {
+        alert('Please add at least one account.');
+        return;
+    }
+    
+    // Collect account data from table
+    const accountsData = [];
+    let hasErrors = false;
+    const errors = [];
+    
+    rows.forEach((row, index) => {
+        const accountInput = row.querySelector('input[data-field="account"]');
+        const usersInput = row.querySelector('input[data-field="users"]');
+        const domainInput = row.querySelector('input[data-field="domain"]');
+        const passwordInput = row.querySelector('input[data-field="password"]');
+        
+        const account = accountInput.value.trim();
+        const users = parseInt(usersInput.value);
+        const domain = domainInput.value.trim();
+        const password = passwordInput.value.trim();
+        
+        // Skip empty rows
+        if (!account) {
+            return;
+        }
+        
+        // Validation
+        if (!account.includes('@')) {
+            errors.push(`Row ${index + 1}: Invalid account email`);
+            hasErrors = true;
+            return;
+        }
+        
+        if (!users || users < 1 || users > 1000) {
+            errors.push(`Row ${index + 1} (${account}): Invalid number of users (1-1000)`);
+            hasErrors = true;
+            return;
+        }
+        
+        if (!domain) {
+            errors.push(`Row ${index + 1} (${account}): Domain is required`);
+            hasErrors = true;
+            return;
+        }
+        
+        if (!password || password.length < 8) {
+            errors.push(`Row ${index + 1} (${account}): Password must be at least 8 characters`);
+            hasErrors = true;
+            return;
+        }
+        
+        accountsData.push({
+            account: account,
+            users_per_account: users,
+            domain: domain,
+            password: password
+        });
+    });
+    
+    if (hasErrors) {
+        alert('Please fix the following errors:\n\n' + errors.join('\n'));
+        return;
+    }
+    
+    if (accountsData.length === 0) {
+        alert('Please add at least one valid account with all fields filled.');
         return;
     }
     
@@ -5432,15 +5565,22 @@ function executeBulkAccountCreation() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
     
+    // Show progress
+    document.getElementById('bulk-account-progress').style.display = 'block';
+    document.getElementById('bulk-account-progress-bar').style.width = '0%';
+    document.getElementById('bulk-account-progress-text').textContent = `Starting bulk creation for ${accountsData.length} account(s)...`;
+    
+    // Disable button
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    
     // Call API
     fetch('/api/bulk-create-account-users', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-            accounts: accounts,
-            users_per_account: usersPerAccount,
-            domain: domain,
-            password: password
+            accounts_data: accountsData
         })
     })
     .then(response => response.json())
@@ -5478,35 +5618,50 @@ function displayBulkAccountResults(data) {
     const resultsTextarea = document.getElementById('bulk-account-results-text');
     const summaryDiv = document.getElementById('bulk-account-summary');
     
-    // Build user:password list
+    // Build user:password list from ALL accounts
     let userPasswordList = [];
     let totalCreated = 0;
     let totalFailed = 0;
+    let accountDetails = [];
     
     if (data.results) {
         data.results.forEach(accountResult => {
+            const accountName = accountResult.account || 'Unknown';
+            let accountCreated = 0;
+            let accountFailed = 0;
+            
             if (accountResult.users) {
                 accountResult.users.forEach(user => {
                     if (user.success) {
                         userPasswordList.push(`${user.email}:${user.password}`);
                         totalCreated++;
+                        accountCreated++;
                     } else {
                         totalFailed++;
+                        accountFailed++;
                     }
                 });
             }
+            
+            accountDetails.push({
+                account: accountName,
+                created: accountCreated,
+                failed: accountFailed,
+                authenticated: accountResult.authenticated || false,
+                error: accountResult.error || null
+            });
         });
     }
     
-    // Display results
+    // Display all users in user:password format (one per line)
     resultsTextarea.value = userPasswordList.join('\n');
     
-    // Display summary
-    summaryDiv.innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+    // Display summary with account breakdown
+    let summaryHTML = `
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
             <div>
                 <strong style="color: #0969da;">Total Accounts:</strong>
-                <div style="font-size: 24px; font-weight: bold; color: #24292f;">${data.results ? data.results.length : 0}</div>
+                <div style="font-size: 24px; font-weight: bold; color: #24292f;">${data.total_accounts || 0}</div>
             </div>
             <div>
                 <strong style="color: #1a7f37;">Users Created:</strong>
@@ -5518,6 +5673,36 @@ function displayBulkAccountResults(data) {
             </div>
         </div>
     `;
+    
+    // Add account-by-account breakdown
+    if (accountDetails.length > 0) {
+        summaryHTML += `
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #d0d7de;">
+                <strong style="color: #24292f; font-size: 14px;">Account Details:</strong>
+                <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
+        `;
+        
+        accountDetails.forEach(detail => {
+            const statusIcon = detail.authenticated ? '✅' : '❌';
+            const statusColor = detail.authenticated ? '#1a7f37' : '#cf222e';
+            summaryHTML += `
+                <div style="padding: 8px; margin-bottom: 4px; background-color: #f6f8fa; border-radius: 4px; font-size: 13px;">
+                    <strong>${statusIcon} ${detail.account}:</strong>
+                    <span style="color: ${statusColor}; margin-left: 8px;">
+                        ${detail.created} created, ${detail.failed} failed
+                    </span>
+                    ${detail.error ? `<div style="color: #cf222e; font-size: 12px; margin-top: 4px;">Error: ${detail.error}</div>` : ''}
+                </div>
+            `;
+        });
+        
+        summaryHTML += `
+                </div>
+            </div>
+        `;
+    }
+    
+    summaryDiv.innerHTML = summaryHTML;
     
     // Show results section
     resultsSection.style.display = 'block';

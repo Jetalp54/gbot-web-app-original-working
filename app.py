@@ -1602,6 +1602,7 @@ def api_create_random_users():
 def api_bulk_create_account_users():
     """
     Create users for multiple accounts in bulk.
+    Each account can have its own number of users, domain, and password.
     Authenticates all accounts using saved Authenticators in parallel,
     then creates users for each account.
     """
@@ -1610,39 +1611,54 @@ def api_bulk_create_account_users():
     
     try:
         data = request.get_json()
-        accounts = data.get('accounts', [])
-        users_per_account = data.get('users_per_account', 10)
-        domain = data.get('domain', '').strip()
-        password = data.get('password', '').strip()
+        accounts_data = data.get('accounts_data', [])
         
         # Validation
-        if not accounts or len(accounts) == 0:
+        if not accounts_data or len(accounts_data) == 0:
             return jsonify({'success': False, 'error': 'No accounts provided'})
         
-        if not users_per_account or users_per_account < 1 or users_per_account > 1000:
-            return jsonify({'success': False, 'error': 'Users per account must be between 1 and 1000'})
-        
-        if not domain:
-            return jsonify({'success': False, 'error': 'Domain is required'})
-        
-        if not password or len(password) < 8:
-            return jsonify({'success': False, 'error': 'Password must be at least 8 characters long'})
-        
-        # Clean domain
+        # Validate each account's data
         import re
-        domain = domain.strip().lower()
-        if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', domain):
-            return jsonify({'success': False, 'error': 'Invalid domain format'})
+        for idx, account_info in enumerate(accounts_data):
+            account_name = account_info.get('account', '').strip()
+            users_per_account = account_info.get('users_per_account', 0)
+            domain = account_info.get('domain', '').strip()
+            password = account_info.get('password', '').strip()
+            
+            if not account_name:
+                return jsonify({'success': False, 'error': f'Row {idx + 1}: Account email is required'})
+            
+            if not users_per_account or users_per_account < 1 or users_per_account > 1000:
+                return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Users per account must be between 1 and 1000'})
+            
+            if not domain:
+                return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Domain is required'})
+            
+            if not password or len(password) < 8:
+                return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Password must be at least 8 characters long'})
+            
+            # Clean domain
+            domain = domain.strip().lower()
+            if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', domain):
+                return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Invalid domain format'})
+            
+            # Sanitize password
+            password = re.sub(r'[^\w\-_!@#$%^&*()+=]', '', password)
+            if not password.strip():
+                return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Password cannot be empty after sanitization'})
+            
+            # Update the account_info with cleaned values
+            account_info['domain'] = domain
+            account_info['password'] = password
         
-        # Sanitize password
-        password = re.sub(r'[^\w\-_!@#$%^&*()+=]', '', password)
-        if not password.strip():
-            return jsonify({'success': False, 'error': 'Password cannot be empty after sanitization'})
-        
-        app.logger.info(f"[BULK ACCOUNTS] Starting bulk creation for {len(accounts)} account(s), {users_per_account} users per account")
+        app.logger.info(f"[BULK ACCOUNTS] Starting bulk creation for {len(accounts_data)} account(s)")
         
         # Process each account
-        def process_account(account_name):
+        def process_account(account_info):
+            account_name = account_info['account']
+            users_per_account = account_info['users_per_account']
+            domain = account_info['domain']
+            password = account_info['password']
             """Process a single account: authenticate and create users"""
             account_result = {
                 'account': account_name,
@@ -1751,9 +1767,9 @@ def api_bulk_create_account_users():
         
         # Process all accounts in parallel
         all_results = []
-        with ThreadPoolExecutor(max_workers=min(10, len(accounts))) as executor:
+        with ThreadPoolExecutor(max_workers=min(10, len(accounts_data))) as executor:
             # Submit all accounts
-            future_to_account = {executor.submit(process_account, account): account for account in accounts}
+            future_to_account = {executor.submit(process_account, account_info): account_info['account'] for account_info in accounts_data}
             
             # Collect results as they complete
             for future in as_completed(future_to_account):
