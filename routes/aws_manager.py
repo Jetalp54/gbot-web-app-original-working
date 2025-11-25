@@ -781,22 +781,29 @@ def push_ecr_to_all_regions():
                         logger.info(f"[ECR] [{target_region}] Image not found. Attempting to push from {source_region}...")
                         
                         # Try to use EC2 build box if available (it has Docker)
-                        # Otherwise fall back to local Docker or provide instructions
+                        # Prioritize EC2 build box over local Docker for reliability
                         ec2_instance_id = None
+                        ec2_instance_state = None
                         try:
                             ec2_instance = find_ec2_build_instance(source_session)
                             if ec2_instance:
                                 ec2_instance_id = ec2_instance['InstanceId']
-                                logger.info(f"[ECR] [{target_region}] Found EC2 build box: {ec2_instance_id}, will use it for Docker operations")
+                                ec2_instance_state = ec2_instance.get('State', {}).get('Name', 'unknown')
+                                if ec2_instance_state == 'running':
+                                    logger.info(f"[ECR] [{target_region}] ✓ Found running EC2 build box: {ec2_instance_id}, will use it for Docker operations")
+                                else:
+                                    logger.warning(f"[ECR] [{target_region}] ⚠️ EC2 build box found but state is '{ec2_instance_state}', cannot use it")
+                                    ec2_instance_id = None  # Don't use if not running
                         except Exception as ec2_err:
                             logger.debug(f"[ECR] [{target_region}] Could not find EC2 build box: {ec2_err}")
                         
-                        # Check if Docker is available locally
+                        # Check if Docker is available locally (fallback option)
                         docker_available = shutil.which('docker') is not None
                         aws_cli_available = shutil.which('aws') is not None
                         
-                        # If EC2 build box is available, use it instead of local Docker
-                        if ec2_instance_id and not docker_available:
+                        # PRIORITIZE EC2 build box if available and running (it's more reliable and has Docker pre-configured)
+                        # Only use local Docker if EC2 is not available or not running
+                        if ec2_instance_id and ec2_instance_state == 'running':
                             logger.info(f"[ECR] [{target_region}] Using EC2 build box {ec2_instance_id} for Docker operations")
                             # Use SSM to run Docker commands on EC2
                             try:
@@ -886,8 +893,10 @@ echo "Successfully pushed image to {target_region}"
                             except Exception as ssm_err:
                                 logger.error(f"[ECR] [{target_region}] ✗ Failed to use EC2 build box: {ssm_err}")
                                 logger.error(traceback.format_exc())
-                                # Fall through to manual instructions
+                                # Fall through to local Docker or manual instructions
                         
+                        # If we reach here, EC2 build box was not available, not running, or failed
+                        # Try local Docker as fallback
                         if not docker_available:
                             logger.warning(f"[ECR] [{target_region}] ⚠️ Docker not available. Manual push required.")
                             logger.warning(f"[ECR] [{target_region}] To push manually:")
@@ -4231,13 +4240,20 @@ REPO_NAME="{ecr_repo}"
 IMAGE_TAG="{image_tag}"
 SOURCE_REGION="{region}"
 
-# List of all AWS regions (active regions only)
+# List of all AWS regions (as specified by user - 34 regions total)
 TARGET_REGIONS=(
     "us-east-1" "us-east-2" "us-west-1" "us-west-2"
-    "ap-south-1" "ap-northeast-1" "ap-northeast-2" "ap-northeast-3"
-    "ap-southeast-1" "ap-southeast-2" "ca-central-1"
+    "af-south-1"
+    "ap-east-1" "ap-east-2" "ap-south-1" "ap-south-2"
+    "ap-northeast-1" "ap-northeast-2" "ap-northeast-3"
+    "ap-southeast-1" "ap-southeast-2" "ap-southeast-3"
+    "ap-southeast-4" "ap-southeast-5" "ap-southeast-6" "ap-southeast-7"
+    "ca-central-1" "ca-west-1"
     "eu-central-1" "eu-west-1" "eu-west-2" "eu-west-3"
-    "eu-north-1" "sa-east-1"
+    "eu-north-1" "eu-south-1" "eu-south-2"
+    "mx-central-1"
+    "me-south-1" "me-central-1" "il-central-1"
+    "sa-east-1"
 )
 
 SUCCESS_COUNT=0
