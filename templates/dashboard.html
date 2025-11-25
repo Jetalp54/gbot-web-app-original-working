@@ -564,6 +564,10 @@
                         <i class="fas fa-play"></i>
                         Start Bulk Creation
                     </button>
+                    <button onclick="retrieveUsersFromTableAccounts(event)" class="btn-github" style="flex: 1; min-width: 150px; background-color: #0969da; border-color: #0969da; color: white;">
+                        <i class="fas fa-sync-alt"></i>
+                        Retrieve Users from Table
+                    </button>
                     <button onclick="executeBulkAccountDeletion(event)" class="btn-github" style="flex: 1; min-width: 150px; background-color: #d73a49; border-color: #d73a49; color: white;">
                         <i class="fas fa-trash"></i>
                         Authenticate & Delete All Users
@@ -585,22 +589,22 @@
                 </div>
                 
                 <!-- Results Display Section (inside modal) -->
-                <div id="bulk-account-results" style="display: none; margin-top: 24px; padding-top: 24px; border-top: 1px solid #d0d7de;">
+                <div id="bulk-account-results-modal" style="display: none; margin-top: 24px; padding-top: 24px; border-top: 1px solid #d0d7de;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                         <h4 style="color: #24292f; margin: 0; font-size: 16px;">
                             <i class="fas fa-list"></i>
-                            Created Users (user:password format)
+                            Retrieved Users (user:password format)
                         </h4>
                         <button onclick="copyBulkAccountResults()" class="btn-github" style="margin-left: 8px;">
-                            <i class="fas fa-sync-alt"></i>
-                            Retrieve & Copy All Users
+                            <i class="fas fa-copy"></i>
+                            Copy All
                         </button>
                     </div>
                     <div class="form-group-github">
-                        <textarea id="bulk-account-results-text" class="form-control-github" rows="15" readonly 
+                        <textarea id="bulk-account-results-text-modal" class="form-control-github" rows="15" readonly 
                                   style="font-family: 'Courier New', monospace; font-size: 13px; background-color: #f6f8fa;"></textarea>
                     </div>
-                    <div id="bulk-account-summary" style="margin-top: 12px; padding: 12px; background-color: #f6f8fa; border-radius: 6px;">
+                    <div id="bulk-account-summary-modal" style="margin-top: 12px; padding: 12px; background-color: #f6f8fa; border-radius: 6px;">
                         <!-- Summary will be displayed here -->
                     </div>
                 </div>
@@ -5915,29 +5919,69 @@ function copyBulkAccountResults() {
     }
 }
 
+function retrieveUsersFromTableAccounts(event) {
+    // Get accounts from the table rows in the modal
+    const tbody = document.getElementById('bulk-accounts-tbody');
+    if (!tbody) {
+        alert('Table not found.');
+        return;
+    }
+    
+    const rows = tbody.querySelectorAll('tr');
+    if (rows.length === 0) {
+        alert('Please add at least one account to the table.');
+        return;
+    }
+    
+    // Collect account emails from table
+    const accounts = [];
+    rows.forEach((row) => {
+        const accountInput = row.querySelector('input[data-field="account"]');
+        if (accountInput) {
+            const account = accountInput.value.trim();
+            if (account && account.includes('@')) {
+                accounts.push(account);
+            }
+        }
+    });
+    
+    if (accounts.length === 0) {
+        alert('Please add at least one valid account email to the table.');
+        return;
+    }
+    
+    // Call the retrieve function with these accounts
+    retrieveUsersFromProcessedAccounts(accounts);
+}
+
 function retrieveUsersFromProcessedAccounts(accounts = null) {
     // Get accounts from parameter or localStorage
     const accountsToRetrieve = accounts || getProcessedAccounts();
     
     if (!accountsToRetrieve || accountsToRetrieve.length === 0) {
-        alert('No processed accounts found. Please run bulk creation first.');
+        alert('No accounts found. Please add accounts to the table or run bulk creation first.');
         return;
     }
     
-    // Show loading state
-    const textarea = document.getElementById('bulk-account-results-text');
-    const summaryDiv = document.getElementById('bulk-account-summary');
+    // Show loading state - check both modal and main page results sections
+    const textarea = document.getElementById('bulk-account-results-text-modal') || document.getElementById('bulk-account-results-text');
+    const summaryDiv = document.getElementById('bulk-account-summary-modal') || document.getElementById('bulk-account-summary');
+    
     if (textarea) {
-        textarea.value = '🔄 Authenticating and retrieving users from all accounts...\nPlease wait...';
+        textarea.value = '🔄 Authenticating and retrieving users from ' + accountsToRetrieve.length + ' account(s)...\nPlease wait...';
     }
     if (summaryDiv) {
         summaryDiv.innerHTML = '<div style="padding: 12px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Loading users from ' + accountsToRetrieve.length + ' account(s)...</div>';
     }
     
-    // Show results section if it exists (even if modal is closed)
-    const resultsSection = document.getElementById('bulk-account-results');
-    if (resultsSection) {
-        resultsSection.style.display = 'block';
+    // Show results section - prioritize modal if it exists
+    const modalResultsSection = document.getElementById('bulk-account-results-modal');
+    const mainResultsSection = document.getElementById('bulk-account-results');
+    
+    if (modalResultsSection) {
+        modalResultsSection.style.display = 'block';
+    } else if (mainResultsSection) {
+        mainResultsSection.style.display = 'block';
     }
     
     // Call API to retrieve users from all processed accounts
@@ -5993,79 +6037,98 @@ function retrieveUsersFromProcessedAccounts(accounts = null) {
                 });
             }
             
-            // Display in textarea
-            if (textarea) {
-                textarea.value = userPasswordList.join('\n');
+            // Display in textarea - update both modal and main page if they exist
+            const modalTextarea = document.getElementById('bulk-account-results-text-modal');
+            const mainTextarea = document.getElementById('bulk-account-results-text');
+            const userListText = userPasswordList.join('\n');
+            
+            if (modalTextarea) {
+                modalTextarea.value = userListText;
+            }
+            if (mainTextarea) {
+                mainTextarea.value = userListText;
             }
             
-            // Update summary
-            if (summaryDiv) {
-                let summaryHTML = `
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
-                        <div>
-                            <strong style="color: #0969da;">Total Accounts:</strong>
-                            <div style="font-size: 24px; font-weight: bold; color: #24292f;">${data.total_accounts || 0}</div>
+            // Update summary - update both modal and main page if they exist
+            const modalSummary = document.getElementById('bulk-account-summary-modal');
+            const mainSummary = document.getElementById('bulk-account-summary');
+            
+            let summaryHTML = `
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <strong style="color: #0969da;">Total Accounts:</strong>
+                        <div style="font-size: 24px; font-weight: bold; color: #24292f;">${data.total_accounts || 0}</div>
+                    </div>
+                    <div>
+                        <strong style="color: #1a7f37;">Total Users:</strong>
+                        <div style="font-size: 24px; font-weight: bold; color: #1a7f37;">${totalUsers}</div>
+                    </div>
+                    <div>
+                        <strong style="color: #cf222e;">Failed:</strong>
+                        <div style="font-size: 24px; font-weight: bold; color: #cf222e;">${data.total_failed || 0}</div>
+                    </div>
+                </div>
+            `;
+            
+            if (accountDetails.length > 0) {
+                summaryHTML += `
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #d0d7de;">
+                        <strong style="color: #24292f; font-size: 14px;">Account Details:</strong>
+                        <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
+                `;
+                
+                accountDetails.forEach(detail => {
+                    const statusIcon = detail.authenticated ? '✅' : '❌';
+                    const statusColor = detail.authenticated ? '#1a7f37' : '#cf222e';
+                    summaryHTML += `
+                        <div style="padding: 8px; margin-bottom: 4px; background-color: #f6f8fa; border-radius: 4px; font-size: 13px;">
+                            <strong>${statusIcon} ${detail.account}:</strong>
+                            <span style="color: ${statusColor}; margin-left: 8px;">
+                                ${detail.users} user(s)
+                            </span>
+                            ${detail.error ? `<div style="color: #cf222e; font-size: 12px; margin-top: 4px;">Error: ${detail.error}</div>` : ''}
                         </div>
-                        <div>
-                            <strong style="color: #1a7f37;">Total Users:</strong>
-                            <div style="font-size: 24px; font-weight: bold; color: #1a7f37;">${totalUsers}</div>
-                        </div>
-                        <div>
-                            <strong style="color: #cf222e;">Failed:</strong>
-                            <div style="font-size: 24px; font-weight: bold; color: #cf222e;">${data.total_failed || 0}</div>
+                    `;
+                });
+                
+                summaryHTML += `
                         </div>
                     </div>
                 `;
-                
-                if (accountDetails.length > 0) {
-                    summaryHTML += `
-                        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #d0d7de;">
-                            <strong style="color: #24292f; font-size: 14px;">Account Details:</strong>
-                            <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
-                    `;
-                    
-                    accountDetails.forEach(detail => {
-                        const statusIcon = detail.authenticated ? '✅' : '❌';
-                        const statusColor = detail.authenticated ? '#1a7f37' : '#cf222e';
-                        summaryHTML += `
-                            <div style="padding: 8px; margin-bottom: 4px; background-color: #f6f8fa; border-radius: 4px; font-size: 13px;">
-                                <strong>${statusIcon} ${detail.account}:</strong>
-                                <span style="color: ${statusColor}; margin-left: 8px;">
-                                    ${detail.users} user(s)
-                                </span>
-                                ${detail.error ? `<div style="color: #cf222e; font-size: 12px; margin-top: 4px;">Error: ${detail.error}</div>` : ''}
-                            </div>
-                        `;
-                    });
-                    
-                    summaryHTML += `
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                summaryDiv.innerHTML = summaryHTML;
             }
             
-            // Show results section (make sure it's visible even if modal is closed)
-            const resultsSection = document.getElementById('bulk-account-results');
-            if (resultsSection) {
-                resultsSection.style.display = 'block';
+            if (modalSummary) {
+                modalSummary.innerHTML = summaryHTML;
+            }
+            if (mainSummary) {
+                mainSummary.innerHTML = summaryHTML;
+            }
+            
+            // Show results section - prioritize modal if it exists
+            if (modalResultsSection) {
+                modalResultsSection.style.display = 'block';
+                // Scroll to results section in modal
+                setTimeout(() => {
+                    modalResultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            } else if (mainResultsSection) {
+                mainResultsSection.style.display = 'block';
                 // Scroll to results section
                 setTimeout(() => {
-                    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    mainResultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }, 100);
             }
             
-            // Copy to clipboard
-            if (textarea && textarea.value) {
-                textarea.select();
-                textarea.setSelectionRange(0, 99999);
+            // Copy to clipboard - use the textarea that has content
+            const textareaToCopy = modalTextarea && modalTextarea.value ? modalTextarea : (mainTextarea && mainTextarea.value ? mainTextarea : null);
+            if (textareaToCopy && textareaToCopy.value) {
+                textareaToCopy.select();
+                textareaToCopy.setSelectionRange(0, 99999);
                 try {
                     document.execCommand('copy');
                     alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s) and copied to clipboard!`);
                 } catch (err) {
-                    navigator.clipboard.writeText(textarea.value).then(() => {
+                    navigator.clipboard.writeText(textareaToCopy.value).then(() => {
                         alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s) and copied to clipboard!`);
                     }).catch(() => {
                         alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s). Please copy manually.`);
