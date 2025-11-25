@@ -541,12 +541,16 @@
                     </button>
                 </div>
                 
-                <div style="display: flex; gap: 12px; margin-top: 24px;">
-                    <button onclick="executeBulkAccountCreation()" class="btn-github btn-github-primary" style="flex: 1;">
+                <div style="display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;">
+                    <button onclick="executeBulkAccountCreation()" class="btn-github btn-github-primary" style="flex: 1; min-width: 150px;">
                         <i class="fas fa-play"></i>
                         Start Bulk Creation
                     </button>
-                    <button onclick="closeBulkAccountModal()" class="btn-github" style="flex: 1;">
+                    <button onclick="executeBulkAccountDeletion()" class="btn-github" style="flex: 1; min-width: 150px; background-color: #d73a49; border-color: #d73a49; color: white;">
+                        <i class="fas fa-trash"></i>
+                        Authenticate & Delete All Users
+                    </button>
+                    <button onclick="closeBulkAccountModal()" class="btn-github" style="flex: 1; min-width: 150px;">
                         <i class="fas fa-times"></i>
                         Cancel
                     </button>
@@ -2228,13 +2232,19 @@ function loadAllAppPasswords() {
         } else {
             console.error('Failed to load app passwords:', data.error);
             logResult(`❌ Failed to load app passwords: ${data.error}`);
-            document.getElementById('app-passwords-display').innerHTML = `<div class="error-message">❌ Error: ${data.error}</div>`;
+            const displayElement = document.getElementById('app-passwords-display');
+            if (displayElement) {
+                displayElement.innerHTML = `<div class="error-message">❌ Error: ${data.error}</div>`;
+            }
         }
     })
     .catch(error => {
         console.error('Network error:', error);
         logResult(`❌ Network error: ${error.message}`);
-        document.getElementById('app-passwords-display').innerHTML = `<div class="error-message">❌ Network error: ${error.message}</div>`;
+        const displayElement = document.getElementById('app-passwords-display');
+        if (displayElement) {
+            displayElement.innerHTML = `<div class="error-message">❌ Network error: ${error.message}</div>`;
+        }
     });
 }
 
@@ -2242,9 +2252,16 @@ function displayAppPasswords(appPasswords) {
     console.log('Displaying app passwords:', appPasswords);
     logResult(`🎨 Displaying ${appPasswords ? appPasswords.length : 0} app passwords`);
     
+    const displayElement = document.getElementById('app-passwords-display');
+    if (!displayElement) {
+        console.error('app-passwords-display element not found');
+        logResult('❌ Error: App passwords display element not found');
+        return;
+    }
+    
     if (!appPasswords || appPasswords.length === 0) {
         console.log('No app passwords to display');
-        document.getElementById('app-passwords-display').innerHTML = '<div class="status-info"><p>✅ No app passwords stored</p></div>';
+        displayElement.innerHTML = '<div class="status-info"><p>✅ No app passwords stored</p></div>';
         return;
     }
     
@@ -2271,7 +2288,7 @@ function displayAppPasswords(appPasswords) {
     });
     
     html += '</div>';
-    document.getElementById('app-passwords-display').innerHTML = html;
+    displayElement.innerHTML = html;
     console.log('App passwords display updated');
     logResult('✅ App passwords display updated');
 }
@@ -5522,11 +5539,7 @@ function executeBulkAccountCreation() {
             return;
         }
         
-        if (!domain) {
-            errors.push(`Row ${index + 1} (${account}): Domain is required`);
-            hasErrors = true;
-            return;
-        }
+        // Domain is optional - will use default domain if empty
         
         if (!password || password.length < 8) {
             errors.push(`Row ${index + 1} (${account}): Password must be at least 8 characters`);
@@ -5537,7 +5550,7 @@ function executeBulkAccountCreation() {
         accountsData.push({
             account: account,
             users_per_account: users,
-            domain: domain,
+            domain: domain || '', // Empty domain will use default
             password: password
         });
     });

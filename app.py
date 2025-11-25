@@ -12,6 +12,7 @@ import smtplib
 import tempfile
 import time
 import sqlite3
+import traceback
 from werkzeug.security import generate_password_hash, check_password_hash
 import logging.handlers
 import threading
@@ -1631,16 +1632,17 @@ def api_bulk_create_account_users():
             if not users_per_account or users_per_account < 1 or users_per_account > 1000:
                 return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Users per account must be between 1 and 1000'})
             
-            if not domain:
-                return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Domain is required'})
+            # Domain is optional - will use default domain if empty
+            # Validation will happen later when we get the default domain
             
             if not password or len(password) < 8:
                 return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Password must be at least 8 characters long'})
             
-            # Clean domain
-            domain = domain.strip().lower()
-            if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', domain):
-                return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Invalid domain format'})
+            # Clean domain if provided (optional - will use default if empty)
+            if domain:
+                domain = domain.strip().lower()
+                if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', domain):
+                    return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Invalid domain format'})
             
             # Sanitize password
             password = re.sub(r'[^\w\-_!@#$%^&*()+=]', '', password)
@@ -1648,122 +1650,189 @@ def api_bulk_create_account_users():
                 return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Password cannot be empty after sanitization'})
             
             # Update the account_info with cleaned values
-            account_info['domain'] = domain
+            account_info['domain'] = domain if domain else ''  # Empty will use default
             account_info['password'] = password
         
         app.logger.info(f"[BULK ACCOUNTS] Starting bulk creation for {len(accounts_data)} account(s)")
         
-        # Process each account
+        # Step 1: Authenticate all accounts in parallel first
+        def authenticate_account(account_info):
+            """Authenticate a single account"""
+            with app.app_context():
+                account_name = account_info['account']
+                try:
+                    account_db = GoogleAccount.query.filter_by(account_name=account_name).first()
+                    if not account_db:
+                        return {'account': account_name, 'authenticated': False, 'error': 'Account not found in database'}
+                    
+                    auth_success = authenticate_without_session(account_name)
+                    if not auth_success:
+                        return {'account': account_name, 'authenticated': False, 'error': 'Failed to authenticate. Please ensure authenticator is saved.'}
+                    
+                    service = get_service_without_session(account_name)
+                    if not service:
+                        return {'account': account_name, 'authenticated': False, 'error': 'Failed to get service'}
+                    
+                    # Get default domain if domain is empty
+                    domain = account_info.get('domain', '').strip()
+                    if not domain:
+                        try:
+                            domains_result = service.domains().list(customer='my_customer').execute()
+                            domains = domains_result.get('domains', [])
+                            # Find primary domain (isPrimary = True)
+                            primary_domain = next((d for d in domains if d.get('isPrimary', False)), None)
+                            if primary_domain:
+                                domain = primary_domain.get('domainName', '')
+                                account_info['domain'] = domain
+                                app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Using default domain: {domain}")
+                            else:
+                                # Fallback to first domain or extract from account email
+                                if domains:
+                                    domain = domains[0].get('domainName', '')
+                                    account_info['domain'] = domain
+                                else:
+                                    # Extract domain from account email as last resort
+                                    domain = account_name.split('@')[1] if '@' in account_name else ''
+                                    account_info['domain'] = domain
+                                    app.logger.warning(f"[BULK ACCOUNTS] [{account_name}] No domains found, using account domain: {domain}")
+                        except Exception as domain_err:
+                            app.logger.error(f"[BULK ACCOUNTS] [{account_name}] Error getting default domain: {domain_err}")
+                            # Fallback to account email domain
+                            domain = account_name.split('@')[1] if '@' in account_name else ''
+                            account_info['domain'] = domain
+                    
+                    if not domain:
+                        return {'account': account_name, 'authenticated': False, 'error': 'Could not determine domain'}
+                    
+                    return {'account': account_name, 'authenticated': True, 'service': service, 'domain': domain}
+                except Exception as e:
+                    app.logger.error(f"[BULK ACCOUNTS] [{account_name}] Authentication error: {e}")
+                    return {'account': account_name, 'authenticated': False, 'error': str(e)}
+        
+        # Authenticate all accounts in parallel
+        authenticated_accounts = {}
+        with ThreadPoolExecutor(max_workers=min(10, len(accounts_data))) as auth_executor:
+            auth_futures = {auth_executor.submit(authenticate_account, account_info): account_info['account'] for account_info in accounts_data}
+            
+            for future in as_completed(auth_futures):
+                account = auth_futures[future]
+                try:
+                    auth_result = future.result()
+                    if auth_result['authenticated']:
+                        authenticated_accounts[account] = auth_result
+                    else:
+                        app.logger.error(f"[BULK ACCOUNTS] [{account}] Authentication failed: {auth_result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    app.logger.error(f"[BULK ACCOUNTS] [{account}] Authentication exception: {e}")
+        
+        app.logger.info(f"[BULK ACCOUNTS] Authenticated {len(authenticated_accounts)}/{len(accounts_data)} account(s)")
+        
+        # Step 2: Create users in parallel across all authenticated accounts
         def process_account(account_info):
-            account_name = account_info['account']
-            users_per_account = account_info['users_per_account']
-            domain = account_info['domain']
-            password = account_info['password']
             """Process a single account: authenticate and create users"""
-            account_result = {
-                'account': account_name,
-                'authenticated': False,
-                'users': [],
-                'error': None
-            }
-            
-            try:
-                # Authenticate account using saved authenticator
-                app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Authenticating...")
+            # Use Flask application context for database operations
+            with app.app_context():
+                account_name = account_info['account']
+                users_per_account = account_info['users_per_account']
+                domain = account_info['domain']
+                password = account_info['password']
                 
-                # Check if account exists in database
-                account_db = GoogleAccount.query.filter_by(account_name=account_name).first()
-                if not account_db:
-                    account_result['error'] = f'Account {account_name} not found in database'
-                    return account_result
+                account_result = {
+                    'account': account_name,
+                    'authenticated': False,
+                    'users': [],
+                    'error': None
+                }
                 
-                # Authenticate without session (for background processing)
-                auth_success = authenticate_without_session(account_name)
-                if not auth_success:
-                    account_result['error'] = f'Failed to authenticate account {account_name}. Please ensure authenticator is saved.'
-                    return account_result
+                try:
+                    # Check if account was authenticated in step 1
+                    if account_name not in authenticated_accounts:
+                        account_result['error'] = f'Account {account_name} was not authenticated'
+                        return account_result
+                    
+                    auth_data = authenticated_accounts[account_name]
+                    service = auth_data['service']
+                    domain = auth_data.get('domain') or account_info.get('domain', '').strip()
+                    
+                    if not domain:
+                        account_result['error'] = f'No domain available for account {account_name}'
+                        return account_result
+                    
+                    account_result['authenticated'] = True
+                    app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Using authenticated service, domain: {domain}")
+                    
+                    # Create users for this account
+                    app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Creating {users_per_account} user(s) on domain {domain}...")
+                    
+                    # Use the create_random_users logic but with the service we have
+                    import random
+                    import string
+                    
+                    first_names = [
+                        "James", "John", "Robert", "Michael", "William", "David", "Richard", "Charles", "Joseph", "Thomas",
+                        "Christopher", "Daniel", "Paul", "Mark", "Donald", "George", "Kenneth", "Steven", "Edward", "Brian",
+                        "Ronald", "Anthony", "Kevin", "Jason", "Matthew", "Gary", "Timothy", "Jose", "Larry", "Jeffrey",
+                        "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica", "Sarah", "Karen",
+                        "Nancy", "Lisa", "Betty", "Helen", "Sandra", "Donna", "Carol", "Ruth", "Sharon", "Michelle"
+                    ]
+                    
+                    last_names = [
+                        "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
+                        "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
+                        "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson"
+                    ]
+                    
+                    for i in range(users_per_account):
+                        try:
+                            # Generate random names
+                            first_name = random.choice(first_names)
+                            last_name = random.choice(last_names)
+                            
+                            # Create email with random number to avoid duplicates
+                            random_num = random.randint(1000, 9999)
+                            email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
+                            
+                            # Create user using the service
+                            user_body = {
+                                "primaryEmail": email,
+                                "name": {
+                                    "givenName": first_name,
+                                    "familyName": last_name
+                                },
+                                "password": password,
+                                "changePasswordAtNextLogin": False
+                            }
+                            
+                            user = service.users().insert(body=user_body).execute()
+                            
+                            account_result['users'].append({
+                                'email': email,
+                                'password': password,
+                                'first_name': first_name,
+                                'last_name': last_name,
+                                'success': True
+                            })
+                            
+                            app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Created user: {email}")
+                            
+                        except Exception as user_err:
+                            error_msg = str(user_err)
+                            account_result['users'].append({
+                                'email': email if 'email' in locals() else f'user_{i+1}@{domain}',
+                                'password': password,
+                                'success': False,
+                                'error': error_msg
+                            })
+                            app.logger.warning(f"[BULK ACCOUNTS] [{account_name}] ✗ Failed to create user: {error_msg}")
+                    
+                    app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Completed: {sum(1 for u in account_result['users'] if u.get('success'))}/{len(account_result['users'])} users created")
+                    
+                except Exception as e:
+                    account_result['error'] = str(e)
+                    app.logger.error(f"[BULK ACCOUNTS] [{account_name}] ✗✗✗ Error: {e}")
+                    app.logger.error(traceback.format_exc())
                 
-                account_result['authenticated'] = True
-                app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Authenticated successfully")
-                
-                # Get service for this account
-                service = get_service_without_session(account_name)
-                if not service:
-                    account_result['error'] = f'Failed to get service for account {account_name}'
-                    return account_result
-                
-                # Create users for this account
-                app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Creating {users_per_account} user(s)...")
-                
-                # Use the create_random_users logic but with the service we have
-                import random
-                import string
-                
-                first_names = [
-                    "James", "John", "Robert", "Michael", "William", "David", "Richard", "Charles", "Joseph", "Thomas",
-                    "Christopher", "Daniel", "Paul", "Mark", "Donald", "George", "Kenneth", "Steven", "Edward", "Brian",
-                    "Ronald", "Anthony", "Kevin", "Jason", "Matthew", "Gary", "Timothy", "Jose", "Larry", "Jeffrey",
-                    "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica", "Sarah", "Karen",
-                    "Nancy", "Lisa", "Betty", "Helen", "Sandra", "Donna", "Carol", "Ruth", "Sharon", "Michelle"
-                ]
-                
-                last_names = [
-                    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
-                    "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
-                    "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson"
-                ]
-                
-                for i in range(users_per_account):
-                    try:
-                        # Generate random names
-                        first_name = random.choice(first_names)
-                        last_name = random.choice(last_names)
-                        
-                        # Create email with random number to avoid duplicates
-                        random_num = random.randint(1000, 9999)
-                        email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
-                        
-                        # Create user using the service
-                        user_body = {
-                            "primaryEmail": email,
-                            "name": {
-                                "givenName": first_name,
-                                "familyName": last_name
-                            },
-                            "password": password,
-                            "changePasswordAtNextLogin": False
-                        }
-                        
-                        user = service.users().insert(body=user_body).execute()
-                        
-                        account_result['users'].append({
-                            'email': email,
-                            'password': password,
-                            'first_name': first_name,
-                            'last_name': last_name,
-                            'success': True
-                        })
-                        
-                        app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Created user: {email}")
-                        
-                    except Exception as user_err:
-                        error_msg = str(user_err)
-                        account_result['users'].append({
-                            'email': email if 'email' in locals() else f'user_{i+1}@{domain}',
-                            'password': password,
-                            'success': False,
-                            'error': error_msg
-                        })
-                        app.logger.warning(f"[BULK ACCOUNTS] [{account_name}] ✗ Failed to create user: {error_msg}")
-                
-                app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Completed: {sum(1 for u in account_result['users'] if u.get('success'))}/{len(account_result['users'])} users created")
-                
-            except Exception as e:
-                account_result['error'] = str(e)
-                app.logger.error(f"[BULK ACCOUNTS] [{account_name}] ✗✗✗ Error: {e}")
-                app.logger.error(traceback.format_exc())
-            
-            return account_result
+                return account_result
         
         # Process all accounts in parallel
         all_results = []
@@ -1793,11 +1862,17 @@ def api_bulk_create_account_users():
         
         app.logger.info(f"[BULK ACCOUNTS] ✓✓✓ Bulk creation completed: {total_users_created} users created across {total_accounts} accounts")
         
+        successful_accounts = sum(1 for r in all_results if r.get('authenticated') and len(r.get('users', [])) > 0)
+        failed_accounts = total_accounts - successful_accounts
+        
         return jsonify({
             'success': True,
-            'total_accounts': total_accounts,
-            'total_users_created': total_users_created,
-            'total_users_failed': total_users_failed,
+            'message': 'Bulk user creation process completed.',
+            'total_accounts_processed': total_accounts,
+            'successful_accounts': successful_accounts,
+            'failed_accounts': failed_accounts,
+            'total_successful_users': total_users_created,
+            'total_failed_users': total_users_failed,
             'results': all_results
         })
         
@@ -1805,6 +1880,193 @@ def api_bulk_create_account_users():
         app.logger.error(f"[BULK ACCOUNTS] ✗✗✗ CRITICAL ERROR: {e}")
         app.logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bulk-delete-account-users', methods=['POST'])
+@login_required
+def api_bulk_delete_account_users():
+    """
+    Authenticate and delete all users from multiple accounts in bulk.
+    Authenticates all accounts first, then deletes users in parallel.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    try:
+        data = request.get_json()
+        accounts = data.get('accounts', [])
+        
+        if not accounts or len(accounts) == 0:
+            return jsonify({'success': False, 'error': 'No accounts provided'})
+        
+        app.logger.info(f"[BULK DELETE] Starting bulk deletion for {len(accounts)} account(s)")
+        
+        # Step 1: Authenticate all accounts in parallel
+        def authenticate_account(account_name):
+            """Authenticate a single account"""
+            with app.app_context():
+                try:
+                    account_db = GoogleAccount.query.filter_by(account_name=account_name).first()
+                    if not account_db:
+                        return {'account': account_name, 'authenticated': False, 'error': 'Account not found in database'}
+                    
+                    auth_success = authenticate_without_session(account_name)
+                    if not auth_success:
+                        return {'account': account_name, 'authenticated': False, 'error': 'Failed to authenticate. Please ensure authenticator is saved.'}
+                    
+                    service = get_service_without_session(account_name)
+                    if not service:
+                        return {'account': account_name, 'authenticated': False, 'error': 'Failed to get service'}
+                    
+                    return {'account': account_name, 'authenticated': True, 'service': service}
+                except Exception as e:
+                    app.logger.error(f"[BULK DELETE] [{account_name}] Authentication error: {e}")
+                    return {'account': account_name, 'authenticated': False, 'error': str(e)}
+        
+        authenticated_accounts = {}
+        with ThreadPoolExecutor(max_workers=min(10, len(accounts))) as auth_executor:
+            auth_futures = {auth_executor.submit(authenticate_account, account): account for account in accounts}
+            
+            for future in as_completed(auth_futures):
+                account = auth_futures[future]
+                try:
+                    auth_result = future.result()
+                    if auth_result['authenticated']:
+                        authenticated_accounts[account] = auth_result
+                    else:
+                        app.logger.error(f"[BULK DELETE] [{account}] Authentication failed: {auth_result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    app.logger.error(f"[BULK DELETE] [{account}] Authentication exception: {e}")
+        
+        app.logger.info(f"[BULK DELETE] Authenticated {len(authenticated_accounts)}/{len(accounts)} account(s)")
+        
+        # Step 2: Delete users in parallel across all authenticated accounts
+        def delete_account_users(account_name):
+            """Delete all users from a single account"""
+            with app.app_context():
+                account_result = {
+                    'account': account_name,
+                    'authenticated': False,
+                    'deleted_count': 0,
+                    'failed_count': 0,
+                    'error': None
+                }
+                
+                try:
+                    if account_name not in authenticated_accounts:
+                        account_result['error'] = 'Account was not authenticated'
+                        return account_result
+                    
+                    auth_data = authenticated_accounts[account_name]
+                    service = auth_data['service']
+                    account_result['authenticated'] = True
+                    
+                    app.logger.info(f"[BULK DELETE] [{account_name}] Retrieving users...")
+                    
+                    # Get all users
+                    all_users = []
+                    page_token = None
+                    
+                    while True:
+                        try:
+                            if page_token:
+                                users_result = service.users().list(
+                                    customer='my_customer',
+                                    maxResults=500,
+                                    pageToken=page_token
+                                ).execute()
+                            else:
+                                users_result = service.users().list(
+                                    customer='my_customer',
+                                    maxResults=500
+                                ).execute()
+                            
+                            users = users_result.get('users', [])
+                            all_users.extend(users)
+                            
+                            page_token = users_result.get('nextPageToken')
+                            if not page_token:
+                                break
+                        except Exception as e:
+                            app.logger.error(f"[BULK DELETE] [{account_name}] Error retrieving users: {e}")
+                            break
+                    
+                    app.logger.info(f"[BULK DELETE] [{account_name}] Found {len(all_users)} user(s) to delete")
+                    
+                    # Delete all users (excluding admin accounts)
+                    for user in all_users:
+                        email = user.get('primaryEmail', '')
+                        # Skip admin accounts
+                        if email.lower().startswith('admin') or 'administrator' in email.lower():
+                            app.logger.info(f"[BULK DELETE] [{account_name}] Skipping admin account: {email}")
+                            continue
+                        
+                        try:
+                            service.users().delete(userKey=email).execute()
+                            account_result['deleted_count'] += 1
+                            app.logger.info(f"[BULK DELETE] [{account_name}] ✓ Deleted user: {email}")
+                        except Exception as delete_err:
+                            account_result['failed_count'] += 1
+                            app.logger.warning(f"[BULK DELETE] [{account_name}] ✗ Failed to delete {email}: {delete_err}")
+                    
+                    app.logger.info(f"[BULK DELETE] [{account_name}] ✓ Completed: {account_result['deleted_count']} deleted, {account_result['failed_count']} failed")
+                    
+                except Exception as e:
+                    account_result['error'] = str(e)
+                    app.logger.error(f"[BULK DELETE] [{account_name}] ✗✗✗ Error: {e}")
+                    app.logger.error(traceback.format_exc())
+                
+                return account_result
+        
+        # Delete users from all authenticated accounts in parallel
+        all_results = []
+        with ThreadPoolExecutor(max_workers=min(10, len(authenticated_accounts))) as executor:
+            delete_futures = {executor.submit(delete_account_users, account): account for account in authenticated_accounts.keys()}
+            
+            for future in as_completed(delete_futures):
+                account = delete_futures[future]
+                try:
+                    result = future.result()
+                    all_results.append(result)
+                except Exception as e:
+                    app.logger.error(f"[BULK DELETE] [{account}] Exception: {e}")
+                    all_results.append({
+                        'account': account,
+                        'authenticated': False,
+                        'deleted_count': 0,
+                        'failed_count': 0,
+                        'error': str(e)
+                    })
+        
+        # Add results for accounts that failed authentication
+        for account in accounts:
+            if account not in authenticated_accounts:
+                all_results.append({
+                    'account': account,
+                    'authenticated': False,
+                    'deleted_count': 0,
+                    'failed_count': 0,
+                    'error': 'Authentication failed'
+                })
+        
+        # Calculate totals
+        total_accounts = len(all_results)
+        total_deleted = sum(r.get('deleted_count', 0) for r in all_results)
+        total_failed = sum(r.get('failed_count', 0) for r in all_results)
+        
+        app.logger.info(f"[BULK DELETE] ✓✓✓ Bulk deletion completed: {total_deleted} users deleted from {total_accounts} accounts")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Bulk user deletion process completed.',
+            'total_accounts': total_accounts,
+            'total_deleted': total_deleted,
+            'total_failed': total_failed,
+            'results': all_results
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Error in bulk user deletion: {e}")
+        app.logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/update-user-passwords', methods=['POST'])
 @login_required
