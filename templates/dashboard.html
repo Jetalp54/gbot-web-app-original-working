@@ -451,6 +451,124 @@
 <!-- Tab 2: User Create/Delete/Domain -->
 <div id="tab2" class="tab-content">
     
+    <!-- Bulk Account Management -->
+    <div class="github-card" style="margin-bottom: 24px; border: 2px solid #0969da;">
+        <div class="github-card-header">
+            <h3 class="github-card-title">
+                <i class="fas fa-users-cog"></i>
+                Bulk Account Management
+            </h3>
+        </div>
+        <p style="color: #656d76; margin-bottom: 16px;">
+            Create users for multiple accounts in bulk. All accounts will be authenticated using saved Authenticators in parallel.
+        </p>
+        <button onclick="openBulkAccountModal()" class="btn-github btn-github-primary" style="width: 100%;">
+            <i class="fas fa-layer-group"></i>
+            Manage Bulk Accounts
+        </button>
+        
+        <!-- Results Display Section -->
+        <div id="bulk-account-results" style="display: none; margin-top: 24px; padding-top: 24px; border-top: 1px solid #d0d7de;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="color: #24292f; margin: 0; font-size: 16px;">
+                    <i class="fas fa-list"></i>
+                    Created Users (user:password format)
+                </h4>
+                <button onclick="copyBulkAccountResults()" class="btn-github" style="margin-left: 8px;">
+                    <i class="fas fa-copy"></i>
+                    Copy All
+                </button>
+            </div>
+            <div class="form-group-github">
+                <textarea id="bulk-account-results-text" class="form-control-github" rows="15" readonly 
+                          style="font-family: 'Courier New', monospace; font-size: 13px; background-color: #f6f8fa;"></textarea>
+            </div>
+            <div id="bulk-account-summary" style="margin-top: 12px; padding: 12px; background-color: #f6f8fa; border-radius: 6px;">
+                <!-- Summary will be displayed here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bulk Account Modal -->
+    <div id="bulk-account-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 style="margin: 0;">
+                    <i class="fas fa-users-cog"></i>
+                    Bulk Account Management
+                </h3>
+                <span class="close" onclick="closeBulkAccountModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group-github">
+                    <label for="bulk-accounts-list" class="form-label-github">
+                        <i class="fas fa-list"></i>
+                        Accounts (one per line)
+                    </label>
+                    <textarea id="bulk-accounts-list" class="form-control-github" rows="8" 
+                              placeholder="Enter account emails, one per line:&#10;account1@domain.com&#10;account2@domain.com&#10;account3@domain.com"></textarea>
+                    <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
+                        <i class="fas fa-info-circle"></i>
+                        Enter one account email per line. These accounts must have saved Authenticators.
+                    </small>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                    <div class="form-group-github">
+                        <label for="bulk-users-per-account" class="form-label-github">
+                            <i class="fas fa-hashtag"></i>
+                            Users per Account
+                        </label>
+                        <input type="number" id="bulk-users-per-account" class="form-control-github" 
+                               min="1" max="1000" placeholder="e.g., 10" value="10">
+                    </div>
+                    <div class="form-group-github">
+                        <label for="bulk-account-domain" class="form-label-github">
+                            <i class="fas fa-globe"></i>
+                            Domain
+                        </label>
+                        <input type="text" id="bulk-account-domain" class="form-control-github" 
+                               placeholder="example.com">
+                    </div>
+                </div>
+                
+                <div class="form-group-github" style="margin-top: 16px;">
+                    <label for="bulk-account-password" class="form-label-github">
+                        <i class="fas fa-lock"></i>
+                        Password (for all users)
+                    </label>
+                    <input type="text" id="bulk-account-password" class="form-control-github" 
+                           placeholder="Enter password for all users">
+                    <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
+                        <i class="fas fa-info-circle"></i>
+                        This password will be used for all created users across all accounts.
+                    </small>
+                </div>
+                
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button onclick="executeBulkAccountCreation()" class="btn-github btn-github-primary" style="flex: 1;">
+                        <i class="fas fa-play"></i>
+                        Start Bulk Creation
+                    </button>
+                    <button onclick="closeBulkAccountModal()" class="btn-github" style="flex: 1;">
+                        <i class="fas fa-times"></i>
+                        Cancel
+                    </button>
+                </div>
+                
+                <!-- Progress Indicator -->
+                <div id="bulk-account-progress" style="display: none; margin-top: 24px;">
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div id="bulk-account-progress-bar" class="progress-fill"></div>
+                        </div>
+                        <div id="bulk-account-progress-text" class="progress-text">Starting bulk account creation...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Create Single User -->
     <div class="github-card">
         <div class="github-card-header">
@@ -5249,6 +5367,189 @@ function createSingleUser() {
         logResult(`❌ Network error: ${error.message}`);
         logResult(`💡 Solution: Check your internet connection and try again`);
     });
+}
+
+// ===== Bulk Account Management Functions =====
+
+function openBulkAccountModal() {
+    document.getElementById('bulk-account-modal').style.display = 'block';
+    // Clear previous inputs
+    document.getElementById('bulk-accounts-list').value = '';
+    document.getElementById('bulk-users-per-account').value = '10';
+    document.getElementById('bulk-account-domain').value = '';
+    document.getElementById('bulk-account-password').value = '';
+    document.getElementById('bulk-account-progress').style.display = 'none';
+}
+
+function closeBulkAccountModal() {
+    document.getElementById('bulk-account-modal').style.display = 'none';
+}
+
+function executeBulkAccountCreation() {
+    const accountsText = document.getElementById('bulk-accounts-list').value.trim();
+    const usersPerAccount = parseInt(document.getElementById('bulk-users-per-account').value);
+    const domain = document.getElementById('bulk-account-domain').value.trim();
+    const password = document.getElementById('bulk-account-password').value.trim();
+    
+    // Validation
+    if (!accountsText) {
+        alert('Please enter at least one account.');
+        return;
+    }
+    
+    if (!usersPerAccount || usersPerAccount < 1 || usersPerAccount > 1000) {
+        alert('Please enter a valid number of users per account (1-1000).');
+        return;
+    }
+    
+    if (!domain) {
+        alert('Please enter a domain.');
+        return;
+    }
+    
+    if (!password || password.length < 8) {
+        alert('Password must be at least 8 characters long.');
+        return;
+    }
+    
+    // Parse accounts
+    const accounts = accountsText.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+    
+    if (accounts.length === 0) {
+        alert('Please enter at least one valid account.');
+        return;
+    }
+    
+    // Show progress
+    document.getElementById('bulk-account-progress').style.display = 'block';
+    document.getElementById('bulk-account-progress-bar').style.width = '0%';
+    document.getElementById('bulk-account-progress-text').textContent = `Starting bulk creation for ${accounts.length} account(s)...`;
+    
+    // Disable button
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    
+    // Call API
+    fetch('/api/bulk-create-account-users', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            accounts: accounts,
+            users_per_account: usersPerAccount,
+            domain: domain,
+            password: password
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play"></i> Start Bulk Creation';
+        
+        if (data.success) {
+            // Update progress
+            document.getElementById('bulk-account-progress-bar').style.width = '100%';
+            document.getElementById('bulk-account-progress-text').textContent = '✅ Bulk creation completed!';
+            
+            // Display results
+            displayBulkAccountResults(data);
+            
+            // Close modal after 2 seconds
+            setTimeout(() => {
+                closeBulkAccountModal();
+            }, 2000);
+        } else {
+            document.getElementById('bulk-account-progress-text').textContent = `❌ Error: ${data.error}`;
+            alert(`Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play"></i> Start Bulk Creation';
+        document.getElementById('bulk-account-progress-text').textContent = `❌ Network error: ${error.message}`;
+        alert(`Network error: ${error.message}`);
+    });
+}
+
+function displayBulkAccountResults(data) {
+    const resultsSection = document.getElementById('bulk-account-results');
+    const resultsTextarea = document.getElementById('bulk-account-results-text');
+    const summaryDiv = document.getElementById('bulk-account-summary');
+    
+    // Build user:password list
+    let userPasswordList = [];
+    let totalCreated = 0;
+    let totalFailed = 0;
+    
+    if (data.results) {
+        data.results.forEach(accountResult => {
+            if (accountResult.users) {
+                accountResult.users.forEach(user => {
+                    if (user.success) {
+                        userPasswordList.push(`${user.email}:${user.password}`);
+                        totalCreated++;
+                    } else {
+                        totalFailed++;
+                    }
+                });
+            }
+        });
+    }
+    
+    // Display results
+    resultsTextarea.value = userPasswordList.join('\n');
+    
+    // Display summary
+    summaryDiv.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+            <div>
+                <strong style="color: #0969da;">Total Accounts:</strong>
+                <div style="font-size: 24px; font-weight: bold; color: #24292f;">${data.results ? data.results.length : 0}</div>
+            </div>
+            <div>
+                <strong style="color: #1a7f37;">Users Created:</strong>
+                <div style="font-size: 24px; font-weight: bold; color: #1a7f37;">${totalCreated}</div>
+            </div>
+            <div>
+                <strong style="color: #cf222e;">Failed:</strong>
+                <div style="font-size: 24px; font-weight: bold; color: #cf222e;">${totalFailed}</div>
+            </div>
+        </div>
+    `;
+    
+    // Show results section
+    resultsSection.style.display = 'block';
+    
+    // Scroll to results
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function copyBulkAccountResults() {
+    const textarea = document.getElementById('bulk-account-results-text');
+    textarea.select();
+    textarea.setSelectionRange(0, 99999); // For mobile devices
+    
+    try {
+        document.execCommand('copy');
+        alert('✅ Copied to clipboard!');
+    } catch (err) {
+        // Fallback for modern browsers
+        navigator.clipboard.writeText(textarea.value).then(() => {
+            alert('✅ Copied to clipboard!');
+        }).catch(() => {
+            alert('❌ Failed to copy. Please select and copy manually.');
+        });
+    }
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('bulk-account-modal');
+    if (event.target == modal) {
+        closeBulkAccountModal();
+    }
 }
 
 function getDomainInfo() {

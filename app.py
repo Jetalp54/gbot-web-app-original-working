@@ -1597,6 +1597,199 @@ def api_create_random_users():
         signal.alarm(0)  # Cancel timeout
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/bulk-create-account-users', methods=['POST'])
+@login_required
+def api_bulk_create_account_users():
+    """
+    Create users for multiple accounts in bulk.
+    Authenticates all accounts using saved Authenticators in parallel,
+    then creates users for each account.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import threading
+    
+    try:
+        data = request.get_json()
+        accounts = data.get('accounts', [])
+        users_per_account = data.get('users_per_account', 10)
+        domain = data.get('domain', '').strip()
+        password = data.get('password', '').strip()
+        
+        # Validation
+        if not accounts or len(accounts) == 0:
+            return jsonify({'success': False, 'error': 'No accounts provided'})
+        
+        if not users_per_account or users_per_account < 1 or users_per_account > 1000:
+            return jsonify({'success': False, 'error': 'Users per account must be between 1 and 1000'})
+        
+        if not domain:
+            return jsonify({'success': False, 'error': 'Domain is required'})
+        
+        if not password or len(password) < 8:
+            return jsonify({'success': False, 'error': 'Password must be at least 8 characters long'})
+        
+        # Clean domain
+        import re
+        domain = domain.strip().lower()
+        if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', domain):
+            return jsonify({'success': False, 'error': 'Invalid domain format'})
+        
+        # Sanitize password
+        password = re.sub(r'[^\w\-_!@#$%^&*()+=]', '', password)
+        if not password.strip():
+            return jsonify({'success': False, 'error': 'Password cannot be empty after sanitization'})
+        
+        app.logger.info(f"[BULK ACCOUNTS] Starting bulk creation for {len(accounts)} account(s), {users_per_account} users per account")
+        
+        # Process each account
+        def process_account(account_name):
+            """Process a single account: authenticate and create users"""
+            account_result = {
+                'account': account_name,
+                'authenticated': False,
+                'users': [],
+                'error': None
+            }
+            
+            try:
+                # Authenticate account using saved authenticator
+                app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Authenticating...")
+                
+                # Check if account exists in database
+                account_db = GoogleAccount.query.filter_by(account_name=account_name).first()
+                if not account_db:
+                    account_result['error'] = f'Account {account_name} not found in database'
+                    return account_result
+                
+                # Authenticate without session (for background processing)
+                auth_success = authenticate_without_session(account_name)
+                if not auth_success:
+                    account_result['error'] = f'Failed to authenticate account {account_name}. Please ensure authenticator is saved.'
+                    return account_result
+                
+                account_result['authenticated'] = True
+                app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Authenticated successfully")
+                
+                # Get service for this account
+                service = get_service_without_session(account_name)
+                if not service:
+                    account_result['error'] = f'Failed to get service for account {account_name}'
+                    return account_result
+                
+                # Create users for this account
+                app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Creating {users_per_account} user(s)...")
+                
+                # Use the create_random_users logic but with the service we have
+                import random
+                import string
+                
+                first_names = [
+                    "James", "John", "Robert", "Michael", "William", "David", "Richard", "Charles", "Joseph", "Thomas",
+                    "Christopher", "Daniel", "Paul", "Mark", "Donald", "George", "Kenneth", "Steven", "Edward", "Brian",
+                    "Ronald", "Anthony", "Kevin", "Jason", "Matthew", "Gary", "Timothy", "Jose", "Larry", "Jeffrey",
+                    "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica", "Sarah", "Karen",
+                    "Nancy", "Lisa", "Betty", "Helen", "Sandra", "Donna", "Carol", "Ruth", "Sharon", "Michelle"
+                ]
+                
+                last_names = [
+                    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
+                    "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
+                    "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson"
+                ]
+                
+                for i in range(users_per_account):
+                    try:
+                        # Generate random names
+                        first_name = random.choice(first_names)
+                        last_name = random.choice(last_names)
+                        
+                        # Create email with random number to avoid duplicates
+                        random_num = random.randint(1000, 9999)
+                        email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
+                        
+                        # Create user using the service
+                        user_body = {
+                            "primaryEmail": email,
+                            "name": {
+                                "givenName": first_name,
+                                "familyName": last_name
+                            },
+                            "password": password,
+                            "changePasswordAtNextLogin": False
+                        }
+                        
+                        user = service.users().insert(body=user_body).execute()
+                        
+                        account_result['users'].append({
+                            'email': email,
+                            'password': password,
+                            'first_name': first_name,
+                            'last_name': last_name,
+                            'success': True
+                        })
+                        
+                        app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Created user: {email}")
+                        
+                    except Exception as user_err:
+                        error_msg = str(user_err)
+                        account_result['users'].append({
+                            'email': email if 'email' in locals() else f'user_{i+1}@{domain}',
+                            'password': password,
+                            'success': False,
+                            'error': error_msg
+                        })
+                        app.logger.warning(f"[BULK ACCOUNTS] [{account_name}] ✗ Failed to create user: {error_msg}")
+                
+                app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Completed: {sum(1 for u in account_result['users'] if u.get('success'))}/{len(account_result['users'])} users created")
+                
+            except Exception as e:
+                account_result['error'] = str(e)
+                app.logger.error(f"[BULK ACCOUNTS] [{account_name}] ✗✗✗ Error: {e}")
+                app.logger.error(traceback.format_exc())
+            
+            return account_result
+        
+        # Process all accounts in parallel
+        all_results = []
+        with ThreadPoolExecutor(max_workers=min(10, len(accounts))) as executor:
+            # Submit all accounts
+            future_to_account = {executor.submit(process_account, account): account for account in accounts}
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_account):
+                account = future_to_account[future]
+                try:
+                    result = future.result()
+                    all_results.append(result)
+                except Exception as e:
+                    app.logger.error(f"[BULK ACCOUNTS] [{account}] Exception: {e}")
+                    all_results.append({
+                        'account': account,
+                        'authenticated': False,
+                        'users': [],
+                        'error': str(e)
+                    })
+        
+        # Calculate totals
+        total_accounts = len(all_results)
+        total_users_created = sum(sum(1 for u in r.get('users', []) if u.get('success')) for r in all_results)
+        total_users_failed = sum(sum(1 for u in r.get('users', []) if not u.get('success')) for r in all_results)
+        
+        app.logger.info(f"[BULK ACCOUNTS] ✓✓✓ Bulk creation completed: {total_users_created} users created across {total_accounts} accounts")
+        
+        return jsonify({
+            'success': True,
+            'total_accounts': total_accounts,
+            'total_users_created': total_users_created,
+            'total_users_failed': total_users_failed,
+            'results': all_results
+        })
+        
+    except Exception as e:
+        app.logger.error(f"[BULK ACCOUNTS] ✗✗✗ CRITICAL ERROR: {e}")
+        app.logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/update-user-passwords', methods=['POST'])
 @login_required
 def api_update_user_passwords():
