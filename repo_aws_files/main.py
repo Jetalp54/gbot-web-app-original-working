@@ -1804,11 +1804,12 @@ def handler(event, context):
                 }
         
         # Use ThreadPoolExecutor to process users in parallel
-        # Limit concurrent workers to avoid resource exhaustion in Lambda
-        # Each Chrome instance uses ~200-300 MB, so 3 concurrent instances is safe for 2048 MB Lambda
-        # Running more than 3 simultaneously causes renderer timeouts due to resource contention
-        max_concurrent = min(3, len(users_batch))  # Max 3 concurrent Chrome instances
-        logger.info(f"[LAMBDA] Using {max_concurrent} concurrent workers for {len(users_batch)} users (to avoid resource exhaustion)")
+        # Lambda has 2048 MB memory, each Chrome instance uses ~200-300 MB
+        # We can safely run 6-7 concurrent instances (6 * 300MB = 1800MB, leaving 248MB for Lambda runtime)
+        # For maximum speed, we'll process all users in parallel (up to 10 per function)
+        # If batch has 10 users, process all 10 in parallel
+        max_concurrent = min(10, len(users_batch))  # Process up to 10 users in parallel (all users in batch)
+        logger.info(f"[LAMBDA] Using {max_concurrent} concurrent workers for {len(users_batch)} users (processing all users in parallel for maximum speed)")
         
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             # Submit all tasks

@@ -2475,21 +2475,37 @@ def bulk_generate():
                         
                         # Create boto3 session for this geo (use the geo's region)
                         try:
+                            logger.info(f"[BULK] [{geo}] Creating boto3 session for region: {geo}")
                             session_boto = boto3.Session(
                                 aws_access_key_id=access_key,
                                 aws_secret_access_key=secret_key,
                                 region_name=geo  # Use geo as the region
                             )
+                            
+                            # Verify credentials work for this region
+                            try:
+                                sts = session_boto.client('sts')
+                                identity = sts.get_caller_identity()
+                                logger.info(f"[BULK] [{geo}] ✓ Credentials verified. Account: {identity.get('Account')}")
+                            except Exception as sts_err:
+                                logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL: Credential verification failed: {sts_err}")
+                                logger.error(traceback.format_exc())
+                                raise Exception(f"Credential verification failed for {geo}: {sts_err}")
+                            
                             lam_client = session_boto.client("lambda", config=Config(
                                 max_pool_connections=10,
                                 retries={'max_attempts': 3}
                             ))
+                            
+                            logger.info(f"[BULK] [{geo}] Listing Lambda functions in region {geo}...")
                             all_functions = lam_client.list_functions()
                             existing_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
+                            logger.info(f"[BULK] [{geo}] ✓ Found {len(existing_function_names)} existing function(s) in {geo}: {existing_function_names[:5]}{'...' if len(existing_function_names) > 5 else ''}")
                         except Exception as e:
-                            logger.error(f"[BULK] [{geo}] Could not list existing functions: {e}")
+                            logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR: Could not initialize session or list functions: {e}")
                             logger.error(traceback.format_exc())
-                            existing_function_names = []
+                            # Don't return empty - raise exception so it's caught by outer handler
+                            raise Exception(f"Failed to initialize {geo}: {e}")
                         
                         # Helper function to process a single function
                         def process_single_function(func_num, batch_users, batch_idx):
@@ -2508,11 +2524,33 @@ def bulk_generate():
                                 # Generate function name: edu-gw-chromium-{geo_code}-{func_num}
                                 geo_code = geo.replace('-', '')  # Remove dashes: us-east-1 -> useast1
                                 func_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
+                                
+                                logger.info(f"[BULK] [{geo}] Looking for function: {func_name}")
+                                logger.info(f"[BULK] [{geo}] Available functions in {geo}: {existing_function_names}")
                             
                                 # Create function if it doesn't exist (thread-safe check)
                                 with threading.Lock():
                                     if func_name not in existing_function_names:
-                                        logger.info(f"[BULK] [{geo}] Creating Lambda function: {func_name}")
+                                        # Try to find any function matching the pattern
+                                        matching_functions = [fn for fn in existing_function_names if PRODUCTION_LAMBDA_NAME in fn and geo_code in fn]
+                                        if matching_functions:
+                                            logger.warning(f"[BULK] [{geo}] Function {func_name} not found, but found similar: {matching_functions}")
+                                            # Use the first matching function if exact match not found
+                                            if len(matching_functions) == 1:
+                                                func_name = matching_functions[0]
+                                                logger.info(f"[BULK] [{geo}] Using similar function: {func_name}")
+                                            else:
+                                                # Multiple matches - try to find one with func_num
+                                                func_num_str = str(func_num)
+                                                exact_match = [fn for fn in matching_functions if func_num_str in fn]
+                                                if exact_match:
+                                                    func_name = exact_match[0]
+                                                    logger.info(f"[BULK] [{geo}] Using function with matching number: {func_name}")
+                                                else:
+                                                    func_name = matching_functions[0]
+                                                    logger.warning(f"[BULK] [{geo}] Using first matching function: {func_name}")
+                                        else:
+                                            logger.info(f"[BULK] [{geo}] Creating Lambda function: {func_name}")
                                         try:
                                             role_arn = ensure_lambda_role(session_boto)
                                             chromium_env = {
@@ -2645,10 +2683,22 @@ def bulk_generate():
                     except Exception as geo_err:
                         logger.error("=" * 60)
                         logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR in process_geo_parallel: {geo_err}")
+                        logger.error(f"[BULK] [{geo}] Error type: {type(geo_err).__name__}")
+                        logger.error(f"[BULK] [{geo}] Error message: {str(geo_err)}")
                         logger.error(f"[BULK] [{geo}] Traceback: {traceback.format_exc()}")
                         logger.error("=" * 60)
-                        # Return empty results so other geos can continue
-                        return []
+                        # Return empty results with error info so other geos can continue
+                        # But mark all users in this geo as failed
+                        failed_results = []
+                        for func_num, batch_users in geo_batches_list:
+                            for u in batch_users:
+                                failed_results.append({
+                                    'email': u['email'],
+                                    'success': False,
+                                    'error': f'Geo processing failed for {geo}: {str(geo_err)}'
+                                })
+                        logger.error(f"[BULK] [{geo}] Returning {len(failed_results)} failed results for {geo}")
+                        return failed_results
             
                 # Process ALL geos in parallel (each geo processes its functions in parallel internally)
                 logger.info("=" * 60)
@@ -2675,37 +2725,73 @@ def bulk_generate():
                 with ThreadPoolExecutor(max_workers=max_geo_workers) as geo_pool:
                     # Submit ALL geos for processing in parallel
                     geo_futures = {}
+                    submitted_geos = []
                     for geo, geo_batches_list in batches_by_geo.items():
-                        logger.info(f"[BULK] ✓ Submitting geo {geo} with {len(geo_batches_list)} function(s) to thread pool")
-                        future = geo_pool.submit(process_geo_parallel, geo, geo_batches_list)
-                        geo_futures[future] = geo
+                        try:
+                            logger.info(f"[BULK] ✓ Submitting geo {geo} with {len(geo_batches_list)} function(s) to thread pool")
+                            future = geo_pool.submit(process_geo_parallel, geo, geo_batches_list)
+                            geo_futures[future] = geo
+                            submitted_geos.append(geo)
+                            logger.info(f"[BULK] ✓✓✓ Successfully submitted geo {geo} to thread pool")
+                        except Exception as submit_err:
+                            logger.error(f"[BULK] ✗✗✗ FAILED to submit geo {geo} to thread pool: {submit_err}")
+                            logger.error(traceback.format_exc())
+                            # Add failed results for this geo
+                            for func_num, batch_users in geo_batches_list:
+                                for u in batch_users:
+                                    all_geo_results.append({
+                                        'email': u['email'],
+                                        'success': False,
+                                        'error': f'Failed to submit geo {geo} to thread pool: {str(submit_err)}'
+                                    })
                 
                     logger.info("=" * 60)
-                    logger.info(f"[BULK] ✓ Submitted {len(geo_futures)} geo(s) to thread pool for PARALLEL processing")
+                    logger.info(f"[BULK] ✓✓✓ SUBMISSION SUMMARY")
+                    logger.info(f"[BULK] Total geos to process: {len(batches_by_geo)}")
+                    logger.info(f"[BULK] Successfully submitted: {len(submitted_geos)} geo(s)")
+                    logger.info(f"[BULK] Submitted geos: {submitted_geos}")
+                    logger.info(f"[BULK] Futures created: {len(geo_futures)}")
                     logger.info(f"[BULK] All geos should now be processing simultaneously")
                     logger.info("=" * 60)
                 
                     # Wait for all geos to complete and collect results
                     completed_geos = []
+                    failed_geos = []
                     for future in as_completed(geo_futures):
                         geo = geo_futures[future]
                         try:
-                            geo_results = future.result()
+                            geo_results = future.result(timeout=3600)  # 1 hour timeout per geo
                             all_geo_results.extend(geo_results)
                             completed_geos.append(geo)
                             success_count = sum(1 for r in geo_results if r.get('success'))
                             total_count = len(geo_results)
+                            failed_count = total_count - success_count
                             logger.info("=" * 60)
-                            logger.info(f"[BULK] [{geo}] ✓ GEO COMPLETED: {success_count}/{total_count} success")
+                            logger.info(f"[BULK] [{geo}] ✓✓✓ GEO COMPLETED: {success_count}/{total_count} success, {failed_count} failed")
                             logger.info(f"[BULK] [{geo}] Functions processed: {len(geo_batches_list)}")
+                            logger.info(f"[BULK] [{geo}] Results count: {len(geo_results)}")
                             logger.info(f"[BULK] Completed geos so far: {len(completed_geos)}/{len(geo_futures)}")
+                            if failed_count > 0:
+                                logger.warning(f"[BULK] [{geo}] ⚠️ Some failures detected: {failed_count} user(s) failed")
                             logger.info("=" * 60)
                         except Exception as e:
                             logger.error("=" * 60)
-                            logger.error(f"[BULK] [{geo}] ✗✗✗ GEO EXCEPTION: {e}")
+                            logger.error(f"[BULK] [{geo}] ✗✗✗ GEO EXCEPTION (Future Error): {e}")
+                            logger.error(f"[BULK] [{geo}] Error type: {type(e).__name__}")
                             logger.error(f"[BULK] [{geo}] Traceback: {traceback.format_exc()}")
                             logger.error("=" * 60)
+                            failed_geos.append(geo)
                             completed_geos.append(geo)  # Mark as completed even if failed
+                            
+                            # Add failed results for all users in this geo
+                            if geo in batches_by_geo:
+                                for func_num, batch_users in batches_by_geo[geo]:
+                                    for u in batch_users:
+                                        all_geo_results.append({
+                                            'email': u['email'],
+                                            'success': False,
+                                            'error': f'Geo processing exception for {geo}: {str(e)}'
+                                        })
                 
                     logger.info("=" * 60)
                     logger.info(f"[BULK] ===== ALL GEOS COMPLETED PROCESSING =====")
