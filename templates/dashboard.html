@@ -566,7 +566,7 @@
                     </button>
                     <button onclick="retrieveUsersFromTableAccounts(event)" class="btn-github" style="flex: 1; min-width: 150px; background-color: #0969da; border-color: #0969da; color: white;">
                         <i class="fas fa-sync-alt"></i>
-                        Retrieve Users from Table
+                        Auth + Retrieve Bulk Users
                     </button>
                     <button onclick="executeBulkAccountDeletion(event)" class="btn-github" style="flex: 1; min-width: 150px; background-color: #d73a49; border-color: #d73a49; color: white;">
                         <i class="fas fa-trash"></i>
@@ -5920,6 +5920,8 @@ function copyBulkAccountResults() {
 }
 
 function retrieveUsersFromTableAccounts(event) {
+    console.log('retrieveUsersFromTableAccounts called');
+    
     // Get accounts from the table rows in the modal
     const tbody = document.getElementById('bulk-accounts-tbody');
     if (!tbody) {
@@ -5950,37 +5952,65 @@ function retrieveUsersFromTableAccounts(event) {
         return;
     }
     
+    // Disable button and show loading
+    let btn = null;
+    if (event && event.target) {
+        btn = event.target.closest('button');
+    }
+    if (!btn) {
+        const buttons = document.querySelectorAll('button[onclick*="retrieveUsersFromTableAccounts"]');
+        btn = buttons[0];
+    }
+    
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    }
+    
+    // Show loading in main results section (outside modal)
+    const mainTextarea = document.getElementById('bulk-account-results-text');
+    const mainSummary = document.getElementById('bulk-account-summary');
+    const mainResultsSection = document.getElementById('bulk-account-results');
+    
+    if (mainResultsSection) {
+        mainResultsSection.style.display = 'block';
+    }
+    if (mainTextarea) {
+        mainTextarea.value = '🔄 Authenticating and retrieving users from ' + accounts.length + ' account(s)...\nPlease wait...';
+    }
+    if (mainSummary) {
+        mainSummary.innerHTML = '<div style="padding: 12px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Loading users from ' + accounts.length + ' account(s)...</div>';
+    }
+    
     // Call the retrieve function with these accounts
-    retrieveUsersFromProcessedAccounts(accounts);
+    retrieveUsersFromProcessedAccounts(accounts, btn);
 }
 
-function retrieveUsersFromProcessedAccounts(accounts = null) {
+function retrieveUsersFromProcessedAccounts(accounts = null, buttonElement = null) {
     // Get accounts from parameter or localStorage
     const accountsToRetrieve = accounts || getProcessedAccounts();
     
     if (!accountsToRetrieve || accountsToRetrieve.length === 0) {
         alert('No accounts found. Please add accounts to the table or run bulk creation first.');
+        if (buttonElement) {
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = '<i class="fas fa-sync-alt"></i> Auth + Retrieve Bulk Users';
+        }
         return;
     }
     
-    // Show loading state - check both modal and main page results sections
-    const textarea = document.getElementById('bulk-account-results-text-modal') || document.getElementById('bulk-account-results-text');
-    const summaryDiv = document.getElementById('bulk-account-summary-modal') || document.getElementById('bulk-account-summary');
-    
-    if (textarea) {
-        textarea.value = '🔄 Authenticating and retrieving users from ' + accountsToRetrieve.length + ' account(s)...\nPlease wait...';
-    }
-    if (summaryDiv) {
-        summaryDiv.innerHTML = '<div style="padding: 12px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Loading users from ' + accountsToRetrieve.length + ' account(s)...</div>';
-    }
-    
-    // Show results section - prioritize modal if it exists
-    const modalResultsSection = document.getElementById('bulk-account-results-modal');
+    // Show loading state - prioritize main page results section (outside modal)
+    const mainTextarea = document.getElementById('bulk-account-results-text');
+    const mainSummary = document.getElementById('bulk-account-summary');
     const mainResultsSection = document.getElementById('bulk-account-results');
     
-    if (modalResultsSection) {
-        modalResultsSection.style.display = 'block';
-    } else if (mainResultsSection) {
+    if (mainTextarea) {
+        mainTextarea.value = '🔄 Authenticating and retrieving users from ' + accountsToRetrieve.length + ' account(s)...\nPlease wait...';
+    }
+    if (mainSummary) {
+        mainSummary.innerHTML = '<div style="padding: 12px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Loading users from ' + accountsToRetrieve.length + ' account(s)...</div>';
+    }
+    if (mainResultsSection) {
         mainResultsSection.style.display = 'block';
     }
     
@@ -6037,20 +6067,21 @@ function retrieveUsersFromProcessedAccounts(accounts = null) {
                 });
             }
             
-            // Display in textarea - update both modal and main page if they exist
-            const modalTextarea = document.getElementById('bulk-account-results-text-modal');
+            // Display in main page textarea (outside modal)
             const mainTextarea = document.getElementById('bulk-account-results-text');
             const userListText = userPasswordList.join('\n');
             
-            if (modalTextarea) {
-                modalTextarea.value = userListText;
-            }
             if (mainTextarea) {
                 mainTextarea.value = userListText;
             }
             
-            // Update summary - update both modal and main page if they exist
-            const modalSummary = document.getElementById('bulk-account-summary-modal');
+            // Also update modal textarea if it exists
+            const modalTextarea = document.getElementById('bulk-account-results-text-modal');
+            if (modalTextarea) {
+                modalTextarea.value = userListText;
+            }
+            
+            // Update summary - prioritize main page (outside modal)
             const mainSummary = document.getElementById('bulk-account-summary');
             
             let summaryHTML = `
@@ -6097,21 +6128,12 @@ function retrieveUsersFromProcessedAccounts(accounts = null) {
                 `;
             }
             
-            if (modalSummary) {
-                modalSummary.innerHTML = summaryHTML;
-            }
             if (mainSummary) {
                 mainSummary.innerHTML = summaryHTML;
             }
             
-            // Show results section - prioritize modal if it exists
-            if (modalResultsSection) {
-                modalResultsSection.style.display = 'block';
-                // Scroll to results section in modal
-                setTimeout(() => {
-                    modalResultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }, 100);
-            } else if (mainResultsSection) {
+            // Show main results section (outside modal)
+            if (mainResultsSection) {
                 mainResultsSection.style.display = 'block';
                 // Scroll to results section
                 setTimeout(() => {
@@ -6119,16 +6141,24 @@ function retrieveUsersFromProcessedAccounts(accounts = null) {
                 }, 100);
             }
             
-            // Copy to clipboard - use the textarea that has content
-            const textareaToCopy = modalTextarea && modalTextarea.value ? modalTextarea : (mainTextarea && mainTextarea.value ? mainTextarea : null);
-            if (textareaToCopy && textareaToCopy.value) {
-                textareaToCopy.select();
-                textareaToCopy.setSelectionRange(0, 99999);
+            // Close modal automatically after retrieving
+            closeBulkAccountModal();
+            
+            // Re-enable button if provided
+            if (buttonElement) {
+                buttonElement.disabled = false;
+                buttonElement.innerHTML = '<i class="fas fa-sync-alt"></i> Auth + Retrieve Bulk Users';
+            }
+            
+            // Copy to clipboard - use main textarea
+            if (mainTextarea && mainTextarea.value) {
+                mainTextarea.select();
+                mainTextarea.setSelectionRange(0, 99999);
                 try {
                     document.execCommand('copy');
                     alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s) and copied to clipboard!`);
                 } catch (err) {
-                    navigator.clipboard.writeText(textareaToCopy.value).then(() => {
+                    navigator.clipboard.writeText(mainTextarea.value).then(() => {
                         alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s) and copied to clipboard!`);
                     }).catch(() => {
                         alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s). Please copy manually.`);
@@ -6137,16 +6167,30 @@ function retrieveUsersFromProcessedAccounts(accounts = null) {
             }
         } else {
             alert(`Error: ${data.error || 'Failed to retrieve users'}`);
-            if (textarea) {
-                textarea.value = `❌ Error: ${data.error || 'Failed to retrieve users'}`;
+            const mainTextarea = document.getElementById('bulk-account-results-text');
+            if (mainTextarea) {
+                mainTextarea.value = `❌ Error: ${data.error || 'Failed to retrieve users'}`;
+            }
+            
+            // Re-enable button if provided
+            if (buttonElement) {
+                buttonElement.disabled = false;
+                buttonElement.innerHTML = '<i class="fas fa-sync-alt"></i> Auth + Retrieve Bulk Users';
             }
         }
     })
     .catch(error => {
         console.error('Retrieve users error:', error);
         alert(`Network error: ${error.message}`);
-        if (textarea) {
-            textarea.value = `❌ Network error: ${error.message}`;
+        const mainTextarea = document.getElementById('bulk-account-results-text');
+        if (mainTextarea) {
+            mainTextarea.value = `❌ Network error: ${error.message}`;
+        }
+        
+        // Re-enable button if provided
+        if (buttonElement) {
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = '<i class="fas fa-sync-alt"></i> Auth + Retrieve Bulk Users';
         }
     });
 }
