@@ -5757,15 +5757,16 @@ function displayBulkAccountResults(data) {
     const resultsTextarea = document.getElementById('bulk-account-results-text');
     const summaryDiv = document.getElementById('bulk-account-summary');
     
-    // Store processed accounts for later retrieval
-    processedAccountsList = [];
+    // Store processed accounts for later retrieval (persist in localStorage)
+    const accountsToStore = [];
     if (data.results) {
         data.results.forEach(accountResult => {
             if (accountResult.account && accountResult.authenticated) {
-                processedAccountsList.push(accountResult.account);
+                accountsToStore.push(accountResult.account);
             }
         });
     }
+    setProcessedAccounts(accountsToStore); // Store in localStorage for persistence
     
     // Build user:password list from ALL accounts
     let userPasswordList = [];
@@ -5860,19 +5861,41 @@ function displayBulkAccountResults(data) {
     resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// Store processed accounts for retrieval
+// Store processed accounts for retrieval (persist in localStorage)
 let processedAccountsList = [];
 
+function getProcessedAccounts() {
+    try {
+        const stored = localStorage.getItem('bulkProcessedAccounts');
+        return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function setProcessedAccounts(accounts) {
+    try {
+        localStorage.setItem('bulkProcessedAccounts', JSON.stringify(accounts));
+        processedAccountsList = accounts;
+    } catch (e) {
+        console.error('Failed to store processed accounts:', e);
+        processedAccountsList = accounts;
+    }
+}
+
 function copyBulkAccountResults() {
+    // Get processed accounts from localStorage (persistent storage)
+    const accounts = getProcessedAccounts();
+    
     // If there are processed accounts, retrieve users from them
-    if (processedAccountsList && processedAccountsList.length > 0) {
-        retrieveUsersFromProcessedAccounts();
+    if (accounts && accounts.length > 0) {
+        retrieveUsersFromProcessedAccounts(accounts);
         return;
     }
     
     // Otherwise, just copy what's in the textarea
     const textarea = document.getElementById('bulk-account-results-text');
-    if (textarea && textarea.value) {
+    if (textarea && textarea.value && textarea.value.trim().length > 0) {
         textarea.select();
         textarea.setSelectionRange(0, 99999); // For mobile devices
         
@@ -5888,12 +5911,15 @@ function copyBulkAccountResults() {
             });
         }
     } else {
-        alert('No data to copy. Please run bulk creation first.');
+        alert('No data to copy. Please run bulk creation first or click "Retrieve & Copy All Users" to fetch users from processed accounts.');
     }
 }
 
-function retrieveUsersFromProcessedAccounts() {
-    if (!processedAccountsList || processedAccountsList.length === 0) {
+function retrieveUsersFromProcessedAccounts(accounts = null) {
+    // Get accounts from parameter or localStorage
+    const accountsToRetrieve = accounts || getProcessedAccounts();
+    
+    if (!accountsToRetrieve || accountsToRetrieve.length === 0) {
         alert('No processed accounts found. Please run bulk creation first.');
         return;
     }
@@ -5905,7 +5931,13 @@ function retrieveUsersFromProcessedAccounts() {
         textarea.value = '🔄 Authenticating and retrieving users from all accounts...\nPlease wait...';
     }
     if (summaryDiv) {
-        summaryDiv.innerHTML = '<div style="padding: 12px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Loading users from ' + processedAccountsList.length + ' account(s)...</div>';
+        summaryDiv.innerHTML = '<div style="padding: 12px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Loading users from ' + accountsToRetrieve.length + ' account(s)...</div>';
+    }
+    
+    // Show results section if it exists (even if modal is closed)
+    const resultsSection = document.getElementById('bulk-account-results');
+    if (resultsSection) {
+        resultsSection.style.display = 'block';
     }
     
     // Call API to retrieve users from all processed accounts
@@ -5913,7 +5945,7 @@ function retrieveUsersFromProcessedAccounts() {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-            accounts: processedAccountsList
+            accounts: accountsToRetrieve
         })
     })
     .then(response => {
@@ -6013,6 +6045,16 @@ function retrieveUsersFromProcessedAccounts() {
                 }
                 
                 summaryDiv.innerHTML = summaryHTML;
+            }
+            
+            // Show results section (make sure it's visible even if modal is closed)
+            const resultsSection = document.getElementById('bulk-account-results');
+            if (resultsSection) {
+                resultsSection.style.display = 'block';
+                // Scroll to results section
+                setTimeout(() => {
+                    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
             }
             
             // Copy to clipboard
