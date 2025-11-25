@@ -1659,8 +1659,10 @@ let selectedAccountId = null;
 let smtpTesting = false;
 let selectedDomain = null;
 
-// Tab switching functionality
+// Tab switching functionality - Make it globally accessible
 function showTab(tabId) {
+    console.log('showTab called with tabId:', tabId);
+    
     // Update sidebar dropdown active state
     const dropdownItems = document.querySelectorAll('.dropdown-item');
     dropdownItems.forEach(item => {
@@ -1670,21 +1672,20 @@ function showTab(tabId) {
         }
     });
     
-    // Original showTab logic
-    console.log('Switching to tab:', tabId);
-    
     // Hide all tab contents
     const tabs = document.querySelectorAll('.tab-content');
+    console.log('Found', tabs.length, 'tab content elements');
     tabs.forEach(tab => {
         tab.classList.remove('active');
         tab.style.display = 'none';
+        tab.style.visibility = 'hidden';
+        tab.style.opacity = '0';
     });
     
     // Remove active class from all tab buttons
     const buttons = document.querySelectorAll('.tab-button');
     buttons.forEach(button => {
         button.classList.remove('active');
-        // Remove any inline styles to let CSS handle the styling
         button.style.background = '';
         button.style.borderBottom = '';
         button.style.color = '';
@@ -1696,25 +1697,41 @@ function showTab(tabId) {
     // Show selected tab
     const selectedTab = document.getElementById(tabId);
     if (selectedTab) {
-        console.log('Found tab element:', selectedTab);
+        console.log('Found tab element:', tabId, selectedTab);
         selectedTab.classList.add('active');
         selectedTab.style.display = 'block';
         selectedTab.style.visibility = 'visible';
-        
         selectedTab.style.opacity = '1';
         selectedTab.style.height = 'auto';
         selectedTab.style.overflow = 'visible';
+        selectedTab.style.position = 'relative';
+        selectedTab.style.zIndex = '1';
         
-        // No special handling needed for 3-tab layout
+        // Scroll to top of tab
+        selectedTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        
+        console.log('Tab', tabId, 'is now visible');
     } else {
         console.error('Tab not found:', tabId);
+        // Try to find it with a delay (in case DOM is still loading)
+        setTimeout(() => {
+            const retryTab = document.getElementById(tabId);
+            if (retryTab) {
+                console.log('Found tab on retry:', tabId);
+                retryTab.classList.add('active');
+                retryTab.style.display = 'block';
+                retryTab.style.visibility = 'visible';
+                retryTab.style.opacity = '1';
+            } else {
+                console.error('Tab still not found after retry:', tabId);
+            }
+        }, 200);
     }
     
     // Add active class to clicked button  
     const clickedButton = event ? event.target.closest('.tab-button') : document.querySelector(`[onclick="showTab('${tabId}')"]`);
     if (clickedButton) {
         clickedButton.classList.add('active');
-        // Remove any inline styles to let CSS handle the active styling
         clickedButton.style.background = '';
         clickedButton.style.borderBottom = '';
         clickedButton.style.color = '';
@@ -1725,6 +1742,11 @@ function showTab(tabId) {
     
     // Auto-refresh domain data when domains tab is shown
     checkTabRefresh(tabId);
+}
+
+// Make showTab globally accessible
+if (typeof window !== 'undefined') {
+    window.showTab = showTab;
 }
 
 // Initialize tabs on page load
@@ -1740,8 +1762,26 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Ensure tab1 is visible by default
-    showTab('tab1');
+    // Check URL hash and switch to appropriate tab
+    const hash = window.location.hash;
+    if (hash && (hash === '#tab1' || hash === '#tab2' || hash === '#tab3')) {
+        const tabId = hash.substring(1); // Remove the #
+        console.log('Switching to tab from hash:', tabId);
+        showTab(tabId);
+    } else {
+        // Ensure tab1 is visible by default
+        showTab('tab1');
+    }
+    
+    // Listen for hash changes (when clicking sidebar links)
+    window.addEventListener('hashchange', function() {
+        const hash = window.location.hash;
+        if (hash && (hash === '#tab1' || hash === '#tab2' || hash === '#tab3')) {
+            const tabId = hash.substring(1);
+            console.log('Hash changed, switching to tab:', tabId);
+            showTab(tabId);
+        }
+    });
     
     // 3-tab layout is now complete - no special initialization needed
 });

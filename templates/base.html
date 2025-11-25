@@ -3026,25 +3026,49 @@
             event.preventDefault();
             event.stopPropagation();
             
+            console.log('handleDashboardTabClick called with tabId:', tabId);
+            
             // Navigate to dashboard if not already there
             if (window.location.pathname !== '/dashboard') {
+                console.log('Navigating to dashboard with tab:', tabId);
                 window.location.href = '/dashboard#' + tabId;
                 return;
             }
             
             // Update URL hash
             window.location.hash = tabId;
+            console.log('Updated hash to:', tabId);
             
             // Call showTab function if it exists
             if (typeof showTab === 'function') {
+                console.log('Calling showTab directly');
                 showTab(tabId);
             } else {
+                console.log('showTab not found, waiting...');
                 // Fallback: wait for showTab to be available
-                setTimeout(() => {
+                let attempts = 0;
+                const maxAttempts = 10;
+                const checkShowTab = setInterval(() => {
+                    attempts++;
                     if (typeof showTab === 'function') {
+                        console.log('showTab found after', attempts * 100, 'ms');
+                        clearInterval(checkShowTab);
                         showTab(tabId);
-                    } else {
-                        console.warn('showTab function not found');
+                    } else if (attempts >= maxAttempts) {
+                        console.error('showTab function not found after', maxAttempts * 100, 'ms');
+                        clearInterval(checkShowTab);
+                        // Force show the tab by manipulating DOM directly
+                        const tabs = document.querySelectorAll('.tab-content');
+                        tabs.forEach(tab => {
+                            tab.classList.remove('active');
+                            tab.style.display = 'none';
+                        });
+                        const selectedTab = document.getElementById(tabId);
+                        if (selectedTab) {
+                            selectedTab.classList.add('active');
+                            selectedTab.style.display = 'block';
+                            console.log('Manually showed tab:', tabId);
+                        }
                     }
                 }, 100);
             }
