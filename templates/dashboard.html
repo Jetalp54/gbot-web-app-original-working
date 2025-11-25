@@ -475,8 +475,8 @@
                     Created Users (user:password format)
                 </h4>
                 <button onclick="copyBulkAccountResults()" class="btn-github" style="margin-left: 8px;">
-                    <i class="fas fa-copy"></i>
-                    Copy All
+                    <i class="fas fa-sync-alt"></i>
+                    Retrieve & Copy All Users
                 </button>
             </div>
             <div class="form-group-github">
@@ -592,8 +592,8 @@
                             Created Users (user:password format)
                         </h4>
                         <button onclick="copyBulkAccountResults()" class="btn-github" style="margin-left: 8px;">
-                            <i class="fas fa-copy"></i>
-                            Copy All
+                            <i class="fas fa-sync-alt"></i>
+                            Retrieve & Copy All Users
                         </button>
                     </div>
                     <div class="form-group-github">
@@ -5757,6 +5757,16 @@ function displayBulkAccountResults(data) {
     const resultsTextarea = document.getElementById('bulk-account-results-text');
     const summaryDiv = document.getElementById('bulk-account-summary');
     
+    // Store processed accounts for later retrieval
+    processedAccountsList = [];
+    if (data.results) {
+        data.results.forEach(accountResult => {
+            if (accountResult.account && accountResult.authenticated) {
+                processedAccountsList.push(accountResult.account);
+            }
+        });
+    }
+    
     // Build user:password list from ALL accounts
     let userPasswordList = [];
     let totalCreated = 0;
@@ -5850,22 +5860,190 @@ function displayBulkAccountResults(data) {
     resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// Store processed accounts for retrieval
+let processedAccountsList = [];
+
 function copyBulkAccountResults() {
-    const textarea = document.getElementById('bulk-account-results-text');
-    textarea.select();
-    textarea.setSelectionRange(0, 99999); // For mobile devices
-    
-    try {
-        document.execCommand('copy');
-        alert('✅ Copied to clipboard!');
-    } catch (err) {
-        // Fallback for modern browsers
-        navigator.clipboard.writeText(textarea.value).then(() => {
-            alert('✅ Copied to clipboard!');
-        }).catch(() => {
-            alert('❌ Failed to copy. Please select and copy manually.');
-        });
+    // If there are processed accounts, retrieve users from them
+    if (processedAccountsList && processedAccountsList.length > 0) {
+        retrieveUsersFromProcessedAccounts();
+        return;
     }
+    
+    // Otherwise, just copy what's in the textarea
+    const textarea = document.getElementById('bulk-account-results-text');
+    if (textarea && textarea.value) {
+        textarea.select();
+        textarea.setSelectionRange(0, 99999); // For mobile devices
+        
+        try {
+            document.execCommand('copy');
+            alert('✅ Copied to clipboard!');
+        } catch (err) {
+            // Fallback for modern browsers
+            navigator.clipboard.writeText(textarea.value).then(() => {
+                alert('✅ Copied to clipboard!');
+            }).catch(() => {
+                alert('❌ Failed to copy. Please select and copy manually.');
+            });
+        }
+    } else {
+        alert('No data to copy. Please run bulk creation first.');
+    }
+}
+
+function retrieveUsersFromProcessedAccounts() {
+    if (!processedAccountsList || processedAccountsList.length === 0) {
+        alert('No processed accounts found. Please run bulk creation first.');
+        return;
+    }
+    
+    // Show loading state
+    const textarea = document.getElementById('bulk-account-results-text');
+    const summaryDiv = document.getElementById('bulk-account-summary');
+    if (textarea) {
+        textarea.value = '🔄 Authenticating and retrieving users from all accounts...\nPlease wait...';
+    }
+    if (summaryDiv) {
+        summaryDiv.innerHTML = '<div style="padding: 12px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Loading users from ' + processedAccountsList.length + ' account(s)...</div>';
+    }
+    
+    // Call API to retrieve users from all processed accounts
+    fetch('/api/bulk-retrieve-account-users', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            accounts: processedAccountsList
+        })
+    })
+    .then(response => {
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            return response.text().then(text => {
+                console.error('Non-JSON response:', text);
+                throw new Error('Server returned non-JSON response');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Build user:password list
+            let userPasswordList = [];
+            let totalUsers = 0;
+            let accountDetails = [];
+            
+            if (data.results) {
+                data.results.forEach(accountResult => {
+                    const accountName = accountResult.account || 'Unknown';
+                    let accountUsers = 0;
+                    
+                    if (accountResult.users) {
+                        accountResult.users.forEach(user => {
+                            // Format: email:password (password might be empty if not available)
+                            const password = user.password || user.app_password || '';
+                            if (password) {
+                                userPasswordList.push(`${user.email}:${password}`);
+                            } else {
+                                userPasswordList.push(`${user.email}:`);
+                            }
+                            accountUsers++;
+                            totalUsers++;
+                        });
+                    }
+                    
+                    accountDetails.push({
+                        account: accountName,
+                        users: accountUsers,
+                        authenticated: accountResult.authenticated || false,
+                        error: accountResult.error || null
+                    });
+                });
+            }
+            
+            // Display in textarea
+            if (textarea) {
+                textarea.value = userPasswordList.join('\n');
+            }
+            
+            // Update summary
+            if (summaryDiv) {
+                let summaryHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
+                        <div>
+                            <strong style="color: #0969da;">Total Accounts:</strong>
+                            <div style="font-size: 24px; font-weight: bold; color: #24292f;">${data.total_accounts || 0}</div>
+                        </div>
+                        <div>
+                            <strong style="color: #1a7f37;">Total Users:</strong>
+                            <div style="font-size: 24px; font-weight: bold; color: #1a7f37;">${totalUsers}</div>
+                        </div>
+                        <div>
+                            <strong style="color: #cf222e;">Failed:</strong>
+                            <div style="font-size: 24px; font-weight: bold; color: #cf222e;">${data.total_failed || 0}</div>
+                        </div>
+                    </div>
+                `;
+                
+                if (accountDetails.length > 0) {
+                    summaryHTML += `
+                        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #d0d7de;">
+                            <strong style="color: #24292f; font-size: 14px;">Account Details:</strong>
+                            <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
+                    `;
+                    
+                    accountDetails.forEach(detail => {
+                        const statusIcon = detail.authenticated ? '✅' : '❌';
+                        const statusColor = detail.authenticated ? '#1a7f37' : '#cf222e';
+                        summaryHTML += `
+                            <div style="padding: 8px; margin-bottom: 4px; background-color: #f6f8fa; border-radius: 4px; font-size: 13px;">
+                                <strong>${statusIcon} ${detail.account}:</strong>
+                                <span style="color: ${statusColor}; margin-left: 8px;">
+                                    ${detail.users} user(s)
+                                </span>
+                                ${detail.error ? `<div style="color: #cf222e; font-size: 12px; margin-top: 4px;">Error: ${detail.error}</div>` : ''}
+                            </div>
+                        `;
+                    });
+                    
+                    summaryHTML += `
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                summaryDiv.innerHTML = summaryHTML;
+            }
+            
+            // Copy to clipboard
+            if (textarea && textarea.value) {
+                textarea.select();
+                textarea.setSelectionRange(0, 99999);
+                try {
+                    document.execCommand('copy');
+                    alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s) and copied to clipboard!`);
+                } catch (err) {
+                    navigator.clipboard.writeText(textarea.value).then(() => {
+                        alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s) and copied to clipboard!`);
+                    }).catch(() => {
+                        alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s). Please copy manually.`);
+                    });
+                }
+            }
+        } else {
+            alert(`Error: ${data.error || 'Failed to retrieve users'}`);
+            if (textarea) {
+                textarea.value = `❌ Error: ${data.error || 'Failed to retrieve users'}`;
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Retrieve users error:', error);
+        alert(`Network error: ${error.message}`);
+        if (textarea) {
+            textarea.value = `❌ Network error: ${error.message}`;
+        }
+    });
 }
 
 function executeBulkAccountDeletion(event) {
