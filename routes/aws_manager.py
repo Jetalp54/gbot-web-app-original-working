@@ -600,12 +600,10 @@ def push_ecr_to_all_regions():
         logger.info(f"[ECR] Source region: {source_region} (override: {source_region_override}, parsed: {parsed_region})")
         logger.info(f"[ECR] Source ECR URI: {source_ecr_uri}")
         
-        # Get all available AWS regions
+        # Get all available AWS regions (excluding af-south-1 as requested)
         AVAILABLE_GEO_REGIONS = [
             # US
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            # Africa
-            'af-south-1',
             # Asia Pacific
             'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
             'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
