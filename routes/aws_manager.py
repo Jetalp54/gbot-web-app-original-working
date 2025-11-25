@@ -2918,43 +2918,114 @@ def fetch_from_dynamodb():
         except Exception as e:
             return jsonify({'success': False, 'error': f'DynamoDB table {table_name} not found in {dynamodb_region}: {e}'}), 404
         
+        # Use batch_get_item for parallel fetching (much faster than sequential get_item)
+        # DynamoDB batch_get_item can fetch up to 100 items at once
         results = []
-        for email in emails:
+        dynamodb_client = session.client('dynamodb')
+        
+        # Process emails in batches of 100 (DynamoDB limit) using ThreadPoolExecutor for parallel batches
+        batch_size = 100
+        
+        def fetch_batch(email_batch):
+            """Fetch a batch of emails from DynamoDB"""
+            batch_results = []
             try:
-                response = table.get_item(Key={'email': email})
-                if 'Item' in response:
-                    item = response['Item']
-                    app_password = item['app_password']
+                # Prepare keys for batch_get_item (DynamoDB client format - low-level API)
+                keys = [{'email': {'S': email}} for email in email_batch]
+                
+                # Use batch_get_item (faster than individual get_item calls)
+                response = dynamodb_client.batch_get_item(
+                    RequestItems={
+                        table_name: {
+                            'Keys': keys
+                        }
+                    }
+                )
+                
+                # Process results (low-level API returns DynamoDB format)
+                items = response.get('Responses', {}).get(table_name, [])
+                found_emails = set()
+                
+                for item in items:
+                    email = item['email']['S']
+                    app_password = item['app_password']['S']
+                    found_emails.add(email)
                     
                     # Save to local AwsGeneratedPassword table
                     try:
                         save_app_password(email, app_password)
-                        logger.info(f"[DYNAMODB] ✓ Fetched and saved to local DB: {email}")
                     except Exception as db_err:
                         logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
-                        # Continue anyway - we have the password
                     
-                    results.append({
-                        'email': item['email'],
+                    batch_results.append({
+                        'email': email,
                         'app_password': app_password,
-                        'created_at': item.get('created_at', ''),
+                        'created_at': item.get('created_at', {}).get('S', ''),
                         'region': dynamodb_region,
                         'success': True
                     })
-                else:
-                    logger.warning(f"[DYNAMODB] ⚠️ No entry found for {email}")
-                    results.append({
-                        'email': email,
-                        'error': 'Not found in DynamoDB',
-                        'success': False
-                    })
+                
+                # Mark emails not found in this batch
+                for email in email_batch:
+                    if email not in found_emails:
+                        batch_results.append({
+                            'email': email,
+                            'error': 'Not found in DynamoDB',
+                            'success': False
+                        })
+                            
             except Exception as e:
-                logger.error(f"[DYNAMODB] Error fetching {email}: {e}")
-                results.append({
-                    'email': email,
-                    'error': str(e),
-                    'success': False
-                })
+                logger.error(f"[DYNAMODB] Error in batch fetch: {e}")
+                logger.error(traceback.format_exc())
+                # Fallback to individual get_item for this batch
+                for email in email_batch:
+                    try:
+                        response = table.get_item(Key={'email': email})
+                        if 'Item' in response:
+                            item = response['Item']
+                            app_password = item['app_password']
+                            
+                            try:
+                                save_app_password(email, app_password)
+                            except Exception as db_err:
+                                logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
+                            
+                            batch_results.append({
+                                'email': item['email'],
+                                'app_password': app_password,
+                                'created_at': item.get('created_at', ''),
+                                'region': dynamodb_region,
+                                'success': True
+                            })
+                        else:
+                            batch_results.append({
+                                'email': email,
+                                'error': 'Not found in DynamoDB',
+                                'success': False
+                            })
+                    except Exception as get_err:
+                        logger.error(f"[DYNAMODB] Error fetching {email}: {get_err}")
+                        batch_results.append({
+                            'email': email,
+                            'error': str(get_err),
+                            'success': False
+                        })
+            
+            return batch_results
+        
+        # Process all batches in parallel using ThreadPoolExecutor
+        logger.info(f"[DYNAMODB] Processing {len(emails)} emails in {len(emails) // batch_size + 1} batch(es) in parallel...")
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            email_batches = [emails[i:i + batch_size] for i in range(0, len(emails), batch_size)]
+            futures = [executor.submit(fetch_batch, batch) for batch in email_batches]
+            
+            for future in as_completed(futures):
+                try:
+                    batch_results = future.result()
+                    results.extend(batch_results)
+                except Exception as e:
+                    logger.error(f"[DYNAMODB] Error in batch future: {e}")
+                    logger.error(traceback.format_exc())
         
         success_count = sum(1 for r in results if r.get('success'))
         logger.info(f"[DYNAMODB] Fetch complete: {success_count}/{len(emails)} found")
@@ -3190,26 +3261,25 @@ def delete_all_lambdas():
         total_deleted = 0
         total_errors = 0
 
-        for target_region in AVAILABLE_GEO_REGIONS:
+        def delete_region_lambdas(target_region):
+            """Delete all Lambda functions in a specific region (parallel execution)"""
+            region_deleted = []
+            region_errors = []
             try:
                 logger.info(f"[DELETE LAMBDA] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
                 lam = session.client("lambda")
 
-                region_deleted = []
-                
                 # Try to delete production lambda
                 try:
                     lam.delete_function(FunctionName=PRODUCTION_LAMBDA_NAME)
                     region_deleted.append(f"{PRODUCTION_LAMBDA_NAME} ({target_region})")
-                    total_deleted += 1
                 except lam.exceptions.ResourceNotFoundException:
                     pass
                 except Exception as e:
                     error_msg = f"{target_region}: {PRODUCTION_LAMBDA_NAME} - {str(e)}"
                     logger.error(f"[DELETE LAMBDA] [{target_region}] Error: {error_msg}")
-                    all_errors.append(error_msg)
-                    total_errors += 1
+                    region_errors.append(error_msg)
 
                 # Also check for any other edu-gw lambdas
                 try:
@@ -3221,29 +3291,44 @@ def delete_all_lambdas():
                                 try:
                                     lam.delete_function(FunctionName=fn_name)
                                     region_deleted.append(f"{fn_name} ({target_region})")
-                                    total_deleted += 1
                                 except lam.exceptions.ResourceNotFoundException:
                                     pass
                                 except Exception as e:
                                     error_msg = f"{target_region}: {fn_name} - {str(e)}"
                                     logger.error(f"[DELETE LAMBDA] [{target_region}] Error deleting {fn_name}: {e}")
-                                    all_errors.append(error_msg)
-                                    total_errors += 1
+                                    region_errors.append(error_msg)
                 except Exception as e:
                     error_msg = f"{target_region}: Failed to list functions - {str(e)}"
                     logger.error(f"[DELETE LAMBDA] [{target_region}] Error listing functions: {e}")
-                    all_errors.append(error_msg)
-                    total_errors += 1
+                    region_errors.append(error_msg)
 
                 if region_deleted:
-                    all_deleted.extend(region_deleted)
                     logger.info(f"[DELETE LAMBDA] [{target_region}] Deleted {len(region_deleted)} function(s)")
 
             except Exception as e:
                 error_msg = f"{target_region}: Region processing failed - {str(e)}"
                 logger.error(f"[DELETE LAMBDA] [{target_region}] Error: {e}")
-                all_errors.append(error_msg)
-                total_errors += 1
+                region_errors.append(error_msg)
+            
+            return region_deleted, region_errors
+
+        # Process all regions in parallel
+        logger.info(f"[DELETE LAMBDA] Starting parallel deletion across {len(AVAILABLE_GEO_REGIONS)} regions...")
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            futures = {executor.submit(delete_region_lambdas, region): region for region in AVAILABLE_GEO_REGIONS}
+            
+            for future in as_completed(futures):
+                region = futures[future]
+                try:
+                    region_deleted, region_errors = future.result()
+                    all_deleted.extend(region_deleted)
+                    all_errors.extend(region_errors)
+                    total_deleted += len(region_deleted)
+                    total_errors += len(region_errors)
+                except Exception as e:
+                    logger.error(f"[DELETE LAMBDA] [{region}] Future error: {e}")
+                    total_errors += 1
+                    all_errors.append(f"{region}: Future execution error - {str(e)}")
 
         return jsonify({
             'success': True,
@@ -3470,7 +3555,8 @@ def delete_ecr_repo():
         total_deleted = 0
         total_errors = 0
 
-        for target_region in AVAILABLE_GEO_REGIONS:
+        def delete_region_ecr(target_region):
+            """Delete ECR repository in a specific region (parallel execution)"""
             try:
                 logger.info(f"[DELETE ECR] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
@@ -3481,23 +3567,41 @@ def delete_ecr_repo():
                         repositoryName=ECR_REPO_NAME,
                         force=True
                     )
-                    deleted_regions.append(target_region)
-                    total_deleted += 1
                     logger.info(f"[DELETE ECR] [{target_region}] ✓ Repository deleted successfully")
+                    return {'success': True, 'region': target_region}
                 except ecr.exceptions.RepositoryNotFoundException:
-                    not_found_regions.append(target_region)
                     logger.info(f"[DELETE ECR] [{target_region}] Repository not found (skipping)")
+                    return {'success': True, 'not_found': True, 'region': target_region}
                 except Exception as e:
-                    error_msg = f"{target_region}: {str(e)}"
-                    error_regions.append(error_msg)
-                    total_errors += 1
                     logger.error(f"[DELETE ECR] [{target_region}] ✗ Error: {e}")
+                    return {'success': False, 'error': str(e), 'region': target_region}
 
             except Exception as e:
-                error_msg = f"{target_region}: Region processing failed - {str(e)}"
-                error_regions.append(error_msg)
-                total_errors += 1
                 logger.error(f"[DELETE ECR] [{target_region}] Error: {e}")
+                return {'success': False, 'error': str(e), 'region': target_region}
+
+        # Process all regions in parallel
+        logger.info(f"[DELETE ECR] Starting parallel deletion across {len(AVAILABLE_GEO_REGIONS)} regions...")
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            futures = {executor.submit(delete_region_ecr, region): region for region in AVAILABLE_GEO_REGIONS}
+            
+            for future in as_completed(futures):
+                region = futures[future]
+                try:
+                    result = future.result()
+                    if result.get('success'):
+                        if result.get('not_found'):
+                            not_found_regions.append(region)
+                        else:
+                            deleted_regions.append(region)
+                            total_deleted += 1
+                    else:
+                        error_regions.append(f"{region}: {result.get('error', 'Unknown error')}")
+                        total_errors += 1
+                except Exception as e:
+                    logger.error(f"[DELETE ECR] [{region}] Future error: {e}")
+                    total_errors += 1
+                    error_regions.append(f"{region}: Future execution error - {str(e)}")
 
         return jsonify({
             'success': True,
@@ -3576,13 +3680,15 @@ def delete_cloudwatch_logs():
         total_deleted = 0
         total_errors = 0
 
-        for target_region in AVAILABLE_GEO_REGIONS:
+        def delete_region_cloudwatch(target_region):
+            """Delete CloudWatch log groups in a specific region (parallel execution)"""
+            region_deleted = []
+            region_errors = []
             try:
                 logger.info(f"[DELETE CLOUDWATCH] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
                 logs = session.client("logs")
 
-                region_deleted = []
                 paginator = logs.get_paginator('describe_log_groups')
                 for page in paginator.paginate():
                     for log_group in page.get('logGroups', []):
@@ -3591,22 +3697,38 @@ def delete_cloudwatch_logs():
                             try:
                                 logs.delete_log_group(logGroupName=log_group_name)
                                 region_deleted.append(f"{log_group_name} ({target_region})")
-                                total_deleted += 1
                             except Exception as e:
                                 error_msg = f"{target_region}: {log_group_name} - {str(e)}"
                                 logger.error(f"[DELETE CLOUDWATCH] [{target_region}] Error deleting {log_group_name}: {e}")
-                                all_errors.append(error_msg)
-                                total_errors += 1
+                                region_errors.append(error_msg)
 
                 if region_deleted:
-                    all_deleted.extend(region_deleted)
                     logger.info(f"[DELETE CLOUDWATCH] [{target_region}] Deleted {len(region_deleted)} log group(s)")
 
             except Exception as e:
                 error_msg = f"{target_region}: Region processing failed - {str(e)}"
                 logger.error(f"[DELETE CLOUDWATCH] [{target_region}] Error: {e}")
-                all_errors.append(error_msg)
-                total_errors += 1
+                region_errors.append(error_msg)
+            
+            return region_deleted, region_errors
+
+        # Process all regions in parallel
+        logger.info(f"[DELETE CLOUDWATCH] Starting parallel deletion across {len(AVAILABLE_GEO_REGIONS)} regions...")
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            futures = {executor.submit(delete_region_cloudwatch, region): region for region in AVAILABLE_GEO_REGIONS}
+            
+            for future in as_completed(futures):
+                region = futures[future]
+                try:
+                    region_deleted, region_errors = future.result()
+                    all_deleted.extend(region_deleted)
+                    all_errors.extend(region_errors)
+                    total_deleted += len(region_deleted)
+                    total_errors += len(region_errors)
+                except Exception as e:
+                    logger.error(f"[DELETE CLOUDWATCH] [{region}] Future error: {e}")
+                    total_errors += 1
+                    all_errors.append(f"{region}: Future execution error - {str(e)}")
 
         return jsonify({
             'success': True,

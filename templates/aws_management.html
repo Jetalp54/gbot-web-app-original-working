@@ -192,6 +192,10 @@
                             <i class="fas fa-play"></i>
                             Invoke Production Lambda
                         </button>
+                        <button class="btn-github" onclick="stopAllLambdas()" style="width: 100%; margin-bottom: var(--spacing-md); background-color: #ff6b35; border-color: #ff6b35; color: white;">
+                            <i class="fas fa-stop"></i>
+                            Stop All Running Lambdas
+                        </button>
                         <button class="btn-github btn-github-danger" onclick="deleteAllLambdas()" style="width: 100%; margin-bottom: var(--spacing-md);">
                             <i class="fas fa-trash"></i>
                             Delete All Lambdas
@@ -1329,6 +1333,45 @@
             }
         })
         .catch(err => console.error(err));
+    }
+
+    // Stop All Running Lambdas
+    function stopAllLambdas() {
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
+
+        if (!confirm('Are you sure you want to stop all running Lambda functions? This will prevent new invocations but will not delete the functions.')) {
+            return;
+        }
+
+        log('Stopping all Lambda functions across all regions...');
+        
+        fetch('/api/aws/stop-all-lambdas', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`Lambda stop completed. Stopped: ${data.stopped_count} function(s), Errors: ${data.error_count}`);
+                alert(`All Lambda functions stopped successfully. Stopped: ${data.stopped_count} function(s)`);
+            } else {
+                log(`ERROR stopping Lambdas: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`ERROR: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
     }
 
     // Delete All Lambdas
