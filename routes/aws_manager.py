@@ -50,9 +50,11 @@ lambda_creation_lock = threading.Lock()
 processing_emails = set()
 processing_lock = threading.Lock()
 
-# Rate limiting semaphore - AWS account limit is typically 10-100 concurrent executions
-# Using 10 as safe default (can be increased if account limit is higher)
-MAX_CONCURRENT_LAMBDA_INVOCATIONS = 10
+# Rate limiting semaphore - AWS account limit is typically 1000+ concurrent executions
+# Calculate dynamically based on number of functions being invoked
+# For 34 geos × 10 functions max = 340 functions, but we'll use a high limit to allow all parallel
+# Each function processes 10 users max, so total concurrent Lambda executions = number of functions
+MAX_CONCURRENT_LAMBDA_INVOCATIONS = 500  # High limit to allow all functions to start in parallel
 lambda_invocation_semaphore = threading.Semaphore(MAX_CONCURRENT_LAMBDA_INVOCATIONS)
 
 # Login required decorator
@@ -2244,7 +2246,12 @@ def bulk_generate():
                         logger.info("=" * 60)
                     
                         # Rate limiting: Acquire semaphore to limit concurrent invocations
+                        # NOTE: Semaphore limit is now 500 to allow all functions in all geos to start in parallel
+                        # The semaphore is held for the duration of the Lambda invocation (up to 15 minutes)
+                        # This ensures we don't exceed AWS account limits while allowing maximum parallelism
+                        logger.info(f"[BULK] [{assigned_function_name}] Acquiring semaphore for Lambda invocation...")
                         lambda_invocation_semaphore.acquire()
+                        logger.info(f"[BULK] [{assigned_function_name}] ✓ Semaphore acquired, invoking Lambda NOW (parallel execution enabled)")
                         try:
                             # Retry logic for rate limiting
                             max_retries = 3
