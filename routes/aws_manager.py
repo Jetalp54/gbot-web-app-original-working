@@ -761,24 +761,57 @@ def push_ecr_to_all_regions():
                                 region_result = {'success': False, 'error': f'Repository check failed: {e}'}
                                 return region_result
                         
-                        # Check if image already exists in target region
+                        # Check if image already exists in target region (with retry for eventual consistency)
                         target_ecr_uri = f"{account_id}.dkr.ecr.{target_region}.amazonaws.com/{repo_name}:{image_tag}"
-                        try:
-                            ecr_client.describe_images(
-                                repositoryName=repo_name,
-                                imageIds=[{"imageTag": image_tag}],
-                            )
-                            logger.info(f"[ECR] [{target_region}] ✓ Image already exists in {target_region}")
-                            region_result = {'success': True, 'message': 'Image already exists'}
+                        image_exists = False
+                        for check_attempt in range(3):  # Check up to 3 times with delays
+                            try:
+                                ecr_client.describe_images(
+                                    repositoryName=repo_name,
+                                    imageIds=[{"imageTag": image_tag}],
+                                )
+                                image_exists = True
+                                logger.info(f"[ECR] [{target_region}] ✓ Image already exists in {target_region} (verified)")
+                                break
+                            except ClientError as e:
+                                if e.response['Error']['Code'] == 'ImageNotFoundException':
+                                    if check_attempt < 2:  # Not the last attempt
+                                        time.sleep(2)  # Wait before retry
+                                        continue
+                                    # Image doesn't exist, proceed to push
+                                    break
+                                else:
+                                    logger.error(f"[ECR] [{target_region}] ✗ Error checking image: {e}")
+                                    region_result = {'success': False, 'error': f'Image check failed: {e}'}
+                                    return region_result
+                        
+                        if image_exists:
+                            region_result = {'success': True, 'message': 'Image already exists (verified)', 'aws_verified': True}
                             return region_result
-                        except ClientError as e:
-                            if e.response['Error']['Code'] != 'ImageNotFoundException':
-                                logger.error(f"[ECR] [{target_region}] ✗ Error checking image: {e}")
-                                region_result = {'success': False, 'error': f'Image check failed: {e}'}
-                                return region_result
                         
                         # Image doesn't exist - attempt to push it using Docker
                         logger.info(f"[ECR] [{target_region}] Image not found. Attempting to push from {source_region}...")
+                        
+                        # First, verify source image exists
+                        try:
+                            source_session = boto3.Session(
+                                aws_access_key_id=access_key,
+                                aws_secret_access_key=secret_key,
+                                region_name=source_region
+                            )
+                            source_ecr_client = source_session.client('ecr')
+                            source_ecr_client.describe_images(
+                                repositoryName=repo_name,
+                                imageIds=[{"imageTag": image_tag}],
+                            )
+                            logger.info(f"[ECR] [{target_region}] ✓ Verified source image exists in {source_region}")
+                        except ClientError as source_err:
+                            if source_err.response['Error']['Code'] == 'ImageNotFoundException':
+                                logger.error(f"[ECR] [{target_region}] ✗✗✗ CRITICAL: Source image does NOT exist in {source_region}! Cannot push.")
+                                region_result = {'success': False, 'error': f'Source image not found in {source_region}. Please build and push the image to {source_region} first.'}
+                                return region_result
+                            else:
+                                logger.warning(f"[ECR] [{target_region}] ⚠️ Could not verify source image: {source_err}")
                         
                         # Try to use EC2 build box if available (it has Docker)
                         # Prioritize EC2 build box over local Docker for reliability
@@ -812,31 +845,65 @@ def push_ecr_to_all_regions():
                                 # Create a script to push image to target region
                                 push_script = f"""#!/bin/bash
 set -e
+set -x  # Enable command tracing for debugging
 export AWS_ACCESS_KEY_ID={access_key}
 export AWS_SECRET_ACCESS_KEY={secret_key}
 export AWS_DEFAULT_REGION={target_region}
 
 # Authenticate with target region ECR
-echo "Authenticating with ECR in {target_region}..."
-aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com
+echo "=== Step 1: Authenticating with ECR in {target_region}... ==="
+if ! aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com; then
+    echo "ERROR: Failed to authenticate with target region ECR"
+    exit 1
+fi
+echo "✓ Authenticated with target region ECR"
 
 # Authenticate with source region ECR
-echo "Authenticating with ECR in {source_region}..."
-aws ecr get-login-password --region {source_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{source_region}.amazonaws.com
+echo "=== Step 2: Authenticating with ECR in {source_region}... ==="
+if ! aws ecr get-login-password --region {source_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{source_region}.amazonaws.com; then
+    echo "ERROR: Failed to authenticate with source region ECR"
+    exit 1
+fi
+echo "✓ Authenticated with source region ECR"
 
 # Pull image from source region
-echo "Pulling image from {source_region}..."
-docker pull {source_ecr_uri}
+echo "=== Step 3: Pulling image from {source_region}... ==="
+if ! docker pull {source_ecr_uri}; then
+    echo "ERROR: Failed to pull image from source region"
+    exit 1
+fi
+echo "✓ Image pulled successfully"
 
 # Tag image for target region
-echo "Tagging image for {target_region}..."
-docker tag {source_ecr_uri} {target_ecr_uri}
+echo "=== Step 4: Tagging image for {target_region}... ==="
+if ! docker tag {source_ecr_uri} {target_ecr_uri}; then
+    echo "ERROR: Failed to tag image"
+    exit 1
+fi
+echo "✓ Image tagged successfully"
 
 # Push image to target region
-echo "Pushing image to {target_region}..."
-docker push {target_ecr_uri}
+echo "=== Step 5: Pushing image to {target_region}... ==="
+if ! docker push {target_ecr_uri}; then
+    echo "ERROR: Failed to push image to target region"
+    exit 1
+fi
+echo "✓ Image pushed successfully"
 
-echo "Successfully pushed image to {target_region}"
+# Verify image exists in target region
+echo "=== Step 6: Verifying image exists in {target_region}... ==="
+sleep 3  # Wait for ECR to update
+for i in {{1..5}}; do
+    if aws ecr describe-images --repository-name {repo_name} --image-ids imageTag={image_tag} --region {target_region} 2>&1; then
+        echo "✓✓✓ VERIFIED: Image exists in ECR after push!"
+        exit 0
+    fi
+    echo "Image not found yet (attempt $i/5), waiting..."
+    sleep 3
+done
+
+echo "ERROR: Image push completed but verification failed - image not found in ECR"
+exit 1
 """
                                 
                                 # Run command via SSM
@@ -870,12 +937,47 @@ echo "Successfully pushed image to {target_region}"
                                     status = cmd_response['Status']
                                     if status in ['Success', 'Failed', 'Cancelled', 'TimedOut']:
                                         if status == 'Success':
-                                            logger.info(f"[ECR] [{target_region}] ✓✓✓ SUCCESS: Pushed image via EC2 build box")
-                                            region_result = {'success': True, 'message': f'Image pushed successfully via EC2 build box'}
+                                            logger.info(f"[ECR] [{target_region}] ✓✓✓ EC2 SSM command completed successfully")
+                                            
+                                            # CRITICAL: Verify the image actually exists after EC2 push
+                                            logger.info(f"[ECR] [{target_region}] Verifying image exists after EC2 push...")
+                                            time.sleep(3)  # Wait for ECR to update
+                                            
+                                            verification_attempts = 5
+                                            image_verified = False
+                                            for verify_attempt in range(verification_attempts):
+                                                try:
+                                                    ecr_client.describe_images(
+                                                        repositoryName=repo_name,
+                                                        imageIds=[{"imageTag": image_tag}],
+                                                    )
+                                                    image_verified = True
+                                                    logger.info(f"[ECR] [{target_region}] ✓✓✓ VERIFIED: Image exists in ECR after EC2 push!")
+                                                    break
+                                                except ClientError as verify_err:
+                                                    if verify_err.response['Error']['Code'] == 'ImageNotFoundException':
+                                                        logger.warning(f"[ECR] [{target_region}] Image not found yet (attempt {verify_attempt + 1}/{verification_attempts}), waiting...")
+                                                        time.sleep(3)
+                                                    else:
+                                                        logger.error(f"[ECR] [{target_region}] Verification error: {verify_err}")
+                                                        break
+                                            
+                                            if not image_verified:
+                                                logger.error(f"[ECR] [{target_region}] ✗✗✗ CRITICAL: EC2 push reported success but image NOT FOUND in ECR!")
+                                                stdout_content = cmd_response.get('StandardOutputContent', '')
+                                                logger.error(f"[ECR] [{target_region}] EC2 command stdout: {stdout_content[:1000]}")
+                                                region_result = {'success': False, 'error': f'EC2 push completed but image verification failed - image not found in ECR after {verification_attempts} attempts'}
+                                                return region_result
+                                            
+                                            logger.info(f"[ECR] [{target_region}] ✓✓✓ SUCCESS: Pushed and VERIFIED image via EC2 build box")
+                                            region_result = {'success': True, 'message': f'Image pushed and verified successfully via EC2 build box'}
                                             return region_result
                                         else:
                                             error_details = cmd_response.get('StandardErrorContent', 'Unknown error')
-                                            logger.error(f"[ECR] [{target_region}] ✗ SSM command failed: {status} - {error_details}")
+                                            stdout_content = cmd_response.get('StandardOutputContent', '')
+                                            logger.error(f"[ECR] [{target_region}] ✗ SSM command failed: {status}")
+                                            logger.error(f"[ECR] [{target_region}] Error output: {error_details}")
+                                            logger.error(f"[ECR] [{target_region}] Stdout output: {stdout_content[:1000]}")
                                             region_result = {'success': False, 'error': f'EC2 push failed: {status} - {error_details}'}
                                             return region_result
                                         break
@@ -1039,10 +1141,41 @@ echo "Successfully pushed image to {target_region}"
                             )
                             
                             if push_process.returncode != 0:
+                                logger.error(f"[ECR] [{target_region}] Docker push stderr: {push_process.stderr}")
+                                logger.error(f"[ECR] [{target_region}] Docker push stdout: {push_process.stdout}")
                                 raise Exception(f"Docker push failed: {push_process.stderr}")
                             
-                            logger.info(f"[ECR] [{target_region}] ✓✓✓ SUCCESS: Pushed image to {target_region}")
-                            region_result = {'success': True, 'message': f'Image pushed successfully from {source_region}'}
+                            logger.info(f"[ECR] [{target_region}] ✓✓✓ Docker push command completed")
+                            
+                            # CRITICAL: Verify the image actually exists after push
+                            logger.info(f"[ECR] [{target_region}] Verifying image exists after push...")
+                            time.sleep(2)  # Wait a moment for ECR to update
+                            
+                            verification_attempts = 5
+                            image_verified = False
+                            for verify_attempt in range(verification_attempts):
+                                try:
+                                    ecr_client.describe_images(
+                                        repositoryName=repo_name,
+                                        imageIds=[{"imageTag": image_tag}],
+                                    )
+                                    image_verified = True
+                                    logger.info(f"[ECR] [{target_region}] ✓✓✓ VERIFIED: Image exists in ECR after push!")
+                                    break
+                                except ClientError as verify_err:
+                                    if verify_err.response['Error']['Code'] == 'ImageNotFoundException':
+                                        logger.warning(f"[ECR] [{target_region}] Image not found yet (attempt {verify_attempt + 1}/{verification_attempts}), waiting...")
+                                        time.sleep(3)
+                                    else:
+                                        logger.error(f"[ECR] [{target_region}] Verification error: {verify_err}")
+                                        break
+                            
+                            if not image_verified:
+                                logger.error(f"[ECR] [{target_region}] ✗✗✗ CRITICAL: Image push reported success but image NOT FOUND in ECR!")
+                                raise Exception(f"Image push completed but verification failed - image not found in ECR after {verification_attempts} attempts")
+                            
+                            logger.info(f"[ECR] [{target_region}] ✓✓✓ SUCCESS: Pushed and VERIFIED image in {target_region}")
+                            region_result = {'success': True, 'message': f'Image pushed and verified successfully in {target_region}'}
                             return region_result
                             
                         except subprocess.TimeoutExpired:
@@ -1099,13 +1232,33 @@ echo "Successfully pushed image to {target_region}"
                                     failure_count += 1
                                     logger.error(f"[ECR] [{target_region}] ✗ Failed ({completed}/{len(target_regions)}): {region_result.get('error', 'Unknown error')}")
                             
-                            # Update job status in real-time
+                            # Update job status in real-time with AWS verification
                             with lambda_creation_lock:
                                 if job_id in lambda_creation_jobs:
+                                    # Verify success results against AWS in real-time
+                                    if region_result.get('success'):
+                                        try:
+                                            verify_session = boto3.Session(
+                                                aws_access_key_id=access_key,
+                                                aws_secret_access_key=secret_key,
+                                                region_name=target_region
+                                            )
+                                            verify_ecr = verify_session.client('ecr')
+                                            verify_ecr.describe_images(
+                                                repositoryName=repo_name,
+                                                imageIds=[{"imageTag": image_tag}],
+                                            )
+                                            region_result['aws_verified'] = True
+                                            logger.info(f"[ECR] [{target_region}] ✓ Real-time AWS verification: Image exists")
+                                        except Exception as verify_err:
+                                            logger.warning(f"[ECR] [{target_region}] ⚠️ Real-time verification failed: {verify_err}")
+                                            region_result['aws_verified'] = False
+                                    
                                     lambda_creation_jobs[job_id]['success_count'] = success_count
                                     lambda_creation_jobs[job_id]['failure_count'] = failure_count
                                     lambda_creation_jobs[job_id]['results'] = results.copy()
                                     lambda_creation_jobs[job_id]['message'] = f'Progress: {completed}/{len(target_regions)} regions completed ({success_count} success, {failure_count} failed)'
+                                    lambda_creation_jobs[job_id]['last_update'] = time.time()
                                     
                         except Exception as e:
                             logger.error(f"[ECR] [{target_region}] Future error: {e}")
@@ -1121,17 +1274,50 @@ echo "Successfully pushed image to {target_region}"
                                     lambda_creation_jobs[job_id]['failure_count'] = failure_count
                                     lambda_creation_jobs[job_id]['results'] = results.copy()
                 
-                # Update job status
+                # Final AWS verification pass for all regions
+                logger.info("[ECR] Performing final AWS verification pass...")
+                verified_success = 0
+                verified_failure = 0
+                for target_region in target_regions:
+                    try:
+                        verify_session = boto3.Session(
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
+                            region_name=target_region
+                        )
+                        verify_ecr = verify_session.client('ecr')
+                        verify_ecr.describe_images(
+                            repositoryName=repo_name,
+                            imageIds=[{"imageTag": image_tag}],
+                        )
+                        # Image exists in AWS
+                        if target_region in results:
+                            results[target_region]['aws_verified'] = True
+                        verified_success += 1
+                        logger.info(f"[ECR] [{target_region}] ✓ Final verification: Image exists in AWS")
+                    except ClientError as verify_err:
+                        if verify_err.response['Error']['Code'] == 'ImageNotFoundException':
+                            if target_region in results and results[target_region].get('success'):
+                                logger.warning(f"[ECR] [{target_region}] ⚠️ Push reported success but image NOT in AWS!")
+                                results[target_region]['aws_verified'] = False
+                                results[target_region]['success'] = False
+                                results[target_region]['error'] = 'Image not found in AWS after push'
+                                verified_failure += 1
+                        else:
+                            logger.warning(f"[ECR] [{target_region}] ⚠️ Verification error: {verify_err}")
+                
+                # Update job status with verified results
                 with lambda_creation_lock:
                     if job_id in lambda_creation_jobs:
                         lambda_creation_jobs[job_id]['status'] = 'completed'
-                        lambda_creation_jobs[job_id]['success_count'] = success_count
-                        lambda_creation_jobs[job_id]['failure_count'] = failure_count
+                        lambda_creation_jobs[job_id]['success_count'] = verified_success
+                        lambda_creation_jobs[job_id]['failure_count'] = verified_failure
                         lambda_creation_jobs[job_id]['results'] = results
                         lambda_creation_jobs[job_id]['completed_at'] = time.time()
+                        lambda_creation_jobs[job_id]['message'] = f'Completed: {verified_success} verified success, {verified_failure} verified failed (AWS verified)'
                 
                 logger.info("=" * 60)
-                logger.info(f"[ECR] Replication completed: {success_count} success, {failure_count} failed")
+                logger.info(f"[ECR] Replication completed (AWS verified): {verified_success} success, {verified_failure} failed")
                 logger.info("=" * 60)
                 
             except Exception as bg_err:
@@ -4755,12 +4941,13 @@ for TARGET_REGION in "${{" + "TARGET_REGIONS[@]" + "}}"; do
     
     # Authenticate with target region
     echo "Authenticating with ECR in $TARGET_REGION..."
-    if ! aws ecr get-login-password --region "$TARGET_REGION" | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com" 2>/dev/null; then
-        echo "✗ Failed to authenticate with $TARGET_REGION"
+    if ! aws ecr get-login-password --region "$TARGET_REGION" | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com"; then
+        echo "✗ Failed to authenticate with $TARGET_REGION (check error output above)"
         FAILED_COUNT=$((FAILED_COUNT + 1))
         FAILED_REGIONS+=("$TARGET_REGION")
         continue
     fi
+    echo "✓ Authenticated with $TARGET_REGION"
     
     # Tag image for target region
     echo "Tagging image for $TARGET_REGION..."
@@ -4768,11 +4955,33 @@ for TARGET_REGION in "${{" + "TARGET_REGIONS[@]" + "}}"; do
     
     # Push image to target region
     echo "Pushing image to $TARGET_REGION..."
-    if docker push "$TARGET_ECR_URI" 2>/dev/null; then
-        echo "✓ Successfully pushed to $TARGET_REGION"
-        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+    if docker push "$TARGET_ECR_URI"; then
+        echo "✓ Docker push command completed"
+        
+        # Verify image exists after push
+        echo "Verifying image exists in $TARGET_REGION..."
+        sleep 3
+        VERIFIED=0
+        for verify_attempt in {{1..5}}; do
+            if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" --region "$TARGET_REGION" 2>&1; then
+                echo "✓✓✓ VERIFIED: Image exists in ECR after push!"
+                VERIFIED=1
+                break
+            fi
+            echo "Image not found yet (attempt $verify_attempt/5), waiting..."
+            sleep 3
+        done
+        
+        if [ $VERIFIED -eq 1 ]; then
+            echo "✓ Successfully pushed and verified in $TARGET_REGION"
+            SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+        else
+            echo "✗ Push completed but verification failed for $TARGET_REGION"
+            FAILED_COUNT=$((FAILED_COUNT + 1))
+            FAILED_REGIONS+=("$TARGET_REGION")
+        fi
     else
-        echo "✗ Failed to push to $TARGET_REGION"
+        echo "✗ Failed to push to $TARGET_REGION (check error output above)"
         FAILED_COUNT=$((FAILED_COUNT + 1))
         FAILED_REGIONS+=("$TARGET_REGION")
     fi
