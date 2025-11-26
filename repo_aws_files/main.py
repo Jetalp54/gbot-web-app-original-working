@@ -21,6 +21,7 @@ import logging
 import traceback
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # 3rd-party libraries
 import boto3
@@ -105,10 +106,90 @@ def ensure_s3_bucket_exists(bucket_name, region='us-east-1'):
 # Chrome Driver Initialization for AWS Lambda (with anti-detection)
 # =====================================================================
 
+# Global proxy list and rotation counter (for batch processing)
+import threading
+_proxy_list_cache = None
+_proxy_rotation_counter = 0
+_proxy_lock = threading.Lock()
+
+def get_proxy_list_from_env():
+    """Get and parse proxy list from environment variable"""
+    global _proxy_list_cache
+    
+    if _proxy_list_cache is not None:
+        return _proxy_list_cache
+    
+    proxy_enabled = os.environ.get('PROXY_ENABLED', 'false').lower() == 'true'
+    if not proxy_enabled:
+        _proxy_list_cache = []
+        return []
+    
+    proxy_list_str = os.environ.get('PROXY_LIST', '').strip()
+    if not proxy_list_str:
+        _proxy_list_cache = []
+        return []
+    
+    proxies = []
+    for line in proxy_list_str.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        
+        parts = line.split(':')
+        if len(parts) == 4:
+            ip, port, username, password = parts
+            proxies.append({
+                'ip': ip,
+                'port': port,
+                'username': username,
+                'password': password,
+                'full': line
+            })
+    
+    _proxy_list_cache = proxies
+    logger.info(f"[PROXY] Loaded {len(proxies)} proxy/proxies from environment")
+    return proxies
+
+def get_rotated_proxy_for_user():
+    """Get next proxy from list using round-robin rotation (thread-safe)"""
+    proxies = get_proxy_list_from_env()
+    if not proxies:
+        return None
+    
+    global _proxy_rotation_counter
+    with _proxy_lock:
+        proxy = proxies[_proxy_rotation_counter % len(proxies)]
+        _proxy_rotation_counter += 1
+        return proxy
+
+def get_proxy_from_env():
+    """
+    Get proxy configuration for current user (with rotation).
+    Format: IP:PORT:USERNAME:PASSWORD
+    Returns: dict with proxy config or None if not set
+    """
+    proxy = get_rotated_proxy_for_user()
+    if not proxy:
+        return None
+    
+    try:
+        return {
+            'ip': proxy['ip'],
+            'port': proxy['port'],
+            'username': proxy['username'],
+            'password': proxy['password'],
+            'http': f'http://{proxy["username"]}:{proxy["password"]}@{proxy["ip"]}:{proxy["port"]}',
+            'https': f'http://{proxy["username"]}:{proxy["password"]}@{proxy["ip"]}:{proxy["port"]}'  # Use http for SOCKS proxies
+        }
+    except Exception as e:
+        logger.warning(f"[PROXY] Error formatting proxy config: {e}")
+        return None
+
 def get_chrome_driver():
     """
     Initialize Selenium Chrome driver for AWS Lambda environment.
     Uses standard Selenium with CDP-based anti-detection (Lambda-compatible).
+    Supports proxy configuration if PROXY_CONFIG environment variable is set.
     """
     # Force environment variables to prevent SeleniumManager from trying to write to read-only FS
     os.environ['HOME'] = '/tmp'
@@ -190,6 +271,12 @@ def get_chrome_driver():
 
     # Use Selenium Chrome options with anti-detection
     chrome_options = Options()
+    
+    # Get proxy configuration if enabled
+    proxy_config = get_proxy_from_env()
+    if proxy_config:
+        logger.info(f"[PROXY] Using proxy: {proxy_config['ip']}:{proxy_config['port']}")
+        chrome_options.add_argument(f"--proxy-server={proxy_config['http']}")
     
     # Core stability options for Lambda
     chrome_options.add_argument("--headless=new")
@@ -2539,6 +2626,16 @@ def handler(event, context):
             """Wrapper function to process a single user with proper error handling"""
             email = user_data.get("email", "").strip()
             password = user_data.get("password", "").strip()
+            
+            # Get proxy for this user (rotation happens automatically)
+            proxy = get_rotated_proxy_for_user()
+            if proxy:
+                logger.info(f"[PROXY] [{email}] Using proxy: {proxy['ip']}:{proxy['port']}")
+                # Set proxy in environment for this user's Chrome driver
+                os.environ['PROXY_CONFIG'] = proxy['full']
+            else:
+                # Clear proxy config if not available
+                os.environ.pop('PROXY_CONFIG', None)
             
             if not email or not password:
                 return {

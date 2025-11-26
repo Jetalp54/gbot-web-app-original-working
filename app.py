@@ -10917,6 +10917,76 @@ def api_test_otp_server_connection():
         return jsonify({'success': False, 'error': str(e)})
 
 
+@app.route('/api/get-proxy-config', methods=['GET'])
+@login_required
+def api_get_proxy_config():
+    """Get current Proxy configuration"""
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    
+    try:
+        from database import ProxyConfig
+        config = ProxyConfig.query.first()
+        if config:
+            return jsonify({
+                'success': True,
+                'config': {
+                    'enabled': config.enabled,
+                    'proxies': config.proxies if config.proxies else ''
+                }
+            })
+        else:
+            return jsonify({'success': True, 'config': {'enabled': False, 'proxies': ''}})
+    except Exception as e:
+        app.logger.error(f"Error getting proxy config: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/save-proxy-config', methods=['POST'])
+@login_required
+def api_save_proxy_config():
+    """Save Proxy configuration"""
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    
+    try:
+        data = request.get_json()
+        enabled = data.get('enabled', False)
+        proxies = data.get('proxies', '').strip()
+        
+        # Validate proxy format if proxies are provided
+        if proxies:
+            proxy_lines = [line.strip() for line in proxies.split('\n') if line.strip()]
+            proxy_pattern = re.compile(r'^[\d\.]+:\d+:[^:]+:[^:]+$')
+            
+            for i, line in enumerate(proxy_lines):
+                if not proxy_pattern.match(line):
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid proxy format on line {i + 1}. Expected: IP:PORT:USERNAME:PASSWORD'
+                    })
+        
+        from database import ProxyConfig
+        config = ProxyConfig.query.first()
+        
+        if config:
+            config.enabled = enabled
+            config.proxies = proxies
+            config.updated_at = datetime.now()
+        else:
+            config = ProxyConfig(enabled=enabled, proxies=proxies)
+            db.session.add(config)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Proxy configuration saved successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error saving proxy config: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/get-otp-ssh-config', methods=['GET'])
 @login_required
 def api_get_otp_ssh_config():

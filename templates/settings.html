@@ -700,6 +700,56 @@
         </div>
     </div>
 
+    <!-- Proxy Configuration Section -->
+    <div class="github-card" style="margin-bottom: 24px;">
+        <div class="github-card-header">
+            <h3 class="github-card-title" style="font-size: 18px;">
+                <i class="fas fa-network-wired"></i>
+                Proxy Configuration
+            </h3>
+        </div>
+        <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+            Configure proxies for Lambda sessions to avoid CAPTCHA and rate limiting. 
+            Format: <code>IP:PORT:USERNAME:PASSWORD</code> (one per line).
+        </p>
+        
+        <form id="proxy-config-form">
+            <div style="margin-bottom: 16px;">
+                <div class="form-group-github" style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                    <input type="checkbox" id="proxy_enabled" name="proxy_enabled" 
+                           style="width: 20px; height: 20px; cursor: pointer;">
+                    <label for="proxy_enabled" style="font-weight: 600; color: #24292f; cursor: pointer; margin: 0;">
+                        Enable Proxy Usage
+                    </label>
+                </div>
+                <small style="color: #656d76; font-size: 12px; display: block; margin-bottom: 16px;">
+                    When enabled, Lambda sessions will use the configured proxies for login and authentication setup.
+                </small>
+            </div>
+            
+            <div class="form-group-github">
+                <label for="proxy_list" class="form-label-github">
+                    <i class="fas fa-list"></i> Proxy List
+                </label>
+                <textarea class="form-control-github" id="proxy_list" rows="8" 
+                          placeholder="150.241.117.154:5658:ptjboxwt:1wydh3226ef3&#10;150.241.117.71:5575:ptjboxwt:1wydh3226ef3&#10;104.253.199.246:5525:ptjboxwt:1wydh3226ef3"
+                          style="resize: vertical; font-family: 'Courier New', monospace; font-size: 12px;"></textarea>
+                <small style="color: #656d76; font-size: 12px;">
+                    Enter one proxy per line in the format: <code>IP:PORT:USERNAME:PASSWORD</code>
+                </small>
+            </div>
+            
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button type="submit" class="btn-github-primary" style="flex: 1;">
+                    <i class="fas fa-save"></i> Save Proxy Configuration
+                </button>
+                <button type="button" class="btn-github-secondary" onclick="testProxyConnection()" style="flex: 1;">
+                    <i class="fas fa-vial"></i> Test Connection
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- Status Messages -->
     <div id="status-messages" style="margin-top: 24px;"></div>
 </div>
@@ -810,6 +860,9 @@ $(document).ready(function() {
     // Load OTP SSH configuration
     loadOTPSSHConfiguration();
     
+    // Load Proxy configuration
+    loadProxyConfiguration();
+    
     // Handle authentication method change
     $('#server_auth_method').change(function() {
         const method = $(this).val();
@@ -864,6 +917,12 @@ $(document).ready(function() {
     $('#otp-ssh-config-form').submit(function(e) {
         e.preventDefault();
         saveOTPSSHConfiguration();
+    });
+    
+    // Handle Proxy form submission
+    $('#proxy-config-form').submit(function(e) {
+        e.preventDefault();
+        saveProxyConfiguration();
     });
     
     // Handle file upload
@@ -938,6 +997,76 @@ function loadOTPSSHConfiguration() {
     .catch(error => {
         console.error('Error loading OTP SSH configuration:', error);
     });
+}
+
+function loadProxyConfiguration() {
+    console.log('Loading Proxy configuration...');
+    
+    fetch('/api/get-proxy-config', {
+        method: 'GET',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.config) {
+            $('#proxy_enabled').prop('checked', data.config.enabled || false);
+            $('#proxy_list').val(data.config.proxies || '');
+            console.log('Proxy configuration loaded:', data.config);
+        } else {
+            console.log('No Proxy configuration found');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading Proxy configuration:', error);
+    });
+}
+
+function saveProxyConfiguration() {
+    const enabled = $('#proxy_enabled').is(':checked');
+    const proxies = $('#proxy_list').val().trim();
+    
+    // Validate proxy format if proxies are provided
+    if (proxies) {
+        const proxyLines = proxies.split('\n').filter(line => line.trim());
+        const proxyPattern = /^[\d\.]+:\d+:[^:]+:[^:]+$/;
+        
+        for (let i = 0; i < proxyLines.length; i++) {
+            const line = proxyLines[i].trim();
+            if (line && !proxyPattern.test(line)) {
+                showStatus(`Invalid proxy format on line ${i + 1}. Expected: IP:PORT:USERNAME:PASSWORD`, 'error');
+                return;
+            }
+        }
+    }
+    
+    showStatus('Saving proxy configuration...', 'info');
+    
+    fetch('/api/save-proxy-config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            enabled: enabled,
+            proxies: proxies
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showStatus('✅ Proxy configuration saved successfully', 'success');
+        } else {
+            showStatus(`❌ Error: ${data.error || 'Failed to save proxy configuration'}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving proxy configuration:', error);
+        showStatus('❌ Network error while saving proxy configuration', 'error');
+    });
+}
+
+function testProxyConnection() {
+    showStatus('Testing proxy connection...', 'info');
+    // TODO: Implement proxy connection test
+    showStatus('Proxy connection test not yet implemented', 'info');
 }
 
 function displayCurrentConfiguration(config) {

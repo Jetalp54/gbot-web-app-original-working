@@ -127,6 +127,13 @@ class AwsConfig(db.Model):
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
+class ProxyConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    proxies = db.Column(db.Text)  # One proxy per line: IP:PORT:USERNAME:PASSWORD
+    enabled = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
 class DomainOperation(db.Model):
     id = db.Column(db.String(36), primary_key=True)  # UUID as string
     job_id = db.Column(db.String(36), nullable=False, index=True)

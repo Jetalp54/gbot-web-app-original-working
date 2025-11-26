@@ -19,7 +19,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
 from functools import wraps
-from database import db, UserAppPassword, AwsGeneratedPassword, AwsConfig
+from database import db, UserAppPassword, AwsGeneratedPassword, AwsConfig, ProxyConfig, ProxyConfig
 
 # Constants from aws.py
 LAMBDA_ROLE_NAME = "edu-gw-app-password-lambda-role"
@@ -56,6 +56,60 @@ processing_lock = threading.Lock()
 # Each function processes 10 users max, so total concurrent Lambda executions = number of functions
 MAX_CONCURRENT_LAMBDA_INVOCATIONS = 500  # High limit to allow all functions to start in parallel
 lambda_invocation_semaphore = threading.Semaphore(MAX_CONCURRENT_LAMBDA_INVOCATIONS)
+
+# Proxy rotation counter (thread-safe)
+proxy_rotation_counter = 0
+proxy_rotation_lock = threading.Lock()
+
+def get_proxy_config():
+    """Get proxy configuration from database"""
+    try:
+        from app import app
+        with app.app_context():
+            config = ProxyConfig.query.first()
+            if config:
+                return {
+                    'enabled': config.enabled,
+                    'proxies': config.proxies if config.proxies else ''
+                }
+        return None
+    except Exception as e:
+        logger.warning(f"[PROXY] Error getting proxy config: {e}")
+        return None
+
+def parse_proxy_list(proxy_text):
+    """Parse proxy list from text (one per line: IP:PORT:USERNAME:PASSWORD)"""
+    if not proxy_text:
+        return []
+    
+    proxies = []
+    for line in proxy_text.strip().split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        
+        parts = line.split(':')
+        if len(parts) == 4:
+            proxies.append({
+                'ip': parts[0],
+                'port': parts[1],
+                'username': parts[2],
+                'password': parts[3],
+                'full': line
+            })
+    
+    return proxies
+
+def get_rotated_proxy(proxy_list):
+    """Get next proxy from list using round-robin rotation (thread-safe)"""
+    if not proxy_list:
+        return None
+    
+    global proxy_rotation_counter
+    with proxy_rotation_lock:
+        proxy = proxy_list[proxy_rotation_counter % len(proxy_list)]
+        proxy_rotation_counter += 1
+        return proxy
 
 # Login required decorator
 def login_required(f):
@@ -825,6 +879,7 @@ def push_ecr_to_all_regions():
                         # Prioritize EC2 build box over local Docker for reliability
                         ec2_instance_id = None
                         ec2_instance_state = None
+                        using_ec2 = False
                         try:
                             ec2_instance = find_ec2_build_instance(source_session)
                             if ec2_instance:
@@ -832,6 +887,7 @@ def push_ecr_to_all_regions():
                                 ec2_instance_state = ec2_instance.get('State', {}).get('Name', 'unknown')
                                 if ec2_instance_state == 'running':
                                     logger.info(f"[ECR] [{target_region}] ✓ Found running EC2 build box: {ec2_instance_id}, will use it for Docker operations")
+                                    using_ec2 = True
                                 else:
                                     logger.warning(f"[ECR] [{target_region}] ⚠️ EC2 build box found but state is '{ec2_instance_state}', cannot use it")
                                     ec2_instance_id = None  # Don't use if not running
@@ -915,6 +971,7 @@ exit 1
 """
                                 
                                 # Run command via SSM
+                                # CRITICAL: Increase timeout for large Docker images (can take 10-20+ minutes per region)
                                 response = ssm_client.send_command(
                                     InstanceIds=[ec2_instance_id],
                                     DocumentName="AWS-RunShellScript",
@@ -922,30 +979,53 @@ exit 1
                                         'commands': [push_script],
                                         'workingDirectory': ['/home/ec2-user']
                                     },
-                                    TimeoutSeconds=1800  # 30 minutes
+                                    TimeoutSeconds=3600  # 60 minutes - increased for large images
                                 )
                                 
                                 command_id = response['Command']['CommandId']
-                                logger.info(f"[ECR] [{target_region}] Started SSM command {command_id} on EC2 instance")
+                                logger.info(f"[ECR] [{target_region}] Started SSM command {command_id} on EC2 instance {ec2_instance_id}")
+                                logger.info(f"[ECR] [{target_region}] Push script will: 1) Auth, 2) Pull from {source_region}, 3) Tag, 4) Push to {target_region}, 5) Verify")
                                 
-                                # Wait for command to complete (with timeout)
-                                max_wait = 1800  # 30 minutes
-                                wait_interval = 10
+                                # Wait for command to complete (with extended timeout for large images)
+                                max_wait = 3600  # 60 minutes - increased for large Docker images
+                                wait_interval = 20  # Check every 20 seconds (reduced frequency to avoid SSM API throttling)
                                 waited = 0
+                                last_status = None
                                 
                                 while waited < max_wait:
                                     time.sleep(wait_interval)
                                     waited += wait_interval
                                     
-                                    cmd_response = ssm_client.get_command_invocation(
-                                        CommandId=command_id,
-                                        InstanceId=ec2_instance_id
-                                    )
-                                    
-                                    status = cmd_response['Status']
-                                    if status in ['Success', 'Failed', 'Cancelled', 'TimedOut']:
-                                        if status == 'Success':
-                                            logger.info(f"[ECR] [{target_region}] ✓✓✓ EC2 SSM command completed successfully")
+                                    try:
+                                        cmd_response = ssm_client.get_command_invocation(
+                                            CommandId=command_id,
+                                            InstanceId=ec2_instance_id
+                                        )
+                                        
+                                        status = cmd_response['Status']
+                                        
+                                        # Log status changes
+                                        if status != last_status:
+                                            logger.info(f"[ECR] [{target_region}] SSM command status: {status} (waited {waited}s/{max_wait}s)")
+                                            last_status = status
+                                        
+                                        # Log stdout every 2 minutes to see progress
+                                        if waited % 120 == 0 and status == 'InProgress':
+                                            stdout_content = cmd_response.get('StandardOutputContent', '')
+                                            if stdout_content:
+                                                # Show last few lines of output
+                                                lines = stdout_content.strip().split('\n')
+                                                last_lines = lines[-10:] if len(lines) > 10 else lines  # Show last 10 lines
+                                                logger.info(f"[ECR] [{target_region}] Progress output (last 10 lines, waited {waited}s/{max_wait}s):")
+                                                for line in last_lines:
+                                                    if line.strip():  # Only log non-empty lines
+                                                        logger.info(f"[ECR] [{target_region}]   {line}")
+                                            else:
+                                                logger.info(f"[ECR] [{target_region}] Still waiting for output... (status: {status}, waited {waited}s)")
+                                        
+                                        if status in ['Success', 'Failed', 'Cancelled', 'TimedOut']:
+                                            if status == 'Success':
+                                                logger.info(f"[ECR] [{target_region}] ✓✓✓ EC2 SSM command completed successfully")
                                             
                                             # CRITICAL: Verify the image actually exists after EC2 push
                                             logger.info(f"[ECR] [{target_region}] Verifying image exists after EC2 push...")
@@ -988,15 +1068,37 @@ exit 1
                                             logger.error(f"[ECR] [{target_region}] Stdout output: {stdout_content[:1000]}")
                                             region_result = {'success': False, 'error': f'EC2 push failed: {status} - {error_details}'}
                                             return region_result
-                                        break
+                                            break
+                                    except Exception as status_err:
+                                        logger.warning(f"[ECR] [{target_region}] Error checking SSM command status: {status_err}")
+                                        # Continue waiting - might be transient error
+                                        if waited % 120 == 0:  # Log every 2 minutes even on errors
+                                            logger.info(f"[ECR] [{target_region}] Still waiting despite error... (waited {waited}s/{max_wait}s)")
+                                
+                                # If we exit the loop, it means we timed out
+                                logger.error(f"[ECR] [{target_region}] ✗ EC2 push timed out after {max_wait}s ({max_wait/60:.1f} minutes)")
+                                
+                                # Try to get final status and output for debugging
+                                try:
+                                    final_response = ssm_client.get_command_invocation(
+                                        CommandId=command_id,
+                                        InstanceId=ec2_instance_id
+                                    )
+                                    final_status = final_response.get('Status', 'Unknown')
+                                    stdout_content = final_response.get('StandardOutputContent', '')
+                                    stderr_content = final_response.get('StandardErrorContent', '')
                                     
-                                    if waited % 60 == 0:  # Log every minute
-                                        logger.info(f"[ECR] [{target_region}] Waiting for EC2 push... ({waited}/{max_wait}s)")
-                                else:
-                                    # Timeout
-                                    logger.error(f"[ECR] [{target_region}] ✗ EC2 push timed out after {max_wait}s")
-                                    region_result = {'success': False, 'error': f'EC2 push timed out after {max_wait} seconds'}
-                                    return region_result
+                                    logger.error(f"[ECR] [{target_region}] Final SSM status: {final_status}")
+                                    if stdout_content:
+                                        # Show last 1000 chars of output
+                                        logger.error(f"[ECR] [{target_region}] Final stdout (last 1000 chars):\n{stdout_content[-1000:]}")
+                                    if stderr_content:
+                                        logger.error(f"[ECR] [{target_region}] Final stderr:\n{stderr_content}")
+                                except Exception as final_err:
+                                    logger.error(f"[ECR] [{target_region}] Could not get final SSM status: {final_err}")
+                                
+                                region_result = {'success': False, 'error': f'EC2 push timed out after {max_wait} seconds ({max_wait/60:.1f} minutes). Image may still be pushing - check EC2 instance logs via SSM or CloudWatch.'}
+                                return region_result
                                 
                             except Exception as ssm_err:
                                 logger.error(f"[ECR] [{target_region}] ✗ Failed to use EC2 build box: {ssm_err}")
@@ -1145,7 +1247,7 @@ exit 1
                                 ['docker', 'push', target_ecr_uri],
                                 capture_output=True,
                                 text=True,
-                                timeout=600  # 10 minutes timeout for push
+                                timeout=1800  # 30 minutes timeout for push (increased for large images 1-3GB)
                             )
                             
                             if push_process.returncode != 0:
@@ -1211,10 +1313,30 @@ exit 1
                         region_result = {'success': False, 'error': str(region_err)}
                         return region_result
                 
+                # Check if we're using EC2 - if so, reduce parallelism to avoid overwhelming the instance
+                # Docker images can be large (1-3GB), so pushing to multiple regions simultaneously can be slow
+                using_ec2_for_any = False
+                try:
+                    ec2_check = find_ec2_build_instance(source_session)
+                    if ec2_check and ec2_check.get('State', {}).get('Name') == 'running':
+                        using_ec2_for_any = True
+                except:
+                    pass
+                
+                if using_ec2_for_any:
+                    # When using EC2, limit to 3 concurrent pushes to avoid overwhelming the instance
+                    # Large Docker images (1-3GB) take 10-30 minutes each to push
+                    max_workers = min(len(target_regions), 3)
+                    logger.info(f"[ECR] Using EC2 build box - limiting to {max_workers} concurrent pushes to avoid overwhelming instance")
+                    logger.info(f"[ECR] Each push may take 10-30 minutes for large images. Total time: ~{len(target_regions) * 15 / max_workers:.0f} minutes")
+                else:
+                    # When using local Docker or manual, can process more in parallel
+                    max_workers = min(len(target_regions), 10)  # Reduced from 20 to 10 to avoid overwhelming Docker
+                    logger.info(f"[ECR] Using local Docker/manual - processing up to {max_workers} regions in parallel")
+                
                 # Process all regions in PARALLEL using ThreadPoolExecutor
                 logger.info(f"[ECR] Starting PARALLEL push to {len(target_regions)} regions...")
-                logger.info(f"[ECR] Using {min(len(target_regions), 20)} parallel workers")
-                max_workers = min(len(target_regions), 20)  # Process up to 20 regions simultaneously
+                logger.info(f"[ECR] Using {max_workers} parallel workers")
                 
                 # Update job status to processing
                 with lambda_creation_lock:
@@ -2980,6 +3102,19 @@ def bulk_generate():
                                                 "APP_PASSWORDS_S3_BUCKET": S3_BUCKET_NAME,
                                                 "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
                                             }
+                                            
+                                            # Add proxy configuration if enabled
+                                            proxy_config = get_proxy_config()
+                                            if proxy_config and proxy_config.get('enabled'):
+                                                proxies = parse_proxy_list(proxy_config.get('proxies', ''))
+                                                if proxies:
+                                                    chromium_env['PROXY_ENABLED'] = 'true'
+                                                    chromium_env['PROXY_LIST'] = proxy_config.get('proxies', '')
+                                                    logger.info(f"[PROXY] [{geo}] Proxy feature enabled with {len(proxies)} proxy/proxies")
+                                                else:
+                                                    chromium_env['PROXY_ENABLED'] = 'false'
+                                            else:
+                                                chromium_env['PROXY_ENABLED'] = 'false'
                                         
                                             # Extract ECR URI
                                             ecr_uri = None
