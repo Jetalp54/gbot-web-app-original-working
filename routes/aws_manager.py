@@ -2579,7 +2579,7 @@ def bulk_generate():
                         assigned_function_name: Name of Lambda function to invoke
                         lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
                     """
-                with app.app_context():
+                    with app.app_context():
                         # CRITICAL: Enforce 10-user limit
                         MAX_USERS_PER_BATCH = 10
                         if len(user_batch) > MAX_USERS_PER_BATCH:
@@ -2629,10 +2629,10 @@ def bulk_generate():
                         # Mark emails as being processed (for duplicate detection across parallel geos)
                         for user in users_to_process:
                             email = user['email']
-                    with processing_lock:
-                        if email in processing_emails:
+                            with processing_lock:
+                                if email in processing_emails:
                                     logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
-                        processing_emails.add(email)
+                                processing_emails.add(email)
                     
                         # Prepare batch payload for Lambda
                         # CRITICAL: Final check - ensure we never send more than 10 users
