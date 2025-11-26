@@ -1847,7 +1847,7 @@ def create_lambdas():
                             geo_errors = geo_failures
                         
                         logger.info(f"[LAMBDA] [{geo}] ===== Completed: {geo_success}/{len(func_list)} success, {len(geo_failures)} failed =====")
-                        
+                    
                     except Exception as geo_error:
                         error_msg = str(geo_error)
                         logger.error(f"[LAMBDA] [{geo}] ✗✗✗ CRITICAL ERROR processing geo {geo}: {error_msg}")
