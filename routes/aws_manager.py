@@ -19,7 +19,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
 from functools import wraps
-from database import db, UserAppPassword, AwsGeneratedPassword, AwsConfig, ProxyConfig, ProxyConfig
+from database import db, UserAppPassword, AwsGeneratedPassword, AwsConfig, ProxyConfig, TwoCaptchaConfig
 
 # Constants from aws.py
 LAMBDA_ROLE_NAME = "edu-gw-app-password-lambda-role"
@@ -75,6 +75,23 @@ def get_proxy_config():
         return None
     except Exception as e:
         logger.warning(f"[PROXY] Error getting proxy config: {e}")
+        return None
+
+def get_twocaptcha_config():
+    """Get 2Captcha configuration from database"""
+    try:
+        from app import app
+        from database import TwoCaptchaConfig
+        with app.app_context():
+            config = TwoCaptchaConfig.query.first()
+            if config:
+                return {
+                    'enabled': config.enabled,
+                    'api_key': config.api_key if config.api_key else ''
+                }
+        return None
+    except Exception as e:
+        logger.warning(f"[2CAPTCHA] Error getting 2Captcha config: {e}")
         return None
 
 def parse_proxy_list(proxy_text):
@@ -3115,6 +3132,16 @@ def bulk_generate():
                                                     chromium_env['PROXY_ENABLED'] = 'false'
                                             else:
                                                 chromium_env['PROXY_ENABLED'] = 'false'
+                                            
+                                            # Add 2Captcha configuration if enabled
+                                            twocaptcha_config = get_twocaptcha_config()
+                                            if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
+                                                chromium_env['TWOCAPTCHA_ENABLED'] = 'true'
+                                                chromium_env['TWOCAPTCHA_API_KEY'] = twocaptcha_config.get('api_key', '')
+                                                logger.info(f"[2CAPTCHA] [{geo}] 2Captcha feature enabled for automatic CAPTCHA solving")
+                                            else:
+                                                chromium_env['TWOCAPTCHA_ENABLED'] = 'false'
+                                                chromium_env['TWOCAPTCHA_API_KEY'] = ''
                                         
                                             # Extract ECR URI
                                             ecr_uri = None

@@ -10987,6 +10987,119 @@ def api_save_proxy_config():
         app.logger.error(f"Error saving proxy config: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/get-twocaptcha-config', methods=['GET'])
+@login_required
+def api_get_twocaptcha_config():
+    """Get current 2Captcha configuration"""
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    
+    try:
+        from database import TwoCaptchaConfig
+        config = TwoCaptchaConfig.query.first()
+        if config:
+            return jsonify({
+                'success': True,
+                'config': {
+                    'enabled': config.enabled,
+                    'api_key': config.api_key if config.api_key else ''
+                }
+            })
+        else:
+            return jsonify({'success': True, 'config': {'enabled': False, 'api_key': ''}})
+    except Exception as e:
+        app.logger.error(f"Error getting 2Captcha config: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/save-twocaptcha-config', methods=['POST'])
+@login_required
+def api_save_twocaptcha_config():
+    """Save 2Captcha configuration"""
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    
+    try:
+        data = request.get_json()
+        enabled = data.get('enabled', False)
+        api_key = data.get('api_key', '').strip()
+        
+        if enabled and not api_key:
+            return jsonify({
+                'success': False,
+                'error': 'API key is required when 2Captcha is enabled'
+            })
+        
+        from database import TwoCaptchaConfig
+        config = TwoCaptchaConfig.query.first()
+        
+        if config:
+            config.enabled = enabled
+            config.api_key = api_key
+            config.updated_at = datetime.now()
+        else:
+            config = TwoCaptchaConfig(enabled=enabled, api_key=api_key)
+            db.session.add(config)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '2Captcha configuration saved successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error saving 2Captcha config: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/test-twocaptcha', methods=['POST'])
+@login_required
+def api_test_twocaptcha():
+    """Test 2Captcha API key by checking balance"""
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    
+    try:
+        data = request.get_json()
+        api_key = data.get('api_key', '').strip()
+        
+        if not api_key:
+            return jsonify({'success': False, 'error': 'API key is required'})
+        
+        # Test API key by getting balance
+        import requests
+        response = requests.get(
+            'http://2captcha.com/in.php',
+            params={
+                'key': api_key,
+                'method': 'user',
+                'action': 'getbalance'
+            },
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.text
+            if result.startswith('OK|'):
+                balance = result.split('|')[1]
+                return jsonify({
+                    'success': True,
+                    'balance': balance,
+                    'message': f'API key is valid. Balance: ${balance}'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Invalid API key: {result}'
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to connect to 2Captcha API: HTTP {response.status_code}'
+            })
+    except Exception as e:
+        app.logger.error(f"Error testing 2Captcha: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/get-otp-ssh-config', methods=['GET'])
 @login_required
 def api_get_otp_ssh_config():

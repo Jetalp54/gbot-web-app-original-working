@@ -750,6 +750,56 @@
         </form>
     </div>
 
+    <!-- 2Captcha Configuration Section -->
+    <div class="github-card" style="margin-bottom: 24px;">
+        <div class="github-card-header">
+            <h3 class="github-card-title" style="font-size: 18px;">
+                <i class="fas fa-shield-alt"></i>
+                2Captcha API Configuration
+            </h3>
+        </div>
+        <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+            Configure 2Captcha API to automatically solve reCAPTCHA challenges during login. 
+            Get your API key from <a href="https://2captcha.com" target="_blank" style="color: #0969da;">2captcha.com</a>
+        </p>
+        
+        <form id="twocaptcha-config-form">
+            <div style="margin-bottom: 16px;">
+                <div class="form-group-github" style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                    <input type="checkbox" id="twocaptcha_enabled" name="twocaptcha_enabled" 
+                           style="width: 20px; height: 20px; cursor: pointer;">
+                    <label for="twocaptcha_enabled" style="font-weight: 600; color: #24292f; cursor: pointer; margin: 0;">
+                        Enable 2Captcha Solving
+                    </label>
+                </div>
+                <small style="color: #656d76; font-size: 12px; display: block; margin-bottom: 16px;">
+                    When enabled, Lambda sessions will automatically solve reCAPTCHA challenges using 2Captcha API.
+                </small>
+            </div>
+            
+            <div class="form-group-github">
+                <label for="twocaptcha_api_key" class="form-label-github">
+                    <i class="fas fa-key"></i> 2Captcha API Key
+                </label>
+                <input type="password" class="form-control-github" id="twocaptcha_api_key" 
+                       placeholder="Enter your 2Captcha API key"
+                       style="font-family: 'Courier New', monospace; font-size: 12px;">
+                <small style="color: #656d76; font-size: 12px;">
+                    Your 2Captcha API key (found in your <a href="https://2captcha.com/setting" target="_blank" style="color: #0969da;">2Captcha account settings</a>)
+                </small>
+            </div>
+            
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button type="submit" class="btn-github-primary" style="flex: 1;">
+                    <i class="fas fa-save"></i> Save 2Captcha Configuration
+                </button>
+                <button type="button" class="btn-github-secondary" onclick="testTwoCaptchaConnection()" style="flex: 1;">
+                    <i class="fas fa-vial"></i> Test API Key
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- Status Messages -->
     <div id="status-messages" style="margin-top: 24px;"></div>
 </div>
@@ -863,6 +913,9 @@ $(document).ready(function() {
     // Load Proxy configuration
     loadProxyConfiguration();
     
+    // Load 2Captcha configuration
+    loadTwoCaptchaConfiguration();
+    
     // Handle authentication method change
     $('#server_auth_method').change(function() {
         const method = $(this).val();
@@ -923,6 +976,12 @@ $(document).ready(function() {
     $('#proxy-config-form').submit(function(e) {
         e.preventDefault();
         saveProxyConfiguration();
+    });
+    
+    // Handle 2Captcha form submission
+    $('#twocaptcha-config-form').submit(function(e) {
+        e.preventDefault();
+        saveTwoCaptchaConfiguration();
     });
     
     // Handle file upload
@@ -1060,6 +1119,91 @@ function saveProxyConfiguration() {
     .catch(error => {
         console.error('Error saving proxy configuration:', error);
         showStatus('❌ Network error while saving proxy configuration', 'error');
+    });
+}
+
+function loadTwoCaptchaConfiguration() {
+    console.log('Loading 2Captcha configuration...');
+    
+    fetch('/api/get-twocaptcha-config', {
+        method: 'GET',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.config) {
+            $('#twocaptcha_enabled').prop('checked', data.config.enabled || false);
+            $('#twocaptcha_api_key').val(data.config.api_key || '');
+            console.log('2Captcha configuration loaded:', data.config);
+        } else {
+            console.log('No 2Captcha configuration found');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading 2Captcha configuration:', error);
+    });
+}
+
+function saveTwoCaptchaConfiguration() {
+    const enabled = $('#twocaptcha_enabled').is(':checked');
+    const api_key = $('#twocaptcha_api_key').val().trim();
+    
+    if (enabled && !api_key) {
+        showStatus('❌ API key is required when 2Captcha is enabled', 'error');
+        return;
+    }
+    
+    showStatus('Saving 2Captcha configuration...', 'info');
+    
+    fetch('/api/save-twocaptcha-config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            enabled: enabled,
+            api_key: api_key
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showStatus('✅ 2Captcha configuration saved successfully', 'success');
+        } else {
+            showStatus(`❌ Error: ${data.error || 'Failed to save 2Captcha configuration'}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving 2Captcha configuration:', error);
+        showStatus('❌ Network error while saving 2Captcha configuration', 'error');
+    });
+}
+
+function testTwoCaptchaConnection() {
+    const api_key = $('#twocaptcha_api_key').val().trim();
+    if (!api_key) {
+        showStatus('❌ Please enter your 2Captcha API key first', 'error');
+        return;
+    }
+    
+    showStatus('Testing 2Captcha API key...', 'info');
+    
+    fetch('/api/test-twocaptcha', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            api_key: api_key
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showStatus(`✅ 2Captcha API key is valid. Balance: $${data.balance || 'N/A'}`, 'success');
+        } else {
+            showStatus(`❌ Error: ${data.error || 'Invalid API key or connection failed'}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error testing 2Captcha:', error);
+        showStatus('❌ Network error while testing 2Captcha API', 'error');
     });
 }
 
