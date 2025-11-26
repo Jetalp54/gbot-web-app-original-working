@@ -2629,10 +2629,10 @@ def bulk_generate():
                         # Mark emails as being processed (for duplicate detection across parallel geos)
                         for user in users_to_process:
                             email = user['email']
-                    with processing_lock:
-                        if email in processing_emails:
+                            with processing_lock:
+                                if email in processing_emails:
                                     logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
-                        processing_emails.add(email)
+                                processing_emails.add(email)
                     
                         # Prepare batch payload for Lambda
                         # CRITICAL: Final check - ensure we never send more than 10 users
