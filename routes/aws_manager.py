@@ -2731,7 +2731,7 @@ def bulk_generate():
                                                     'success': False,
                                                     'error': error_msg
                                                 })
-                                    break  # Success, exit retry loop
+                                        break  # Success, exit retry loop
                                     else:
                                         # Fallback: single user response format (backward compatibility)
                                         lambda_status = lambda_response.get('status', 'unknown')
