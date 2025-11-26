@@ -2447,14 +2447,9 @@ def bulk_generate():
                 # Pre-detect Lambda functions across ALL geos
                 # This is necessary because functions are distributed across multiple AWS regions
                 lambda_functions = []
-                try:
-                    # We no longer pre-detect Lambda functions across all regions
-                    # Instead, we'll look for functions in their assigned regions during processing
-                    logger.info(f"[BULK] Will process users using geo-distributed Lambda functions")
-                
-                except Exception as list_err:
-                    logger.error(f"[BULK] Error initializing: {list_err}")
-                    logger.error(traceback.format_exc())
+                # We no longer pre-detect Lambda functions across all regions
+                # Instead, we'll look for functions in their assigned regions during processing
+                logger.info(f"[BULK] Will process users using geo-distributed Lambda functions")
                 
                 # NEW LOGIC: Calculate total functions based on user count
                 # Distribute functions evenly across ALL available geos
@@ -2530,20 +2525,20 @@ def bulk_generate():
                     # Round-robin distribution: function 0 → geo 0, function 1 → geo 1, etc.
                     geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
                     geo = AVAILABLE_GEO_REGIONS[geo_index]
-                
+                    
                     if geo not in functions_per_geo:
                         functions_per_geo[geo] = []
                     functions_per_geo[geo].append(func_num + 1)  # Function numbers start at 1
-            
-            logger.info("=" * 60)
+                
+                logger.info("=" * 60)
                 logger.info(f"[BULK] Function Distribution Across Geos")
                 logger.info(f"[BULK] Total functions: {num_functions}")
                 logger.info(f"[BULK] Available geos: {len(AVAILABLE_GEO_REGIONS)}")
                 logger.info(f"[BULK] Functions per geo:")
                 for geo, func_numbers in sorted(functions_per_geo.items()):
                     logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
-            logger.info("=" * 60)
-            
+                logger.info("=" * 60)
+                
                 # Split users into batches of 10, assigning each batch to a function
                 # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
                 # CRITICAL: Each batch MUST be exactly 10 users or less
