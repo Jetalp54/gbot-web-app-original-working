@@ -5592,10 +5592,26 @@ function addBulkAccountRow(accountEmail = '', users = 50, domain = '', password 
                    min="1" max="1000" placeholder="50" value="${users}" 
                    data-field="users">
         </td>
-        <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle;">
-            <input type="text" class="form-control-github" style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px;" 
-                   placeholder="example.com" value="${domain}" 
-                   data-field="domain">
+        <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle; position: relative;">
+            <div style="position: relative;">
+                <input type="text" class="form-control-github domain-combobox" 
+                       style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px; padding-right: 30px;" 
+                       placeholder="example.com" value="${domain}" 
+                       data-field="domain" 
+                       data-row-id="${rowId}"
+                       list="domain-list-${rowId}"
+                       autocomplete="off">
+                <datalist id="domain-list-${rowId}">
+                    <!-- Domains will be populated here -->
+                </datalist>
+                <button type="button" 
+                        onclick="loadDomainsForAccount('${rowId}')" 
+                        class="btn-github" 
+                        style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 4px 8px; font-size: 11px; background-color: #0969da; color: white; border: none; cursor: pointer; border-radius: 4px;"
+                        title="Load domains from account">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
         </td>
         <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle;">
             <input type="text" class="form-control-github" style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px;" 
@@ -5619,6 +5635,35 @@ function addBulkAccountRow(accountEmail = '', users = 50, domain = '', password 
     row.addEventListener('mouseleave', function() {
         this.style.backgroundColor = '#ffffff';
     });
+    
+    // Add event listener to account email field to auto-load domains when account is entered
+    const accountInput = row.querySelector('input[data-field="account"]');
+    const domainInput = row.querySelector('input[data-field="domain"]');
+    
+    // Debounce function to avoid too many API calls
+    let domainLoadTimeout;
+    accountInput.addEventListener('blur', function() {
+        const accountEmail = this.value.trim();
+        if (accountEmail && accountEmail.includes('@')) {
+            // Clear previous timeout
+            clearTimeout(domainLoadTimeout);
+            // Wait 500ms after user stops typing before loading domains
+            domainLoadTimeout = setTimeout(() => {
+                loadDomainsForAccount(rowId);
+            }, 500);
+        }
+    });
+    
+    // Also trigger on Enter key
+    accountInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            const accountEmail = this.value.trim();
+            if (accountEmail && accountEmail.includes('@')) {
+                clearTimeout(domainLoadTimeout);
+                loadDomainsForAccount(rowId);
+            }
+        }
+    });
 }
 
 function removeBulkAccountRow(rowId) {
@@ -5628,6 +5673,99 @@ function removeBulkAccountRow(rowId) {
     }
 }
 
+// Load domains for a specific account in a table row
+function loadDomainsForAccount(rowId) {
+    const row = document.getElementById(rowId);
+    if (!row) {
+        console.error('Row not found:', rowId);
+        return;
+    }
+    
+    const accountInput = row.querySelector('input[data-field="account"]');
+    const domainInput = row.querySelector('input[data-field="domain"]');
+    const domainDatalist = row.querySelector('datalist');
+    const loadButton = row.querySelector('button[onclick*="loadDomainsForAccount"]');
+    
+    if (!accountInput || !domainInput || !domainDatalist) {
+        console.error('Required elements not found in row:', rowId);
+        return;
+    }
+    
+    const accountEmail = accountInput.value.trim();
+    
+    if (!accountEmail || !accountEmail.includes('@')) {
+        alert('Please enter a valid account email first.');
+        return;
+    }
+    
+    // Show loading state
+    if (loadButton) {
+        const icon = loadButton.querySelector('i');
+        if (icon) {
+            icon.className = 'fas fa-spinner fa-spin';
+        }
+        loadButton.disabled = true;
+    }
+    
+    // Clear existing options
+    domainDatalist.innerHTML = '';
+    
+    // Fetch domains from API
+    fetch('/api/retrieve-domains-for-account', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            account_email: accountEmail
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Reset button state
+        if (loadButton) {
+            const icon = loadButton.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-sync-alt';
+            }
+            loadButton.disabled = false;
+        }
+        
+        if (data.success && data.domains && data.domains.length > 0) {
+            // Populate datalist with domains
+            data.domains.forEach(domain => {
+                const option = document.createElement('option');
+                option.value = domain;
+                domainDatalist.appendChild(option);
+            });
+            
+            // Show success message
+            console.log(`Loaded ${data.domains.length} domain(s) for ${accountEmail}`);
+            
+            // If domain input is empty, suggest the first domain
+            if (!domainInput.value.trim() && data.domains.length > 0) {
+                // Don't auto-fill, just show in dropdown
+            }
+        } else {
+            const errorMsg = data.error || 'No domains found or failed to retrieve domains';
+            console.warn(`Failed to load domains for ${accountEmail}:`, errorMsg);
+            // Don't show alert - just log it, user can still type domain manually
+        }
+    })
+    .catch(error => {
+        // Reset button state
+        if (loadButton) {
+            const icon = loadButton.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-sync-alt';
+            }
+            loadButton.disabled = false;
+        }
+        
+        console.error('Error loading domains:', error);
+        // Don't show alert - user can still type domain manually
+    });
+}
 
 function executeBulkAccountCreation() {
     const tbody = document.getElementById('bulk-accounts-tbody');

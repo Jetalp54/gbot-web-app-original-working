@@ -2591,6 +2591,69 @@ def api_calculate_domain_users():
         logging.error(f"Calculate domain users error: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/retrieve-domains-for-account', methods=['POST'])
+@login_required
+def api_retrieve_domains_for_account():
+    """Retrieve all domains for a specific account (for bulk account management)"""
+    try:
+        data = request.get_json() or {}
+        account_email = data.get('account_email', '').strip()
+        
+        if not account_email:
+            return jsonify({'success': False, 'error': 'Account email is required'})
+        
+        # Extract account name from email or use email as account name
+        # First try to find account by email
+        from database import GoogleAccount
+        account = GoogleAccount.query.filter_by(account_name=account_email).first()
+        
+        if not account:
+            # Try to find by email if account_name is different
+            account = GoogleAccount.query.filter(GoogleAccount.account_name.contains(account_email.split('@')[0])).first()
+        
+        if not account:
+            return jsonify({'success': False, 'error': f'Account {account_email} not found in database'})
+        
+        account_name = account.account_name
+        
+        # Authenticate with this account's tokens
+        if google_api.is_token_valid(account_name):
+            success = google_api.authenticate_with_tokens(account_name)
+            if not success:
+                return jsonify({'success': False, 'error': f'Failed to authenticate with saved tokens for {account_name}. Please re-authenticate this account.'})
+        else:
+            return jsonify({'success': False, 'error': f'No valid tokens found for {account_name}. Please re-authenticate this account.'})
+        
+        # Get domains using batched mode
+        all_domains = []
+        next_token = None
+        
+        while True:
+            result = google_api.get_domains_batch(page_token=next_token)
+            if not result['success']:
+                return jsonify({'success': False, 'error': result.get('error', 'Unknown error')})
+            
+            domains = result.get('domains', [])
+            all_domains.extend(domains)
+            
+            next_token = result.get('next_page_token')
+            if not next_token:
+                break
+        
+        # Extract just domain names
+        domain_names = [domain.get('domainName', '') for domain in all_domains if domain.get('domainName')]
+        
+        return jsonify({
+            'success': True,
+            'domains': domain_names,
+            'count': len(domain_names)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error retrieving domains for account: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/retrieve-domains', methods=['POST'])
 @login_required
 def api_retrieve_domains():
