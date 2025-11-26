@@ -1025,7 +1025,136 @@ def login_google(driver, email, password, known_totp_secret=None):
                     logger.error(f"[STEP] JavaScript method failed: {js_err}")
             
             if not password_input:
-                return False, "LOGIN_PASSWORD_FIELD_NOT_FOUND", "Password field not found after email submission (checked main document and iframes)"
+                # DEBUG: Capture what's actually on the page when password field is not found
+                logger.error("=" * 80)
+                logger.error("[DEBUG] Password field not found - capturing page state for diagnosis")
+                logger.error("=" * 80)
+                
+                try:
+                    # 1. Current URL
+                    current_url = driver.current_url
+                    logger.error(f"[DEBUG] Current URL: {current_url}")
+                    
+                    # 2. Page title
+                    page_title = driver.title
+                    logger.error(f"[DEBUG] Page title: {page_title}")
+                    
+                    # 3. All visible text on the page (first 2000 chars)
+                    try:
+                        page_text = driver.find_element(By.TAG_NAME, "body").text
+                        logger.error(f"[DEBUG] Visible page text (first 2000 chars): {page_text[:2000]}")
+                    except:
+                        logger.error("[DEBUG] Could not extract page text")
+                    
+                    # 4. All input elements and their attributes
+                    try:
+                        all_inputs = driver.find_elements(By.TAG_NAME, "input")
+                        logger.error(f"[DEBUG] Found {len(all_inputs)} input element(s) on page:")
+                        for i, inp in enumerate(all_inputs[:20]):  # Limit to first 20
+                            try:
+                                inp_type = inp.get_attribute('type') or 'N/A'
+                                inp_name = inp.get_attribute('name') or 'N/A'
+                                inp_id = inp.get_attribute('id') or 'N/A'
+                                inp_placeholder = inp.get_attribute('placeholder') or 'N/A'
+                                inp_aria_label = inp.get_attribute('aria-label') or 'N/A'
+                                is_displayed = inp.is_displayed()
+                                is_enabled = inp.is_enabled()
+                                logger.error(f"[DEBUG]   Input {i+1}: type={inp_type}, name={inp_name}, id={inp_id}, placeholder={inp_placeholder}, aria-label={inp_aria_label}, displayed={is_displayed}, enabled={is_enabled}")
+                            except Exception as inp_err:
+                                logger.error(f"[DEBUG]   Input {i+1}: Error reading attributes: {inp_err}")
+                    except Exception as inputs_err:
+                        logger.error(f"[DEBUG] Could not list input elements: {inputs_err}")
+                    
+                    # 5. Check for error messages or alerts
+                    try:
+                        error_selectors = [
+                            "//*[contains(text(), 'error') or contains(text(), 'Error')]",
+                            "//*[contains(text(), 'wrong') or contains(text(), 'Wrong')]",
+                            "//*[contains(text(), 'invalid') or contains(text(), 'Invalid')]",
+                            "//*[contains(text(), 'try again') or contains(text(), 'Try again')]",
+                            "//*[@role='alert']",
+                            "//*[contains(@class, 'error')]",
+                        ]
+                        for selector in error_selectors:
+                            try:
+                                error_elements = driver.find_elements(By.XPATH, selector)
+                                if error_elements:
+                                    for err_elem in error_elements[:5]:  # First 5 error elements
+                                        try:
+                                            err_text = err_elem.text.strip()
+                                            if err_text:
+                                                logger.error(f"[DEBUG] Error message found: {err_text}")
+                                        except:
+                                            pass
+                            except:
+                                pass
+                    except Exception as err_check_err:
+                        logger.error(f"[DEBUG] Could not check for error messages: {err_check_err}")
+                    
+                    # 6. Check for CAPTCHA elements
+                    try:
+                        captcha_indicators = [
+                            "//iframe[contains(@src, 'recaptcha')]",
+                            "//div[contains(@class, 'recaptcha')]",
+                            "//*[contains(text(), 'unusual traffic')]",
+                            "//*[contains(text(), 'verify you')]",
+                        ]
+                        for indicator in captcha_indicators:
+                            try:
+                                captcha_elements = driver.find_elements(By.XPATH, indicator)
+                                if captcha_elements:
+                                    logger.error(f"[DEBUG] CAPTCHA indicator found: {indicator}")
+                            except:
+                                pass
+                    except Exception as captcha_check_err:
+                        logger.error(f"[DEBUG] Could not check for CAPTCHA: {captcha_check_err}")
+                    
+                    # 7. Get page source snippet (first 5000 chars)
+                    try:
+                        page_source = driver.page_source
+                        logger.error(f"[DEBUG] Page source snippet (first 5000 chars): {page_source[:5000]}")
+                    except Exception as source_err:
+                        logger.error(f"[DEBUG] Could not get page source: {source_err}")
+                    
+                    # 8. List all iframes
+                    try:
+                        iframes = driver.find_elements(By.TAG_NAME, "iframe")
+                        logger.error(f"[DEBUG] Found {len(iframes)} iframe(s) on page")
+                        for i, iframe in enumerate(iframes[:10]):  # First 10 iframes
+                            try:
+                                iframe_src = iframe.get_attribute('src') or 'N/A'
+                                iframe_id = iframe.get_attribute('id') or 'N/A'
+                                logger.error(f"[DEBUG]   Iframe {i+1}: src={iframe_src[:100]}, id={iframe_id}")
+                            except:
+                                pass
+                    except Exception as iframe_err:
+                        logger.error(f"[DEBUG] Could not list iframes: {iframe_err}")
+                    
+                    # 9. Check for any password-related elements (even if not visible)
+                    try:
+                        password_elements = driver.find_elements(By.XPATH, "//*[contains(@name, 'pass') or contains(@id, 'pass') or contains(@type, 'password') or contains(@aria-label, 'pass')]")
+                        logger.error(f"[DEBUG] Found {len(password_elements)} password-related element(s):")
+                        for i, pwd_elem in enumerate(password_elements[:10]):
+                            try:
+                                pwd_tag = pwd_elem.tag_name
+                                pwd_type = pwd_elem.get_attribute('type') or 'N/A'
+                                pwd_name = pwd_elem.get_attribute('name') or 'N/A'
+                                pwd_id = pwd_elem.get_attribute('id') or 'N/A'
+                                pwd_displayed = pwd_elem.is_displayed()
+                                logger.error(f"[DEBUG]   Password element {i+1}: tag={pwd_tag}, type={pwd_type}, name={pwd_name}, id={pwd_id}, displayed={pwd_displayed}")
+                            except:
+                                pass
+                    except Exception as pwd_elem_err:
+                        logger.error(f"[DEBUG] Could not check password elements: {pwd_elem_err}")
+                    
+                    logger.error("=" * 80)
+                    logger.error("[DEBUG] End of page state capture")
+                    logger.error("=" * 80)
+                except Exception as debug_err:
+                    logger.error(f"[DEBUG] Error during page state capture: {debug_err}")
+                    logger.error(traceback.format_exc())
+                
+                return False, "LOGIN_PASSWORD_FIELD_NOT_FOUND", "Password field not found after email submission (checked main document and iframes). See DEBUG logs above for page state."
             
             # Clear and enter password with multiple fallback methods
             try:
