@@ -668,16 +668,8 @@ def push_ecr_to_all_regions():
             'sa-east-1',      # São Paulo
         ]
         
-        # CRITICAL: Ensure ALL geos are included (except source region)
+        # Filter out source region (already has the image)
         target_regions = [r for r in AVAILABLE_GEO_REGIONS if r != source_region]
-        logger.info(f"[ECR] Target regions: {len(target_regions)} (from {len(AVAILABLE_GEO_REGIONS)} total geos, excluding source {source_region})")
-        
-        # Verify no geos are missing
-        if len(target_regions) != len(AVAILABLE_GEO_REGIONS) - 1:
-            missing = set(AVAILABLE_GEO_REGIONS) - set(target_regions) - {source_region}
-            if missing:
-                logger.warning(f"[ECR] ⚠️ WARNING: Some geos missing from target list: {missing}")
-                target_regions = [r for r in AVAILABLE_GEO_REGIONS if r != source_region]  # Rebuild to ensure completeness
         
         logger.info("=" * 60)
         logger.info(f"[ECR] Starting image replication to {len(target_regions)} regions")
@@ -1328,58 +1320,6 @@ exit 1
                 logger.info(f"[ECR] Replication completed (AWS verified): {verified_success} success, {verified_failure} failed")
                 logger.info("=" * 60)
                 
-                # CRITICAL: Verify ALL geos were processed
-                processed_regions = set(results.keys())
-                expected_regions = set(target_regions)
-                missing_regions = expected_regions - processed_regions
-                
-                if missing_regions:
-                    logger.error("=" * 60)
-                    logger.error(f"[ECR] ✗✗✗ CRITICAL: {len(missing_regions)} region(s) were NOT processed!")
-                    logger.error(f"[ECR] Missing regions: {sorted(missing_regions)}")
-                    logger.error("=" * 60)
-                    
-                    # Retry missing regions
-                    if missing_regions:
-                        logger.info(f"[ECR] Retrying {len(missing_regions)} missing region(s)...")
-                        retry_results = {}
-                        with ThreadPoolExecutor(max_workers=min(len(missing_regions), 10)) as retry_executor:
-                            retry_futures = {retry_executor.submit(push_to_region, region): region for region in missing_regions}
-                            for future in as_completed(retry_futures):
-                                retry_region = retry_futures[future]
-                                try:
-                                    retry_result = future.result()
-                                    retry_results[retry_region] = retry_result
-                                    if retry_result.get('success'):
-                                        verified_success += 1
-                                        logger.info(f"[ECR] [{retry_region}] ✓ Retry successful")
-                                    else:
-                                        verified_failure += 1
-                                        logger.error(f"[ECR] [{retry_region}] ✗ Retry failed: {retry_result.get('error')}")
-                                except Exception as retry_err:
-                                    logger.error(f"[ECR] [{retry_region}] ✗ Retry exception: {retry_err}")
-                                    verified_failure += 1
-                                    retry_results[retry_region] = {'success': False, 'error': str(retry_err)}
-                        
-                        # Merge retry results
-                        results.update(retry_results)
-                        
-                        # Update final status
-                        with lambda_creation_lock:
-                            if job_id in lambda_creation_jobs:
-                                lambda_creation_jobs[job_id]['success_count'] = verified_success
-                                lambda_creation_jobs[job_id]['failure_count'] = verified_failure
-                                lambda_creation_jobs[job_id]['results'] = results
-                                lambda_creation_jobs[job_id]['message'] = f'Completed with retries: {verified_success} verified success, {verified_failure} verified failed'
-                
-                # Final verification: Check that ALL expected regions are in results
-                final_processed = set(results.keys())
-                if final_processed != expected_regions:
-                    logger.error(f"[ECR] ✗✗✗ FINAL CHECK FAILED: Still missing {len(expected_regions - final_processed)} region(s)")
-                    logger.error(f"[ECR] Still missing: {sorted(expected_regions - final_processed)}")
-                else:
-                    logger.info(f"[ECR] ✓✓✓ FINAL CHECK PASSED: All {len(expected_regions)} expected regions were processed")
-                
             except Exception as bg_err:
                 logger.error(f"[ECR] Background task error: {bg_err}")
                 logger.error(traceback.format_exc())
@@ -1786,13 +1726,13 @@ def create_lambdas():
                                 logger.info(f"[LAMBDA] [{geo}] Creating function {function_name}...")
                                 logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri}")
                                 
-                                create_or_update_lambda(
+                        create_or_update_lambda(
                                     session=geo_session,
-                                    function_name=function_name,
+                            function_name=function_name,
                                     role_arn=geo_role_arn,
-                                    timeout=timeout,
-                                    env_vars=env_vars,
-                                    package_type=package_type,
+                            timeout=timeout,
+                            env_vars=env_vars,
+                            package_type=package_type,
                                     image_uri=geo_ecr_uri,
                                 )
                                 
@@ -1810,6 +1750,7 @@ def create_lambdas():
                                     else:
                                         logger.warning(f"[LAMBDA] [{geo}] ⚠️ Function created but not Active: {function_name} (State: {func_state})")
                                         # Wait a bit and check again
+                                        import time
                                         time.sleep(5)
                                         func_info = lam_client.get_function(FunctionName=function_name)
                                         func_state = func_info.get('Configuration', {}).get('State', 'Unknown')
@@ -1829,7 +1770,7 @@ def create_lambdas():
                                     else:
                                         raise
                                 
-                            except Exception as func_error:
+                    except Exception as func_error:
                                 error_msg = str(func_error)
                                 logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED to create/update {function_name}: {error_msg}")
                                 
@@ -1838,7 +1779,7 @@ def create_lambdas():
                                     logger.error(f"[LAMBDA] [{geo}] ⚠️ ECR IMAGE MISSING in region {geo}")
                                     logger.error(f"[LAMBDA] [{geo}] Solution: Use 'Push ECR to All Regions' button to push image to {geo}")
                                 
-                                logger.error(traceback.format_exc())
+                        logger.error(traceback.format_exc())
                                 geo_failure += 1
                                 geo_failures.append(f"{function_name}: {error_msg}")
                                 update_job_status()
@@ -1847,7 +1788,7 @@ def create_lambdas():
                             geo_errors = geo_failures
                         
                         logger.info(f"[LAMBDA] [{geo}] ===== Completed: {geo_success}/{len(func_list)} success, {len(geo_failures)} failed =====")
-                    
+                        
                     except Exception as geo_error:
                         error_msg = str(geo_error)
                         logger.error(f"[LAMBDA] [{geo}] ✗✗✗ CRITICAL ERROR processing geo {geo}: {error_msg}")
@@ -1863,11 +1804,8 @@ def create_lambdas():
                     }
                 
                 # Execute Lambda creation in parallel across all geos
-                max_workers = min(len(functions_by_geo_dict), 20)  # Increased to 20 for better parallelization
+                max_workers = min(len(functions_by_geo_dict), 10)  # Up to 10 regions in parallel
                 logger.info(f"[LAMBDA] Using ThreadPoolExecutor with {max_workers} workers for {len(functions_by_geo_dict)} regions")
-                
-                processed_geos = set()
-                failed_geos = {}  # Track failed geos for retry
                 
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     # Submit all geo creation tasks
@@ -1881,12 +1819,10 @@ def create_lambdas():
                         geo = future_to_geo[future]
                         try:
                             result = future.result()
-                            processed_geos.add(geo)
                             success_count += result['success_count']
                             failure_count += result['failure_count']
                             if result.get('errors'):
                                 errors_by_geo[result['geo']] = result['errors']
-                                failed_geos[geo] = result['errors']
                                 # Log errors clearly for each geo
                                 logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED: {result['failure_count']} function(s) failed")
                                 for error in result['errors']:
@@ -1899,58 +1835,7 @@ def create_lambdas():
                             logger.error(f"[LAMBDA] [{geo}] Thread execution error: {thread_err}")
                             logger.error(traceback.format_exc())
                             errors_by_geo[geo] = [f"Thread execution error: {thread_err}"]
-                            failed_geos[geo] = [f"Thread execution error: {thread_err}"]
                             failure_count += len(functions_by_geo_dict[geo])
-                            processed_geos.add(geo)  # Mark as processed even if failed
-                            update_job_status()
-                    
-                    # CRITICAL: Verify ALL geos were processed
-                    expected_geos = set(functions_by_geo_dict.keys())
-                    missing_geos = expected_geos - processed_geos
-                    
-                    if missing_geos:
-                        logger.error("=" * 60)
-                        logger.error(f"[LAMBDA] ✗✗✗ CRITICAL: {len(missing_geos)} geo(s) were NOT processed!")
-                        logger.error(f"[LAMBDA] Missing geos: {sorted(missing_geos)}")
-                        logger.error("=" * 60)
-                        
-                        # Retry missing geos
-                        if missing_geos:
-                            logger.info(f"[LAMBDA] Retrying {len(missing_geos)} missing geo(s)...")
-                            with ThreadPoolExecutor(max_workers=min(len(missing_geos), 10)) as retry_executor:
-                                retry_futures = {
-                                    retry_executor.submit(create_functions_in_geo, geo, functions_by_geo_dict[geo]): geo
-                                    for geo in missing_geos
-                                }
-                                for future in as_completed(retry_futures):
-                                    retry_geo = retry_futures[future]
-                                    try:
-                                        retry_result = future.result()
-                                        processed_geos.add(retry_geo)
-                                        success_count += retry_result['success_count']
-                                        failure_count += retry_result['failure_count']
-                                        if retry_result.get('errors'):
-                                            errors_by_geo[retry_geo] = retry_result['errors']
-                                            logger.error(f"[LAMBDA] [{retry_geo}] ✗ Retry failed")
-                                        else:
-                                            logger.info(f"[LAMBDA] [{retry_geo}] ✓ Retry successful")
-                                        update_job_status()
-                                    except Exception as retry_err:
-                                        logger.error(f"[LAMBDA] [{retry_geo}] ✗ Retry exception: {retry_err}")
-                                        failure_count += len(functions_by_geo_dict[retry_geo])
-                                        if retry_geo not in errors_by_geo:
-                                            errors_by_geo[retry_geo] = []
-                                        errors_by_geo[retry_geo].append(f"Retry exception: {str(retry_err)}")
-                                        processed_geos.add(retry_geo)
-                                        update_job_status()
-                    
-                    # Final verification
-                    final_processed = processed_geos
-                    if final_processed != expected_geos:
-                        logger.error(f"[LAMBDA] ✗✗✗ FINAL CHECK FAILED: Still missing {len(expected_geos - final_processed)} geo(s)")
-                        logger.error(f"[LAMBDA] Still missing: {sorted(expected_geos - final_processed)}")
-                    else:
-                        logger.info(f"[LAMBDA] ✓✓✓ FINAL CHECK PASSED: All {len(expected_geos)} expected geos were processed")
                 
                 logger.info("=" * 60)
                 logger.info(f"[LAMBDA] Background Lambda creation completed")
@@ -2447,9 +2332,14 @@ def bulk_generate():
                 # Pre-detect Lambda functions across ALL geos
                 # This is necessary because functions are distributed across multiple AWS regions
                 lambda_functions = []
-                # We no longer pre-detect Lambda functions across all regions
-                # Instead, we'll look for functions in their assigned regions during processing
-                logger.info(f"[BULK] Will process users using geo-distributed Lambda functions")
+                try:
+                    # We no longer pre-detect Lambda functions across all regions
+                    # Instead, we'll look for functions in their assigned regions during processing
+                    logger.info(f"[BULK] Will process users using geo-distributed Lambda functions")
+                
+                except Exception as list_err:
+                    logger.error(f"[BULK] Error initializing: {list_err}")
+                    logger.error(traceback.format_exc())
                 
                 # NEW LOGIC: Calculate total functions based on user count
                 # Distribute functions evenly across ALL available geos
@@ -2525,20 +2415,20 @@ def bulk_generate():
                     # Round-robin distribution: function 0 → geo 0, function 1 → geo 1, etc.
                     geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
                     geo = AVAILABLE_GEO_REGIONS[geo_index]
-                    
+                
                     if geo not in functions_per_geo:
                         functions_per_geo[geo] = []
                     functions_per_geo[geo].append(func_num + 1)  # Function numbers start at 1
-                
-                logger.info("=" * 60)
+            
+            logger.info("=" * 60)
                 logger.info(f"[BULK] Function Distribution Across Geos")
                 logger.info(f"[BULK] Total functions: {num_functions}")
                 logger.info(f"[BULK] Available geos: {len(AVAILABLE_GEO_REGIONS)}")
                 logger.info(f"[BULK] Functions per geo:")
                 for geo, func_numbers in sorted(functions_per_geo.items()):
                     logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
-                logger.info("=" * 60)
-                
+            logger.info("=" * 60)
+            
                 # Split users into batches of 10, assigning each batch to a function
                 # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
                 # CRITICAL: Each batch MUST be exactly 10 users or less
@@ -2579,7 +2469,7 @@ def bulk_generate():
                         assigned_function_name: Name of Lambda function to invoke
                         lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
                     """
-                    with app.app_context():
+                with app.app_context():
                         # CRITICAL: Enforce 10-user limit
                         MAX_USERS_PER_BATCH = 10
                         if len(user_batch) > MAX_USERS_PER_BATCH:
@@ -2629,10 +2519,10 @@ def bulk_generate():
                         # Mark emails as being processed (for duplicate detection across parallel geos)
                         for user in users_to_process:
                             email = user['email']
-                            with processing_lock:
-                                if email in processing_emails:
+                    with processing_lock:
+                        if email in processing_emails:
                                     logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
-                                processing_emails.add(email)
+                        processing_emails.add(email)
                     
                         # Prepare batch payload for Lambda
                         # CRITICAL: Final check - ensure we never send more than 10 users
