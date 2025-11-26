@@ -321,41 +321,76 @@ def wait_for_password_clickable(driver, by_method, selector, timeout=10):
         return None
 
 def detect_captcha(driver):
-    """Detect if Google CAPTCHA is present on the page"""
+    """Detect if Google CAPTCHA is present on the page - more accurate detection to avoid false positives"""
     try:
-        # Common CAPTCHA indicators
-        captcha_indicators = [
-            "//div[contains(@class, 'captcha')]",
-            "//div[contains(@id, 'captcha')]",
-            "//iframe[contains(@src, 'recaptcha')]",
-            "//div[contains(@class, 'recaptcha')]",
-            "//div[contains(text(), 'unusual traffic')]",
-            "//div[contains(text(), 'verify you')]",
-            "//div[contains(text(), 'verify that you')]",
-            "//span[contains(text(), 'unusual traffic')]",
-            "//span[contains(text(), 'verify you')]",
-            "//*[contains(text(), 'Try again later')]",
-            "//*[contains(text(), 'automated queries')]",
+        # First check for explicit CAPTCHA iframes (most reliable indicator)
+        try:
+            captcha_iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha') or contains(@src, 'google.com/recaptcha')]")
+            if captcha_iframes:
+                # Check if iframe is actually visible
+                for iframe in captcha_iframes:
+                    try:
+                        if iframe.is_displayed():
+                            logger.warning("[CAPTCHA] Detected visible reCAPTCHA iframe")
+                            return True
+                    except:
+                        continue
+        except:
+            pass
+        
+        # Check for CAPTCHA-specific error messages (high confidence)
+        high_confidence_indicators = [
+            "//div[contains(text(), 'unusual traffic from your computer network')]",
+            "//div[contains(text(), 'automated queries')]",
+            "//div[contains(text(), 'verify you') and contains(text(), 'not a robot')]",
+            "//span[contains(text(), 'unusual traffic from your computer network')]",
+            "//span[contains(text(), 'automated queries')]",
+            "//*[contains(text(), 'Try again later') and contains(text(), 'automated')]",
         ]
         
-        for indicator in captcha_indicators:
+        for indicator in high_confidence_indicators:
             try:
                 elements = driver.find_elements(By.XPATH, indicator)
                 if elements:
-                    logger.warning(f"[CAPTCHA] Detected CAPTCHA indicator: {indicator}")
-                    return True
+                    # Verify element is visible
+                    for element in elements:
+                        try:
+                            if element.is_displayed():
+                                logger.warning(f"[CAPTCHA] Detected CAPTCHA message: {indicator}")
+                                return True
+                        except:
+                            continue
             except:
                 continue
         
-        # Also check page source for common CAPTCHA text
-        page_source = driver.page_source.lower()
-        captcha_keywords = ['captcha', 'recaptcha', 'unusual traffic', 'verify you', 'automated queries', 'try again later']
-        for keyword in captcha_keywords:
-            if keyword in page_source:
-                # Double-check it's actually a CAPTCHA, not just text
-                if any(indicator in page_source for indicator in ['recaptcha', 'captcha', 'verify']):
-                    logger.warning(f"[CAPTCHA] Detected CAPTCHA keyword in page source: {keyword}")
+        # Check for reCAPTCHA challenge container (more specific than generic captcha class)
+        try:
+            recaptcha_containers = driver.find_elements(By.XPATH, "//div[contains(@class, 'rc-') or contains(@id, 'recaptcha')]")
+            if recaptcha_containers:
+                # Only return True if we also see CAPTCHA-related text
+                page_text = driver.page_source.lower()
+                if any(keyword in page_text for keyword in ['verify', 'robot', 'unusual traffic', 'automated']):
+                    logger.warning("[CAPTCHA] Detected reCAPTCHA container with related text")
                     return True
+        except:
+            pass
+        
+        # Last resort: check page source for multiple CAPTCHA indicators together (reduces false positives)
+        page_source = driver.page_source.lower()
+        captcha_keywords_found = []
+        
+        # Look for specific high-confidence phrases
+        if 'unusual traffic from your computer network' in page_source:
+            captcha_keywords_found.append('unusual traffic')
+        if 'automated queries' in page_source and 'verify' in page_source:
+            captcha_keywords_found.append('automated queries + verify')
+        if 'try again later' in page_source and ('automated' in page_source or 'robot' in page_source):
+            captcha_keywords_found.append('try again + automated/robot')
+        
+        # Only return True if we found multiple strong indicators
+        if len(captcha_keywords_found) >= 1 and ('recaptcha' in page_source or 'captcha' in page_source):
+            logger.warning(f"[CAPTCHA] Detected CAPTCHA indicators in page source: {', '.join(captcha_keywords_found)}")
+            return True
         
         return False
     except Exception as e:
@@ -690,10 +725,8 @@ def login_google(driver, email, password, known_totp_secret=None):
         time.sleep(2)  # Reduced wait time
         logger.info("[STEP] Page stabilized, proceeding with login")
         
-        # Check for captcha immediately after page load
-        if detect_captcha(driver):
-            logger.warning("[STEP] ⚠️ CAPTCHA detected on login page!")
-            return False, "CAPTCHA_DETECTED", "CAPTCHA detected on login page. Manual intervention required."
+        # NOTE: CAPTCHA check removed from here - CAPTCHA rarely appears before email entry
+        # CAPTCHA typically appears after email submission, so we'll check after that
     except Exception as nav_error:
         logger.error(f"[STEP] Navigation failed: {nav_error}")
         logger.error(traceback.format_exc())
@@ -723,7 +756,14 @@ def login_google(driver, email, password, known_totp_secret=None):
         logger.info("[STEP] Email submitted")
 
         # Wait for password field - reduced wait time
-        time.sleep(1)  # Reduced from 3 to 1 second
+        time.sleep(2)  # Wait for page to transition after email submission
+        
+        # Check for CAPTCHA after email submission (this is when it typically appears)
+        if detect_captcha(driver):
+            logger.warning("[STEP] ⚠️ CAPTCHA detected after email submission!")
+            return False, "CAPTCHA_DETECTED", "CAPTCHA detected after email submission. Manual intervention required."
+        
+        time.sleep(1)  # Additional wait for password field to appear
         
         # Check for iframes first (Google sometimes uses iframes for password field)
         password_input = None
@@ -892,6 +932,11 @@ def login_google(driver, email, password, known_totp_secret=None):
             except Exception as e:
                 logger.error(f"[STEP] Failed to get current URL: {e}")
                 return False, "driver_crashed", f"Driver crashed while checking URL: {e}"
+            
+            # Check for CAPTCHA after password submission (this is another common place for CAPTCHA)
+            if detect_captcha(driver):
+                logger.warning("[STEP] ⚠️ CAPTCHA detected after password submission!")
+                return False, "CAPTCHA_DETECTED", "CAPTCHA detected after password submission. Manual intervention required."
             
             # Check for account verification/ID verification required
             if "speedbump/idvreenable" in current_url or "idvreenable" in current_url:

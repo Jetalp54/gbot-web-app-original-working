@@ -1330,6 +1330,45 @@ def create_lambdas():
             logger.info(f"[LAMBDA]   - {geo}: {len(func_list)} function(s) {func_names}")
         logger.info("=" * 60)
         
+        # Pre-check: Verify ECR image exists in all target regions before creating functions
+        logger.info("[LAMBDA] Pre-checking ECR image availability in all target regions...")
+        import re
+        ecr_match = re.match(r'(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com/([^:]+):(.+)', ecr_uri)
+        if ecr_match:
+            account_id, base_region, repo_name, image_tag = ecr_match.groups()
+            missing_regions = []
+            for geo in AVAILABLE_GEO_REGIONS:
+                if geo == base_region:
+                    continue  # Skip base region (image definitely exists there)
+                try:
+                    geo_session = boto3.Session(
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name=geo
+                    )
+                    ecr_client = geo_session.client('ecr')
+                    ecr_client.describe_images(
+                        repositoryName=repo_name,
+                        imageIds=[{"imageTag": image_tag}],
+                    )
+                    logger.info(f"[LAMBDA] ✓ ECR image verified in {geo}")
+                except ClientError as e:
+                    error_code = e.response.get('Error', {}).get('Code', '')
+                    if error_code in ['RepositoryNotFoundException', 'ImageNotFoundException']:
+                        missing_regions.append(geo)
+                        logger.warning(f"[LAMBDA] ⚠️ ECR image MISSING in {geo} - functions will fail to create here")
+                    else:
+                        logger.warning(f"[LAMBDA] ⚠️ Could not verify ECR image in {geo}: {error_code}")
+                except Exception as e:
+                    logger.warning(f"[LAMBDA] ⚠️ Error checking ECR image in {geo}: {e}")
+            
+            if missing_regions:
+                logger.warning("=" * 60)
+                logger.warning(f"[LAMBDA] ⚠️ WARNING: ECR image missing in {len(missing_regions)} region(s): {', '.join(missing_regions)}")
+                logger.warning(f"[LAMBDA] Functions in these regions will FAIL to create.")
+                logger.warning(f"[LAMBDA] Solution: Use 'Push ECR Image to All Regions' button first!")
+                logger.warning("=" * 60)
+        
         # Start background thread to create/update Lambda functions across geos
         # Use 900 seconds (15 minutes) timeout for batch processing (10 users can take 5-10 minutes)
         def create_lambdas_background(functions_by_geo_dict, access_key, secret_key, role_arn, timeout, env_vars, package_type, base_ecr_uri, job_id=None):
@@ -1596,14 +1635,20 @@ def create_lambdas():
                             result = future.result()
                             success_count += result['success_count']
                             failure_count += result['failure_count']
-                            if result['errors']:
+                            if result.get('errors'):
                                 errors_by_geo[result['geo']] = result['errors']
+                                # Log errors clearly for each geo
+                                logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED: {result['failure_count']} function(s) failed")
+                                for error in result['errors']:
+                                    logger.error(f"[LAMBDA] [{geo}]   ERROR: {error}")
+                            else:
+                                logger.info(f"[LAMBDA] [{geo}] ✓✓✓ SUCCESS: Created {result['success_count']} function(s)")
                             logger.info(f"[LAMBDA] [{geo}] Thread completed: {result['success_count']} success, {result['failure_count']} failures")
                             update_job_status()
                         except Exception as thread_err:
                             logger.error(f"[LAMBDA] [{geo}] Thread execution error: {thread_err}")
                             logger.error(traceback.format_exc())
-                            errors_by_geo[geo] = f"Thread execution error: {thread_err}"
+                            errors_by_geo[geo] = [f"Thread execution error: {thread_err}"]
                             failure_count += len(functions_by_geo_dict[geo])
                 
                 logger.info("=" * 60)
@@ -1684,7 +1729,7 @@ def create_lambdas():
         if create_multiple:
             message += f' (for {user_count} users, {users_per_function} users per function).'
         message += f' Distribution: {"; ".join(geo_summary)}. Functions are being created in the background.'
-        message += f' Note: Functions will only be created in regions where the ECR image exists. Check the creation status for actual results.'
+        message += f' ⚠️ IMPORTANT: Functions will FAIL to create in regions where the ECR image is missing. Check the creation status for actual results and errors.'
 
         return jsonify({
             'success': True,
