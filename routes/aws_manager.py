@@ -2245,6 +2245,7 @@ def bulk_generate():
                 
                 # Split users into batches of 10, assigning each batch to a function
                 # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
+                # CRITICAL: Each batch MUST be exactly 10 users or less
                 user_batches = []  # List of (function_number, geo, user_batch) tuples
                 logger.info(f"[BULK] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
                 for func_num in range(num_functions):
@@ -2252,12 +2253,19 @@ def bulk_generate():
                     end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
                     batch_users = users[start_idx:end_idx]
                 
+                    # ENFORCE: Ensure batch never exceeds 10 users
+                    if len(batch_users) > USERS_PER_FUNCTION:
+                        logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num + 1} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
+                        batch_users = batch_users[:USERS_PER_FUNCTION]
+                    
                     if batch_users:
                         # Determine which geo this function belongs to
                         geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
                         geo = AVAILABLE_GEO_REGIONS[geo_index]
                         user_batches.append((func_num + 1, geo, batch_users))
-                        logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                        logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                        if len(batch_users) > USERS_PER_FUNCTION:
+                            logger.error(f"[BULK] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
                     else:
                         logger.warning(f"[BULK] Function {func_num + 1} has empty batch (start_idx={start_idx}, end_idx={end_idx}, total_users={total_users})")
                 
@@ -2271,11 +2279,18 @@ def bulk_generate():
                     This is used for sequential processing within each geo.
                 
                     Args:
-                        user_batch: List of user dicts to process
+                        user_batch: List of user dicts to process (MUST be <= 10 users)
                         assigned_function_name: Name of Lambda function to invoke
                         lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
                     """
                     with app.app_context():
+                        # CRITICAL: Enforce 10-user limit
+                        MAX_USERS_PER_BATCH = 10
+                        if len(user_batch) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ CRITICAL ERROR: Batch has {len(user_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
+                            logger.error(f"[BULK] [{assigned_function_name}] Truncating batch to {MAX_USERS_PER_BATCH} users")
+                            user_batch = user_batch[:MAX_USERS_PER_BATCH]
+                        
                         # Use lambda_region if provided, otherwise fall back to user's selected region
                         target_region = lambda_region if lambda_region else region
                     
@@ -2306,9 +2321,14 @@ def bulk_generate():
                         # Prepare all users for processing - NO pre-filtering
                         # Lambda will handle deduplication if needed
                         batch_results = []
-                        users_to_process = user_batch  # Process ALL users in the batch
+                        users_to_process = user_batch  # Process ALL users in the batch (already limited to 10)
                     
-                        logger.info(f"[BULK] [{assigned_function_name}] Will process ALL {len(users_to_process)} user(s) in batch")
+                        # Final validation before sending to Lambda
+                        if len(users_to_process) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ FINAL CHECK FAILED: {len(users_to_process)} users exceeds {MAX_USERS_PER_BATCH} limit!")
+                            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
+                        
+                        logger.info(f"[BULK] [{assigned_function_name}] Will process {len(users_to_process)} user(s) in batch (MAX: {MAX_USERS_PER_BATCH})")
                     
                         # Mark emails as being processed (for duplicate detection across parallel geos)
                         for user in users_to_process:
@@ -2319,16 +2339,24 @@ def bulk_generate():
                                 processing_emails.add(email)
                     
                         # Prepare batch payload for Lambda
+                        # CRITICAL: Final check - ensure we never send more than 10 users
+                        MAX_USERS_PER_BATCH = 10
+                        if len(users_to_process) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ PAYLOAD CHECK: Truncating {len(users_to_process)} users to {MAX_USERS_PER_BATCH}")
+                            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
+                        
                         batch_payload = {
                             "users": [
                                 {"email": u['email'], "password": u['password']}
                                 for u in users_to_process
                             ]
                         }
-                    
+                        
                         logger.info("=" * 60)
                         logger.info(f"[BULK] [{assigned_function_name}] PREPARING TO INVOKE LAMBDA")
-                        logger.info(f"[BULK] [{assigned_function_name}] Batch size: {len(users_to_process)} user(s)")
+                        logger.info(f"[BULK] [{assigned_function_name}] Batch size: {len(users_to_process)} user(s) (MAX: {MAX_USERS_PER_BATCH})")
+                        if len(users_to_process) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ ERROR: Batch size {len(users_to_process)} exceeds limit {MAX_USERS_PER_BATCH}!")
                         logger.info(f"[BULK] [{assigned_function_name}] Users in batch: {[u['email'] for u in users_to_process]}")
                         logger.info(f"[BULK] [{assigned_function_name}] Payload structure: {{'users': [{{'email': ..., 'password': ...}}]}}")
                         logger.info(f"[BULK] [{assigned_function_name}] Payload JSON length: {len(json.dumps(batch_payload))} bytes")
