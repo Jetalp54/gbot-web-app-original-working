@@ -1070,6 +1070,57 @@ echo "Successfully pushed image to {target_region}"
                         region_result = {'success': False, 'error': str(region_err)}
                         return region_result
                 
+                # Process all regions in PARALLEL using ThreadPoolExecutor
+                logger.info(f"[ECR] Starting PARALLEL push to {len(target_regions)} regions...")
+                logger.info(f"[ECR] Using {min(len(target_regions), 20)} parallel workers")
+                max_workers = min(len(target_regions), 20)  # Process up to 20 regions simultaneously
+                
+                # Update job status to processing
+                with lambda_creation_lock:
+                    if job_id in lambda_creation_jobs:
+                        lambda_creation_jobs[job_id]['status'] = 'processing'
+                        lambda_creation_jobs[job_id]['message'] = f'Pushing to {len(target_regions)} regions in parallel...'
+                
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = {executor.submit(push_to_region, region): region for region in target_regions}
+                    
+                    completed = 0
+                    for future in as_completed(futures):
+                        target_region = futures[future]
+                        completed += 1
+                        try:
+                            region_result = future.result()
+                            with results_lock:
+                                results[target_region] = region_result
+                                if region_result.get('success'):
+                                    success_count += 1
+                                    logger.info(f"[ECR] [{target_region}] ✓ Completed ({completed}/{len(target_regions)})")
+                                else:
+                                    failure_count += 1
+                                    logger.error(f"[ECR] [{target_region}] ✗ Failed ({completed}/{len(target_regions)}): {region_result.get('error', 'Unknown error')}")
+                            
+                            # Update job status in real-time
+                            with lambda_creation_lock:
+                                if job_id in lambda_creation_jobs:
+                                    lambda_creation_jobs[job_id]['success_count'] = success_count
+                                    lambda_creation_jobs[job_id]['failure_count'] = failure_count
+                                    lambda_creation_jobs[job_id]['results'] = results.copy()
+                                    lambda_creation_jobs[job_id]['message'] = f'Progress: {completed}/{len(target_regions)} regions completed ({success_count} success, {failure_count} failed)'
+                                    
+                        except Exception as e:
+                            logger.error(f"[ECR] [{target_region}] Future error: {e}")
+                            logger.error(traceback.format_exc())
+                            with results_lock:
+                                failure_count += 1
+                                if target_region not in results:
+                                    results[target_region] = {'success': False, 'error': f'Future execution error: {str(e)}'}
+                            
+                            # Update job status even on error
+                            with lambda_creation_lock:
+                                if job_id in lambda_creation_jobs:
+                                    lambda_creation_jobs[job_id]['failure_count'] = failure_count
+                                    lambda_creation_jobs[job_id]['results'] = results.copy()
+                
                 # Update job status
                 with lambda_creation_lock:
                     if job_id in lambda_creation_jobs:
