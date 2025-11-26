@@ -2640,13 +2640,82 @@ def api_retrieve_domains_for_account():
             if not next_token:
                 break
         
-        # Extract just domain names
-        domain_names = [domain.get('domainName', '') for domain in all_domains if domain.get('domainName')]
+        # Get user counts for domains to determine status
+        from database import UsedDomain
+        all_users = []
+        try:
+            # Get all users to calculate domain usage
+            page_token = None
+            while True:
+                users_result = google_api.service.users().list(
+                    customer='my_customer',
+                    maxResults=500,
+                    pageToken=page_token
+                ).execute()
+                users = users_result.get('users', [])
+                all_users.extend(users)
+                page_token = users_result.get('nextPageToken')
+                if not page_token:
+                    break
+        except Exception as users_err:
+            logger.warning(f"Could not fetch users for domain status: {users_err}")
+            # Continue with empty user list - will use database records only
+        
+        # Calculate user count per domain
+        domain_user_counts = {}
+        for user in all_users:
+            email = user.get('primaryEmail', '')
+            if email and '@' in email:
+                domain = email.split('@')[1]
+                domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
+        
+        # Format domains with status information
+        formatted_domains = []
+        for domain in all_domains:
+            domain_name = domain.get('domainName', '')
+            if not domain_name:
+                continue
+            
+            user_count = domain_user_counts.get(domain_name, 0)
+            
+            # Get domain status from database
+            domain_record = UsedDomain.query.filter_by(domain_name=domain_name).first()
+            
+            # Check if ever_used column exists (for backward compatibility)
+            ever_used = False
+            if domain_record:
+                try:
+                    ever_used = getattr(domain_record, 'ever_used', False)
+                except:
+                    ever_used = False  # Column doesn't exist yet
+            
+            # Determine domain status
+            if user_count > 0:
+                status = 'in_use'  # Purple - currently has users
+                status_text = 'IN USE'
+                status_color = 'purple'
+            elif domain_record and ever_used:
+                status = 'used'  # Red - previously used but no current users
+                status_text = 'USED'
+                status_color = 'red'
+            else:
+                status = 'available'  # Green - never been used
+                status_text = 'AVAILABLE'
+                status_color = 'green'
+            
+            formatted_domains.append({
+                'domain_name': domain_name,
+                'status': status,
+                'status_text': status_text,
+                'status_color': status_color,
+                'user_count': user_count,
+                'ever_used': ever_used
+            })
         
         return jsonify({
             'success': True,
-            'domains': domain_names,
-            'count': len(domain_names)
+            'domains': formatted_domains,
+            'count': len(formatted_domains)
         })
         
     except Exception as e:

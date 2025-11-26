@@ -692,10 +692,11 @@ def push_ecr_to_all_regions():
             }
         
         def push_ecr_background():
-            """Background task to push ECR image to all regions"""
+            """Background task to push ECR image to all regions (PARALLEL)"""
             success_count = 0
             failure_count = 0
             results = {}
+            results_lock = threading.Lock()
             
             try:
                 # Check if Docker and AWS CLI are available
@@ -714,7 +715,9 @@ def push_ecr_to_all_regions():
                     region_name=source_region
                 )
                 
-                for target_region in target_regions:
+                def push_to_region(target_region):
+                    """Push ECR image to a single region (for parallel execution)"""
+                    region_result = {'success': False, 'error': None}
                     try:
                         logger.info(f"[ECR] [{target_region}] Processing region...")
                         
@@ -731,9 +734,8 @@ def push_ecr_to_all_regions():
                             sts.get_caller_identity()
                         except Exception as cred_err:
                             logger.error(f"[ECR] [{target_region}] ✗ Credential verification failed: {cred_err}")
-                            results[target_region] = {'success': False, 'error': f'Credential verification failed: {cred_err}'}
-                            failure_count += 1
-                            continue
+                            region_result = {'success': False, 'error': f'Credential verification failed: {cred_err}'}
+                            return region_result
                         
                         # Create ECR repository in target region if it doesn't exist
                         ecr_client = target_session.client('ecr')
@@ -752,14 +754,12 @@ def push_ecr_to_all_regions():
                                     time.sleep(2)  # Wait for repository to be ready
                                 except Exception as create_err:
                                     logger.error(f"[ECR] [{target_region}] ✗ Failed to create repository: {create_err}")
-                                    results[target_region] = {'success': False, 'error': f'Repository creation failed: {create_err}'}
-                                    failure_count += 1
-                                    continue
+                                    region_result = {'success': False, 'error': f'Repository creation failed: {create_err}'}
+                                    return region_result
                             else:
                                 logger.error(f"[ECR] [{target_region}] ✗ Error checking repository: {e}")
-                                results[target_region] = {'success': False, 'error': f'Repository check failed: {e}'}
-                                failure_count += 1
-                                continue
+                                region_result = {'success': False, 'error': f'Repository check failed: {e}'}
+                                return region_result
                         
                         # Check if image already exists in target region
                         target_ecr_uri = f"{account_id}.dkr.ecr.{target_region}.amazonaws.com/{repo_name}:{image_tag}"
@@ -769,15 +769,13 @@ def push_ecr_to_all_regions():
                                 imageIds=[{"imageTag": image_tag}],
                             )
                             logger.info(f"[ECR] [{target_region}] ✓ Image already exists in {target_region}")
-                            results[target_region] = {'success': True, 'message': 'Image already exists'}
-                            success_count += 1
-                            continue
+                            region_result = {'success': True, 'message': 'Image already exists'}
+                            return region_result
                         except ClientError as e:
                             if e.response['Error']['Code'] != 'ImageNotFoundException':
                                 logger.error(f"[ECR] [{target_region}] ✗ Error checking image: {e}")
-                                results[target_region] = {'success': False, 'error': f'Image check failed: {e}'}
-                                failure_count += 1
-                                continue
+                                region_result = {'success': False, 'error': f'Image check failed: {e}'}
+                                return region_result
                         
                         # Image doesn't exist - attempt to push it using Docker
                         logger.info(f"[ECR] [{target_region}] Image not found. Attempting to push from {source_region}...")
@@ -873,13 +871,13 @@ echo "Successfully pushed image to {target_region}"
                                     if status in ['Success', 'Failed', 'Cancelled', 'TimedOut']:
                                         if status == 'Success':
                                             logger.info(f"[ECR] [{target_region}] ✓✓✓ SUCCESS: Pushed image via EC2 build box")
-                                            results[target_region] = {'success': True, 'message': f'Image pushed successfully via EC2 build box'}
-                                            success_count += 1
+                                            region_result = {'success': True, 'message': f'Image pushed successfully via EC2 build box'}
+                                            return region_result
                                         else:
                                             error_details = cmd_response.get('StandardErrorContent', 'Unknown error')
                                             logger.error(f"[ECR] [{target_region}] ✗ SSM command failed: {status} - {error_details}")
-                                            results[target_region] = {'success': False, 'error': f'EC2 push failed: {status} - {error_details}'}
-                                            failure_count += 1
+                                            region_result = {'success': False, 'error': f'EC2 push failed: {status} - {error_details}'}
+                                            return region_result
                                         break
                                     
                                     if waited % 60 == 0:  # Log every minute
@@ -887,10 +885,8 @@ echo "Successfully pushed image to {target_region}"
                                 else:
                                     # Timeout
                                     logger.error(f"[ECR] [{target_region}] ✗ EC2 push timed out after {max_wait}s")
-                                    results[target_region] = {'success': False, 'error': f'EC2 push timed out after {max_wait} seconds'}
-                                    failure_count += 1
-                                
-                                continue  # Skip to next region
+                                    region_result = {'success': False, 'error': f'EC2 push timed out after {max_wait} seconds'}
+                                    return region_result
                                 
                             except Exception as ssm_err:
                                 logger.error(f"[ECR] [{target_region}] ✗ Failed to use EC2 build box: {ssm_err}")
@@ -907,7 +903,7 @@ echo "Successfully pushed image to {target_region}"
                             logger.warning(f"[ECR] [{target_region}]   3. aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com")
                             logger.warning(f"[ECR] [{target_region}]   4. docker push {target_ecr_uri}")
                             
-                            results[target_region] = {
+                            region_result = {
                                 'success': False,
                                 'error': 'Docker not available. Manual push required.',
                                 'instructions': [
@@ -917,12 +913,11 @@ echo "Successfully pushed image to {target_region}"
                                     f'docker push {target_ecr_uri}'
                                 ]
                             }
-                            failure_count += 1
-                            continue
+                            return region_result
                         
                         if not aws_cli_available:
                             logger.warning(f"[ECR] [{target_region}] ⚠️ AWS CLI not available. Cannot authenticate with ECR.")
-                            results[target_region] = {
+                            region_result = {
                                 'success': False,
                                 'error': 'AWS CLI not available. Cannot authenticate with ECR.',
                                 'instructions': [
@@ -933,8 +928,7 @@ echo "Successfully pushed image to {target_region}"
                                     f'docker push {target_ecr_uri}'
                                 ]
                             }
-                            failure_count += 1
-                            continue
+                            return region_result
                         
                         # Attempt to push using Docker
                         try:
@@ -1048,17 +1042,17 @@ echo "Successfully pushed image to {target_region}"
                                 raise Exception(f"Docker push failed: {push_process.stderr}")
                             
                             logger.info(f"[ECR] [{target_region}] ✓✓✓ SUCCESS: Pushed image to {target_region}")
-                            results[target_region] = {'success': True, 'message': f'Image pushed successfully from {source_region}'}
-                            success_count += 1
+                            region_result = {'success': True, 'message': f'Image pushed successfully from {source_region}'}
+                            return region_result
                             
                         except subprocess.TimeoutExpired:
                             logger.error(f"[ECR] [{target_region}] ✗ Timeout during Docker operation")
-                            results[target_region] = {'success': False, 'error': 'Timeout during Docker operation. Image may be large.'}
-                            failure_count += 1
+                            region_result = {'success': False, 'error': 'Timeout during Docker operation. Image may be large.'}
+                            return region_result
                         except Exception as push_err:
                             logger.error(f"[ECR] [{target_region}] ✗ Failed to push image: {push_err}")
                             logger.error(traceback.format_exc())
-                            results[target_region] = {
+                            region_result = {
                                 'success': False,
                                 'error': f'Docker push failed: {str(push_err)}',
                                 'instructions': [
@@ -1068,13 +1062,13 @@ echo "Successfully pushed image to {target_region}"
                                     f'docker push {target_ecr_uri}'
                                 ]
                             }
-                            failure_count += 1
+                            return region_result
                         
                     except Exception as region_err:
                         logger.error(f"[ECR] [{target_region}] ✗ Error processing region: {region_err}")
                         logger.error(traceback.format_exc())
-                        results[target_region] = {'success': False, 'error': str(region_err)}
-                        failure_count += 1
+                        region_result = {'success': False, 'error': str(region_err)}
+                        return region_result
                 
                 # Update job status
                 with lambda_creation_lock:
@@ -3195,6 +3189,138 @@ def invoke_lambda():
         return jsonify({'success': False, 'error': str(ce)}), 500
     except Exception as e:
         logger.error(f"Error invoking Lambda: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@aws_manager.route('/api/aws/stop-all-lambdas', methods=['POST'])
+@login_required
+def stop_all_lambdas():
+    """Stop all running Lambda function executions across all AWS regions"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        region = data.get('region', '').strip()
+
+        if not access_key or not secret_key or not region:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        # List of all AWS regions (as specified by user)
+        AVAILABLE_GEO_REGIONS = [
+            # United States
+            'us-east-1',      # N. Virginia
+            'us-east-2',      # Ohio
+            'us-west-1',      # N. California
+            'us-west-2',      # Oregon
+            # Africa
+            'af-south-1',     # Cape Town
+            # Asia Pacific
+            'ap-east-1',      # Hong Kong
+            'ap-east-2',      # Taipei
+            'ap-south-1',     # Mumbai
+            'ap-south-2',     # Hyderabad
+            'ap-northeast-1', # Tokyo
+            'ap-northeast-2', # Seoul
+            'ap-northeast-3', # Osaka
+            'ap-southeast-1', # Singapore
+            'ap-southeast-2', # Sydney
+            'ap-southeast-3', # Jakarta
+            'ap-southeast-4', # Melbourne
+            'ap-southeast-5', # Malaysia
+            'ap-southeast-6', # New Zealand
+            'ap-southeast-7', # Thailand
+            # Canada
+            'ca-central-1',   # Central
+            'ca-west-1',      # Calgary
+            # Europe
+            'eu-central-1',   # Frankfurt
+            'eu-west-1',      # Ireland
+            'eu-west-2',      # London
+            'eu-west-3',      # Paris
+            'eu-north-1',     # Stockholm
+            'eu-south-1',     # Milan
+            'eu-south-2',     # Spain
+            # Mexico
+            'mx-central-1',   # Central
+            # Middle East
+            'me-south-1',     # Bahrain
+            'me-central-1',   # UAE
+            'il-central-1',   # Israel (Tel Aviv)
+            # South America
+            'sa-east-1',      # São Paulo
+        ]
+
+        stopped_count = 0
+        error_count = 0
+        all_errors = []
+
+        def stop_region_lambdas(target_region):
+            """Stop all running Lambda executions in a specific region (parallel execution)"""
+            region_stopped = 0
+            region_errors = []
+            try:
+                logger.info(f"[STOP LAMBDA] Processing region: {target_region}")
+                session = get_boto3_session(access_key, secret_key, target_region)
+                lam = session.client("lambda")
+
+                # List all Lambda functions matching our pattern
+                try:
+                    paginator = lam.get_paginator("list_functions")
+                    for page in paginator.paginate():
+                        for fn in page.get("Functions", []):
+                            fn_name = fn["FunctionName"]
+                            if PRODUCTION_LAMBDA_NAME in fn_name or "edu-gw" in fn_name:
+                                try:
+                                    # Put reserved concurrency to 0 to stop new invocations
+                                    # This effectively stops the function from accepting new requests
+                                    lam.put_function_concurrency(
+                                        FunctionName=fn_name,
+                                        ReservedConcurrentExecutions=0
+                                    )
+                                    logger.info(f"[STOP LAMBDA] [{target_region}] ✓ Stopped function: {fn_name}")
+                                    region_stopped += 1
+                                except Exception as e:
+                                    error_msg = f"{target_region}: {fn_name} - {str(e)}"
+                                    logger.error(f"[STOP LAMBDA] [{target_region}] Error stopping {fn_name}: {e}")
+                                    region_errors.append(error_msg)
+                except Exception as e:
+                    error_msg = f"{target_region}: Failed to list functions - {str(e)}"
+                    logger.error(f"[STOP LAMBDA] [{target_region}] Error listing functions: {e}")
+                    region_errors.append(error_msg)
+
+            except Exception as e:
+                error_msg = f"{target_region}: Region processing failed - {str(e)}"
+                logger.error(f"[STOP LAMBDA] [{target_region}] Error: {e}")
+                region_errors.append(error_msg)
+            
+            return region_stopped, region_errors
+
+        # Process all regions in parallel
+        logger.info(f"[STOP LAMBDA] Starting parallel stop across {len(AVAILABLE_GEO_REGIONS)} regions...")
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            futures = {executor.submit(stop_region_lambdas, region): region for region in AVAILABLE_GEO_REGIONS}
+            
+            for future in as_completed(futures):
+                region = futures[future]
+                try:
+                    region_stopped, region_errors = future.result()
+                    stopped_count += region_stopped
+                    all_errors.extend(region_errors)
+                    error_count += len(region_errors)
+                except Exception as e:
+                    logger.error(f"[STOP LAMBDA] [{region}] Future error: {e}")
+                    error_count += 1
+                    all_errors.append(f"{region}: Future execution error - {str(e)}")
+
+        return jsonify({
+            'success': True,
+            'stopped_count': stopped_count,
+            'error_count': error_count,
+            'errors': all_errors if all_errors else None,
+            'message': f'Lambda stop completed across all regions. Stopped: {stopped_count} function(s), Errors: {error_count}'
+        })
+    except Exception as e:
+        logger.error(f"Error stopping Lambdas: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 

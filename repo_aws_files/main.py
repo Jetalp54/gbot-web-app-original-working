@@ -283,29 +283,84 @@ def wait_for_xpath(driver, xpath, timeout=30):
 def wait_for_visible_and_interactable(driver, xpath, timeout=30):
     """Wait for an element to be visible and interactable, then return it."""
     try:
-        # First wait for presence
+        # Use element_to_be_clickable which ensures element is both visible and interactable
         element = WebDriverWait(driver, timeout).until(
-            EC.presence_of_element_located((By.XPATH, xpath))
-        )
-        # Then wait for visibility
-        element = WebDriverWait(driver, timeout).until(
-            EC.visibility_of_element_located((By.XPATH, xpath))
+            EC.element_to_be_clickable((By.XPATH, xpath))
         )
         # Scroll into view
         driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", element)
-        time.sleep(0.5)  # Wait for scroll to complete
-        # Check if interactable
-        if element.is_displayed() and element.is_enabled():
-            return element
-        else:
-            logger.warning(f"[SELENIUM] Element found but not interactable: {xpath}")
-            return None
+        time.sleep(0.2)  # Reduced wait time
+        # Focus the element to ensure it's ready for interaction
+        try:
+            element.click()  # Click to focus (will be cleared anyway)
+            time.sleep(0.1)
+        except:
+            pass  # If click fails, try JavaScript focus
+        return element
     except TimeoutException:
         logger.error(f"[SELENIUM] Timeout waiting for visible/interactable XPath: {xpath}")
         return None
     except Exception as e:
         logger.error(f"[SELENIUM] Error waiting for element: {e}")
         return None
+
+def wait_for_password_clickable(driver, by_method, selector, timeout=10):
+    """Wait for password field to be clickable using By.NAME or By.XPATH (like reference function)"""
+    try:
+        element = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable((by_method, selector))
+        )
+        # Focus the element
+        element.click()  # Click to focus
+        time.sleep(0.1)
+        return element
+    except TimeoutException:
+        return None
+    except Exception as e:
+        logger.warning(f"[SELENIUM] Error waiting for password field: {e}")
+        return None
+
+def detect_captcha(driver):
+    """Detect if Google CAPTCHA is present on the page"""
+    try:
+        # Common CAPTCHA indicators
+        captcha_indicators = [
+            "//div[contains(@class, 'captcha')]",
+            "//div[contains(@id, 'captcha')]",
+            "//iframe[contains(@src, 'recaptcha')]",
+            "//div[contains(@class, 'recaptcha')]",
+            "//div[contains(text(), 'unusual traffic')]",
+            "//div[contains(text(), 'verify you')]",
+            "//div[contains(text(), 'verify that you')]",
+            "//span[contains(text(), 'unusual traffic')]",
+            "//span[contains(text(), 'verify you')]",
+            "//*[contains(text(), 'Try again later')]",
+            "//*[contains(text(), 'automated queries')]",
+        ]
+        
+        for indicator in captcha_indicators:
+            try:
+                elements = driver.find_elements(By.XPATH, indicator)
+                if elements:
+                    logger.warning(f"[CAPTCHA] Detected CAPTCHA indicator: {indicator}")
+                    return True
+            except:
+                continue
+        
+        # Also check page source for common CAPTCHA text
+        page_source = driver.page_source.lower()
+        captcha_keywords = ['captcha', 'recaptcha', 'unusual traffic', 'verify you', 'automated queries', 'try again later']
+        for keyword in captcha_keywords:
+            if keyword in page_source:
+                # Double-check it's actually a CAPTCHA, not just text
+                if any(indicator in page_source for indicator in ['recaptcha', 'captcha', 'verify']):
+                    logger.warning(f"[CAPTCHA] Detected CAPTCHA keyword in page source: {keyword}")
+                    return True
+        
+        return False
+    except Exception as e:
+        logger.warning(f"[CAPTCHA] Error detecting CAPTCHA: {e}")
+        return False
 
 def wait_for_clickable_xpath(driver, xpath, timeout=30):
     """Wait for an element to be clickable and return it."""
@@ -629,11 +684,16 @@ def login_google(driver, email, password, known_totp_secret=None):
     
     # Navigate with timeout and error handling
     try:
-        logger.info("[STEP] Navigating to Google login page...")
+        logger.info("[STEP] Navigating to Google login page (English)...")
         driver.get("https://accounts.google.com/signin/v2/identifier?hl=en&flowName=GlifWebSignIn")
         logger.info("[STEP] Navigation to Google login page completed")
-        time.sleep(3)  # Increased wait for page to fully load in Lambda
+        time.sleep(2)  # Reduced wait time
         logger.info("[STEP] Page stabilized, proceeding with login")
+        
+        # Check for captcha immediately after page load
+        if detect_captcha(driver):
+            logger.warning("[STEP] ⚠️ CAPTCHA detected on login page!")
+            return False, "CAPTCHA_DETECTED", "CAPTCHA detected on login page. Manual intervention required."
     except Exception as nav_error:
         logger.error(f"[STEP] Navigation failed: {nav_error}")
         logger.error(traceback.format_exc())
@@ -662,33 +722,42 @@ def login_google(driver, email, password, known_totp_secret=None):
             email_input.send_keys(Keys.RETURN)
         logger.info("[STEP] Email submitted")
 
-        # Wait for password field
-        time.sleep(3)  # Increased wait for password page to load
+        # Wait for password field - reduced wait time
+        time.sleep(1)  # Reduced from 3 to 1 second
         
         # Check for iframes first (Google sometimes uses iframes for password field)
         password_input = None
         try:
-            # Try to find password field in main document first
-            password_input_xpaths = [
-                "//input[@name='Passwd']",
-                "//input[@type='password']",
-                "//input[@id='password']",
-                "//input[@name='password']",
-                "//input[@aria-label*='password' or @aria-label*='Password' or contains(@aria-label, 'password')]",
-                "//input[contains(@placeholder, 'password') or contains(@placeholder, 'Password')]",
-            ]
-            
-            # Try to find visible and interactable password field
-            for xpath in password_input_xpaths:
-                try:
-                    logger.info(f"[STEP] Trying to find password input with XPath: {xpath}")
-                    password_input = wait_for_visible_and_interactable(driver, xpath, timeout=10)
-                    if password_input:
-                        logger.info(f"[STEP] Found password input using xpath: {xpath}")
-                        break
-                except Exception as e:
-                    logger.warning(f"[STEP] Failed to find password with {xpath}: {e}")
-                    continue
+            # Primary method: Use By.NAME like reference function (most reliable)
+            logger.info("[STEP] Trying to find password input using By.NAME='Passwd' (primary method)")
+            password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=10)
+            if password_input:
+                logger.info("[STEP] Found password input using By.NAME='Passwd'")
+            else:
+                # Fallback: Try XPath methods (fixed invalid XPath syntax)
+                password_input_xpaths = [
+                    "//input[@name='Passwd']",
+                    "//input[@type='password']",
+                    "/html/body/div[2]/div[1]/div[1]/div[2]/c-wiz/main/div[2]/div/div/div/form/span/section[2]/div/div/div[1]/div[1]/div/div/div/div/div[1]/div/div[1]/input",  # User-provided working XPath
+                    "//input[@id='password']",
+                    "//input[@name='password']",
+                    "//input[@aria-label*='password']",
+                    "//input[@aria-label*='Password']",
+                    "//input[contains(@aria-label, 'password')]",
+                    "//input[contains(@aria-label, 'Password')]",
+                ]
+                
+                # Try to find visible and interactable password field
+                for xpath in password_input_xpaths:
+                    try:
+                        logger.info(f"[STEP] Trying to find password input with XPath: {xpath}")
+                        password_input = wait_for_visible_and_interactable(driver, xpath, timeout=8)
+                        if password_input:
+                            logger.info(f"[STEP] Found password input using xpath: {xpath}")
+                            break
+                    except Exception as e:
+                        logger.warning(f"[STEP] Failed to find password with {xpath}: {e}")
+                        continue
             
             # If not found in main document, check iframes
             if not password_input:
@@ -739,15 +808,30 @@ def login_google(driver, email, password, known_totp_secret=None):
             
             # Clear and enter password with multiple fallback methods
             try:
-                # Method 1: Standard Selenium interaction
-                password_input.clear()
-                time.sleep(0.3)
+                # Method 1: Focus and clear using JavaScript first (more reliable)
+                driver.execute_script("arguments[0].focus();", password_input)
+                time.sleep(0.1)
+                driver.execute_script("arguments[0].click();", password_input)
+                time.sleep(0.1)
+                
+                # Try standard clear first
+                try:
+                    password_input.clear()
+                except:
+                    # If clear fails, use JavaScript
+                    driver.execute_script("arguments[0].value = '';", password_input)
+                
+                time.sleep(0.2)  # Reduced wait time
+                
+                # Enter password using standard method
                 password_input.send_keys(password)
                 logger.info("[STEP] Password entered using standard method")
             except Exception as e1:
                 logger.warning(f"[STEP] Standard method failed: {e1}, trying JavaScript...")
                 try:
-                    # Method 2: JavaScript interaction
+                    # Method 2: JavaScript interaction (more reliable fallback)
+                    driver.execute_script("arguments[0].focus();", password_input)
+                    driver.execute_script("arguments[0].click();", password_input)
                     driver.execute_script("arguments[0].value = '';", password_input)
                     driver.execute_script("arguments[0].value = arguments[1];", password_input, password)
                     driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", password_input)
@@ -868,6 +952,10 @@ def login_google(driver, email, password, known_totp_secret=None):
                 logger.info("[STEP] Two-step verification required page detected, navigating to setup...")
                 try:
                     driver.get("https://myaccount.google.com/two-step-verification/authenticator?hl=en")
+                    # Check for captcha
+                    if detect_captcha(driver):
+                        logger.warning("[STEP] ⚠️ CAPTCHA detected on 2SV authenticator page!")
+                        return False, None, "CAPTCHA_DETECTED", "CAPTCHA detected on 2SV authenticator page."
                     time.sleep(2)
                 except Exception as e:
                     logger.warning(f"[STEP] Could not navigate from twosvrequired: {e}")
@@ -1365,6 +1453,11 @@ def enable_two_step_verification(driver, email):
     try:
         # Navigate to 2-Step Verification page (with hl=en for English)
         driver.get("https://myaccount.google.com/signinoptions/twosv?hl=en")
+        
+        # Check for captcha
+        if detect_captcha(driver):
+            logger.warning("[STEP] ⚠️ CAPTCHA detected on 2SV page!")
+            return False, None, "CAPTCHA_DETECTED", "CAPTCHA detected on 2SV page. Manual intervention required."
         time.sleep(3)
         
         # Check if 2-step verification is already enabled
@@ -1455,6 +1548,11 @@ def generate_app_password(driver, email):
         
         # Navigate to app passwords page with hl=en for English
         driver.get("https://myaccount.google.com/apppasswords?hl=en")
+        
+        # Check for captcha
+        if detect_captcha(driver):
+            logger.warning("[STEP] ⚠️ CAPTCHA detected on app passwords page!")
+            return False, "CAPTCHA_DETECTED", "CAPTCHA detected on app passwords page. Manual intervention required."
         
         # Wait for page to be ready
         try:

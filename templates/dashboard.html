@@ -5595,15 +5595,15 @@ function addBulkAccountRow(accountEmail = '', users = 50, domain = '', password 
         <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle; position: relative;">
             <div style="position: relative;">
                 <input type="text" class="form-control-github domain-combobox" 
-                       style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px; padding-right: 30px;" 
+                       style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px; padding-right: 60px;" 
                        placeholder="example.com" value="${domain}" 
                        data-field="domain" 
                        data-row-id="${rowId}"
-                       list="domain-list-${rowId}"
-                       autocomplete="off">
-                <datalist id="domain-list-${rowId}">
-                    <!-- Domains will be populated here -->
-                </datalist>
+                       id="domain-input-${rowId}"
+                       autocomplete="off"
+                       onfocus="showDomainDropdown('${rowId}')"
+                       onblur="setTimeout(() => hideDomainDropdown('${rowId}'), 200)">
+                <div id="domain-status-${rowId}" style="position: absolute; right: 35px; top: 50%; transform: translateY(-50%); font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 600; display: none;"></div>
                 <button type="button" 
                         onclick="loadDomainsForAccount('${rowId}')" 
                         class="btn-github" 
@@ -5611,6 +5611,10 @@ function addBulkAccountRow(accountEmail = '', users = 50, domain = '', password 
                         title="Load domains from account">
                     <i class="fas fa-sync-alt"></i>
                 </button>
+                <div id="domain-dropdown-${rowId}" 
+                     style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d0d7de; border-radius: 6px; max-height: 200px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-top: 2px;">
+                    <!-- Domains will be populated here -->
+                </div>
             </div>
         </td>
         <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle;">
@@ -5683,10 +5687,10 @@ function loadDomainsForAccount(rowId) {
     
     const accountInput = row.querySelector('input[data-field="account"]');
     const domainInput = row.querySelector('input[data-field="domain"]');
-    const domainDatalist = row.querySelector('datalist');
+    const domainDropdown = row.querySelector(`#domain-dropdown-${rowId}`);
     const loadButton = row.querySelector('button[onclick*="loadDomainsForAccount"]');
     
-    if (!accountInput || !domainInput || !domainDatalist) {
+    if (!accountInput || !domainInput || !domainDropdown) {
         console.error('Required elements not found in row:', rowId);
         return;
     }
@@ -5708,7 +5712,7 @@ function loadDomainsForAccount(rowId) {
     }
     
     // Clear existing options
-    domainDatalist.innerHTML = '';
+    domainDropdown.innerHTML = '';
     
     // Fetch domains from API
     fetch('/api/retrieve-domains-for-account', {
@@ -5732,19 +5736,69 @@ function loadDomainsForAccount(rowId) {
         }
         
         if (data.success && data.domains && data.domains.length > 0) {
-            // Populate datalist with domains
-            data.domains.forEach(domain => {
-                const option = document.createElement('option');
-                option.value = domain;
-                domainDatalist.appendChild(option);
+            // Populate custom dropdown with domains and status
+            const domainDropdown = row.querySelector(`#domain-dropdown-${rowId}`);
+            domainDropdown.innerHTML = '';
+            
+            data.domains.forEach(domainData => {
+                const domainName = domainData.domain_name || domainData;
+                const status = domainData.status || 'available';
+                const statusText = domainData.status_text || 'AVAILABLE';
+                const statusColor = domainData.status_color || 'green';
+                
+                // Map status colors
+                let colorCode = '#28a745'; // green (available)
+                if (statusColor === 'purple' || status === 'in_use') {
+                    colorCode = '#6f42c1'; // purple (in use)
+                } else if (statusColor === 'red' || status === 'used') {
+                    colorCode = '#dc3545'; // red (used)
+                }
+                
+                const domainItem = document.createElement('div');
+                domainItem.style.cssText = 'padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between;';
+                domainItem.style.borderBottom = '1px solid #f0f0f0';
+                domainItem.onmouseenter = function() { this.style.backgroundColor = '#f6f8fa'; };
+                domainItem.onmouseleave = function() { this.style.backgroundColor = 'white'; };
+                domainItem.onclick = function() {
+                    domainInput.value = domainName;
+                    updateDomainStatus(rowId, status, statusText, colorCode);
+                    hideDomainDropdown(rowId);
+                };
+                
+                const domainNameSpan = document.createElement('span');
+                domainNameSpan.textContent = domainName;
+                domainNameSpan.style.fontWeight = '500';
+                
+                const statusBadge = document.createElement('span');
+                statusBadge.textContent = statusText;
+                statusBadge.style.cssText = `font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 600; background-color: ${colorCode}; color: white;`;
+                
+                domainItem.appendChild(domainNameSpan);
+                domainItem.appendChild(statusBadge);
+                domainDropdown.appendChild(domainItem);
             });
+            
+            // Store domains data for later use
+            row.dataset.domainsLoaded = 'true';
             
             // Show success message
             console.log(`Loaded ${data.domains.length} domain(s) for ${accountEmail}`);
             
-            // If domain input is empty, suggest the first domain
-            if (!domainInput.value.trim() && data.domains.length > 0) {
-                // Don't auto-fill, just show in dropdown
+            // Update status if domain input already has a value
+            const currentDomain = domainInput.value.trim();
+            if (currentDomain) {
+                const matchingDomain = data.domains.find(d => (d.domain_name || d) === currentDomain);
+                if (matchingDomain) {
+                    const status = matchingDomain.status || 'available';
+                    const statusText = matchingDomain.status_text || 'AVAILABLE';
+                    let colorCode = '#28a745';
+                    if (matchingDomain.status_color === 'purple' || status === 'in_use') {
+                        colorCode = '#6f42c1';
+                    } else if (matchingDomain.status_color === 'red' || status === 'used') {
+                        colorCode = '#dc3545';
+                    }
+                    updateDomainStatus(rowId, status, statusText, colorCode);
+                }
             }
         } else {
             const errorMsg = data.error || 'No domains found or failed to retrieve domains';
@@ -5765,6 +5819,44 @@ function loadDomainsForAccount(rowId) {
         console.error('Error loading domains:', error);
         // Don't show alert - user can still type domain manually
     });
+}
+
+// Show domain dropdown
+function showDomainDropdown(rowId) {
+    const dropdown = document.getElementById(`domain-dropdown-${rowId}`);
+    if (dropdown && dropdown.children.length > 0) {
+        dropdown.style.display = 'block';
+    }
+}
+
+// Hide domain dropdown
+function hideDomainDropdown(rowId) {
+    const dropdown = document.getElementById(`domain-dropdown-${rowId}`);
+    if (dropdown) {
+        dropdown.style.display = 'none';
+    }
+}
+
+// Update domain status indicator
+function updateDomainStatus(rowId, status, statusText, colorCode) {
+    const statusIndicator = document.getElementById(`domain-status-${rowId}`);
+    if (statusIndicator) {
+        statusIndicator.textContent = statusText;
+        statusIndicator.style.backgroundColor = colorCode;
+        statusIndicator.style.color = 'white';
+        statusIndicator.style.display = 'block';
+    }
+    
+    // Also update on input change
+    const domainInput = document.getElementById(`domain-input-${rowId}`);
+    if (domainInput) {
+        domainInput.addEventListener('input', function() {
+            // Clear status if user types manually
+            if (statusIndicator) {
+                statusIndicator.style.display = 'none';
+            }
+        });
+    }
 }
 
 function executeBulkAccountCreation() {
