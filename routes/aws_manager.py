@@ -3479,121 +3479,91 @@ def fetch_from_dynamodb():
         # Process emails in batches of 100 (DynamoDB limit) using ThreadPoolExecutor for parallel batches
         batch_size = 100
         
-        def fetch_batch(email_batch):
-            """Fetch a batch of emails from DynamoDB"""
-            batch_results = []
-            try:
-                # Prepare keys for batch_get_item (low-level API format)
-                keys = [{'email': {'S': email}} for email in email_batch]
-        
-                # Use batch_get_item (faster)
-                response = dynamodb_client.batch_get_item(
-                    RequestItems={
-                        table_name: {
-                            'Keys': keys
-                        }
+    def fetch_batch(email_batch):
+        """Fetch a batch of emails from DynamoDB"""
+        batch_results = []
+        try:
+            # Prepare keys for batch_get_item (DynamoDB client format - low-level API)
+            keys = [{'email': {'S': email}} for email in email_batch]
+    
+            # Use batch_get_item (faster than individual get_item calls)
+            response = dynamodb_client.batch_get_item(
+                RequestItems={
+                    table_name: {
+                        'Keys': keys
                     }
-                )
-        
-                items = response.get('Responses', {}).get(table_name, [])
-                found_emails = set()
-        
-                for item in items:
-                    email = item['email']['S']
-                    app_password = item['app_password']['S']
-                    found_emails.add(email)
-        
-                    try:
-                        save_app_password(email, app_password)
-                    except Exception as db_err:
-                        logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
-        
+                }
+            )
+    
+            # Process results (low-level API returns DynamoDB format)
+            items = response.get('Responses', {}).get(table_name, [])
+            found_emails = set()
+    
+            for item in items:
+                email = item['email']['S']
+                app_password = item['app_password']['S']
+                found_emails.add(email)
+    
+                try:
+                    save_app_password(email, app_password)
+                except Exception as db_err:
+                    logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
+    
+                batch_results.append({
+                    'email': email,
+                    'app_password': app_password,
+                    'created_at': item.get('created_at', {}).get('S', ''),
+                    'region': dynamodb_region,
+                    'success': True
+                })
+    
+            for email in email_batch:
+                if email not in found_emails:
                     batch_results.append({
                         'email': email,
-                        'app_password': app_password,
-                        'created_at': item.get('created_at', {}).get('S', ''),
-                        'region': dynamodb_region,
-                        'success': True
+                        'error': 'Not found in DynamoDB',
+                        'success': False
                     })
-        
-                # Mark emails not found in this batch
-                for email in email_batch:
-                    if email not in found_emails:
+    
+        except Exception as e:
+            logger.error(f"[DYNAMODB] Error in batch fetch: {e}")
+            logger.error(traceback.format_exc())
+            # Fallback to individual get_item for this batch
+            for email in email_batch:
+                try:
+                    response = table.get_item(Key={'email': email})
+                    if 'Item' in response:
+                        item = response['Item']
+                        app_password = item['app_password']
+    
+                        try:
+                            save_app_password(email, app_password)
+                        except Exception as db_err:
+                            logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
+    
+                        batch_results.append({
+                            'email': item['email'],
+                            'app_password': app_password,
+                            'created_at': item.get('created_at', ''),
+                            'region': dynamodb_region,
+                            'success': True
+                        })
+                    else:
                         batch_results.append({
                             'email': email,
                             'error': 'Not found in DynamoDB',
                             'success': False
                         })
-        
-            except Exception as e:
-                logger.error(f"[DYNAMODB] Error in batch fetch: {e}")
-                logger.error(traceback.format_exc())
-        
-                # Fallback to individual get_item for this batch
-                for email in email_batch:
-                    try:
-                        response = table.get_item(Key={'email': email})
-                        if 'Item' in response:
-                            item = response['Item']
-                            app_password = item['app_password']
-        
-                            try:
-                                save_app_password(email, app_password)
-                            except Exception as db_err:
-                                logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
-        
-                            batch_results.append({
-                                'email': item['email'],
-                                'app_password': app_password,
-                                'created_at': item.get('created_at', ''),
-                                'region': dynamodb_region,
-                                'success': True
-                            })
-                        else:
-                            batch_results.append({
-                                'email': email,
-                                'error': 'Not found in DynamoDB',
-                                'success': False
-                            })
-        
-                    except Exception as get_err:
-                        logger.error(f"[DYNAMODB] Error fetching {email}: {get_err}")
-                        batch_results.append({
-                            'email': email,
-                            'error': str(get_err),
-                            'success': False
-                        })
-        
-            return batch_results
-        
-        
-        # Process all batches in parallel
-        logger.info(f"[DYNAMODB] Processing {len(emails)} emails in {len(emails) // batch_size + 1} batch(es) in parallel...")
-        
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            email_batches = [emails[i:i + batch_size] for i in range(0, len(emails), batch_size)]
-            futures = [executor.submit(fetch_batch, batch) for batch in email_batches]
-        
-            for future in as_completed(futures):
-                try:
-                    batch_results = future.result()
-                    results.extend(batch_results)
-                except Exception as e:
-                    logger.error(f"[DYNAMODB] Error in batch future: {e}")
-                    logger.error(traceback.format_exc())
-        
-        success_count = sum(1 for r in results if r.get('success'))
-        logger.info(f"[DYNAMODB] Fetch complete: {success_count}/{len(emails)} found")
-        
-        return jsonify({
-            'success': True,
-            'results': results,
-            'summary': {
-                'total': len(emails),
-                'found': success_count,
-                'not_found': len(emails) - success_count
-            }
-        })
+                except Exception as get_err:
+                    logger.error(f"[DYNAMODB] Error fetching {email}: {get_err}")
+                    batch_results.append({
+                        'email': email,
+                        'error': str(get_err),
+                        'success': False
+                    })
+    
+        return batch_results
+    
         
         
 def get_generated_passwords():
