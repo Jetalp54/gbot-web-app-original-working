@@ -3159,18 +3159,18 @@ def bulk_generate():
                                             })
                                         return batch_results
                                 
-                                except ClientError as ce:
-                                    error_code = ce.response['Error']['Code']
-                                    error_message = ce.response['Error'].get('Message', '')
-                                    
-                                    if error_code == 'ResourceNotFoundException':
+                            except ClientError as ce:
+                                error_code = ce.response['Error']['Code']
+                                error_message = ce.response['Error'].get('Message', '')
+                                
+                                if error_code == 'ResourceNotFoundException':
                                     logger.error(f"[BULK] Lambda function {assigned_function_name} not found")
                                     # Try to fall back to default function
                                     if assigned_function_name != PRODUCTION_LAMBDA_NAME:
                                         logger.warning(f"[BULK] Falling back to default function {PRODUCTION_LAMBDA_NAME}")
                                         assigned_function_name = PRODUCTION_LAMBDA_NAME
-                                            continue  # Retry with default function
-                                        else:
+                                        continue  # Retry with default function
+                                    else:
                                         # All users in batch fail
                                         for u in users_to_process:
                                             batch_results.append({
@@ -3179,15 +3179,15 @@ def bulk_generate():
                                                 'error': f'Lambda function {assigned_function_name} not found'
                                             })
                                         return batch_results
-                                    
-                                    if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
-                                        if attempt < max_retries - 1:
+                                
+                                if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
+                                    if attempt < max_retries - 1:
                                         base_wait = (2 ** attempt) * 2
                                         jitter = random.uniform(0, 1)
-                                            wait_time = base_wait + jitter
+                                        wait_time = base_wait + jitter
                                         logger.warning(f"[BULK] Rate limited for batch, retrying in {wait_time:.2f}s (attempt {attempt + 1}/{max_retries})")
-                                            time.sleep(wait_time)
-                                        else:
+                                        time.sleep(wait_time)
+                                    else:
                                         # All users in batch fail
                                         for u in users_to_process:
                                             batch_results.append({
@@ -3196,7 +3196,7 @@ def bulk_generate():
                                                 'error': f'Rate limited: {error_message}'
                                             })
                                         return batch_results
-                                    else:
+                                else:
                                     logger.error(f"[BULK] AWS error: {error_code} - {error_message}")
                                     # All users in batch fail
                                     for u in users_to_process:
