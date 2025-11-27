@@ -2099,47 +2099,36 @@ def create_lambdas():
                                 'errors': geo_errors
                             }
                         
-                        # If target geo is the same as base region, use the base ECR URI directly
+                        # Construct ECR URI for this region
                         if geo == base_region:
                             geo_ecr_uri = base_ecr_uri
-                            logger.info(f"[LAMBDA] [{geo}] Using base ECR URI (same region): {geo_ecr_uri}")
                         else:
-                            # For other regions, check if ECR image exists there
                             geo_ecr_uri = f"{account_id}.dkr.ecr.{geo}.amazonaws.com/{repo_name}:{image_tag}"
-                            logger.info(f"[LAMBDA] [{geo}] Checking for ECR image in target region: {geo_ecr_uri}")
-                            
-                            try:
-                                ecr_client = geo_session.client('ecr')
-                                # Check if repository and image exist
-                                ecr_client.describe_images(
-                                    repositoryName=repo_name,
-                                    imageIds=[{"imageTag": image_tag}],
-                                )
-                                logger.info(f"[LAMBDA] [{geo}] ✓ ECR image exists in region {geo}")
-                            except ClientError as ecr_err:
-                                error_code = ecr_err.response.get('Error', {}).get('Code', '')
-                                if error_code in ['RepositoryNotFoundException', 'ImageNotFoundException']:
-                                    logger.warning(f"[LAMBDA] [{geo}] ⚠️ ECR image not found in {geo}. Skipping this region (will not create functions here).")
-                                    # Return 0 success, 0 failure to indicate skip
-                                    return {
-                                        'geo': geo,
-                                        'success_count': 0,
-                                        'failure_count': 0,
-                                        'errors': []
-                                    }
-                                else:
-                                    logger.error(f"[LAMBDA] [{geo}] ✗ ECR check failed: {error_code} - {ecr_err}")
-                                    geo_errors.append(f"ECR access failed: {error_code}")
-                                    geo_failure = len(func_list)
-                                    return {
-                                        'geo': geo,
-                                        'success_count': 0,
-                                        'failure_count': geo_failure,
-                                        'errors': geo_errors
-                                    }
-                            except Exception as ecr_check_err:
-                                logger.error(f"[LAMBDA] [{geo}] ✗ ECR verification error: {ecr_check_err}")
-                                geo_errors.append(f"ECR verification failed: {ecr_check_err}")
+                        
+                        logger.info(f"[LAMBDA] [{geo}] Checking for ECR image: {geo_ecr_uri}")
+                        
+                        try:
+                            ecr_client = geo_session.client('ecr')
+                            # Check if repository and image exist
+                            ecr_client.describe_images(
+                                repositoryName=repo_name,
+                                imageIds=[{"imageTag": image_tag}],
+                            )
+                            logger.info(f"[LAMBDA] [{geo}] ✓ ECR image exists in region {geo}")
+                        except ClientError as ecr_err:
+                            error_code = ecr_err.response.get('Error', {}).get('Code', '')
+                            if error_code in ['RepositoryNotFoundException', 'ImageNotFoundException', 'ResourceNotFoundException']:
+                                logger.warning(f"[LAMBDA] [{geo}] ⚠️ ECR image not found in {geo} (Error: {error_code}). Skipping this region.")
+                                # Return 0 success, 0 failure to indicate skip
+                                return {
+                                    'geo': geo,
+                                    'success_count': 0,
+                                    'failure_count': 0,
+                                    'errors': []
+                                }
+                            else:
+                                logger.error(f"[LAMBDA] [{geo}] ✗ ECR check failed: {error_code} - {ecr_err}")
+                                geo_errors.append(f"ECR access failed: {error_code}")
                                 geo_failure = len(func_list)
                                 return {
                                     'geo': geo,
@@ -2147,6 +2136,16 @@ def create_lambdas():
                                     'failure_count': geo_failure,
                                     'errors': geo_errors
                                 }
+                        except Exception as ecr_check_err:
+                            logger.error(f"[LAMBDA] [{geo}] ✗ ECR verification error: {ecr_check_err}")
+                            geo_errors.append(f"ECR verification failed: {ecr_check_err}")
+                            geo_failure = len(func_list)
+                            return {
+                                'geo': geo,
+                                'success_count': 0,
+                                'failure_count': geo_failure,
+                                'errors': geo_errors
+                            }
                         
                         logger.info(f"[LAMBDA] [{geo}] ✓ Using ECR URI: {geo_ecr_uri}")
                         
