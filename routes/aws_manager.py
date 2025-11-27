@@ -3805,37 +3805,37 @@ def fetch_from_dynamodb():
                 logger.error(traceback.format_exc())
                 # Fallback to individual get_item for this batch
                 for email in email_batch:
-            try:
-                response = table.get_item(Key={'email': email})
-                if 'Item' in response:
-                    item = response['Item']
-                    app_password = item['app_password']
-                    
                     try:
-                        save_app_password(email, app_password)
-                    except Exception as db_err:
-                        logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
-                    
+                        response = table.get_item(Key={'email': email})
+                        if 'Item' in response:
+                            item = response['Item']
+                            app_password = item['app_password']
+                            
+                            try:
+                                save_app_password(email, app_password)
+                            except Exception as db_err:
+                                logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
+                            
                             batch_results.append({
-                        'email': item['email'],
-                        'app_password': app_password,
-                        'created_at': item.get('created_at', ''),
+                                'email': item['email'],
+                                'app_password': app_password,
+                                'created_at': item.get('created_at', ''),
                                 'region': dynamodb_region,
-                        'success': True
-                    })
-                else:
+                                'success': True
+                            })
+                        else:
                             batch_results.append({
-                        'email': email,
-                        'error': 'Not found in DynamoDB',
-                        'success': False
-                    })
+                                'email': email,
+                                'error': 'Not found in DynamoDB',
+                                'success': False
+                            })
                     except Exception as get_err:
                         logger.error(f"[DYNAMODB] Error fetching {email}: {get_err}")
                         batch_results.append({
-                    'email': email,
+                            'email': email,
                             'error': str(get_err),
-                    'success': False
-                })
+                            'success': False
+                        })
         
             return batch_results
         
@@ -4243,14 +4243,14 @@ def delete_all_lambdas():
             try:
                 logger.info(f"[DELETE LAMBDA] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
-        lam = session.client("lambda")
-
+                lam = session.client("lambda")
+    
                 # Try to delete production lambda
-        try:
-            lam.delete_function(FunctionName=PRODUCTION_LAMBDA_NAME)
+                try:
+                    lam.delete_function(FunctionName=PRODUCTION_LAMBDA_NAME)
                     region_deleted.append(f"{PRODUCTION_LAMBDA_NAME} ({target_region})")
-        except lam.exceptions.ResourceNotFoundException:
-            pass
+                except lam.exceptions.ResourceNotFoundException:
+                    pass
                 except Exception as e:
                     error_msg = f"{target_region}: {PRODUCTION_LAMBDA_NAME} - {str(e)}"
                     logger.error(f"[DELETE LAMBDA] [{target_region}] Error: {error_msg}")
@@ -4258,9 +4258,9 @@ def delete_all_lambdas():
 
         # Also check for any other edu-gw lambdas
                 try:
-        paginator = lam.get_paginator("list_functions")
-        for page in paginator.paginate():
-            for fn in page.get("Functions", []):
+                    paginator = lam.get_paginator("list_functions")
+                    for page in paginator.paginate():
+                        for fn in page.get("Functions", []):
                             fn_name = fn["FunctionName"]
                             if "edu-gw" in fn_name:
                                 try:
@@ -4268,7 +4268,7 @@ def delete_all_lambdas():
                                     region_deleted.append(f"{fn_name} ({target_region})")
                                 except lam.exceptions.ResourceNotFoundException:
                                     pass
-                    except Exception as e:
+                                except Exception as e:
                                     error_msg = f"{target_region}: {fn_name} - {str(e)}"
                                     logger.error(f"[DELETE LAMBDA] [{target_region}] Error deleting {fn_name}: {e}")
                                     region_errors.append(error_msg)
@@ -4368,17 +4368,17 @@ def delete_s3_content():
         
         # Delete regular objects
         try:
-        paginator = s3.get_paginator('list_objects_v2')
-        for page in paginator.paginate(Bucket=S3_BUCKET_NAME):
-            objects = page.get('Contents', [])
-            if objects:
-                delete_keys = [{'Key': obj['Key']} for obj in objects]
+            paginator = s3.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=S3_BUCKET_NAME):
+                objects = page.get('Contents', [])
+                if objects:
+                    delete_keys = [{'Key': obj['Key']} for obj in objects]
                     try:
-                s3.delete_objects(
-                    Bucket=S3_BUCKET_NAME,
-                    Delete={'Objects': delete_keys}
-                )
-                deleted_count += len(delete_keys)
+                        s3.delete_objects(
+                            Bucket=S3_BUCKET_NAME,
+                            Delete={'Objects': delete_keys}
+                        )
+                        deleted_count += len(delete_keys)
                         logger.info(f"[S3] Deleted {len(delete_keys)} objects from {S3_BUCKET_NAME}")
                     except ClientError as delete_err:
                         error_code = delete_err.response.get('Error', {}).get('Code', '')
@@ -4535,13 +4535,13 @@ def delete_ecr_repo():
             try:
                 logger.info(f"[DELETE ECR] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
-        ecr = session.client("ecr")
-
+                ecr = session.client("ecr")
+    
                 try:
-        ecr.delete_repository(
-            repositoryName=ECR_REPO_NAME,
-            force=True
-        )
+                    ecr.delete_repository(
+                        repositoryName=ECR_REPO_NAME,
+                        force=True
+                    )
                     logger.info(f"[DELETE ECR] [{target_region}] ✓ Repository deleted successfully")
                     return {'success': True, 'region': target_region}
                 except ecr.exceptions.RepositoryNotFoundException:
@@ -4662,17 +4662,17 @@ def delete_cloudwatch_logs():
             try:
                 logger.info(f"[DELETE CLOUDWATCH] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
-        logs = session.client("logs")
-
-        paginator = logs.get_paginator('describe_log_groups')
-        for page in paginator.paginate():
-            for log_group in page.get('logGroups', []):
-                log_group_name = log_group['logGroupName']
-                if '/aws/lambda/edu-gw' in log_group_name:
-                    try:
-                        logs.delete_log_group(logGroupName=log_group_name)
+                logs = session.client("logs")
+    
+                paginator = logs.get_paginator('describe_log_groups')
+                for page in paginator.paginate():
+                    for log_group in page.get('logGroups', []):
+                        log_group_name = log_group['logGroupName']
+                        if '/aws/lambda/edu-gw' in log_group_name:
+                            try:
+                                logs.delete_log_group(logGroupName=log_group_name)
                                 region_deleted.append(f"{log_group_name} ({target_region})")
-                    except Exception as e:
+                            except Exception as e:
                                 error_msg = f"{target_region}: {log_group_name} - {str(e)}"
                                 logger.error(f"[DELETE CLOUDWATCH] [{target_region}] Error deleting {log_group_name}: {e}")
                                 region_errors.append(error_msg)
@@ -5373,7 +5373,7 @@ def create_or_update_lambda(session, function_name, role_arn, timeout, env_vars,
             "EphemeralStorage": {"Size": 2048}
         }
         try:
-        lam.create_function(**create_params)
+            lam.create_function(**create_params)
         except ClientError as create_err:
             error_code = create_err.response.get('Error', {}).get('Code', '')
             error_msg = create_err.response.get('Error', {}).get('Message', str(create_err))
