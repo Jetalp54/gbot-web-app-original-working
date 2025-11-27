@@ -5577,7 +5577,7 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
     )
     ami_id = param["Parameter"]["Value"]
 
-    instance_type = "t3.small"  # Using t3.small for reliable Docker builds
+    instance_type = "c5.xlarge"  # Using c5.xlarge for high network bandwidth (10Gbps)
 
     repo_uri_base = f"{account_id}.dkr.ecr.{region}.amazonaws.com/{ECR_REPO_NAME}"
 
@@ -5589,7 +5589,6 @@ exec > >(tee /var/log/user-data.log) 2>&1
 echo "=== EC2 Build Box User Data Script Started ==="
 date
 
-yum update -y
 amazon-linux-extras install docker -y || yum install -y docker
 systemctl enable docker
 systemctl start docker
@@ -5769,7 +5768,7 @@ export SOURCE_ECR_URI ACCOUNT_ID REPO_NAME IMAGE_TAG SOURCE_REGION
 
 # Process regions in PARALLEL using GNU parallel or background jobs
 echo "Starting PARALLEL push to all regions..."
-echo "Using up to 8 concurrent pushes for faster completion"
+echo "Using up to 20 concurrent pushes for faster completion"
 
 # Use background jobs for parallel execution
 PIDS=()
@@ -5779,8 +5778,8 @@ for TARGET_REGION in "${{" + "TARGET_REGIONS[@]" + "}}"; do
         continue
     fi
     
-    # Run push in background (limit to 8 concurrent)
-    while [ $(jobs -r | wc -l) -ge 8 ]; do
+    # Run push in background (limit to 20 concurrent)
+    while [ $(jobs -r | wc -l) -ge 20 ]; do
         sleep 1
     done
     
