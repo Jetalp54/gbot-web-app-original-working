@@ -2175,13 +2175,13 @@ def create_lambdas():
                                 logger.info(f"[LAMBDA] [{geo}] Creating function {function_name}...")
                                 logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri}")
                                 
-                                create_or_update_lambda(
+                        create_or_update_lambda(
                                     session=geo_session,
-                                    function_name=function_name,
+                            function_name=function_name,
                                     role_arn=geo_role_arn,
-                                    timeout=timeout,
-                                    env_vars=env_vars,
-                                    package_type=package_type,
+                            timeout=timeout,
+                            env_vars=env_vars,
+                            package_type=package_type,
                                     image_uri=geo_ecr_uri,
                                 )
                                 
@@ -2218,7 +2218,7 @@ def create_lambdas():
                                     else:
                                         raise
                                 
-                            except Exception as func_error:
+                    except Exception as func_error:
                                 error_msg = str(func_error)
                                 logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED to create/update {function_name}: {error_msg}")
                                 
@@ -2227,7 +2227,7 @@ def create_lambdas():
                                     logger.error(f"[LAMBDA] [{geo}] ⚠️ ECR IMAGE MISSING in region {geo}")
                                     logger.error(f"[LAMBDA] [{geo}] Solution: Use 'Push ECR to All Regions' button to push image to {geo}")
                                 
-                                logger.error(traceback.format_exc())
+                        logger.error(traceback.format_exc())
                                 geo_failure += 1
                                 geo_failures.append(f"{function_name}: {error_msg}")
                                 update_job_status()
@@ -3018,10 +3018,10 @@ def bulk_generate():
                     # Mark emails as being processed (for duplicate detection across parallel geos)
                     for user in users_to_process:
                         email = user['email']
-                        with processing_lock:
-                            if email in processing_emails:
+                    with processing_lock:
+                        if email in processing_emails:
                                 logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
-                            processing_emails.add(email)
+                        processing_emails.add(email)
                     
                     # Prepare batch payload for Lambda
                     # CRITICAL: Final check - ensure we never send more than 10 users
@@ -3047,20 +3047,20 @@ def bulk_generate():
                     logger.info(f"[BULK] [{assigned_function_name}] Payload JSON length: {len(json.dumps(batch_payload))} bytes")
                     logger.info(f"[BULK] [{assigned_function_name}] Payload preview: {json.dumps(batch_payload)[:500]}...")
                     logger.info("=" * 60)
-                    
-                    # Rate limiting: Acquire semaphore to limit concurrent invocations
+                        
+                        # Rate limiting: Acquire semaphore to limit concurrent invocations
                     # NOTE: Semaphore limit is now 500 to allow all functions in all geos to start in parallel
                     # The semaphore is held for the duration of the Lambda invocation (up to 15 minutes)
                     # This ensures we don't exceed AWS account limits while allowing maximum parallelism
                     logger.info(f"[BULK] [{assigned_function_name}] Acquiring semaphore for Lambda invocation...")
-                    lambda_invocation_semaphore.acquire()
+                        lambda_invocation_semaphore.acquire()
                     logger.info(f"[BULK] [{assigned_function_name}] ✓ Semaphore acquired, invoking Lambda NOW (parallel execution enabled)")
-                    try:
+                        try:
                         # Retry logic for rate limiting
                         max_retries = 3
                         resp = None
-                        for attempt in range(max_retries):
-                            try:
+                            for attempt in range(max_retries):
+                                try:
                                 # Use SYNC invocation to wait for completion (sequential processing)
                                 resp = lam_batch.invoke(
                                     FunctionName=assigned_function_name,
@@ -3159,18 +3159,18 @@ def bulk_generate():
                                             })
                                         return batch_results
                                 
-                            except ClientError as ce:
-                                error_code = ce.response['Error']['Code']
-                                error_message = ce.response['Error'].get('Message', '')
-                                
-                                if error_code == 'ResourceNotFoundException':
+                                except ClientError as ce:
+                                    error_code = ce.response['Error']['Code']
+                                    error_message = ce.response['Error'].get('Message', '')
+                                    
+                                    if error_code == 'ResourceNotFoundException':
                                     logger.error(f"[BULK] Lambda function {assigned_function_name} not found")
                                     # Try to fall back to default function
                                     if assigned_function_name != PRODUCTION_LAMBDA_NAME:
                                         logger.warning(f"[BULK] Falling back to default function {PRODUCTION_LAMBDA_NAME}")
                                         assigned_function_name = PRODUCTION_LAMBDA_NAME
-                                        continue  # Retry with default function
-                                    else:
+                                            continue  # Retry with default function
+                                        else:
                                         # All users in batch fail
                                         for u in users_to_process:
                                             batch_results.append({
@@ -3179,15 +3179,15 @@ def bulk_generate():
                                                 'error': f'Lambda function {assigned_function_name} not found'
                                             })
                                         return batch_results
-                                
-                                if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
-                                    if attempt < max_retries - 1:
+                                    
+                                    if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
+                                        if attempt < max_retries - 1:
                                         base_wait = (2 ** attempt) * 2
                                         jitter = random.uniform(0, 1)
-                                        wait_time = base_wait + jitter
+                                            wait_time = base_wait + jitter
                                         logger.warning(f"[BULK] Rate limited for batch, retrying in {wait_time:.2f}s (attempt {attempt + 1}/{max_retries})")
-                                        time.sleep(wait_time)
-                                    else:
+                                            time.sleep(wait_time)
+                                        else:
                                         # All users in batch fail
                                         for u in users_to_process:
                                             batch_results.append({
@@ -3196,7 +3196,7 @@ def bulk_generate():
                                                 'error': f'Rate limited: {error_message}'
                                             })
                                         return batch_results
-                                else:
+                                    else:
                                     logger.error(f"[BULK] AWS error: {error_code} - {error_message}")
                                     # All users in batch fail
                                     for u in users_to_process:
@@ -3234,9 +3234,9 @@ def bulk_generate():
                                         return batch_results
                                     time.sleep(2)
                                     continue
-                    finally:
-                        lambda_invocation_semaphore.release()
-                    
+                        finally:
+                            lambda_invocation_semaphore.release()
+                        
                     # Remove processed emails from tracking set
                     for u in users_to_process:
                         with processing_lock:
@@ -3311,7 +3311,7 @@ def bulk_generate():
                             all_functions = lam_client.list_functions()
                             existing_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
                             logger.info(f"[BULK] [{geo}] ✓ Found {len(existing_function_names)} existing function(s) in {geo}: {existing_function_names[:5]}{'...' if len(existing_function_names) > 5 else ''}")
-                    except Exception as e:
+                        except Exception as e:
                             logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR: Could not initialize session or list functions: {e}")
                             logger.error(traceback.format_exc())
                             # Don't return empty - raise exception so it's caught by outer handler
