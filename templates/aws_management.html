@@ -1844,8 +1844,22 @@
                 // Sort regions alphabetically
                 const sortedRegions = Object.keys(data.regions).sort();
                 
+                // Calculate totals
+                let totalLambdaFunctions = 0;
+                let totalECRRepos = 0;
+                let totalECRImages = 0;
+                const totalRegions = sortedRegions.length;
+                
                 sortedRegions.forEach(regionKey => {
                     const regionData = data.regions[regionKey];
+                    
+                    // Accumulate totals
+                    totalLambdaFunctions += regionData.lambda_count || 0;
+                    if (regionData.ecr_repo_exists) {
+                        totalECRRepos += 1;
+                    }
+                    totalECRImages += regionData.ecr_image_count || 0;
+                    
                     const row = document.createElement('tr');
                     row.style.borderBottom = '1px solid var(--color-border-default)';
                     
@@ -1905,6 +1919,57 @@
                     
                     tbody.appendChild(row);
                 });
+                
+                // Add totals row
+                const totalsRow = document.createElement('tr');
+                totalsRow.style.backgroundColor = 'var(--color-canvas-subtle)';
+                totalsRow.style.borderTop = '2px solid var(--color-border-default)';
+                totalsRow.style.fontWeight = '600';
+                
+                // Total label
+                const totalLabelCell = document.createElement('td');
+                totalLabelCell.style.padding = 'var(--spacing-sm)';
+                totalLabelCell.textContent = 'TOTAL';
+                totalLabelCell.style.fontWeight = '600';
+                totalsRow.appendChild(totalLabelCell);
+                
+                // Total Lambda Functions
+                const totalLambdaCell = document.createElement('td');
+                totalLambdaCell.style.padding = 'var(--spacing-sm)';
+                totalLambdaCell.style.textAlign = 'center';
+                totalLambdaCell.textContent = `${totalLambdaFunctions}/${totalRegions}`;
+                totalLambdaCell.style.fontWeight = '600';
+                totalsRow.appendChild(totalLambdaCell);
+                
+                // Empty cell for function names column
+                const emptyNamesCell = document.createElement('td');
+                emptyNamesCell.style.padding = 'var(--spacing-sm)';
+                emptyNamesCell.textContent = '-';
+                totalsRow.appendChild(emptyNamesCell);
+                
+                // Total ECR Repos
+                const totalECRRepoCell = document.createElement('td');
+                totalECRRepoCell.style.padding = 'var(--spacing-sm)';
+                totalECRRepoCell.style.textAlign = 'center';
+                totalECRRepoCell.textContent = `${totalECRRepos}/${totalRegions}`;
+                totalECRRepoCell.style.fontWeight = '600';
+                totalsRow.appendChild(totalECRRepoCell);
+                
+                // Total ECR Images
+                const totalECRImagesCell = document.createElement('td');
+                totalECRImagesCell.style.padding = 'var(--spacing-sm)';
+                totalECRImagesCell.style.textAlign = 'center';
+                totalECRImagesCell.textContent = `${totalECRImages}/${totalRegions}`;
+                totalECRImagesCell.style.fontWeight = '600';
+                totalsRow.appendChild(totalECRImagesCell);
+                
+                // Empty cell for status column
+                const emptyStatusCell = document.createElement('td');
+                emptyStatusCell.style.padding = 'var(--spacing-sm)';
+                emptyStatusCell.textContent = '-';
+                totalsRow.appendChild(emptyStatusCell);
+                
+                tbody.appendChild(totalsRow);
                 
                 // Update DynamoDB status
                 if (data.dynamodb) {
