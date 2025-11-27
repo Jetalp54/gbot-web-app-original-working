@@ -971,16 +971,16 @@ if ! docker push {target_ecr_uri}; then
 fi
 echo "✓ Image pushed successfully"
 
-# Verify image exists in target region
+# Verify image exists in target region (optimized for speed)
 echo "=== Step 6: Verifying image exists in {target_region}... ==="
-sleep 3  # Wait for ECR to update
-for i in {{1..5}}; do
+sleep 2  # Reduced wait time for ECR to update
+for i in {{1..3}}; do
     if aws ecr describe-images --repository-name {repo_name} --image-ids imageTag={image_tag} --region {target_region} 2>&1; then
         echo "✓✓✓ VERIFIED: Image exists in ECR after push!"
         exit 0
     fi
-    echo "Image not found yet (attempt $i/5), waiting..."
-    sleep 3
+    echo "Image not found yet (attempt $i/3), waiting..."
+    sleep 2  # Reduced wait time
 done
 
 echo "ERROR: Image push completed but verification failed - image not found in ECR"
@@ -996,7 +996,7 @@ exit 1
                                         'commands': [push_script],
                                         'workingDirectory': ['/home/ec2-user']
                                     },
-                                    TimeoutSeconds=3600  # 60 minutes - increased for large images
+                                    TimeoutSeconds=1800  # 30 minutes - optimized for faster processing
                                 )
                                 
                                 command_id = response['Command']['CommandId']
@@ -1004,8 +1004,8 @@ exit 1
                                 logger.info(f"[ECR] [{target_region}] Push script will: 1) Auth, 2) Pull from {source_region}, 3) Tag, 4) Push to {target_region}, 5) Verify")
                                 
                                 # Wait for command to complete (with extended timeout for large images)
-                                max_wait = 3600  # 60 minutes - increased for large Docker images
-                                wait_interval = 20  # Check every 20 seconds (reduced frequency to avoid SSM API throttling)
+                                max_wait = 1800  # 30 minutes - optimized for faster failure detection
+                                wait_interval = 10  # Check every 10 seconds (faster status updates)
                                 waited = 0
                                 last_status = None
                                 
@@ -1046,9 +1046,9 @@ exit 1
                                             
                                             # CRITICAL: Verify the image actually exists after EC2 push
                                             logger.info(f"[ECR] [{target_region}] Verifying image exists after EC2 push...")
-                                            time.sleep(3)  # Wait for ECR to update
+                                            time.sleep(2)  # Reduced wait time for ECR to update
                                             
-                                            verification_attempts = 5
+                                            verification_attempts = 3  # Reduced from 5 to 3 for faster processing
                                             image_verified = False
                                             for verify_attempt in range(verification_attempts):
                                                 try:
@@ -1062,7 +1062,7 @@ exit 1
                                                 except ClientError as verify_err:
                                                     if verify_err.response['Error']['Code'] == 'ImageNotFoundException':
                                                         logger.warning(f"[ECR] [{target_region}] Image not found yet (attempt {verify_attempt + 1}/{verification_attempts}), waiting...")
-                                                        time.sleep(3)
+                                                        time.sleep(2)  # Reduced from 3 to 2 seconds
                                                     else:
                                                         logger.error(f"[ECR] [{target_region}] Verification error: {verify_err}")
                                                         break
@@ -1274,11 +1274,11 @@ exit 1
                             
                             logger.info(f"[ECR] [{target_region}] ✓✓✓ Docker push command completed")
                             
-                            # CRITICAL: Verify the image actually exists after push
+                            # CRITICAL: Verify the image actually exists after push (optimized for speed)
                             logger.info(f"[ECR] [{target_region}] Verifying image exists after push...")
-                            time.sleep(2)  # Wait a moment for ECR to update
+                            time.sleep(2)  # Reduced wait time for ECR to update
                             
-                            verification_attempts = 5
+                            verification_attempts = 3  # Reduced from 5 to 3 for faster processing
                             image_verified = False
                             for verify_attempt in range(verification_attempts):
                                 try:
@@ -1292,7 +1292,7 @@ exit 1
                                 except ClientError as verify_err:
                                     if verify_err.response['Error']['Code'] == 'ImageNotFoundException':
                                         logger.warning(f"[ECR] [{target_region}] Image not found yet (attempt {verify_attempt + 1}/{verification_attempts}), waiting...")
-                                        time.sleep(3)
+                                        time.sleep(2)  # Reduced from 3 to 2 seconds for faster processing
                                     else:
                                         logger.error(f"[ECR] [{target_region}] Verification error: {verify_err}")
                                         break
@@ -1341,14 +1341,14 @@ exit 1
                     pass
                 
                 if using_ec2_for_any:
-                    # When using EC2, limit to 3 concurrent pushes to avoid overwhelming the instance
-                    # Large Docker images (1-3GB) take 10-30 minutes each to push
-                    max_workers = min(len(target_regions), 3)
-                    logger.info(f"[ECR] Using EC2 build box - limiting to {max_workers} concurrent pushes to avoid overwhelming instance")
-                    logger.info(f"[ECR] Each push may take 10-30 minutes for large images. Total time: ~{len(target_regions) * 15 / max_workers:.0f} minutes")
+                    # When using EC2, increase parallelism for faster processing
+                    # EC2 instances can handle more concurrent Docker operations
+                    max_workers = min(len(target_regions), 8)  # Increased from 3 to 8 for faster processing
+                    logger.info(f"[ECR] Using EC2 build box - processing {max_workers} regions in parallel for faster completion")
+                    logger.info(f"[ECR] Each push may take 5-15 minutes for large images. Total time: ~{len(target_regions) * 10 / max_workers:.0f} minutes")
                 else:
                     # When using local Docker or manual, can process more in parallel
-                    max_workers = min(len(target_regions), 10)  # Reduced from 20 to 10 to avoid overwhelming Docker
+                    max_workers = min(len(target_regions), 15)  # Increased from 10 to 15 for faster processing
                     logger.info(f"[ECR] Using local Docker/manual - processing up to {max_workers} regions in parallel")
                 
                 # Process all regions in PARALLEL using ThreadPoolExecutor
@@ -5448,79 +5448,116 @@ SUCCESS_COUNT=0
 FAILED_COUNT=0
 FAILED_REGIONS=()
 
+# Function to push to a single region (for parallel execution)
+push_region() {{
+    TARGET_REGION=$1
+    TARGET_ECR_URI="$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com/$REPO_NAME:$IMAGE_TAG"
+    
+    echo "[$TARGET_REGION] Starting push process..."
+    
+    # Check if image already exists
+    if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" --region "$TARGET_REGION" 2>/dev/null; then
+        echo "[$TARGET_REGION] ✓ Image already exists, skipping..."
+        echo "[$TARGET_REGION] SUCCESS" > /tmp/ecr_push_$TARGET_REGION.result
+        return 0
+    fi
+    
+    # Create ECR repository if it doesn't exist
+    if ! aws ecr describe-repositories --repository-names "$REPO_NAME" --region "$TARGET_REGION" 2>/dev/null; then
+        echo "[$TARGET_REGION] Creating ECR repository..."
+        aws ecr create-repository --repository-name "$REPO_NAME" --region "$TARGET_REGION" --image-tag-mutability MUTABLE 2>/dev/null || true
+        sleep 1  # Reduced wait time
+    fi
+    
+    # Authenticate with target region
+    if ! aws ecr get-login-password --region "$TARGET_REGION" | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com" 2>/dev/null; then
+        echo "[$TARGET_REGION] ✗ Failed to authenticate"
+        echo "[$TARGET_REGION] FAILED" > /tmp/ecr_push_$TARGET_REGION.result
+        return 1
+    fi
+    
+    # Tag image for target region
+    docker tag "$SOURCE_ECR_URI" "$TARGET_ECR_URI" 2>/dev/null || {{
+        echo "[$TARGET_REGION] ✗ Failed to tag image"
+        echo "[$TARGET_REGION] FAILED" > /tmp/ecr_push_$TARGET_REGION.result
+        return 1
+    }}
+    
+    # Push image to target region
+    if docker push "$TARGET_ECR_URI" 2>/dev/null; then
+        # Verify image exists after push (optimized)
+        sleep 2  # Reduced wait time
+        VERIFIED=0
+        for verify_attempt in {{1..3}}; do
+            if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" --region "$TARGET_REGION" 2>&1; then
+                echo "[$TARGET_REGION] ✓✓✓ VERIFIED: Image exists in ECR!"
+                VERIFIED=1
+                break
+            fi
+            sleep 2  # Reduced wait time
+        done
+        
+        if [ $VERIFIED -eq 1 ]; then
+            echo "[$TARGET_REGION] ✓ Successfully pushed and verified"
+            echo "[$TARGET_REGION] SUCCESS" > /tmp/ecr_push_$TARGET_REGION.result
+            return 0
+        else
+            echo "[$TARGET_REGION] ✗ Push completed but verification failed"
+            echo "[$TARGET_REGION] FAILED" > /tmp/ecr_push_$TARGET_REGION.result
+            return 1
+        fi
+    else
+        echo "[$TARGET_REGION] ✗ Failed to push"
+        echo "[$TARGET_REGION] FAILED" > /tmp/ecr_push_$TARGET_REGION.result
+        return 1
+    fi
+}}
+
+# Export function for parallel execution
+export -f push_region
+export SOURCE_ECR_URI ACCOUNT_ID REPO_NAME IMAGE_TAG SOURCE_REGION
+
+# Process regions in PARALLEL using GNU parallel or background jobs
+echo "Starting PARALLEL push to all regions..."
+echo "Using up to 8 concurrent pushes for faster completion"
+
+# Use background jobs for parallel execution
+PIDS=()
 for TARGET_REGION in "${{" + "TARGET_REGIONS[@]" + "}}"; do
     # Skip source region
     if [ "$TARGET_REGION" = "$SOURCE_REGION" ]; then
         continue
     fi
     
-    echo ""
-    echo "=========================================="
-    echo "Processing region: $TARGET_REGION"
-    echo "=========================================="
+    # Run push in background (limit to 8 concurrent)
+    while [ $(jobs -r | wc -l) -ge 8 ]; do
+        sleep 1
+    done
     
-    TARGET_ECR_URI="$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com/$REPO_NAME:$IMAGE_TAG"
-    
-    # Check if image already exists
-    if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" --region "$TARGET_REGION" 2>/dev/null; then
-        echo "✓ Image already exists in $TARGET_REGION, skipping..."
-        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+    push_region "$TARGET_REGION" &
+    PIDS+=($!)
+done
+
+# Wait for all background jobs to complete
+echo "Waiting for all pushes to complete..."
+for PID in "${{PIDS[@]}}"; do
+    wait $PID
+done
+
+# Collect results
+for TARGET_REGION in "${{" + "TARGET_REGIONS[@]" + "}}"; do
+    if [ "$TARGET_REGION" = "$SOURCE_REGION" ]; then
         continue
     fi
     
-    # Create ECR repository if it doesn't exist
-    echo "Ensuring ECR repository exists in $TARGET_REGION..."
-    if ! aws ecr describe-repositories --repository-names "$REPO_NAME" --region "$TARGET_REGION" 2>/dev/null; then
-        echo "Creating ECR repository in $TARGET_REGION..."
-        aws ecr create-repository --repository-name "$REPO_NAME" --region "$TARGET_REGION" --image-tag-mutability MUTABLE 2>/dev/null || echo "Repository may already exist or creation failed"
-        sleep 2
-    fi
-    
-    # Authenticate with target region
-    echo "Authenticating with ECR in $TARGET_REGION..."
-    if ! aws ecr get-login-password --region "$TARGET_REGION" | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com"; then
-        echo "✗ Failed to authenticate with $TARGET_REGION (check error output above)"
-        FAILED_COUNT=$((FAILED_COUNT + 1))
-        FAILED_REGIONS+=("$TARGET_REGION")
-        continue
-    fi
-    echo "✓ Authenticated with $TARGET_REGION"
-    
-    # Tag image for target region
-    echo "Tagging image for $TARGET_REGION..."
-    docker tag "$SOURCE_ECR_URI" "$TARGET_ECR_URI"
-    
-    # Push image to target region
-    echo "Pushing image to $TARGET_REGION..."
-    if docker push "$TARGET_ECR_URI"; then
-        echo "✓ Docker push command completed"
-        
-        # Verify image exists after push
-        echo "Verifying image exists in $TARGET_REGION..."
-        sleep 3
-        VERIFIED=0
-        for verify_attempt in {{1..5}}; do
-            if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" --region "$TARGET_REGION" 2>&1; then
-                echo "✓✓✓ VERIFIED: Image exists in ECR after push!"
-                VERIFIED=1
-                break
-            fi
-            echo "Image not found yet (attempt $verify_attempt/5), waiting..."
-            sleep 3
-        done
-        
-        if [ $VERIFIED -eq 1 ]; then
-            echo "✓ Successfully pushed and verified in $TARGET_REGION"
+    if [ -f "/tmp/ecr_push_$TARGET_REGION.result" ]; then
+        if grep -q "SUCCESS" "/tmp/ecr_push_$TARGET_REGION.result"; then
             SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         else
-            echo "✗ Push completed but verification failed for $TARGET_REGION"
             FAILED_COUNT=$((FAILED_COUNT + 1))
             FAILED_REGIONS+=("$TARGET_REGION")
         fi
-    else
-        echo "✗ Failed to push to $TARGET_REGION (check error output above)"
-        FAILED_COUNT=$((FAILED_COUNT + 1))
-        FAILED_REGIONS+=("$TARGET_REGION")
+        rm -f "/tmp/ecr_push_$TARGET_REGION.result"
     fi
 done
 
