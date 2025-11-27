@@ -3234,8 +3234,8 @@ def bulk_generate():
                                         return batch_results
                                     time.sleep(2)
                                     continue
-                        finally:
-                            lambda_invocation_semaphore.release()
+                    finally:
+                        lambda_invocation_semaphore.release()
                         
                     # Remove processed emails from tracking set
                     for u in users_to_process:
@@ -3480,38 +3480,38 @@ def bulk_generate():
                                     geo_results.extend(function_results)
                                     
                                     # Update job status
-                        with jobs_lock:
-                            if job_id in active_jobs:
+                                    with jobs_lock:
+                                        if job_id in active_jobs:
                                             for result in function_results:
-                                active_jobs[job_id]['completed'] += 1
+                                                active_jobs[job_id]['completed'] += 1
                                                 if result.get('success'):
-                                    active_jobs[job_id]['success'] += 1
-                                    active_jobs[job_id]['results'].append({
-                                        'email': result['email'],
+                                                    active_jobs[job_id]['success'] += 1
+                                                    active_jobs[job_id]['results'].append({
+                                                        'email': result['email'],
                                                         'app_password': result.get('app_password'),
-                                        'success': True
-                                    })
-                                else:
-                                    active_jobs[job_id]['failed'] += 1
-                                    active_jobs[job_id]['results'].append({
-                                        'email': result['email'],
+                                                        'success': True
+                                                    })
+                                                else:
+                                                    active_jobs[job_id]['failed'] += 1
+                                                    active_jobs[job_id]['results'].append({
+                                                        'email': result['email'],
                                                         'error': result.get('error', 'Unknown error'),
-                                        'success': False
-                                    })
+                                                        'success': False
+                                                    })
                                     
                                     logger.info(f"[BULK] [{geo}] ✓ Function {func_num} finished: {sum(1 for r in function_results if r.get('success'))}/{len(function_results)} success")
-                    except Exception as e:
+                                except Exception as e:
                                     logger.error(f"[BULK] [{geo}] ✗ Function {func_num} exception: {e}")
-                        logger.error(traceback.format_exc())
-                
+                                    logger.error(traceback.format_exc())
+                        
                         # Log completion summary
-                logger.info("=" * 60)
+                        logger.info("=" * 60)
                         logger.info(f"[BULK] [{geo}] ===== PARALLEL PROCESSING COMPLETED =====")
                         logger.info(f"[BULK] [{geo}] Total functions processed: {len(geo_batches_list)}")
                         logger.info(f"[BULK] [{geo}] Total users processed: {len(geo_results)}")
                         logger.info(f"[BULK] [{geo}] Success: {sum(1 for r in geo_results if r.get('success'))}")
                         logger.info(f"[BULK] [{geo}] Failed: {sum(1 for r in geo_results if not r.get('success'))}")
-                logger.info("=" * 60)
+                        logger.info("=" * 60)
                         return geo_results
                     except Exception as geo_err:
                         logger.error("=" * 60)
