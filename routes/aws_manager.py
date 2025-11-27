@@ -3047,20 +3047,20 @@ def bulk_generate():
                     logger.info(f"[BULK] [{assigned_function_name}] Payload JSON length: {len(json.dumps(batch_payload))} bytes")
                     logger.info(f"[BULK] [{assigned_function_name}] Payload preview: {json.dumps(batch_payload)[:500]}...")
                     logger.info("=" * 60)
-                        
-                        # Rate limiting: Acquire semaphore to limit concurrent invocations
+                    
+                    # Rate limiting: Acquire semaphore to limit concurrent invocations
                     # NOTE: Semaphore limit is now 500 to allow all functions in all geos to start in parallel
                     # The semaphore is held for the duration of the Lambda invocation (up to 15 minutes)
                     # This ensures we don't exceed AWS account limits while allowing maximum parallelism
                     logger.info(f"[BULK] [{assigned_function_name}] Acquiring semaphore for Lambda invocation...")
-                        lambda_invocation_semaphore.acquire()
+                    lambda_invocation_semaphore.acquire()
                     logger.info(f"[BULK] [{assigned_function_name}] ✓ Semaphore acquired, invoking Lambda NOW (parallel execution enabled)")
-                        try:
+                    try:
                         # Retry logic for rate limiting
                         max_retries = 3
                         resp = None
-                            for attempt in range(max_retries):
-                                try:
+                        for attempt in range(max_retries):
+                            try:
                                 # Use SYNC invocation to wait for completion (sequential processing)
                                 resp = lam_batch.invoke(
                                     FunctionName=assigned_function_name,
@@ -3100,7 +3100,7 @@ def bulk_generate():
                                         lambda_status = lambda_result.get("status", "unknown")
                                         app_password = lambda_result.get("app_password")
                                         error_msg = lambda_result.get("error_message", "Unknown error")
-                                    
+                                        
                                         if lambda_status == 'success' and app_password:
                                             logger.info(f"[BULK] Saving password for {email} to DB")
                                             try:
