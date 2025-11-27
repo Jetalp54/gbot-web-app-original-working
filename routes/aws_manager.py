@@ -772,6 +772,9 @@ def push_ecr_to_all_regions():
         
         def push_ecr_background():
             """Background task to push ECR image to all regions (PARALLEL)"""
+            # Create a local reference to target_regions to avoid scope issues
+            # We'll update the outer scope variable later after pre-scan
+            regions_to_process = list(target_regions)  # Copy the list
             success_count = 0
             failure_count = 0
             results = {}
@@ -937,7 +940,7 @@ def push_ecr_to_all_regions():
                 
                 # Check all regions in parallel for faster pre-scan
                 logger.info("=" * 60)
-                logger.info(f"[ECR] PRE-SCAN PHASE: Checking {len(target_regions)} regions for existing images...")
+                logger.info(f"[ECR] PRE-SCAN PHASE: Checking {len(regions_to_process)} regions for existing images...")
                 logger.info(f"[ECR] Looking for image tag: '{image_tag}' in repository: '{repo_name}'")
                 logger.info("=" * 60)
                 regions_to_push = []
@@ -946,7 +949,7 @@ def push_ecr_to_all_regions():
                 regions_needing_repo = []
                 
                 with ThreadPoolExecutor(max_workers=20) as scan_executor:
-                    scan_futures = {scan_executor.submit(check_region_image_status, region): region for region in target_regions}
+                    scan_futures = {scan_executor.submit(check_region_image_status, region): region for region in regions_to_process}
                     
                     for scan_future in as_completed(scan_futures):
                         check_region = scan_futures[scan_future]
@@ -987,7 +990,7 @@ def push_ecr_to_all_regions():
                 # Log summary with detailed breakdown
                 logger.info("=" * 60)
                 logger.info(f"[ECR] PRE-SCAN SUMMARY:")
-                logger.info(f"[ECR]   Total regions scanned: {len(target_regions)}")
+                logger.info(f"[ECR]   Total regions scanned: {len(regions_to_process)}")
                 logger.info(f"[ECR]   ✓ Regions with image (WILL SKIP): {len(regions_with_image)}")
                 if regions_with_image:
                     logger.info(f"[ECR]      Skipped regions: {', '.join(sorted(regions_with_image))}")
@@ -997,7 +1000,7 @@ def push_ecr_to_all_regions():
                 logger.info(f"[ECR]   ⚠️ Regions needing push (repo + image missing): {len(regions_needing_repo)}")
                 if regions_needing_repo:
                     logger.info(f"[ECR]      Regions: {', '.join(sorted(regions_needing_repo))}")
-                logger.info(f"[ECR]   📊 TOTAL regions that need pushing: {len(regions_to_push)} out of {len(target_regions)}")
+                logger.info(f"[ECR]   📊 TOTAL regions that need pushing: {len(regions_to_push)} out of {len(regions_to_process)}")
                 if regions_to_push:
                     logger.info(f"[ECR]      Will push to: {', '.join(sorted(regions_to_push))}")
                 logger.info("=" * 60)
@@ -1006,7 +1009,7 @@ def push_ecr_to_all_regions():
                 with lambda_creation_lock:
                     if job_id in lambda_creation_jobs:
                         lambda_creation_jobs[job_id]['pre_scan'] = {
-                            'total_regions': len(target_regions),
+                            'total_regions': len(regions_to_process),
                             'regions_with_image': len(regions_with_image),
                             'regions_to_push': len(regions_to_push),
                             'regions_with_image_list': sorted(regions_with_image),
@@ -1028,23 +1031,27 @@ def push_ecr_to_all_regions():
                             }
                     return
                 
-                # Update target_regions to only include regions that need pushing
-                original_count = len(target_regions)
-                target_regions = regions_to_push
-                skipped_count = original_count - len(target_regions)
+                # Update regions_to_process to only include regions that need pushing
+                original_count = len(regions_to_process)
+                regions_to_process = regions_to_push
+                skipped_count = original_count - len(regions_to_process)
+                
+                # Update the outer scope variable for consistency
+                nonlocal target_regions
+                target_regions = regions_to_process
                 
                 logger.info("=" * 60)
                 logger.info(f"[ECR] PRE-SCAN FILTERING COMPLETE:")
                 logger.info(f"[ECR]   Original target regions: {original_count}")
                 logger.info(f"[ECR]   Regions with image (SKIPPED): {skipped_count}")
-                logger.info(f"[ECR]   Regions needing push: {len(target_regions)}")
+                logger.info(f"[ECR]   Regions needing push: {len(regions_to_process)}")
                 logger.info("=" * 60)
                 
-                if len(target_regions) == 0:
+                if len(regions_to_process) == 0:
                     logger.info(f"[ECR] ✓✓✓ All {original_count} regions already have the image! No push needed.")
                 else:
-                    logger.info(f"[ECR] Proceeding to push to {len(target_regions)} region(s) that need the image...")
-                    logger.info(f"[ECR] Target regions for push: {', '.join(sorted(target_regions))}")
+                    logger.info(f"[ECR] Proceeding to push to {len(regions_to_process)} region(s) that need the image...")
+                    logger.info(f"[ECR] Target regions for push: {', '.join(sorted(regions_to_process))}")
                 
                 def push_to_region(target_region):
                     """Push ECR image to a single region (for parallel execution)"""
@@ -1591,26 +1598,26 @@ exit 1
                 if using_ec2_for_any:
                     # When using EC2, increase parallelism for faster processing
                     # EC2 instances can handle more concurrent Docker operations
-                    max_workers = min(len(target_regions), 8)  # Increased from 3 to 8 for faster processing
+                    max_workers = min(len(regions_to_process), 8)  # Increased from 3 to 8 for faster processing
                     logger.info(f"[ECR] Using EC2 build box - processing {max_workers} regions in parallel for faster completion")
-                    logger.info(f"[ECR] Each push may take 5-15 minutes for large images. Total time: ~{len(target_regions) * 10 / max_workers:.0f} minutes")
+                    logger.info(f"[ECR] Each push may take 5-15 minutes for large images. Total time: ~{len(regions_to_process) * 10 / max_workers:.0f} minutes")
                 else:
                     # When using local Docker or manual, can process more in parallel
-                    max_workers = min(len(target_regions), 15)  # Increased from 10 to 15 for faster processing
+                    max_workers = min(len(regions_to_process), 15)  # Increased from 10 to 15 for faster processing
                     logger.info(f"[ECR] Using local Docker/manual - processing up to {max_workers} regions in parallel")
                 
                 # Process all regions in PARALLEL using ThreadPoolExecutor
-                logger.info(f"[ECR] Starting PARALLEL push to {len(target_regions)} regions...")
+                logger.info(f"[ECR] Starting PARALLEL push to {len(regions_to_process)} regions...")
                 logger.info(f"[ECR] Using {max_workers} parallel workers")
                 
                 # Update job status to processing
                 with lambda_creation_lock:
                     if job_id in lambda_creation_jobs:
                         lambda_creation_jobs[job_id]['status'] = 'processing'
-                        lambda_creation_jobs[job_id]['message'] = f'Pushing to {len(target_regions)} regions in parallel...'
+                        lambda_creation_jobs[job_id]['message'] = f'Pushing to {len(regions_to_process)} regions in parallel...'
                 
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = {executor.submit(push_to_region, region): region for region in target_regions}
+                    futures = {executor.submit(push_to_region, region): region for region in regions_to_process}
                     
                     completed = 0
                     for future in as_completed(futures):
@@ -1622,10 +1629,10 @@ exit 1
                                 results[target_region] = region_result
                                 if region_result.get('success'):
                                     success_count += 1
-                                    logger.info(f"[ECR] [{target_region}] ✓ Completed ({completed}/{len(target_regions)})")
+                                    logger.info(f"[ECR] [{target_region}] ✓ Completed ({completed}/{len(regions_to_process)})")
                                 else:
                                     failure_count += 1
-                                    logger.error(f"[ECR] [{target_region}] ✗ Failed ({completed}/{len(target_regions)}): {region_result.get('error', 'Unknown error')}")
+                                    logger.error(f"[ECR] [{target_region}] ✗ Failed ({completed}/{len(regions_to_process)}): {region_result.get('error', 'Unknown error')}")
                             
                             # Update job status in real-time with AWS verification
                             with lambda_creation_lock:
@@ -1652,7 +1659,7 @@ exit 1
                                     lambda_creation_jobs[job_id]['success_count'] = success_count
                                     lambda_creation_jobs[job_id]['failure_count'] = failure_count
                                     lambda_creation_jobs[job_id]['results'] = results.copy()
-                                    lambda_creation_jobs[job_id]['message'] = f'Progress: {completed}/{len(target_regions)} regions completed ({success_count} success, {failure_count} failed)'
+                                    lambda_creation_jobs[job_id]['message'] = f'Progress: {completed}/{len(regions_to_process)} regions completed ({success_count} success, {failure_count} failed)'
                                     lambda_creation_jobs[job_id]['last_update'] = time.time()
                                     
                         except Exception as e:
@@ -1673,7 +1680,7 @@ exit 1
                 logger.info("[ECR] Performing final AWS verification pass...")
                 verified_success = 0
                 verified_failure = 0
-                for target_region in target_regions:
+                for target_region in regions_to_process:
                     try:
                         verify_session = boto3.Session(
                             aws_access_key_id=access_key,
@@ -1717,7 +1724,7 @@ exit 1
                 
                 # CRITICAL: Verify ALL geos were processed
                 processed_regions = set(results.keys())
-                expected_regions = set(target_regions)
+                expected_regions = set(regions_to_process)
                 missing_regions = expected_regions - processed_regions
                 
                 if missing_regions:
@@ -2173,13 +2180,13 @@ def create_lambdas():
                                 logger.info(f"[LAMBDA] [{geo}] Creating function {function_name}...")
                                 logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri}")
                                 
-                                create_or_update_lambda(
+                        create_or_update_lambda(
                                     session=geo_session,
-                                    function_name=function_name,
+                            function_name=function_name,
                                     role_arn=geo_role_arn,
-                                    timeout=timeout,
-                                    env_vars=env_vars,
-                                    package_type=package_type,
+                            timeout=timeout,
+                            env_vars=env_vars,
+                            package_type=package_type,
                                     image_uri=geo_ecr_uri,
                                 )
                                 
@@ -2216,7 +2223,7 @@ def create_lambdas():
                                     else:
                                         raise
                                 
-                            except Exception as func_error:
+                    except Exception as func_error:
                                 error_msg = str(func_error)
                                 logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED to create/update {function_name}: {error_msg}")
                                 
@@ -2225,7 +2232,7 @@ def create_lambdas():
                                     logger.error(f"[LAMBDA] [{geo}] ⚠️ ECR IMAGE MISSING in region {geo}")
                                     logger.error(f"[LAMBDA] [{geo}] Solution: Use 'Push ECR to All Regions' button to push image to {geo}")
                                 
-                                logger.error(traceback.format_exc())
+                        logger.error(traceback.format_exc())
                                 geo_failure += 1
                                 geo_failures.append(f"{function_name}: {error_msg}")
                                 update_job_status()
@@ -2916,16 +2923,16 @@ def bulk_generate():
                     if geo not in functions_per_geo:
                         functions_per_geo[geo] = []
                     functions_per_geo[geo].append(func_num + 1)  # Function numbers start at 1
-                
-                logger.info("=" * 60)
+            
+            logger.info("=" * 60)
                 logger.info(f"[BULK] Function Distribution Across Geos")
                 logger.info(f"[BULK] Total functions: {num_functions}")
                 logger.info(f"[BULK] Available geos: {len(AVAILABLE_GEO_REGIONS)}")
                 logger.info(f"[BULK] Functions per geo:")
                 for geo, func_numbers in sorted(functions_per_geo.items()):
                     logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
-                logger.info("=" * 60)
-                
+            logger.info("=" * 60)
+            
                 # Split users into batches of 10, assigning each batch to a function
                 # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
                 # CRITICAL: Each batch MUST be exactly 10 users or less
@@ -2966,7 +2973,7 @@ def bulk_generate():
                         assigned_function_name: Name of Lambda function to invoke
                         lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
                     """
-                    with app.app_context():
+                with app.app_context():
                         # CRITICAL: Enforce 10-user limit
                         MAX_USERS_PER_BATCH = 10
                         if len(user_batch) > MAX_USERS_PER_BATCH:
@@ -2979,8 +2986,8 @@ def bulk_generate():
                         
                         # Create INDEPENDENT boto3 session and clients for this batch
                         session_batch = boto3.Session(
-                            aws_access_key_id=access_key,
-                            aws_secret_access_key=secret_key,
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
                             region_name=target_region
                         )
                         
@@ -2997,8 +3004,8 @@ def bulk_generate():
                         
                         # Each batch gets its own DynamoDB resource
                         dynamodb_batch = session_batch.resource('dynamodb', config=Config(
-                            max_pool_connections=10
-                        ))
+                        max_pool_connections=10
+                    ))
                         table_batch = dynamodb_batch.Table("gbot-app-passwords")
                     
                         # Prepare all users for processing - NO pre-filtering
@@ -3016,10 +3023,10 @@ def bulk_generate():
                         # Mark emails as being processed (for duplicate detection across parallel geos)
                         for user in users_to_process:
                             email = user['email']
-                            with processing_lock:
-                                if email in processing_emails:
+                    with processing_lock:
+                        if email in processing_emails:
                                     logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
-                                processing_emails.add(email)
+                        processing_emails.add(email)
                     
                         # Prepare batch payload for Lambda
                         # CRITICAL: Final check - ensure we never send more than 10 users
@@ -3118,7 +3125,7 @@ def bulk_generate():
                                                     'success': False,
                                                     'error': error_msg
                                                 })
-                                        break  # Success, exit retry loop
+                                    break  # Success, exit retry loop
                                     else:
                                         # Fallback: single user response format (backward compatibility)
                                         lambda_status = lambda_response.get('status', 'unknown')
@@ -3309,7 +3316,7 @@ def bulk_generate():
                             all_functions = lam_client.list_functions()
                             existing_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
                             logger.info(f"[BULK] [{geo}] ✓ Found {len(existing_function_names)} existing function(s) in {geo}: {existing_function_names[:5]}{'...' if len(existing_function_names) > 5 else ''}")
-                        except Exception as e:
+                    except Exception as e:
                             logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR: Could not initialize session or list functions: {e}")
                             logger.error(traceback.format_exc())
                             # Don't return empty - raise exception so it's caught by outer handler
@@ -3478,38 +3485,38 @@ def bulk_generate():
                                     geo_results.extend(function_results)
                                     
                                     # Update job status
-                                    with jobs_lock:
-                                        if job_id in active_jobs:
+                        with jobs_lock:
+                            if job_id in active_jobs:
                                             for result in function_results:
-                                                active_jobs[job_id]['completed'] += 1
+                                active_jobs[job_id]['completed'] += 1
                                                 if result.get('success'):
-                                                    active_jobs[job_id]['success'] += 1
-                                                    active_jobs[job_id]['results'].append({
-                                                        'email': result['email'],
+                                    active_jobs[job_id]['success'] += 1
+                                    active_jobs[job_id]['results'].append({
+                                        'email': result['email'],
                                                         'app_password': result.get('app_password'),
-                                                        'success': True
-                                                    })
-                                                else:
-                                                    active_jobs[job_id]['failed'] += 1
-                                                    active_jobs[job_id]['results'].append({
-                                                        'email': result['email'],
+                                        'success': True
+                                    })
+                                else:
+                                    active_jobs[job_id]['failed'] += 1
+                                    active_jobs[job_id]['results'].append({
+                                        'email': result['email'],
                                                         'error': result.get('error', 'Unknown error'),
-                                                        'success': False
-                                                    })
+                                        'success': False
+                                    })
                                     
                                     logger.info(f"[BULK] [{geo}] ✓ Function {func_num} finished: {sum(1 for r in function_results if r.get('success'))}/{len(function_results)} success")
-                                except Exception as e:
+                    except Exception as e:
                                     logger.error(f"[BULK] [{geo}] ✗ Function {func_num} exception: {e}")
-                                    logger.error(traceback.format_exc())
-                        
+                        logger.error(traceback.format_exc())
+                
                         # Log completion summary
-                        logger.info("=" * 60)
+                logger.info("=" * 60)
                         logger.info(f"[BULK] [{geo}] ===== PARALLEL PROCESSING COMPLETED =====")
                         logger.info(f"[BULK] [{geo}] Total functions processed: {len(geo_batches_list)}")
                         logger.info(f"[BULK] [{geo}] Total users processed: {len(geo_results)}")
                         logger.info(f"[BULK] [{geo}] Success: {sum(1 for r in geo_results if r.get('success'))}")
                         logger.info(f"[BULK] [{geo}] Failed: {sum(1 for r in geo_results if not r.get('success'))}")
-                        logger.info("=" * 60)
+                logger.info("=" * 60)
                         return geo_results
                     except Exception as geo_err:
                         logger.error("=" * 60)
@@ -3803,37 +3810,37 @@ def fetch_from_dynamodb():
                 logger.error(traceback.format_exc())
                 # Fallback to individual get_item for this batch
                 for email in email_batch:
+            try:
+                response = table.get_item(Key={'email': email})
+                if 'Item' in response:
+                    item = response['Item']
+                    app_password = item['app_password']
+                    
                     try:
-                        response = table.get_item(Key={'email': email})
-                        if 'Item' in response:
-                            item = response['Item']
-                            app_password = item['app_password']
-                            
-                            try:
-                                save_app_password(email, app_password)
-                            except Exception as db_err:
-                                logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
-                            
+                        save_app_password(email, app_password)
+                    except Exception as db_err:
+                        logger.warning(f"[DYNAMODB] Could not save to local DB for {email}: {db_err}")
+                    
                             batch_results.append({
-                                'email': item['email'],
-                                'app_password': app_password,
-                                'created_at': item.get('created_at', ''),
+                        'email': item['email'],
+                        'app_password': app_password,
+                        'created_at': item.get('created_at', ''),
                                 'region': dynamodb_region,
-                                'success': True
-                            })
-                        else:
+                        'success': True
+                    })
+                else:
                             batch_results.append({
-                                'email': email,
-                                'error': 'Not found in DynamoDB',
-                                'success': False
-                            })
+                        'email': email,
+                        'error': 'Not found in DynamoDB',
+                        'success': False
+                    })
                     except Exception as get_err:
                         logger.error(f"[DYNAMODB] Error fetching {email}: {get_err}")
                         batch_results.append({
-                            'email': email,
+                    'email': email,
                             'error': str(get_err),
-                            'success': False
-                        })
+                    'success': False
+                })
         
             return batch_results
         
@@ -4241,24 +4248,24 @@ def delete_all_lambdas():
             try:
                 logger.info(f"[DELETE LAMBDA] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
-                lam = session.client("lambda")
+        lam = session.client("lambda")
 
                 # Try to delete production lambda
-                try:
-                    lam.delete_function(FunctionName=PRODUCTION_LAMBDA_NAME)
+        try:
+            lam.delete_function(FunctionName=PRODUCTION_LAMBDA_NAME)
                     region_deleted.append(f"{PRODUCTION_LAMBDA_NAME} ({target_region})")
-                except lam.exceptions.ResourceNotFoundException:
-                    pass
+        except lam.exceptions.ResourceNotFoundException:
+            pass
                 except Exception as e:
                     error_msg = f"{target_region}: {PRODUCTION_LAMBDA_NAME} - {str(e)}"
                     logger.error(f"[DELETE LAMBDA] [{target_region}] Error: {error_msg}")
                     region_errors.append(error_msg)
 
-                # Also check for any other edu-gw lambdas
+        # Also check for any other edu-gw lambdas
                 try:
-                    paginator = lam.get_paginator("list_functions")
-                    for page in paginator.paginate():
-                        for fn in page.get("Functions", []):
+        paginator = lam.get_paginator("list_functions")
+        for page in paginator.paginate():
+            for fn in page.get("Functions", []):
                             fn_name = fn["FunctionName"]
                             if "edu-gw" in fn_name:
                                 try:
@@ -4266,7 +4273,7 @@ def delete_all_lambdas():
                                     region_deleted.append(f"{fn_name} ({target_region})")
                                 except lam.exceptions.ResourceNotFoundException:
                                     pass
-                                except Exception as e:
+                    except Exception as e:
                                     error_msg = f"{target_region}: {fn_name} - {str(e)}"
                                     logger.error(f"[DELETE LAMBDA] [{target_region}] Error deleting {fn_name}: {e}")
                                     region_errors.append(error_msg)
@@ -4366,17 +4373,17 @@ def delete_s3_content():
         
         # Delete regular objects
         try:
-            paginator = s3.get_paginator('list_objects_v2')
-            for page in paginator.paginate(Bucket=S3_BUCKET_NAME):
-                objects = page.get('Contents', [])
-                if objects:
-                    delete_keys = [{'Key': obj['Key']} for obj in objects]
+        paginator = s3.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=S3_BUCKET_NAME):
+            objects = page.get('Contents', [])
+            if objects:
+                delete_keys = [{'Key': obj['Key']} for obj in objects]
                     try:
-                        s3.delete_objects(
-                            Bucket=S3_BUCKET_NAME,
-                            Delete={'Objects': delete_keys}
-                        )
-                        deleted_count += len(delete_keys)
+                s3.delete_objects(
+                    Bucket=S3_BUCKET_NAME,
+                    Delete={'Objects': delete_keys}
+                )
+                deleted_count += len(delete_keys)
                         logger.info(f"[S3] Deleted {len(delete_keys)} objects from {S3_BUCKET_NAME}")
                     except ClientError as delete_err:
                         error_code = delete_err.response.get('Error', {}).get('Code', '')
@@ -4533,13 +4540,13 @@ def delete_ecr_repo():
             try:
                 logger.info(f"[DELETE ECR] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
-                ecr = session.client("ecr")
+        ecr = session.client("ecr")
 
                 try:
-                    ecr.delete_repository(
-                        repositoryName=ECR_REPO_NAME,
-                        force=True
-                    )
+        ecr.delete_repository(
+            repositoryName=ECR_REPO_NAME,
+            force=True
+        )
                     logger.info(f"[DELETE ECR] [{target_region}] ✓ Repository deleted successfully")
                     return {'success': True, 'region': target_region}
                 except ecr.exceptions.RepositoryNotFoundException:
@@ -4660,17 +4667,17 @@ def delete_cloudwatch_logs():
             try:
                 logger.info(f"[DELETE CLOUDWATCH] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
-                logs = session.client("logs")
+        logs = session.client("logs")
 
-                paginator = logs.get_paginator('describe_log_groups')
-                for page in paginator.paginate():
-                    for log_group in page.get('logGroups', []):
-                        log_group_name = log_group['logGroupName']
-                        if '/aws/lambda/edu-gw' in log_group_name:
-                            try:
-                                logs.delete_log_group(logGroupName=log_group_name)
+        paginator = logs.get_paginator('describe_log_groups')
+        for page in paginator.paginate():
+            for log_group in page.get('logGroups', []):
+                log_group_name = log_group['logGroupName']
+                if '/aws/lambda/edu-gw' in log_group_name:
+                    try:
+                        logs.delete_log_group(logGroupName=log_group_name)
                                 region_deleted.append(f"{log_group_name} ({target_region})")
-                            except Exception as e:
+                    except Exception as e:
                                 error_msg = f"{target_region}: {log_group_name} - {str(e)}"
                                 logger.error(f"[DELETE CLOUDWATCH] [{target_region}] Error deleting {log_group_name}: {e}")
                                 region_errors.append(error_msg)
@@ -5371,7 +5378,7 @@ def create_or_update_lambda(session, function_name, role_arn, timeout, env_vars,
             "EphemeralStorage": {"Size": 2048}
         }
         try:
-            lam.create_function(**create_params)
+        lam.create_function(**create_params)
         except ClientError as create_err:
             error_code = create_err.response.get('Error', {}).get('Code', '')
             error_msg = create_err.response.get('Error', {}).get('Message', str(create_err))
