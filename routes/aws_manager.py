@@ -2930,122 +2930,121 @@ def bulk_generate():
                     functions_per_geo[geo].append(func_num + 1)  # Function numbers start at 1
             
             logger.info("=" * 60)
-                logger.info(f"[BULK] Function Distribution Across Geos")
-                logger.info(f"[BULK] Total functions: {num_functions}")
-                logger.info(f"[BULK] Available geos: {len(AVAILABLE_GEO_REGIONS)}")
-                logger.info(f"[BULK] Functions per geo:")
-                for geo, func_numbers in sorted(functions_per_geo.items()):
-                    logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
+            logger.info(f"[BULK] Function Distribution Across Geos")
+            logger.info(f"[BULK] Total functions: {num_functions}")
+            logger.info(f"[BULK] Available geos: {len(AVAILABLE_GEO_REGIONS)}")
+            logger.info(f"[BULK] Functions per geo:")
+            for geo, func_numbers in sorted(functions_per_geo.items()):
+                logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
             logger.info("=" * 60)
             
-                # Split users into batches of 10, assigning each batch to a function
-                # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
-                # CRITICAL: Each batch MUST be exactly 10 users or less
-                user_batches = []  # List of (function_number, geo, user_batch) tuples
-                logger.info(f"[BULK] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
-                for func_num in range(num_functions):
-                    start_idx = func_num * USERS_PER_FUNCTION
-                    end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
-                    batch_users = users[start_idx:end_idx]
+            # Split users into batches of 10, assigning each batch to a function
+            # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
+            # CRITICAL: Each batch MUST be exactly 10 users or less
+            user_batches = []  # List of (function_number, geo, user_batch) tuples
+            logger.info(f"[BULK] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
+            for func_num in range(num_functions):
+                start_idx = func_num * USERS_PER_FUNCTION
+                end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
+                batch_users = users[start_idx:end_idx]
                 
-                    # ENFORCE: Ensure batch never exceeds 10 users
+                # ENFORCE: Ensure batch never exceeds 10 users
+                if len(batch_users) > USERS_PER_FUNCTION:
+                    logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num + 1} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
+                    batch_users = batch_users[:USERS_PER_FUNCTION]
+                
+                if batch_users:
+                    # Determine which geo this function belongs to
+                    geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
+                    geo = AVAILABLE_GEO_REGIONS[geo_index]
+                    user_batches.append((func_num + 1, geo, batch_users))
+                    logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
                     if len(batch_users) > USERS_PER_FUNCTION:
-                        logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num + 1} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
-                        batch_users = batch_users[:USERS_PER_FUNCTION]
-                    
-                    if batch_users:
-                        # Determine which geo this function belongs to
-                        geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
-                        geo = AVAILABLE_GEO_REGIONS[geo_index]
-                        user_batches.append((func_num + 1, geo, batch_users))
-                        logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
-                        if len(batch_users) > USERS_PER_FUNCTION:
-                            logger.error(f"[BULK] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
-                    else:
-                        logger.warning(f"[BULK] Function {func_num + 1} has empty batch (start_idx={start_idx}, end_idx={end_idx}, total_users={total_users})")
-                
-                # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
-                USERS_PER_BATCH = 10
-                
-                def process_user_batch_sync(user_batch, assigned_function_name, lambda_region=None):
-                    """
-                    Process a batch of up to 10 users synchronously (wait for completion).
-                    Returns list of results, one per user.
-                    This is used for sequential processing within each geo.
-                
-                    Args:
-                        user_batch: List of user dicts to process (MUST be <= 10 users)
-                        assigned_function_name: Name of Lambda function to invoke
-                        lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
-                    """
+                        logger.error(f"[BULK] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
+                else:
+                    logger.warning(f"[BULK] Function {func_num + 1} has empty batch (start_idx={start_idx}, end_idx={end_idx}, total_users={total_users})")
+            
+            # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
+            USERS_PER_BATCH = 10
+            
+            def process_user_batch_sync(user_batch, assigned_function_name, lambda_region=None):
+                """
+                Process a batch of up to 10 users synchronously (wait for completion).
+                Returns list of results, one per user.
+                This is used for sequential processing within each geo.
+            
+                Args:
+                    user_batch: List of user dicts to process (MUST be <= 10 users)
+                    assigned_function_name: Name of Lambda function to invoke
+                    lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
+                """
                 with app.app_context():
-                        # CRITICAL: Enforce 10-user limit
-                        MAX_USERS_PER_BATCH = 10
-                        if len(user_batch) > MAX_USERS_PER_BATCH:
-                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ CRITICAL ERROR: Batch has {len(user_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
-                            logger.error(f"[BULK] [{assigned_function_name}] Truncating batch to {MAX_USERS_PER_BATCH} users")
-                            user_batch = user_batch[:MAX_USERS_PER_BATCH]
-                        
-                        # Use lambda_region if provided, otherwise fall back to user's selected region
-                        target_region = lambda_region if lambda_region else region
-                        
-                        # Create INDEPENDENT boto3 session and clients for this batch
-                        session_batch = boto3.Session(
+                    # CRITICAL: Enforce 10-user limit
+                    MAX_USERS_PER_BATCH = 10
+                    if len(user_batch) > MAX_USERS_PER_BATCH:
+                        logger.error(f"[BULK] [{assigned_function_name}] ⚠️ CRITICAL ERROR: Batch has {len(user_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
+                        logger.error(f"[BULK] [{assigned_function_name}] Truncating batch to {MAX_USERS_PER_BATCH} users")
+                        user_batch = user_batch[:MAX_USERS_PER_BATCH]
+                    
+                    # Use lambda_region if provided, otherwise fall back to user's selected region
+                    target_region = lambda_region if lambda_region else region
+                    
+                    # Create INDEPENDENT boto3 session and clients for this batch
+                    session_batch = boto3.Session(
                         aws_access_key_id=access_key,
                         aws_secret_access_key=secret_key,
-                            region_name=target_region
-                        )
-                        
-                        # Each batch gets its own Lambda client with extended timeout
-                        # CRITICAL: Set read_timeout to 1000 seconds (16+ minutes) to handle batch processing
-                        # Lambda timeout is 900 seconds, so we need client timeout > Lambda timeout
-                        # IMPORTANT: Lambda client uses the region from session_batch (target_region)
-                        lam_batch = session_batch.client("lambda", config=Config(
-                            max_pool_connections=10,
-                            retries={'max_attempts': 0},
-                            read_timeout=1000,  # 16+ minutes - must exceed Lambda timeout (900s)
-                            connect_timeout=60  # 60 seconds connection timeout
-                        ))
-                        
-                        # Each batch gets its own DynamoDB resource
-                        dynamodb_batch = session_batch.resource('dynamodb', config=Config(
+                        region_name=target_region
+                    )
+                    
+                    # Each batch gets its own Lambda client with extended timeout
+                    # CRITICAL: Set read_timeout to 1000 seconds (16+ minutes) to handle batch processing
+                    # Lambda timeout is 900 seconds, so we need client timeout > Lambda timeout
+                    # IMPORTANT: Lambda client uses the region from session_batch (target_region)
+                    lam_batch = session_batch.client("lambda", config=Config(
+                        max_pool_connections=10,
+                        retries={'max_attempts': 0},
+                        read_timeout=1000,  # 16+ minutes - must exceed Lambda timeout (900s)
+                        connect_timeout=60  # 60 seconds connection timeout
+                    ))
+                    
+                    # Each batch gets its own DynamoDB resource
+                    dynamodb_batch = session_batch.resource('dynamodb', config=Config(
                         max_pool_connections=10
                     ))
-                        table_batch = dynamodb_batch.Table("gbot-app-passwords")
+                    table_batch = dynamodb_batch.Table("gbot-app-passwords")
                     
-                        # Prepare all users for processing - NO pre-filtering
-                        # Lambda will handle deduplication if needed
-                        batch_results = []
-                        users_to_process = user_batch  # Process ALL users in the batch (already limited to 10)
+                    # Prepare all users for processing - NO pre-filtering
+                    # Lambda will handle deduplication if needed
+                    batch_results = []
+                    users_to_process = user_batch  # Process ALL users in the batch (already limited to 10)
                     
-                        # Final validation before sending to Lambda
-                        if len(users_to_process) > MAX_USERS_PER_BATCH:
-                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ FINAL CHECK FAILED: {len(users_to_process)} users exceeds {MAX_USERS_PER_BATCH} limit!")
-                            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
-                        
-                        logger.info(f"[BULK] [{assigned_function_name}] Will process {len(users_to_process)} user(s) in batch (MAX: {MAX_USERS_PER_BATCH})")
+                    # Final validation before sending to Lambda
+                    if len(users_to_process) > MAX_USERS_PER_BATCH:
+                        logger.error(f"[BULK] [{assigned_function_name}] ⚠️ FINAL CHECK FAILED: {len(users_to_process)} users exceeds {MAX_USERS_PER_BATCH} limit!")
+                        users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
                     
-                        # Mark emails as being processed (for duplicate detection across parallel geos)
-                        for user in users_to_process:
-                            email = user['email']
-                    with processing_lock:
-                        if email in processing_emails:
-                                    logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
-                        processing_emails.add(email)
+                    logger.info(f"[BULK] [{assigned_function_name}] Will process {len(users_to_process)} user(s) in batch (MAX: {MAX_USERS_PER_BATCH})")
                     
-                        # Prepare batch payload for Lambda
-                        # CRITICAL: Final check - ensure we never send more than 10 users
-                        MAX_USERS_PER_BATCH = 10
-                        if len(users_to_process) > MAX_USERS_PER_BATCH:
-                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ PAYLOAD CHECK: Truncating {len(users_to_process)} users to {MAX_USERS_PER_BATCH}")
-                            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
-                        
-                        batch_payload = {
-                            "users": [
-                                {"email": u['email'], "password": u['password']}
-                                for u in users_to_process
-                            ]
-                        }
+                    # Mark emails as being processed (for duplicate detection across parallel geos)
+                    for user in users_to_process:
+                        email = user['email']
+                        with processing_lock:
+                            if email in processing_emails:
+                                logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
+                            processing_emails.add(email)
+                    
+                    # Prepare batch payload for Lambda
+                    # CRITICAL: Final check - ensure we never send more than 10 users
+                    if len(users_to_process) > MAX_USERS_PER_BATCH:
+                        logger.error(f"[BULK] [{assigned_function_name}] ⚠️ PAYLOAD CHECK: Truncating {len(users_to_process)} users to {MAX_USERS_PER_BATCH}")
+                        users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
+                    
+                    batch_payload = {
+                        "users": [
+                            {"email": u['email'], "password": u['password']}
+                            for u in users_to_process
+                        ]
+                    }
                         
                         logger.info("=" * 60)
                         logger.info(f"[BULK] [{assigned_function_name}] PREPARING TO INVOKE LAMBDA")
