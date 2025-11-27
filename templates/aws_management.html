@@ -245,6 +245,10 @@
                                 <i class="fas fa-trash-alt"></i>
                                 Delete CloudWatch Logs
                             </button>
+                            <button class="btn-github" onclick="emptyDynamoDBTable()" style="width: 100%; margin-bottom: var(--spacing-sm);">
+                                <i class="fas fa-database"></i>
+                                Empty DynamoDB Table
+                            </button>
                             <button class="btn-github" onclick="deleteDynamoDBTable()" style="width: 100%;">
                                 <i class="fas fa-database"></i>
                                 Delete DynamoDB Table
@@ -284,13 +288,65 @@
             </div>
         </div>
 
+        <!-- AWS Status Table -->
+        <div class="github-card" style="margin-top: var(--spacing-lg);">
+            <div class="github-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 class="github-card-title">
+                    <i class="fas fa-table"></i>
+                    AWS Status Overview (All Geos)
+                </h3>
+                <button class="btn-github" onclick="refreshAWSStatus()" style="padding: var(--spacing-xs) var(--spacing-sm); font-size: 12px;">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div class="github-card-body">
+                <div id="awsStatusTable" style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                        <thead>
+                            <tr style="background-color: var(--color-canvas-subtle); border-bottom: 2px solid var(--color-border-default);">
+                                <th style="padding: var(--spacing-sm); text-align: left; font-weight: 600;">Region</th>
+                                <th style="padding: var(--spacing-sm); text-align: center; font-weight: 600;">Lambda Functions</th>
+                                <th style="padding: var(--spacing-sm); text-align: center; font-weight: 600;">Function Names</th>
+                                <th style="padding: var(--spacing-sm); text-align: center; font-weight: 600;">ECR Repo</th>
+                                <th style="padding: var(--spacing-sm); text-align: center; font-weight: 600;">ECR Images</th>
+                                <th style="padding: var(--spacing-sm); text-align: center; font-weight: 600;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="awsStatusTableBody">
+                            <tr>
+                                <td colspan="6" style="padding: var(--spacing-md); text-align: center; color: var(--color-fg-muted);">
+                                    Click "Refresh" to load status
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- DynamoDB Status Row -->
+                <div style="margin-top: var(--spacing-md); padding: var(--spacing-md); background-color: var(--color-canvas-subtle); border-radius: var(--radius-md); border-top: 2px solid var(--color-border-default);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="color: var(--color-fg-default);">DynamoDB Table (eu-west-1):</strong>
+                            <span id="dynamodbStatus" style="margin-left: var(--spacing-sm); color: var(--color-fg-muted);">Loading...</span>
+                        </div>
+                        <div>
+                            <strong style="color: var(--color-fg-default);">Users in Table:</strong>
+                            <span id="dynamodbCount" style="margin-left: var(--spacing-sm); color: var(--color-fg-default); font-weight: 600;">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Log Output Section -->
         <div class="github-card" style="margin-top: var(--spacing-lg);">
-            <div class="github-card-header">
+            <div class="github-card-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 class="github-card-title">
                     <i class="fas fa-terminal"></i>
                     Log Output
                 </h3>
+                <button class="btn-github" onclick="cleanLogs()" style="padding: var(--spacing-xs) var(--spacing-sm); font-size: 12px;">
+                    <i class="fas fa-eraser"></i> Clean Logs
+                </button>
             </div>
             <div class="github-card-body">
                 <div id="logOutput" style="background-color: var(--color-canvas-inset); border-radius: var(--radius-md); padding: var(--spacing-md); font-family: 'Courier New', monospace; font-size: 13px; max-height: 400px; overflow-y: auto; min-height: 200px; color: var(--color-fg-default); white-space: pre-wrap; word-wrap: break-word;"></div>
@@ -1755,10 +1811,177 @@
         updateLambdaCalculation();
     });
 
+    // Clean Logs
+    function cleanLogs() {
+        document.getElementById('logOutput').textContent = '';
+        log('Logs cleared.');
+    }
+
+    // Refresh AWS Status
+    function refreshAWSStatus() {
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
+
+        log('Refreshing AWS status for all regions...');
+        
+        fetch('/api/aws/get-aws-status', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update table
+                const tbody = document.getElementById('awsStatusTableBody');
+                tbody.innerHTML = '';
+                
+                // Sort regions alphabetically
+                const sortedRegions = Object.keys(data.regions).sort();
+                
+                sortedRegions.forEach(regionKey => {
+                    const regionData = data.regions[regionKey];
+                    const row = document.createElement('tr');
+                    row.style.borderBottom = '1px solid var(--color-border-default)';
+                    
+                    // Region name
+                    const regionCell = document.createElement('td');
+                    regionCell.style.padding = 'var(--spacing-sm)';
+                    regionCell.textContent = regionKey;
+                    row.appendChild(regionCell);
+                    
+                    // Lambda count
+                    const lambdaCountCell = document.createElement('td');
+                    lambdaCountCell.style.padding = 'var(--spacing-sm)';
+                    lambdaCountCell.style.textAlign = 'center';
+                    lambdaCountCell.textContent = regionData.lambda_count || '0';
+                    row.appendChild(lambdaCountCell);
+                    
+                    // Function names
+                    const namesCell = document.createElement('td');
+                    namesCell.style.padding = 'var(--spacing-sm)';
+                    namesCell.style.textAlign = 'center';
+                    namesCell.style.fontSize = '11px';
+                    if (regionData.lambdas && regionData.lambdas.length > 0) {
+                        namesCell.textContent = regionData.lambdas.map(l => l.name).join(', ');
+                        namesCell.title = regionData.lambdas.map(l => l.name).join('\n');
+                    } else {
+                        namesCell.textContent = '-';
+                    }
+                    row.appendChild(namesCell);
+                    
+                    // ECR Repo
+                    const ecrRepoCell = document.createElement('td');
+                    ecrRepoCell.style.padding = 'var(--spacing-sm)';
+                    ecrRepoCell.style.textAlign = 'center';
+                    ecrRepoCell.innerHTML = regionData.ecr_repo_exists ? 
+                        '<span style="color: #10b981;">✓</span>' : 
+                        '<span style="color: var(--color-fg-muted);">✗</span>';
+                    row.appendChild(ecrRepoCell);
+                    
+                    // ECR Images
+                    const ecrImagesCell = document.createElement('td');
+                    ecrImagesCell.style.padding = 'var(--spacing-sm)';
+                    ecrImagesCell.style.textAlign = 'center';
+                    ecrImagesCell.textContent = regionData.ecr_image_count || '0';
+                    row.appendChild(ecrImagesCell);
+                    
+                    // Status
+                    const statusCell = document.createElement('td');
+                    statusCell.style.padding = 'var(--spacing-sm)';
+                    statusCell.style.textAlign = 'center';
+                    if (regionData.error) {
+                        statusCell.innerHTML = '<span style="color: #ef4444; font-size: 10px;">Error</span>';
+                        statusCell.title = regionData.error;
+                    } else {
+                        statusCell.innerHTML = '<span style="color: #10b981;">OK</span>';
+                    }
+                    row.appendChild(statusCell);
+                    
+                    tbody.appendChild(row);
+                });
+                
+                // Update DynamoDB status
+                if (data.dynamodb) {
+                    const dbStatus = data.dynamodb;
+                    document.getElementById('dynamodbStatus').textContent = 
+                        dbStatus.table_exists ? '✓ Table exists' : '✗ Table not found';
+                    document.getElementById('dynamodbStatus').style.color = 
+                        dbStatus.table_exists ? '#10b981' : 'var(--color-fg-muted)';
+                    document.getElementById('dynamodbCount').textContent = dbStatus.item_count || '0';
+                    if (dbStatus.error) {
+                        document.getElementById('dynamodbStatus').textContent += ` (${dbStatus.error})`;
+                        document.getElementById('dynamodbStatus').style.color = '#ef4444';
+                    }
+                }
+                
+                log(`✅ Status refreshed: ${sortedRegions.length} regions`);
+            } else {
+                log(`❌ Error refreshing status: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`❌ Error: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
+    // Empty DynamoDB Table
+    function emptyDynamoDBTable() {
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey, region } = creds;
+
+        if (!confirm('Are you sure you want to empty (clear all items from) the DynamoDB table "gbot-app-passwords"? This will delete ALL stored app passwords but keep the table. This action cannot be undone.')) {
+            return;
+        }
+
+        log('Emptying DynamoDB table...');
+
+        fetch('/api/aws/empty-dynamodb-table', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey,
+                region: region
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                log(`✅ DynamoDB table emptied. Deleted ${data.deleted_count} item(s).`);
+                alert(`DynamoDB table emptied successfully. Deleted ${data.deleted_count} item(s).`);
+                // Refresh status
+                refreshAWSStatus();
+            } else {
+                log(`❌ Error emptying DynamoDB table: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            log(`❌ Error: ${error.message}`);
+            alert(`Error: ${error.message}`);
+        });
+    }
+
     // Initialize
     log('AWS Management page loaded. Ready.');
     // Removed auto-fetch to keep results field clean for new jobs
-    // fetchGeneratedPasswords(); 
+    // fetchGeneratedPasswords();
+    
+    // Auto-refresh status on page load
+    setTimeout(() => {
+        if (window.awsConfig) {
+            refreshAWSStatus();
+        }
+    }, 1000);
 </script>
 {% endblock %}
 

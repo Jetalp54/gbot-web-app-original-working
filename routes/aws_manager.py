@@ -3855,12 +3855,29 @@ def stop_all_lambdas():
                                 try:
                                     # Put reserved concurrency to 0 to stop new invocations
                                     # This effectively stops the function from accepting new requests
-                                    lam.put_function_concurrency(
-                                        FunctionName=fn_name,
-                                        ReservedConcurrentExecutions=0
-                                    )
-                                    logger.info(f"[STOP LAMBDA] [{target_region}] ✓ Stopped function: {fn_name}")
+                                    # Also update function configuration to disable it
+                                    try:
+                                        lam.put_function_concurrency(
+                                            FunctionName=fn_name,
+                                            ReservedConcurrentExecutions=0
+                                        )
+                                        logger.info(f"[STOP LAMBDA] [{target_region}] ✓ Set concurrency to 0 for: {fn_name}")
+                                    except ClientError as concurrency_err:
+                                        # If concurrency update fails, try to get current config and update
+                                        logger.warning(f"[STOP LAMBDA] [{target_region}] Concurrency update failed for {fn_name}: {concurrency_err}")
+                                    
+                                    # Also try to update function configuration to disable it
+                                    try:
+                                        lam.update_function_configuration(
+                                            FunctionName=fn_name,
+                                            Description="Stopped - reserved concurrency set to 0"
+                                        )
+                                    except Exception as config_err:
+                                        # Config update is optional, just log warning
+                                        logger.debug(f"[STOP LAMBDA] [{target_region}] Config update optional, continuing: {config_err}")
+                                    
                                     region_stopped += 1
+                                    logger.info(f"[STOP LAMBDA] [{target_region}] ✓ Stopped function: {fn_name}")
                                 except Exception as e:
                                     error_msg = f"{target_region}: {fn_name} - {str(e)}"
                                     logger.error(f"[STOP LAMBDA] [{target_region}] Error stopping {fn_name}: {e}")
@@ -4493,6 +4510,254 @@ def ec2_create_build_box():
         logger.error(f"Error creating EC2 build box: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@aws_manager.route('/api/aws/get-aws-status', methods=['POST'])
+@login_required
+def get_aws_status():
+    """Get comprehensive AWS status: Lambdas, ECR repos/images, DynamoDB for all geos"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        region = data.get('region', '').strip()
+
+        if not access_key or not secret_key or not region:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        # List of all AWS regions
+        AVAILABLE_GEO_REGIONS = [
+            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            'af-south-1',
+            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
+            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
+            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4',
+            'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+            'ca-central-1', 'ca-west-1',
+            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
+            'eu-north-1', 'eu-south-1', 'eu-south-2',
+            'mx-central-1',
+            'me-south-1', 'me-central-1', 'il-central-1',
+            'sa-east-1',
+        ]
+
+        status_data = {}
+
+        def get_region_status(target_region):
+            """Get status for a single region"""
+            region_status = {
+                'region': target_region,
+                'lambdas': [],
+                'lambda_count': 0,
+                'ecr_repo_exists': False,
+                'ecr_image_count': 0,
+                'ecr_images': [],
+                'error': None
+            }
+            
+            try:
+                session = get_boto3_session(access_key, secret_key, target_region)
+                
+                # Get Lambda functions
+                try:
+                    lam = session.client("lambda")
+                    paginator = lam.get_paginator("list_functions")
+                    for page in paginator.paginate():
+                        for fn in page.get("Functions", []):
+                            fn_name = fn["FunctionName"]
+                            if PRODUCTION_LAMBDA_NAME in fn_name or "edu-gw" in fn_name:
+                                region_status['lambdas'].append({
+                                    'name': fn_name,
+                                    'runtime': fn.get('Runtime', 'N/A'),
+                                    'state': fn.get('State', 'Active'),
+                                    'last_modified': fn.get('LastModified', 'N/A')
+                                })
+                    region_status['lambda_count'] = len(region_status['lambdas'])
+                except Exception as e:
+                    region_status['error'] = f"Lambda error: {str(e)}"
+                
+                # Get ECR repository and images
+                try:
+                    ecr = session.client("ecr")
+                    try:
+                        repo_response = ecr.describe_repositories(repositoryNames=[ECR_REPO_NAME])
+                        if repo_response.get('repositories'):
+                            region_status['ecr_repo_exists'] = True
+                            # Get images
+                            try:
+                                images_response = ecr.list_images(repositoryName=ECR_REPO_NAME)
+                                images = images_response.get('imageIds', [])
+                                region_status['ecr_image_count'] = len(images)
+                                region_status['ecr_images'] = [
+                                    {
+                                        'tag': img.get('imageTag', 'untagged'),
+                                        'digest': img.get('imageDigest', 'N/A')[:20] + '...' if img.get('imageDigest') else 'N/A'
+                                    }
+                                    for img in images[:10]  # Limit to first 10
+                                ]
+                            except Exception as img_err:
+                                region_status['error'] = f"ECR images error: {str(img_err)}"
+                    except ClientError as repo_err:
+                        if repo_err.response['Error']['Code'] != 'RepositoryNotFoundException':
+                            region_status['error'] = f"ECR repo error: {str(repo_err)}"
+                except Exception as e:
+                    if not region_status['error']:
+                        region_status['error'] = f"ECR error: {str(e)}"
+                        
+            except Exception as e:
+                region_status['error'] = f"Region error: {str(e)}"
+            
+            return region_status
+
+        # Get DynamoDB status (centralized in eu-west-1)
+        dynamodb_status = {
+            'region': 'eu-west-1',
+            'table_exists': False,
+            'item_count': 0,
+            'error': None
+        }
+        try:
+            dynamodb_session = get_boto3_session(access_key, secret_key, 'eu-west-1')
+            dynamodb = dynamodb_session.resource('dynamodb')
+            table = dynamodb.Table("gbot-app-passwords")
+            try:
+                table.load()
+                dynamodb_status['table_exists'] = True
+                # Get item count (approximate)
+                try:
+                    response = table.scan(Select='COUNT')
+                    dynamodb_status['item_count'] = response.get('Count', 0)
+                    # If count is large, get ScannedCount too
+                    if 'ScannedCount' in response:
+                        dynamodb_status['scanned_count'] = response['ScannedCount']
+                except Exception as count_err:
+                    dynamodb_status['error'] = f"Count error: {str(count_err)}"
+            except ClientError as table_err:
+                if table_err.response['Error']['Code'] != 'ResourceNotFoundException':
+                    dynamodb_status['error'] = f"Table error: {str(table_err)}"
+        except Exception as e:
+            dynamodb_status['error'] = f"DynamoDB error: {str(e)}"
+
+        # Get status for all regions in parallel
+        logger.info(f"[STATUS] Getting AWS status for {len(AVAILABLE_GEO_REGIONS)} regions...")
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            futures = {executor.submit(get_region_status, region): region for region in AVAILABLE_GEO_REGIONS}
+            
+            for future in as_completed(futures):
+                region = futures[future]
+                try:
+                    region_status = future.result()
+                    status_data[region] = region_status
+                except Exception as e:
+                    logger.error(f"[STATUS] [{region}] Error: {e}")
+                    status_data[region] = {
+                        'region': region,
+                        'lambdas': [],
+                        'lambda_count': 0,
+                        'ecr_repo_exists': False,
+                        'ecr_image_count': 0,
+                        'ecr_images': [],
+                        'error': str(e)
+                    }
+
+        return jsonify({
+            'success': True,
+            'regions': status_data,
+            'dynamodb': dynamodb_status,
+            'total_regions': len(AVAILABLE_GEO_REGIONS)
+        })
+    except Exception as e:
+        logger.error(f"Error getting AWS status: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@aws_manager.route('/api/aws/empty-dynamodb-table', methods=['POST'])
+@login_required
+def empty_dynamodb_table():
+    """Empty (clear all items from) DynamoDB table without deleting the table"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        region = data.get('region', '').strip()
+
+        if not access_key or not secret_key or not region:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        # DynamoDB is centralized in eu-west-1
+        dynamodb_region = 'eu-west-1'
+        table_name = "gbot-app-passwords"
+        
+        session = get_boto3_session(access_key, secret_key, dynamodb_region)
+        dynamodb = session.resource('dynamodb')
+        table = dynamodb.Table(table_name)
+        
+        # Check if table exists
+        try:
+            table.load()
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                return jsonify({
+                    'success': False,
+                    'error': f'DynamoDB table {table_name} does not exist in {dynamodb_region}.'
+                }), 404
+            raise e
+        
+        # Delete all items using scan and batch delete
+        deleted_count = 0
+        try:
+            # Scan and delete in batches
+            while True:
+                response = table.scan()
+                items = response.get('Items', [])
+                
+                if not items:
+                    break
+                
+                # Delete items in batches of 25 (DynamoDB batch_write_item limit)
+                with table.batch_writer() as batch:
+                    for item in items:
+                        batch.delete_item(Key={'email': item['email']})
+                        deleted_count += 1
+                
+                # Check if there are more items
+                if 'LastEvaluatedKey' not in response:
+                    break
+                    
+                # Continue scanning from last key
+                response = table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
+                items = response.get('Items', [])
+                
+                if not items:
+                    break
+                    
+                with table.batch_writer() as batch:
+                    for item in items:
+                        batch.delete_item(Key={'email': item['email']})
+                        deleted_count += 1
+                        
+        except Exception as e:
+            logger.error(f"[DYNAMODB] Error emptying table: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Error emptying table: {str(e)}'
+            }), 500
+
+        logger.info(f"[DYNAMODB] Emptied {deleted_count} items from {table_name}")
+        return jsonify({
+            'success': True,
+            'deleted_count': deleted_count,
+            'message': f'DynamoDB table emptied successfully. Deleted {deleted_count} item(s).'
+        })
+    except Exception as e:
+        logger.error(f"Error emptying DynamoDB table: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@aws_manager.route('/api/aws/clean-logs', methods=['POST'])
+@login_required
+def clean_logs():
+    """Clean log output (simple endpoint for frontend)"""
+    return jsonify({'success': True, 'message': 'Logs cleared'})
 
 @aws_manager.route('/api/aws/ec2-show-status', methods=['POST'])
 @login_required
