@@ -794,6 +794,149 @@ def push_ecr_to_all_regions():
                     region_name=source_region
                 )
                 
+                # ===== PRE-SCAN PHASE: Check which regions already have the image =====
+                logger.info("=" * 60)
+                logger.info("[ECR] PRE-SCAN: Checking which regions already have the ECR image...")
+                logger.info("=" * 60)
+                
+                def check_region_image_status(check_region):
+                    """Check if repository and image exist in a region"""
+                    region_status = {
+                        'region': check_region,
+                        'repo_exists': False,
+                        'image_exists': False,
+                        'error': None
+                    }
+                    
+                    try:
+                        check_session = boto3.Session(
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
+                            region_name=check_region
+                        )
+                        
+                        # Verify credentials first
+                        try:
+                            sts = check_session.client('sts')
+                            sts.get_caller_identity()
+                        except Exception as cred_err:
+                            region_status['error'] = f'Credential verification failed: {cred_err}'
+                            return region_status
+                        
+                        ecr_check = check_session.client('ecr')
+                        
+                        # Check if repository exists
+                        try:
+                            ecr_check.describe_repositories(repositoryNames=[repo_name])
+                            region_status['repo_exists'] = True
+                        except ClientError as repo_err:
+                            if repo_err.response['Error']['Code'] != 'RepositoryNotFoundException':
+                                region_status['error'] = f'Repository check failed: {repo_err}'
+                                return region_status
+                            # Repository doesn't exist - that's OK, we'll create it
+                        
+                        # Check if image exists (only if repo exists)
+                        if region_status['repo_exists']:
+                            try:
+                                ecr_check.describe_images(
+                                    repositoryName=repo_name,
+                                    imageIds=[{"imageTag": image_tag}],
+                                )
+                                region_status['image_exists'] = True
+                                logger.info(f"[ECR] [{check_region}] ✓ Repository and image exist")
+                            except ClientError as img_err:
+                                if img_err.response['Error']['Code'] == 'ImageNotFoundException':
+                                    logger.info(f"[ECR] [{check_region}] ⚠️ Repository exists but image NOT found")
+                                    # Image doesn't exist - need to push
+                                else:
+                                    region_status['error'] = f'Image check failed: {img_err}'
+                        else:
+                            logger.info(f"[ECR] [{check_region}] ⚠️ Repository does NOT exist")
+                            # Repository doesn't exist - need to create and push
+                            
+                    except Exception as check_err:
+                        region_status['error'] = str(check_err)
+                        logger.error(f"[ECR] [{check_region}] ✗ Error checking status: {check_err}")
+                    
+                    return region_status
+                
+                # Check all regions in parallel for faster pre-scan
+                logger.info(f"[ECR] Scanning {len(target_regions)} regions in parallel...")
+                regions_to_push = []
+                regions_with_image = []
+                regions_with_repo_only = []
+                regions_needing_repo = []
+                
+                with ThreadPoolExecutor(max_workers=20) as scan_executor:
+                    scan_futures = {scan_executor.submit(check_region_image_status, region): region for region in target_regions}
+                    
+                    for scan_future in as_completed(scan_futures):
+                        check_region = scan_futures[scan_future]
+                        try:
+                            status = scan_future.result()
+                            
+                            if status.get('error'):
+                                # If there's an error, we'll still try to push (might be credential issue)
+                                logger.warning(f"[ECR] [{check_region}] ⚠️ Check error: {status['error']} - will attempt push anyway")
+                                regions_to_push.append(check_region)
+                            elif status.get('image_exists'):
+                                # Image already exists - skip this region
+                                regions_with_image.append(check_region)
+                                logger.info(f"[ECR] [{check_region}] ✓✓✓ SKIP: Image already exists")
+                            elif status.get('repo_exists'):
+                                # Repository exists but no image - need to push
+                                regions_with_repo_only.append(check_region)
+                                regions_to_push.append(check_region)
+                                logger.info(f"[ECR] [{check_region}] ⚠️ NEEDS PUSH: Repository exists but image missing")
+                            else:
+                                # No repository - need to create repo and push image
+                                regions_needing_repo.append(check_region)
+                                regions_to_push.append(check_region)
+                                logger.info(f"[ECR] [{check_region}] ⚠️ NEEDS PUSH: Repository and image missing")
+                                
+                        except Exception as scan_err:
+                            logger.error(f"[ECR] [{check_region}] ✗ Scan error: {scan_err} - will attempt push anyway")
+                            regions_to_push.append(check_region)
+                
+                # Log summary
+                logger.info("=" * 60)
+                logger.info(f"[ECR] PRE-SCAN SUMMARY:")
+                logger.info(f"[ECR]   ✓ Regions with image (SKIP): {len(regions_with_image)} - {', '.join(sorted(regions_with_image))}")
+                logger.info(f"[ECR]   ⚠️ Regions needing push (repo exists, image missing): {len(regions_with_repo_only)} - {', '.join(sorted(regions_with_repo_only))}")
+                logger.info(f"[ECR]   ⚠️ Regions needing push (repo + image missing): {len(regions_needing_repo)} - {', '.join(sorted(regions_needing_repo))}")
+                logger.info(f"[ECR]   📊 TOTAL regions to push: {len(regions_to_push)} out of {len(target_regions)}")
+                logger.info("=" * 60)
+                
+                # Update job status with pre-scan results
+                with lambda_creation_lock:
+                    if job_id in lambda_creation_jobs:
+                        lambda_creation_jobs[job_id]['pre_scan'] = {
+                            'total_regions': len(target_regions),
+                            'regions_with_image': len(regions_with_image),
+                            'regions_to_push': len(regions_to_push),
+                            'regions_with_image_list': sorted(regions_with_image),
+                            'regions_to_push_list': sorted(regions_to_push)
+                        }
+                        lambda_creation_jobs[job_id]['message'] = f'Pre-scan complete: {len(regions_with_image)} already have image, pushing to {len(regions_to_push)} regions...'
+                
+                # If all regions already have the image, we're done!
+                if not regions_to_push:
+                    logger.info("[ECR] ✓✓✓ ALL regions already have the image! Nothing to push.")
+                    with lambda_creation_lock:
+                        if job_id in lambda_creation_jobs:
+                            lambda_creation_jobs[job_id]['status'] = 'completed'
+                            lambda_creation_jobs[job_id]['success_count'] = len(regions_with_image)
+                            lambda_creation_jobs[job_id]['failure_count'] = 0
+                            lambda_creation_jobs[job_id]['results'] = {
+                                region: {'success': True, 'message': 'Image already exists (pre-scan verified)', 'aws_verified': True}
+                                for region in regions_with_image
+                            }
+                    return
+                
+                # Update target_regions to only include regions that need pushing
+                target_regions = regions_to_push
+                logger.info(f"[ECR] Proceeding to push to {len(target_regions)} region(s) that need the image...")
+                
                 def push_to_region(target_region):
                     """Push ECR image to a single region (for parallel execution)"""
                     region_result = {'success': False, 'error': None}
@@ -817,9 +960,12 @@ def push_ecr_to_all_regions():
                             return region_result
                         
                         # Create ECR repository in target region if it doesn't exist
+                        # (Pre-scan already identified this region needs pushing, but we verify repo status)
                         ecr_client = target_session.client('ecr')
+                        repo_exists = False
                         try:
                             ecr_client.describe_repositories(repositoryNames=[repo_name])
+                            repo_exists = True
                             logger.info(f"[ECR] [{target_region}] ✓ ECR repository already exists")
                         except ClientError as e:
                             if e.response['Error']['Code'] == 'RepositoryNotFoundException':
@@ -830,7 +976,8 @@ def push_ecr_to_all_regions():
                                         imageScanningConfiguration={'scanOnPush': False}
                                     )
                                     logger.info(f"[ECR] [{target_region}] ✓ Created ECR repository")
-                                    time.sleep(2)  # Wait for repository to be ready
+                                    time.sleep(1)  # Reduced wait time
+                                    repo_exists = True
                                 except Exception as create_err:
                                     logger.error(f"[ECR] [{target_region}] ✗ Failed to create repository: {create_err}")
                                     region_result = {'success': False, 'error': f'Repository creation failed: {create_err}'}
@@ -840,33 +987,25 @@ def push_ecr_to_all_regions():
                                 region_result = {'success': False, 'error': f'Repository check failed: {e}'}
                                 return region_result
                         
-                        # Check if image already exists in target region (with retry for eventual consistency)
+                        # Quick double-check: Verify image still doesn't exist (might have been pushed by another process)
+                        # This is a fast check since pre-scan already determined it doesn't exist
                         target_ecr_uri = f"{account_id}.dkr.ecr.{target_region}.amazonaws.com/{repo_name}:{image_tag}"
-                        image_exists = False
-                        for check_attempt in range(3):  # Check up to 3 times with delays
+                        if repo_exists:
                             try:
                                 ecr_client.describe_images(
                                     repositoryName=repo_name,
                                     imageIds=[{"imageTag": image_tag}],
                                 )
-                                image_exists = True
-                                logger.info(f"[ECR] [{target_region}] ✓ Image already exists in {target_region} (verified)")
-                                break
+                                # Image exists now (might have been pushed by another process or EC2 script)
+                                logger.info(f"[ECR] [{target_region}] ✓ Image now exists (was pushed by another process) - skipping")
+                                region_result = {'success': True, 'message': 'Image already exists (verified during push)', 'aws_verified': True}
+                                return region_result
                             except ClientError as e:
-                                if e.response['Error']['Code'] == 'ImageNotFoundException':
-                                    if check_attempt < 2:  # Not the last attempt
-                                        time.sleep(2)  # Wait before retry
-                                        continue
-                                    # Image doesn't exist, proceed to push
-                                    break
-                                else:
+                                if e.response['Error']['Code'] != 'ImageNotFoundException':
                                     logger.error(f"[ECR] [{target_region}] ✗ Error checking image: {e}")
                                     region_result = {'success': False, 'error': f'Image check failed: {e}'}
                                     return region_result
-                        
-                        if image_exists:
-                            region_result = {'success': True, 'message': 'Image already exists (verified)', 'aws_verified': True}
-                            return region_result
+                                # Image doesn't exist - proceed to push (as expected from pre-scan)
                         
                         # Image doesn't exist - attempt to push it using Docker
                         logger.info(f"[ECR] [{target_region}] Image not found. Attempting to push from {source_region}...")
