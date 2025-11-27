@@ -772,12 +772,15 @@ def push_ecr_to_all_regions():
         
         def push_ecr_background():
             """Background task to push ECR image to all regions (PARALLEL)"""
-            # Declare nonlocal FIRST before any use of target_regions
+            # Capture the outer scope variable FIRST before declaring nonlocal
+            # This avoids the "referenced before assignment" error
+            initial_regions = list(target_regions)  # Capture at function definition time
+            
+            # Now declare nonlocal for later updates
             nonlocal target_regions
             
-            # Create a local reference to target_regions to avoid scope issues
-            # We'll update the outer scope variable later after pre-scan
-            regions_to_process = list(target_regions)  # Copy the list
+            # Use the captured value as our working variable
+            regions_to_process = initial_regions
             success_count = 0
             failure_count = 0
             results = {}
