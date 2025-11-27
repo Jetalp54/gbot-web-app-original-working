@@ -837,19 +837,94 @@ def push_ecr_to_all_regions():
                         
                         # Check if image exists (only if repo exists)
                         if region_status['repo_exists']:
+                            # Use list_images first to get all images, then check for our tag
+                            # This is more reliable than describe_images with specific tag
                             try:
-                                ecr_check.describe_images(
+                                list_response = ecr_check.list_images(
                                     repositoryName=repo_name,
-                                    imageIds=[{"imageTag": image_tag}],
+                                    maxResults=100  # Check up to 100 images
                                 )
-                                region_status['image_exists'] = True
-                                logger.info(f"[ECR] [{check_region}] ✓ Repository and image exist")
-                            except ClientError as img_err:
-                                if img_err.response['Error']['Code'] == 'ImageNotFoundException':
-                                    logger.info(f"[ECR] [{check_region}] ⚠️ Repository exists but image NOT found")
-                                    # Image doesn't exist - need to push
+                                image_ids = list_response.get('imageIds', [])
+                                
+                                if image_ids:
+                                    # Check if any image has our tag
+                                    has_matching_tag = False
+                                    found_tags = []
+                                    for img in image_ids:
+                                        img_tag = img.get('imageTag')
+                                        if img_tag:
+                                            found_tags.append(img_tag)
+                                            if img_tag == image_tag:
+                                                has_matching_tag = True
+                                    
+                                    if has_matching_tag:
+                                        region_status['image_exists'] = True
+                                        logger.info(f"[ECR] [{check_region}] ✓✓✓ Repository and image with tag '{image_tag}' EXIST (verified via list_images)")
+                                    else:
+                                        # Images exist but not with our tag
+                                        # Double-check using describe_images to be absolutely sure
+                                        try:
+                                            ecr_check.describe_images(
+                                                repositoryName=repo_name,
+                                                imageIds=[{"imageTag": image_tag}],
+                                            )
+                                            # If describe_images succeeds, image exists
+                                            region_status['image_exists'] = True
+                                            logger.info(f"[ECR] [{check_region}] ✓✓✓ Repository and image with tag '{image_tag}' EXIST (verified via describe_images after list)")
+                                        except ClientError as desc_check:
+                                            if desc_check.response.get('Error', {}).get('Code') == 'ImageNotFoundException':
+                                                # Confirmed: image with our tag doesn't exist
+                                                logger.info(f"[ECR] [{check_region}] ⚠️ Repository exists with {len(image_ids)} image(s) [tags: {', '.join(found_tags[:5])}{'...' if len(found_tags) > 5 else ''}] but tag '{image_tag}' NOT found")
+                                                # Need to push our specific tag
+                                            else:
+                                                # Other error - log but assume image doesn't exist
+                                                logger.warning(f"[ECR] [{check_region}] ⚠️ Error in describe_images check: {desc_check}")
+                                                # Need to push
                                 else:
-                                    region_status['error'] = f'Image check failed: {img_err}'
+                                    # No images at all - double check with describe_images
+                                    try:
+                                        ecr_check.describe_images(
+                                            repositoryName=repo_name,
+                                            imageIds=[{"imageTag": image_tag}],
+                                        )
+                                        # If describe_images succeeds, image exists (list_images might have missed it)
+                                        region_status['image_exists'] = True
+                                        logger.info(f"[ECR] [{check_region}] ✓✓✓ Repository and image with tag '{image_tag}' EXIST (found via describe_images, list_images returned empty)")
+                                    except ClientError as desc_check:
+                                        if desc_check.response.get('Error', {}).get('Code') == 'ImageNotFoundException':
+                                            # Confirmed: no images
+                                            logger.info(f"[ECR] [{check_region}] ⚠️ Repository exists but NO images found (both list and describe confirm)")
+                                            # Need to push
+                                        else:
+                                            logger.warning(f"[ECR] [{check_region}] ⚠️ Error in describe_images check: {desc_check}")
+                                            # Need to push
+                                    
+                            except ClientError as list_err:
+                                error_code = list_err.response.get('Error', {}).get('Code', '')
+                                if error_code == 'RepositoryNotFoundException':
+                                    # Repository doesn't actually exist (race condition?)
+                                    region_status['repo_exists'] = False
+                                    logger.warning(f"[ECR] [{check_region}] ⚠️ Repository check inconsistent - marking as not existing")
+                                else:
+                                    # Try fallback: describe_images with specific tag
+                                    try:
+                                        ecr_check.describe_images(
+                                            repositoryName=repo_name,
+                                            imageIds=[{"imageTag": image_tag}],
+                                        )
+                                        region_status['image_exists'] = True
+                                        logger.info(f"[ECR] [{check_region}] ✓ Repository and image with tag '{image_tag}' exist (verified via describe_images fallback)")
+                                    except ClientError as desc_err:
+                                        desc_error_code = desc_err.response.get('Error', {}).get('Code', '')
+                                        if desc_error_code == 'ImageNotFoundException':
+                                            logger.info(f"[ECR] [{check_region}] ⚠️ Image with tag '{image_tag}' NOT found (both list and describe failed)")
+                                            # Need to push
+                                        else:
+                                            logger.warning(f"[ECR] [{check_region}] ⚠️ Error checking image: {desc_error_code} - {desc_err}")
+                                            region_status['error'] = f'Image check failed: {desc_error_code}'
+                            except Exception as list_ex:
+                                logger.error(f"[ECR] [{check_region}] ✗ Exception listing images: {list_ex}")
+                                region_status['error'] = f'Exception listing images: {list_ex}'
                         else:
                             logger.info(f"[ECR] [{check_region}] ⚠️ Repository does NOT exist")
                             # Repository doesn't exist - need to create and push
@@ -861,7 +936,10 @@ def push_ecr_to_all_regions():
                     return region_status
                 
                 # Check all regions in parallel for faster pre-scan
-                logger.info(f"[ECR] Scanning {len(target_regions)} regions in parallel...")
+                logger.info("=" * 60)
+                logger.info(f"[ECR] PRE-SCAN PHASE: Checking {len(target_regions)} regions for existing images...")
+                logger.info(f"[ECR] Looking for image tag: '{image_tag}' in repository: '{repo_name}'")
+                logger.info("=" * 60)
                 regions_to_push = []
                 regions_with_image = []
                 regions_with_repo_only = []
@@ -875,19 +953,27 @@ def push_ecr_to_all_regions():
                         try:
                             status = scan_future.result()
                             
-                            if status.get('error'):
-                                # If there's an error, we'll still try to push (might be credential issue)
-                                logger.warning(f"[ECR] [{check_region}] ⚠️ Check error: {status['error']} - will attempt push anyway")
-                                regions_to_push.append(check_region)
-                            elif status.get('image_exists'):
+                            # Determine region status based on check results
+                            if status.get('image_exists'):
                                 # Image already exists - skip this region
                                 regions_with_image.append(check_region)
-                                logger.info(f"[ECR] [{check_region}] ✓✓✓ SKIP: Image already exists")
+                                logger.info(f"[ECR] [{check_region}] ✓✓✓ SKIP: Image with tag '{image_tag}' already exists")
+                            elif status.get('error'):
+                                # If there's an error, check if it's a critical error or just a warning
+                                error_msg = status.get('error', '')
+                                if 'Credential verification failed' in error_msg:
+                                    # Critical: can't access region - skip it
+                                    logger.error(f"[ECR] [{check_region}] ✗✗✗ SKIP: Credential error - cannot access region")
+                                    # Don't add to push list - we can't push if credentials fail
+                                else:
+                                    # Other error - might be transient, try to push anyway
+                                    logger.warning(f"[ECR] [{check_region}] ⚠️ Check error: {status['error']} - will attempt push anyway")
+                                    regions_to_push.append(check_region)
                             elif status.get('repo_exists'):
-                                # Repository exists but no image - need to push
+                                # Repository exists but no image with our tag - need to push
                                 regions_with_repo_only.append(check_region)
                                 regions_to_push.append(check_region)
-                                logger.info(f"[ECR] [{check_region}] ⚠️ NEEDS PUSH: Repository exists but image missing")
+                                logger.info(f"[ECR] [{check_region}] ⚠️ NEEDS PUSH: Repository exists but image with tag '{image_tag}' missing")
                             else:
                                 # No repository - need to create repo and push image
                                 regions_needing_repo.append(check_region)
@@ -898,13 +984,22 @@ def push_ecr_to_all_regions():
                             logger.error(f"[ECR] [{check_region}] ✗ Scan error: {scan_err} - will attempt push anyway")
                             regions_to_push.append(check_region)
                 
-                # Log summary
+                # Log summary with detailed breakdown
                 logger.info("=" * 60)
                 logger.info(f"[ECR] PRE-SCAN SUMMARY:")
-                logger.info(f"[ECR]   ✓ Regions with image (SKIP): {len(regions_with_image)} - {', '.join(sorted(regions_with_image))}")
-                logger.info(f"[ECR]   ⚠️ Regions needing push (repo exists, image missing): {len(regions_with_repo_only)} - {', '.join(sorted(regions_with_repo_only))}")
-                logger.info(f"[ECR]   ⚠️ Regions needing push (repo + image missing): {len(regions_needing_repo)} - {', '.join(sorted(regions_needing_repo))}")
-                logger.info(f"[ECR]   📊 TOTAL regions to push: {len(regions_to_push)} out of {len(target_regions)}")
+                logger.info(f"[ECR]   Total regions scanned: {len(target_regions)}")
+                logger.info(f"[ECR]   ✓ Regions with image (WILL SKIP): {len(regions_with_image)}")
+                if regions_with_image:
+                    logger.info(f"[ECR]      Skipped regions: {', '.join(sorted(regions_with_image))}")
+                logger.info(f"[ECR]   ⚠️ Regions needing push (repo exists, image missing): {len(regions_with_repo_only)}")
+                if regions_with_repo_only:
+                    logger.info(f"[ECR]      Regions: {', '.join(sorted(regions_with_repo_only))}")
+                logger.info(f"[ECR]   ⚠️ Regions needing push (repo + image missing): {len(regions_needing_repo)}")
+                if regions_needing_repo:
+                    logger.info(f"[ECR]      Regions: {', '.join(sorted(regions_needing_repo))}")
+                logger.info(f"[ECR]   📊 TOTAL regions that need pushing: {len(regions_to_push)} out of {len(target_regions)}")
+                if regions_to_push:
+                    logger.info(f"[ECR]      Will push to: {', '.join(sorted(regions_to_push))}")
                 logger.info("=" * 60)
                 
                 # Update job status with pre-scan results
@@ -934,8 +1029,22 @@ def push_ecr_to_all_regions():
                     return
                 
                 # Update target_regions to only include regions that need pushing
+                original_count = len(target_regions)
                 target_regions = regions_to_push
-                logger.info(f"[ECR] Proceeding to push to {len(target_regions)} region(s) that need the image...")
+                skipped_count = original_count - len(target_regions)
+                
+                logger.info("=" * 60)
+                logger.info(f"[ECR] PRE-SCAN FILTERING COMPLETE:")
+                logger.info(f"[ECR]   Original target regions: {original_count}")
+                logger.info(f"[ECR]   Regions with image (SKIPPED): {skipped_count}")
+                logger.info(f"[ECR]   Regions needing push: {len(target_regions)}")
+                logger.info("=" * 60)
+                
+                if len(target_regions) == 0:
+                    logger.info(f"[ECR] ✓✓✓ All {original_count} regions already have the image! No push needed.")
+                else:
+                    logger.info(f"[ECR] Proceeding to push to {len(target_regions)} region(s) that need the image...")
+                    logger.info(f"[ECR] Target regions for push: {', '.join(sorted(target_regions))}")
                 
                 def push_to_region(target_region):
                     """Push ECR image to a single region (for parallel execution)"""
