@@ -3156,17 +3156,17 @@ def bulk_generate():
                                                 'success': False,
                                                 'error': error_msg
                                             })
-                                    break  # Success, exit retry loop
-                                else:
-                                    # Multiple users but got single response - all fail
-                                    logger.error(f"[BULK] Expected batch response but got single user format")
-                                    for u in users_to_process:
-                                        batch_results.append({
-                                            'email': u['email'],
-                                            'success': False,
-                                            'error': 'Invalid response format from Lambda'
-                                        })
-                                    return batch_results
+                                        break  # Success, exit retry loop
+                                    else:
+                                        # Multiple users but got single response - all fail
+                                        logger.error(f"[BULK] Expected batch response but got single user format")
+                                        for u in users_to_process:
+                                            batch_results.append({
+                                                'email': u['email'],
+                                                'success': False,
+                                                'error': 'Invalid response format from Lambda'
+                                            })
+                                        return batch_results
                                 
                             except ClientError as ce:
                                 error_code = ce.response['Error']['Code']
