@@ -772,6 +772,9 @@ def push_ecr_to_all_regions():
         
         def push_ecr_background():
             """Background task to push ECR image to all regions (PARALLEL)"""
+            # Declare nonlocal FIRST before any use of target_regions
+            nonlocal target_regions
+            
             # Create a local reference to target_regions to avoid scope issues
             # We'll update the outer scope variable later after pre-scan
             regions_to_process = list(target_regions)  # Copy the list
@@ -1037,7 +1040,6 @@ def push_ecr_to_all_regions():
                 skipped_count = original_count - len(regions_to_process)
                 
                 # Update the outer scope variable for consistency
-                nonlocal target_regions
                 target_regions = regions_to_process
                 
                 logger.info("=" * 60)
