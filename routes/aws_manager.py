@@ -2128,27 +2128,40 @@ def create_lambdas():
                             # 2. Check for image using list_images (more reliable)
                             image_found = False
                             try:
+                                logger.info(f"[LAMBDA] [{geo}] DEBUG: Listing images in {repo_name}...")
                                 list_response = ecr_client.list_images(
                                     repositoryName=repo_name,
                                     maxResults=100
                                 )
-                                for img in list_response.get('imageIds', []):
-                                    if img.get('imageTag') == image_tag:
+                                image_ids = list_response.get('imageIds', [])
+                                logger.info(f"[LAMBDA] [{geo}] DEBUG: Found {len(image_ids)} images. Checking for tag '{image_tag}'...")
+                                
+                                for img in image_ids:
+                                    img_tag = img.get('imageTag')
+                                    if img_tag == image_tag:
                                         image_found = True
+                                        logger.info(f"[LAMBDA] [{geo}] DEBUG: Found matching tag in list_images: {img_tag}")
                                         break
+                                
+                                if not image_found:
+                                    logger.info(f"[LAMBDA] [{geo}] DEBUG: Tag '{image_tag}' NOT found in list_images results.")
+                                    
                             except Exception as list_err:
                                 logger.warning(f"[LAMBDA] [{geo}] list_images failed, falling back to describe_images: {list_err}")
 
                             # 3. Fallback/Confirmation with describe_images
                             if not image_found:
+                                logger.info(f"[LAMBDA] [{geo}] DEBUG: Attempting fallback describe_images check...")
                                 try:
                                     ecr_client.describe_images(
                                         repositoryName=repo_name,
                                         imageIds=[{"imageTag": image_tag}],
                                     )
                                     image_found = True
+                                    logger.info(f"[LAMBDA] [{geo}] DEBUG: describe_images SUCCEEDED (image exists).")
                                 except ClientError as desc_err:
                                     error_code = desc_err.response.get('Error', {}).get('Code', '')
+                                    logger.info(f"[LAMBDA] [{geo}] DEBUG: describe_images FAILED with {error_code}.")
                                     if error_code in ['ImageNotFoundException', 'ResourceNotFoundException']:
                                         pass # Still not found
                                     else:
