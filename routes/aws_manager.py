@@ -2249,6 +2249,106 @@ def create_lambdas():
                         'errors': geo_errors
                     }
                 
+                # --- EXPLICIT PRE-CHECK PHASE ---
+                logger.info("=" * 60)
+                logger.info(f"[LAMBDA] PRE-CHECK: Verifying ECR images in {len(functions_by_geo_dict)} regions...")
+                logger.info("=" * 60)
+                
+                # Parse ECR details once
+                import re
+                pc_repo_name = ECR_REPO_NAME
+                pc_image_tag = ECR_IMAGE_TAG
+                pc_account_id = None
+                
+                try:
+                    pc_match = re.match(r'(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com/([^:]+):(.+)', base_ecr_uri)
+                    if pc_match:
+                        pc_account_id, _, pc_repo_name, pc_image_tag = pc_match.groups()
+                except Exception:
+                    pass
+
+                def verify_geo_image(geo):
+                    """Check if ECR image exists in the region (Robust Check)"""
+                    try:
+                        pc_session = boto3.Session(
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
+                            region_name=geo
+                        )
+                        pc_ecr = pc_session.client('ecr')
+                        
+                        # 1. Check Repo
+                        try:
+                            pc_ecr.describe_repositories(repositoryNames=[pc_repo_name])
+                        except ClientError as re:
+                            if re.response.get('Error', {}).get('Code') in ['RepositoryNotFoundException', 'ResourceNotFoundException']:
+                                return geo, False, "Repository not found"
+                            raise re
+                            
+                        # 2. List Images
+                        found = False
+                        try:
+                            list_resp = pc_ecr.list_images(repositoryName=pc_repo_name, maxResults=100)
+                            for img in list_resp.get('imageIds', []):
+                                if img.get('imageTag') == pc_image_tag:
+                                    found = True
+                                    break
+                        except Exception:
+                            pass
+                            
+                        # 3. Describe Images (Fallback)
+                        if not found:
+                            try:
+                                pc_ecr.describe_images(repositoryName=pc_repo_name, imageIds=[{"imageTag": pc_image_tag}])
+                                found = True
+                            except ClientError:
+                                pass
+                        
+                        if found:
+                            return geo, True, "OK"
+                        else:
+                            return geo, False, f"Image tag '{pc_image_tag}' not found"
+                            
+                    except Exception as e:
+                        return geo, False, str(e)
+
+                valid_geos = set()
+                skipped_geos = []
+                
+                with ThreadPoolExecutor(max_workers=20) as pc_executor:
+                    pc_futures = {pc_executor.submit(verify_geo_image, geo): geo for geo in functions_by_geo_dict.keys()}
+                    
+                    for future in as_completed(pc_futures):
+                        geo, is_valid, reason = future.result()
+                        if is_valid:
+                            valid_geos.add(geo)
+                            logger.info(f"[LAMBDA] [PRE-CHECK] [{geo}] ✓ Image verified")
+                        else:
+                            skipped_geos.append(f"{geo} ({reason})")
+                            logger.warning(f"[LAMBDA] [PRE-CHECK] [{geo}] ⚠️ Image MISSING: {reason}")
+
+                # Filter the dictionary
+                original_count = len(functions_by_geo_dict)
+                functions_by_geo_dict = {k: v for k, v in functions_by_geo_dict.items() if k in valid_geos}
+                
+                logger.info("=" * 60)
+                logger.info(f"[LAMBDA] PRE-CHECK COMPLETED")
+                logger.info(f"[LAMBDA]   Total requested: {original_count}")
+                logger.info(f"[LAMBDA]   ✓ Valid regions: {len(valid_geos)}")
+                logger.info(f"[LAMBDA]   ⚠️ Skipped regions: {len(skipped_geos)}")
+                if skipped_geos:
+                    logger.info(f"[LAMBDA]   Skipped list: {', '.join(skipped_geos)}")
+                logger.info("=" * 60)
+                
+                if not functions_by_geo_dict:
+                    logger.error("[LAMBDA] ✗✗✗ STOPPING: No valid regions found with ECR images.")
+                    # Update job status to failed
+                    if job_id:
+                        with lambda_creation_lock:
+                            if job_id in lambda_creation_jobs:
+                                lambda_creation_jobs[job_id]['errors'] = {'ALL': ['No valid regions found with ECR images']}
+                    return []
+
                 # Execute Lambda creation in parallel across all geos
                 max_workers = min(len(functions_by_geo_dict), 20)  # Increased to 20 for better parallelization
                 logger.info(f"[LAMBDA] Using ThreadPoolExecutor with {max_workers} workers for {len(functions_by_geo_dict)} regions")
