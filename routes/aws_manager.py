@@ -2119,19 +2119,13 @@ def create_lambdas():
                             except ClientError as ecr_err:
                                 error_code = ecr_err.response.get('Error', {}).get('Code', '')
                                 if error_code in ['RepositoryNotFoundException', 'ImageNotFoundException']:
-                                    logger.error(f"[LAMBDA] [{geo}] ✗ ECR image not found in {geo}. Lambda cannot pull images cross-region.")
-                                    logger.error(f"[LAMBDA] [{geo}] Solution: Push the image to {geo} first:")
-                                    logger.error(f"[LAMBDA] [{geo}]   1. docker pull {base_ecr_uri}")
-                                    logger.error(f"[LAMBDA] [{geo}]   2. docker tag {base_ecr_uri} {geo_ecr_uri}")
-                                    logger.error(f"[LAMBDA] [{geo}]   3. aws ecr get-login-password --region {geo} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{geo}.amazonaws.com")
-                                    logger.error(f"[LAMBDA] [{geo}]   4. docker push {geo_ecr_uri}")
-                                    geo_errors.append(f"ECR image not found in {geo}. Lambda cannot pull images cross-region. Push image to {geo} first.")
-                                    geo_failure = len(func_list)
+                                    logger.warning(f"[LAMBDA] [{geo}] ⚠️ ECR image not found in {geo}. Skipping this region (will not create functions here).")
+                                    # Return 0 success, 0 failure to indicate skip
                                     return {
                                         'geo': geo,
                                         'success_count': 0,
-                                        'failure_count': geo_failure,
-                                        'errors': geo_errors
+                                        'failure_count': 0,
+                                        'errors': []
                                     }
                                 else:
                                     logger.error(f"[LAMBDA] [{geo}] ✗ ECR check failed: {error_code} - {ecr_err}")
