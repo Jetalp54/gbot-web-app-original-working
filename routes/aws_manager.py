@@ -772,9 +772,7 @@ def push_ecr_to_all_regions():
         
         def push_ecr_background():
             """Background task to push ECR image to all regions (PARALLEL)"""
-            # Create a local reference to target_regions to avoid scope issues
-            # We'll update the outer scope variable later after pre-scan
-            regions_to_process = list(target_regions)  # Copy the list
+            nonlocal target_regions  # Allow modification of outer scope variable
             success_count = 0
             failure_count = 0
             results = {}
@@ -940,7 +938,7 @@ def push_ecr_to_all_regions():
                 
                 # Check all regions in parallel for faster pre-scan
                 logger.info("=" * 60)
-                logger.info(f"[ECR] PRE-SCAN PHASE: Checking {len(regions_to_process)} regions for existing images...")
+                logger.info(f"[ECR] PRE-SCAN PHASE: Checking {len(target_regions)} regions for existing images...")
                 logger.info(f"[ECR] Looking for image tag: '{image_tag}' in repository: '{repo_name}'")
                 logger.info("=" * 60)
                 regions_to_push = []
@@ -949,7 +947,7 @@ def push_ecr_to_all_regions():
                 regions_needing_repo = []
                 
                 with ThreadPoolExecutor(max_workers=20) as scan_executor:
-                    scan_futures = {scan_executor.submit(check_region_image_status, region): region for region in regions_to_process}
+                    scan_futures = {scan_executor.submit(check_region_image_status, region): region for region in target_regions}
                     
                     for scan_future in as_completed(scan_futures):
                         check_region = scan_futures[scan_future]
@@ -990,7 +988,7 @@ def push_ecr_to_all_regions():
                 # Log summary with detailed breakdown
                 logger.info("=" * 60)
                 logger.info(f"[ECR] PRE-SCAN SUMMARY:")
-                logger.info(f"[ECR]   Total regions scanned: {len(regions_to_process)}")
+                logger.info(f"[ECR]   Total regions scanned: {len(target_regions)}")
                 logger.info(f"[ECR]   ✓ Regions with image (WILL SKIP): {len(regions_with_image)}")
                 if regions_with_image:
                     logger.info(f"[ECR]      Skipped regions: {', '.join(sorted(regions_with_image))}")
@@ -1000,7 +998,7 @@ def push_ecr_to_all_regions():
                 logger.info(f"[ECR]   ⚠️ Regions needing push (repo + image missing): {len(regions_needing_repo)}")
                 if regions_needing_repo:
                     logger.info(f"[ECR]      Regions: {', '.join(sorted(regions_needing_repo))}")
-                logger.info(f"[ECR]   📊 TOTAL regions that need pushing: {len(regions_to_push)} out of {len(regions_to_process)}")
+                logger.info(f"[ECR]   📊 TOTAL regions that need pushing: {len(regions_to_push)} out of {len(target_regions)}")
                 if regions_to_push:
                     logger.info(f"[ECR]      Will push to: {', '.join(sorted(regions_to_push))}")
                 logger.info("=" * 60)
@@ -1009,7 +1007,7 @@ def push_ecr_to_all_regions():
                 with lambda_creation_lock:
                     if job_id in lambda_creation_jobs:
                         lambda_creation_jobs[job_id]['pre_scan'] = {
-                            'total_regions': len(regions_to_process),
+                            'total_regions': len(target_regions),
                             'regions_with_image': len(regions_with_image),
                             'regions_to_push': len(regions_to_push),
                             'regions_with_image_list': sorted(regions_with_image),
@@ -1031,27 +1029,23 @@ def push_ecr_to_all_regions():
                             }
                     return
                 
-                # Update regions_to_process to only include regions that need pushing
-                original_count = len(regions_to_process)
-                regions_to_process = regions_to_push
-                skipped_count = original_count - len(regions_to_process)
-                
-                # Update the outer scope variable for consistency
-                nonlocal target_regions
-                target_regions = regions_to_process
+                # Update target_regions to only include regions that need pushing
+                original_count = len(target_regions)
+                target_regions = regions_to_push
+                skipped_count = original_count - len(target_regions)
                 
                 logger.info("=" * 60)
                 logger.info(f"[ECR] PRE-SCAN FILTERING COMPLETE:")
                 logger.info(f"[ECR]   Original target regions: {original_count}")
                 logger.info(f"[ECR]   Regions with image (SKIPPED): {skipped_count}")
-                logger.info(f"[ECR]   Regions needing push: {len(regions_to_process)}")
+                logger.info(f"[ECR]   Regions needing push: {len(target_regions)}")
                 logger.info("=" * 60)
                 
-                if len(regions_to_process) == 0:
+                if len(target_regions) == 0:
                     logger.info(f"[ECR] ✓✓✓ All {original_count} regions already have the image! No push needed.")
                 else:
-                    logger.info(f"[ECR] Proceeding to push to {len(regions_to_process)} region(s) that need the image...")
-                    logger.info(f"[ECR] Target regions for push: {', '.join(sorted(regions_to_process))}")
+                    logger.info(f"[ECR] Proceeding to push to {len(target_regions)} region(s) that need the image...")
+                    logger.info(f"[ECR] Target regions for push: {', '.join(sorted(target_regions))}")
                 
                 def push_to_region(target_region):
                     """Push ECR image to a single region (for parallel execution)"""
@@ -1598,26 +1592,26 @@ exit 1
                 if using_ec2_for_any:
                     # When using EC2, increase parallelism for faster processing
                     # EC2 instances can handle more concurrent Docker operations
-                    max_workers = min(len(regions_to_process), 8)  # Increased from 3 to 8 for faster processing
+                    max_workers = min(len(target_regions), 8)  # Increased from 3 to 8 for faster processing
                     logger.info(f"[ECR] Using EC2 build box - processing {max_workers} regions in parallel for faster completion")
-                    logger.info(f"[ECR] Each push may take 5-15 minutes for large images. Total time: ~{len(regions_to_process) * 10 / max_workers:.0f} minutes")
+                    logger.info(f"[ECR] Each push may take 5-15 minutes for large images. Total time: ~{len(target_regions) * 10 / max_workers:.0f} minutes")
                 else:
                     # When using local Docker or manual, can process more in parallel
-                    max_workers = min(len(regions_to_process), 15)  # Increased from 10 to 15 for faster processing
+                    max_workers = min(len(target_regions), 15)  # Increased from 10 to 15 for faster processing
                     logger.info(f"[ECR] Using local Docker/manual - processing up to {max_workers} regions in parallel")
                 
                 # Process all regions in PARALLEL using ThreadPoolExecutor
-                logger.info(f"[ECR] Starting PARALLEL push to {len(regions_to_process)} regions...")
+                logger.info(f"[ECR] Starting PARALLEL push to {len(target_regions)} regions...")
                 logger.info(f"[ECR] Using {max_workers} parallel workers")
                 
                 # Update job status to processing
                 with lambda_creation_lock:
                     if job_id in lambda_creation_jobs:
                         lambda_creation_jobs[job_id]['status'] = 'processing'
-                        lambda_creation_jobs[job_id]['message'] = f'Pushing to {len(regions_to_process)} regions in parallel...'
+                        lambda_creation_jobs[job_id]['message'] = f'Pushing to {len(target_regions)} regions in parallel...'
                 
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = {executor.submit(push_to_region, region): region for region in regions_to_process}
+                    futures = {executor.submit(push_to_region, region): region for region in target_regions}
                     
                     completed = 0
                     for future in as_completed(futures):
@@ -1629,10 +1623,10 @@ exit 1
                                 results[target_region] = region_result
                                 if region_result.get('success'):
                                     success_count += 1
-                                    logger.info(f"[ECR] [{target_region}] ✓ Completed ({completed}/{len(regions_to_process)})")
+                                    logger.info(f"[ECR] [{target_region}] ✓ Completed ({completed}/{len(target_regions)})")
                                 else:
                                     failure_count += 1
-                                    logger.error(f"[ECR] [{target_region}] ✗ Failed ({completed}/{len(regions_to_process)}): {region_result.get('error', 'Unknown error')}")
+                                    logger.error(f"[ECR] [{target_region}] ✗ Failed ({completed}/{len(target_regions)}): {region_result.get('error', 'Unknown error')}")
                             
                             # Update job status in real-time with AWS verification
                             with lambda_creation_lock:
@@ -1659,7 +1653,7 @@ exit 1
                                     lambda_creation_jobs[job_id]['success_count'] = success_count
                                     lambda_creation_jobs[job_id]['failure_count'] = failure_count
                                     lambda_creation_jobs[job_id]['results'] = results.copy()
-                                    lambda_creation_jobs[job_id]['message'] = f'Progress: {completed}/{len(regions_to_process)} regions completed ({success_count} success, {failure_count} failed)'
+                                    lambda_creation_jobs[job_id]['message'] = f'Progress: {completed}/{len(target_regions)} regions completed ({success_count} success, {failure_count} failed)'
                                     lambda_creation_jobs[job_id]['last_update'] = time.time()
                                     
                         except Exception as e:
@@ -1680,7 +1674,7 @@ exit 1
                 logger.info("[ECR] Performing final AWS verification pass...")
                 verified_success = 0
                 verified_failure = 0
-                for target_region in regions_to_process:
+                for target_region in target_regions:
                     try:
                         verify_session = boto3.Session(
                             aws_access_key_id=access_key,
@@ -1724,7 +1718,7 @@ exit 1
                 
                 # CRITICAL: Verify ALL geos were processed
                 processed_regions = set(results.keys())
-                expected_regions = set(regions_to_process)
+                expected_regions = set(target_regions)
                 missing_regions = expected_regions - processed_regions
                 
                 if missing_regions:
