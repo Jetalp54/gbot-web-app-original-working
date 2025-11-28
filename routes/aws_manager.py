@@ -3102,27 +3102,49 @@ def bulk_generate():
                     logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
                 logger.info("=" * 60)
             
+            # Create reverse map for easy lookup: function_number -> geo
+            func_to_geo = {}
+            for geo, fnums in functions_per_geo.items():
+                for fnum in fnums:
+                    func_to_geo[fnum] = geo
+            
             # Split users into batches of 10, assigning each batch to a function
             # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
             # CRITICAL: Each batch MUST be exactly 10 users or less
             user_batches = []  # List of (function_number, geo, user_batch) tuples
             logger.info(f"[BULK] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
-            for func_num in range(num_functions):
-                start_idx = func_num * USERS_PER_FUNCTION
+            
+            for func_num_idx in range(num_functions):
+                func_num = func_num_idx + 1
+                start_idx = func_num_idx * USERS_PER_FUNCTION
                 end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
                 batch_users = users[start_idx:end_idx]
                 
                 # ENFORCE: Ensure batch never exceeds 10 users
                 if len(batch_users) > USERS_PER_FUNCTION:
-                    logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num + 1} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
+                    logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
                     batch_users = batch_users[:USERS_PER_FUNCTION]
                 
                 if batch_users:
-                    # Determine which geo this function belongs to
-                    geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
-                    geo = AVAILABLE_GEO_REGIONS[geo_index]
-                    user_batches.append((func_num + 1, geo, batch_users))
-                    logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                    # Determine which geo this function belongs to using ACTUAL discovered location
+                    geo = func_to_geo.get(func_num)
+                    
+                    if not geo:
+                        # Fallback: If function number not found in discovery (e.g. we need 65 but only found 60)
+                        # We must assign it somewhere or skip. 
+                        # If we skip, users are not processed.
+                        # If we assign to a random valid region, we might use a function that doesn't exist there.
+                        # Best effort: Assign to a region that HAS functions, round-robin
+                        valid_geos_with_funcs = [g for g, f in functions_per_geo.items() if f]
+                        if valid_geos_with_funcs:
+                            geo = valid_geos_with_funcs[func_num_idx % len(valid_geos_with_funcs)]
+                            logger.warning(f"[BULK] ⚠️ Function #{func_num} not found in discovery! Fallback assignment to {geo}")
+                        else:
+                            logger.error(f"[BULK] ✗✗✗ CRITICAL: No valid regions found for Function #{func_num}. Users will be skipped!")
+                            continue
+
+                    user_batches.append((func_num, geo, batch_users))
+                    logger.info(f"[BULK] Function {func_num} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
                     if len(batch_users) > USERS_PER_FUNCTION:
                         logger.error(f"[BULK] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
                 else:
