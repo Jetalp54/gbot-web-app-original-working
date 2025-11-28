@@ -3522,22 +3522,22 @@ def bulk_generate():
             
                 # Group batches by geo for sequential processing within each geo
                 batches_by_geo = {}  # {geo: [(function_number, user_batch), ...]}
-                logger.info(f"[BULK] Grouping {len(user_batches)} batches by geo...")
+                print(f"[BULK DEBUG] Grouping {len(user_batches)} batches by geo...")
                 for func_num, geo, batch_users in user_batches:
-                    logger.info(f"[BULK] Processing batch: func_num={func_num}, geo={geo}, batch_size={len(batch_users)}, users={[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                    # print(f"[BULK DEBUG] Processing batch: func_num={func_num}, geo={geo}, batch_size={len(batch_users)}")
                     if geo not in batches_by_geo:
                         batches_by_geo[geo] = []
                     batches_by_geo[geo].append((func_num, batch_users))
-                    logger.info(f"[BULK] Added to geo {geo}: Function {func_num} with {len(batch_users)} user(s)")
+                    # print(f"[BULK DEBUG] Added to geo {geo}: Function {func_num} with {len(batch_users)} user(s)")
             
-                logger.info("=" * 60)
-                logger.info(f"[BULK] Batches per geo:")
+                print("=" * 60)
+                print(f"[BULK DEBUG] Batches per geo:")
                 for geo, geo_batches in sorted(batches_by_geo.items()):
                     total_users_in_geo = sum(len(batch) for _, batch in geo_batches)
-                    logger.info(f"[BULK]   - {geo}: {len(geo_batches)} function(s), {total_users_in_geo} user(s)")
-                logger.info(f"[BULK] TOTAL GEOS TO PROCESS: {len(batches_by_geo)}")
-                logger.info(f"[BULK] Geo list: {list(batches_by_geo.keys())}")
-                logger.info("=" * 60)
+                    print(f"[BULK DEBUG]   - {geo}: {len(geo_batches)} function(s), {total_users_in_geo} user(s)")
+                print(f"[BULK DEBUG] TOTAL GEOS TO PROCESS: {len(batches_by_geo)}")
+                print(f"[BULK DEBUG] Geo list: {list(batches_by_geo.keys())}")
+                print("=" * 60)
             
                 def process_geo_parallel(geo, geo_batches_list):
                     """
@@ -3836,32 +3836,18 @@ def bulk_generate():
                     geo_futures = {}
                     submitted_geos = []
                     for geo, geo_batches_list in batches_by_geo.items():
-                        try:
-                            logger.info(f"[BULK] ✓ Submitting geo {geo} with {len(geo_batches_list)} function(s) to thread pool")
-                            future = geo_pool.submit(process_geo_parallel, geo, geo_batches_list)
-                            geo_futures[future] = geo
-                            submitted_geos.append(geo)
-                            logger.info(f"[BULK] ✓✓✓ Successfully submitted geo {geo} to thread pool")
-                        except Exception as submit_err:
-                            logger.error(f"[BULK] ✗✗✗ FAILED to submit geo {geo} to thread pool: {submit_err}")
-                            logger.error(traceback.format_exc())
-                            # Add failed results for this geo
-                            for func_num, batch_users in geo_batches_list:
-                                for u in batch_users:
-                                    all_geo_results.append({
-                                        'email': u['email'],
-                                        'success': False,
-                                        'error': f'Failed to submit geo {geo} to thread pool: {str(submit_err)}'
-                                    })
-                
-                    logger.info("=" * 60)
-                    logger.info(f"[BULK] ✓✓✓ SUBMISSION SUMMARY")
-                    logger.info(f"[BULK] Total geos to process: {len(batches_by_geo)}")
-                    logger.info(f"[BULK] Successfully submitted: {len(submitted_geos)} geo(s)")
-                    logger.info(f"[BULK] Submitted geos: {submitted_geos}")
-                    logger.info(f"[BULK] Futures created: {len(geo_futures)}")
-                    logger.info(f"[BULK] All geos should now be processing simultaneously")
-                    logger.info("=" * 60)
+                        future = geo_pool.submit(process_geo_parallel, geo, geo_batches_list)
+                        geo_futures[future] = geo
+                        submitted_geos.append(geo)
+                        print(f"[BULK DEBUG] Submitted geo {geo} with {len(geo_batches_list)} functions")
+                    
+                    print(f"[BULK DEBUG] ✓✓✓ SUBMISSION SUMMARY")
+                    print(f"[BULK DEBUG] Total geos to process: {len(batches_by_geo)}")
+                    print(f"[BULK DEBUG] Successfully submitted: {len(submitted_geos)} geo(s)")
+                    print(f"[BULK DEBUG] Submitted geos: {submitted_geos}")
+                    print(f"[BULK DEBUG] Futures created: {len(geo_futures)}")
+                    print(f"[BULK DEBUG] All geos should now be processing simultaneously")
+                    print("=" * 60)
                 
                     # Wait for all geos to complete and collect results
                     completed_geos = []
@@ -3875,13 +3861,13 @@ def bulk_generate():
                             success_count = sum(1 for r in geo_results if r.get('success'))
                             total_count = len(geo_results)
                             failed_count = total_count - success_count
-                            logger.info("=" * 60)
-                            logger.info(f"[BULK] [{geo}] ✓✓✓ GEO COMPLETED: {success_count}/{total_count} success, {failed_count} failed")
-                            logger.info(f"[BULK] [{geo}] Functions processed: {len(geo_batches_list)}")
-                            logger.info(f"[BULK] [{geo}] Results count: {len(geo_results)}")
-                            logger.info(f"[BULK] Completed geos so far: {len(completed_geos)}/{len(geo_futures)}")
+                            print("=" * 60)
+                            print(f"[BULK DEBUG] [{geo}] ✓✓✓ GEO COMPLETED: {success_count}/{total_count} success, {failed_count} failed")
+                            print(f"[BULK DEBUG] [{geo}] Functions processed: {len(geo_batches_list)}")
+                            print(f"[BULK DEBUG] [{geo}] Results count: {len(geo_results)}")
+                            print(f"[BULK DEBUG] Completed geos so far: {len(completed_geos)}/{len(geo_futures)}")
                             if failed_count > 0:
-                                logger.warning(f"[BULK] [{geo}] ⚠️ Some failures detected: {failed_count} user(s) failed")
+                                print(f"[BULK DEBUG] [{geo}] ⚠️ Some failures detected: {failed_count} user(s) failed")
                             
                             # Update progress in file-based store
                             with jobs_lock:
@@ -3894,7 +3880,7 @@ def bulk_generate():
                                     job['results'].extend(geo_results)
                                     save_jobs({job_id: job})
                             
-                            logger.info("=" * 60)
+                            print("=" * 60)
                         except Exception as e:
                             logger.error("=" * 60)
                             logger.error(f"[BULK] [{geo}] ✗✗✗ GEO EXCEPTION (Future Error): {e}")
