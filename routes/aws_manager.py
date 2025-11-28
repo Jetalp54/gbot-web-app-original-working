@@ -3528,11 +3528,11 @@ def bulk_generate():
                         logger.info(f"[BULK] [{geo}] Total functions to process: {len(geo_batches_list)}")
                         logger.info(f"[BULK] [{geo}] Function numbers: {[func_num for func_num, _ in geo_batches_list]}")
                         
-                        # Calculate max workers: min(10, number of functions, but at least 2 if we have 2+ functions)
-                        max_workers = min(10, len(geo_batches_list))
+                        # Calculate max workers: min(50, number of functions, but at least 2 if we have 2+ functions)
+                        max_workers = min(50, len(geo_batches_list))
                         if len(geo_batches_list) >= 2 and max_workers < 2:
                             max_workers = 2
-                        logger.info(f"[BULK] [{geo}] Will process {max_workers} function(s) in parallel (max 10 per geo)")
+                        logger.info(f"[BULK] [{geo}] Will process {max_workers} function(s) in parallel (max 50 per geo)")
                         logger.info("=" * 60)
                         
                         # Create boto3 session for this geo (use the geo's region)
