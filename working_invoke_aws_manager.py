@@ -17,7 +17,6 @@ import hashlib
 import subprocess
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from collections import defaultdict
 from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
 from functools import wraps
 from database import db, UserAppPassword, AwsGeneratedPassword, AwsConfig, ProxyConfig, TwoCaptchaConfig
@@ -46,47 +45,6 @@ jobs_lock = threading.Lock()  # Lock for job storage
 # Track Lambda creation jobs
 lambda_creation_jobs = {}
 lambda_creation_lock = threading.Lock()
-
-# --- File-Based Job Store (Fix for Gunicorn Multi-Worker) ---
-JOBS_FILE = 'jobs.json'
-jobs_file_lock = threading.Lock()
-
-def load_jobs():
-    """Load jobs from JSON file (shared across workers)"""
-    try:
-        if os.path.exists(JOBS_FILE):
-            with open(JOBS_FILE, 'r') as f:
-                return json.load(f)
-    except Exception as e:
-        logger.error(f"Error loading jobs file: {e}")
-    return {}
-
-def save_jobs(jobs_data):
-    """Save jobs to JSON file (shared across workers)"""
-    try:
-        with jobs_file_lock:
-            # First load existing to merge (in case other workers updated other jobs)
-            # But for simplicity and since we key by job_id, we might overwrite.
-            # Ideally we should read-modify-write.
-            current_jobs = {}
-            if os.path.exists(JOBS_FILE):
-                try:
-                    with open(JOBS_FILE, 'r') as f:
-                        current_jobs = json.load(f)
-                except:
-                    pass
-            
-            # Update with new data
-            current_jobs.update(jobs_data)
-            
-            with open(JOBS_FILE, 'w') as f:
-                json.dump(current_jobs, f)
-    except Exception as e:
-        logger.error(f"Error saving jobs file: {e}")
-
-# Initialize active_jobs from file
-active_jobs = load_jobs()
-
 
 # Global set to track emails currently being processed (prevent duplicates within a job)
 processing_emails = set()
@@ -814,8 +772,6 @@ def push_ecr_to_all_regions():
         
         def push_ecr_background():
             """Background task to push ECR image to all regions (PARALLEL)"""
-            # Use a local copy of target_regions to avoid scope issues
-            regions_to_process = list(target_regions)  # Create a copy from outer scope
             success_count = 0
             failure_count = 0
             results = {}
@@ -837,258 +793,6 @@ def push_ecr_to_all_regions():
                     aws_secret_access_key=secret_key,
                     region_name=source_region
                 )
-                
-                # ===== PRE-SCAN PHASE: Check which regions already have the image =====
-                logger.info("=" * 60)
-                logger.info("[ECR] PRE-SCAN: Checking which regions already have the ECR image...")
-                logger.info("=" * 60)
-                
-                def check_region_image_status(check_region):
-                    """Check if repository and image exist in a region"""
-                    region_status = {
-                        'region': check_region,
-                        'repo_exists': False,
-                        'image_exists': False,
-                        'error': None
-                    }
-                    
-                    try:
-                        check_session = boto3.Session(
-                            aws_access_key_id=access_key,
-                            aws_secret_access_key=secret_key,
-                            region_name=check_region
-                        )
-                        
-                        # Verify credentials first
-                        try:
-                            sts = check_session.client('sts')
-                            sts.get_caller_identity()
-                        except Exception as cred_err:
-                            region_status['error'] = f'Credential verification failed: {cred_err}'
-                            return region_status
-                        
-                        ecr_check = check_session.client('ecr')
-                        
-                        # Check if repository exists
-                        try:
-                            ecr_check.describe_repositories(repositoryNames=[repo_name])
-                            region_status['repo_exists'] = True
-                        except ClientError as repo_err:
-                            if repo_err.response['Error']['Code'] != 'RepositoryNotFoundException':
-                                region_status['error'] = f'Repository check failed: {repo_err}'
-                                return region_status
-                            # Repository doesn't exist - that's OK, we'll create it
-                        
-                        # Check if image exists (only if repo exists)
-                        if region_status['repo_exists']:
-                            # Use list_images first to get all images, then check for our tag
-                            # This is more reliable than describe_images with specific tag
-                            try:
-                                list_response = ecr_check.list_images(
-                                    repositoryName=repo_name,
-                                    maxResults=100  # Check up to 100 images
-                                )
-                                image_ids = list_response.get('imageIds', [])
-                                
-                                if image_ids:
-                                    # Check if any image has our tag
-                                    has_matching_tag = False
-                                    found_tags = []
-                                    for img in image_ids:
-                                        img_tag = img.get('imageTag')
-                                        if img_tag:
-                                            found_tags.append(img_tag)
-                                            if img_tag == image_tag:
-                                                has_matching_tag = True
-                                    
-                                    if has_matching_tag:
-                                        region_status['image_exists'] = True
-                                        logger.info(f"[ECR] [{check_region}] ✓✓✓ Repository and image with tag '{image_tag}' EXIST (verified via list_images)")
-                                    else:
-                                        # Images exist but not with our tag
-                                        # Double-check using describe_images to be absolutely sure
-                                        try:
-                                            ecr_check.describe_images(
-                                                repositoryName=repo_name,
-                                                imageIds=[{"imageTag": image_tag}],
-                                            )
-                                            # If describe_images succeeds, image exists
-                                            region_status['image_exists'] = True
-                                            logger.info(f"[ECR] [{check_region}] ✓✓✓ Repository and image with tag '{image_tag}' EXIST (verified via describe_images after list)")
-                                        except ClientError as desc_check:
-                                            if desc_check.response.get('Error', {}).get('Code') == 'ImageNotFoundException':
-                                                # Confirmed: image with our tag doesn't exist
-                                                logger.info(f"[ECR] [{check_region}] ⚠️ Repository exists with {len(image_ids)} image(s) [tags: {', '.join(found_tags[:5])}{'...' if len(found_tags) > 5 else ''}] but tag '{image_tag}' NOT found")
-                                                # Need to push our specific tag
-                                            else:
-                                                # Other error - log but assume image doesn't exist
-                                                logger.warning(f"[ECR] [{check_region}] ⚠️ Error in describe_images check: {desc_check}")
-                                                # Need to push
-                                else:
-                                    # No images at all - double check with describe_images
-                                    try:
-                                        ecr_check.describe_images(
-                                            repositoryName=repo_name,
-                                            imageIds=[{"imageTag": image_tag}],
-                                        )
-                                        # If describe_images succeeds, image exists (list_images might have missed it)
-                                        region_status['image_exists'] = True
-                                        logger.info(f"[ECR] [{check_region}] ✓✓✓ Repository and image with tag '{image_tag}' EXIST (found via describe_images, list_images returned empty)")
-                                    except ClientError as desc_check:
-                                        if desc_check.response.get('Error', {}).get('Code') == 'ImageNotFoundException':
-                                            # Confirmed: no images
-                                            logger.info(f"[ECR] [{check_region}] ⚠️ Repository exists but NO images found (both list and describe confirm)")
-                                            # Need to push
-                                        else:
-                                            logger.warning(f"[ECR] [{check_region}] ⚠️ Error in describe_images check: {desc_check}")
-                                            # Need to push
-                                    
-                            except ClientError as list_err:
-                                error_code = list_err.response.get('Error', {}).get('Code', '')
-                                if error_code == 'RepositoryNotFoundException':
-                                    # Repository doesn't actually exist (race condition?)
-                                    region_status['repo_exists'] = False
-                                    logger.warning(f"[ECR] [{check_region}] ⚠️ Repository check inconsistent - marking as not existing")
-                                else:
-                                    # Try fallback: describe_images with specific tag
-                                    try:
-                                        ecr_check.describe_images(
-                                            repositoryName=repo_name,
-                                            imageIds=[{"imageTag": image_tag}],
-                                        )
-                                        region_status['image_exists'] = True
-                                        logger.info(f"[ECR] [{check_region}] ✓ Repository and image with tag '{image_tag}' exist (verified via describe_images fallback)")
-                                    except ClientError as desc_err:
-                                        desc_error_code = desc_err.response.get('Error', {}).get('Code', '')
-                                        if desc_error_code == 'ImageNotFoundException':
-                                            logger.info(f"[ECR] [{check_region}] ⚠️ Image with tag '{image_tag}' NOT found (both list and describe failed)")
-                                            # Need to push
-                                        else:
-                                            logger.warning(f"[ECR] [{check_region}] ⚠️ Error checking image: {desc_error_code} - {desc_err}")
-                                            region_status['error'] = f'Image check failed: {desc_error_code}'
-                            except Exception as list_ex:
-                                logger.error(f"[ECR] [{check_region}] ✗ Exception listing images: {list_ex}")
-                                region_status['error'] = f'Exception listing images: {list_ex}'
-                        else:
-                            logger.info(f"[ECR] [{check_region}] ⚠️ Repository does NOT exist")
-                            # Repository doesn't exist - need to create and push
-                            
-                    except Exception as check_err:
-                        region_status['error'] = str(check_err)
-                        logger.error(f"[ECR] [{check_region}] ✗ Error checking status: {check_err}")
-                    
-                    return region_status
-                
-                # Check all regions in parallel for faster pre-scan
-                logger.info("=" * 60)
-                logger.info(f"[ECR] PRE-SCAN PHASE: Checking {len(regions_to_process)} regions for existing images...")
-                logger.info(f"[ECR] Looking for image tag: '{image_tag}' in repository: '{repo_name}'")
-                logger.info("=" * 60)
-                regions_to_push = []
-                regions_with_image = []
-                regions_with_repo_only = []
-                regions_needing_repo = []
-                
-                with ThreadPoolExecutor(max_workers=20) as scan_executor:
-                    scan_futures = {scan_executor.submit(check_region_image_status, region): region for region in regions_to_process}
-                    
-                    for scan_future in as_completed(scan_futures):
-                        check_region = scan_futures[scan_future]
-                        try:
-                            status = scan_future.result()
-                            
-                            # Determine region status based on check results
-                            if status.get('image_exists'):
-                                # Image already exists - skip this region
-                                regions_with_image.append(check_region)
-                                logger.info(f"[ECR] [{check_region}] ✓✓✓ SKIP: Image with tag '{image_tag}' already exists")
-                            elif status.get('error'):
-                                # If there's an error, check if it's a critical error or just a warning
-                                error_msg = status.get('error', '')
-                                if 'Credential verification failed' in error_msg:
-                                    # Critical: can't access region - skip it
-                                    logger.error(f"[ECR] [{check_region}] ✗✗✗ SKIP: Credential error - cannot access region")
-                                    # Don't add to push list - we can't push if credentials fail
-                                else:
-                                    # Other error - might be transient, try to push anyway
-                                    logger.warning(f"[ECR] [{check_region}] ⚠️ Check error: {status['error']} - will attempt push anyway")
-                                    regions_to_push.append(check_region)
-                            elif status.get('repo_exists'):
-                                # Repository exists but no image with our tag - need to push
-                                regions_with_repo_only.append(check_region)
-                                regions_to_push.append(check_region)
-                                logger.info(f"[ECR] [{check_region}] ⚠️ NEEDS PUSH: Repository exists but image with tag '{image_tag}' missing")
-                            else:
-                                # No repository - need to create repo and push image
-                                regions_needing_repo.append(check_region)
-                                regions_to_push.append(check_region)
-                                logger.info(f"[ECR] [{check_region}] ⚠️ NEEDS PUSH: Repository and image missing")
-                                
-                        except Exception as scan_err:
-                            logger.error(f"[ECR] [{check_region}] ✗ Scan error: {scan_err} - will attempt push anyway")
-                            regions_to_push.append(check_region)
-                
-                # Log summary with detailed breakdown
-                logger.info("=" * 60)
-                logger.info(f"[ECR] PRE-SCAN SUMMARY:")
-                logger.info(f"[ECR]   Total regions scanned: {len(regions_to_process)}")
-                logger.info(f"[ECR]   ✓ Regions with image (WILL SKIP): {len(regions_with_image)}")
-                if regions_with_image:
-                    logger.info(f"[ECR]      Skipped regions: {', '.join(sorted(regions_with_image))}")
-                logger.info(f"[ECR]   ⚠️ Regions needing push (repo exists, image missing): {len(regions_with_repo_only)}")
-                if regions_with_repo_only:
-                    logger.info(f"[ECR]      Regions: {', '.join(sorted(regions_with_repo_only))}")
-                logger.info(f"[ECR]   ⚠️ Regions needing push (repo + image missing): {len(regions_needing_repo)}")
-                if regions_needing_repo:
-                    logger.info(f"[ECR]      Regions: {', '.join(sorted(regions_needing_repo))}")
-                logger.info(f"[ECR]   📊 TOTAL regions that need pushing: {len(regions_to_push)} out of {len(regions_to_process)}")
-                if regions_to_push:
-                    logger.info(f"[ECR]      Will push to: {', '.join(sorted(regions_to_push))}")
-                logger.info("=" * 60)
-                
-                # Update job status with pre-scan results
-                with lambda_creation_lock:
-                    if job_id in lambda_creation_jobs:
-                        lambda_creation_jobs[job_id]['pre_scan'] = {
-                            'total_regions': len(regions_to_process),
-                            'regions_with_image': len(regions_with_image),
-                            'regions_to_push': len(regions_to_push),
-                            'regions_with_image_list': sorted(regions_with_image),
-                            'regions_to_push_list': sorted(regions_to_push)
-                        }
-                        lambda_creation_jobs[job_id]['message'] = f'Pre-scan complete: {len(regions_with_image)} already have image, pushing to {len(regions_to_push)} regions...'
-                
-                # If all regions already have the image, we're done!
-                if not regions_to_push:
-                    logger.info("[ECR] ✓✓✓ ALL regions already have the image! Nothing to push.")
-                    with lambda_creation_lock:
-                        if job_id in lambda_creation_jobs:
-                            lambda_creation_jobs[job_id]['status'] = 'completed'
-                            lambda_creation_jobs[job_id]['success_count'] = len(regions_with_image)
-                            lambda_creation_jobs[job_id]['failure_count'] = 0
-                            lambda_creation_jobs[job_id]['results'] = {
-                                region: {'success': True, 'message': 'Image already exists (pre-scan verified)', 'aws_verified': True}
-                                for region in regions_with_image
-                            }
-                    return
-                
-                # Update regions_to_process to only include regions that need pushing
-                original_count = len(regions_to_process)
-                regions_to_process = regions_to_push
-                skipped_count = original_count - len(regions_to_process)
-                
-                logger.info("=" * 60)
-                logger.info(f"[ECR] PRE-SCAN FILTERING COMPLETE:")
-                logger.info(f"[ECR]   Original target regions: {original_count}")
-                logger.info(f"[ECR]   Regions with image (SKIPPED): {skipped_count}")
-                logger.info(f"[ECR]   Regions needing push: {len(regions_to_process)}")
-                logger.info("=" * 60)
-                
-                if len(regions_to_process) == 0:
-                    logger.info(f"[ECR] ✓✓✓ All {original_count} regions already have the image! No push needed.")
-                else:
-                    logger.info(f"[ECR] Proceeding to push to {len(regions_to_process)} region(s) that need the image...")
-                    logger.info(f"[ECR] Target regions for push: {', '.join(sorted(regions_to_process))}")
                 
                 def push_to_region(target_region):
                     """Push ECR image to a single region (for parallel execution)"""
@@ -1113,12 +817,9 @@ def push_ecr_to_all_regions():
                             return region_result
                         
                         # Create ECR repository in target region if it doesn't exist
-                        # (Pre-scan already identified this region needs pushing, but we verify repo status)
                         ecr_client = target_session.client('ecr')
-                        repo_exists = False
                         try:
                             ecr_client.describe_repositories(repositoryNames=[repo_name])
-                            repo_exists = True
                             logger.info(f"[ECR] [{target_region}] ✓ ECR repository already exists")
                         except ClientError as e:
                             if e.response['Error']['Code'] == 'RepositoryNotFoundException':
@@ -1129,8 +830,7 @@ def push_ecr_to_all_regions():
                                         imageScanningConfiguration={'scanOnPush': False}
                                     )
                                     logger.info(f"[ECR] [{target_region}] ✓ Created ECR repository")
-                                    time.sleep(1)  # Reduced wait time
-                                    repo_exists = True
+                                    time.sleep(2)  # Wait for repository to be ready
                                 except Exception as create_err:
                                     logger.error(f"[ECR] [{target_region}] ✗ Failed to create repository: {create_err}")
                                     region_result = {'success': False, 'error': f'Repository creation failed: {create_err}'}
@@ -1140,25 +840,33 @@ def push_ecr_to_all_regions():
                                 region_result = {'success': False, 'error': f'Repository check failed: {e}'}
                                 return region_result
                         
-                        # Quick double-check: Verify image still doesn't exist (might have been pushed by another process)
-                        # This is a fast check since pre-scan already determined it doesn't exist
+                        # Check if image already exists in target region (with retry for eventual consistency)
                         target_ecr_uri = f"{account_id}.dkr.ecr.{target_region}.amazonaws.com/{repo_name}:{image_tag}"
-                        if repo_exists:
+                        image_exists = False
+                        for check_attempt in range(3):  # Check up to 3 times with delays
                             try:
                                 ecr_client.describe_images(
                                     repositoryName=repo_name,
                                     imageIds=[{"imageTag": image_tag}],
                                 )
-                                # Image exists now (might have been pushed by another process or EC2 script)
-                                logger.info(f"[ECR] [{target_region}] ✓ Image now exists (was pushed by another process) - skipping")
-                                region_result = {'success': True, 'message': 'Image already exists (verified during push)', 'aws_verified': True}
-                                return region_result
+                                image_exists = True
+                                logger.info(f"[ECR] [{target_region}] ✓ Image already exists in {target_region} (verified)")
+                                break
                             except ClientError as e:
-                                if e.response['Error']['Code'] != 'ImageNotFoundException':
+                                if e.response['Error']['Code'] == 'ImageNotFoundException':
+                                    if check_attempt < 2:  # Not the last attempt
+                                        time.sleep(2)  # Wait before retry
+                                        continue
+                                    # Image doesn't exist, proceed to push
+                                    break
+                                else:
                                     logger.error(f"[ECR] [{target_region}] ✗ Error checking image: {e}")
                                     region_result = {'success': False, 'error': f'Image check failed: {e}'}
                                     return region_result
-                                # Image doesn't exist - proceed to push (as expected from pre-scan)
+                        
+                        if image_exists:
+                            region_result = {'success': True, 'message': 'Image already exists (verified)', 'aws_verified': True}
+                            return region_result
                         
                         # Image doesn't exist - attempt to push it using Docker
                         logger.info(f"[ECR] [{target_region}] Image not found. Attempting to push from {source_region}...")
@@ -1263,16 +971,16 @@ if ! docker push {target_ecr_uri}; then
 fi
 echo "✓ Image pushed successfully"
 
-# Verify image exists in target region (optimized for speed)
+# Verify image exists in target region
 echo "=== Step 6: Verifying image exists in {target_region}... ==="
-sleep 2  # Reduced wait time for ECR to update
-for i in {{1..3}}; do
+sleep 3  # Wait for ECR to update
+for i in {{1..5}}; do
     if aws ecr describe-images --repository-name {repo_name} --image-ids imageTag={image_tag} --region {target_region} 2>&1; then
         echo "✓✓✓ VERIFIED: Image exists in ECR after push!"
         exit 0
     fi
-    echo "Image not found yet (attempt $i/3), waiting..."
-    sleep 2  # Reduced wait time
+    echo "Image not found yet (attempt $i/5), waiting..."
+    sleep 3
 done
 
 echo "ERROR: Image push completed but verification failed - image not found in ECR"
@@ -1288,7 +996,7 @@ exit 1
                                         'commands': [push_script],
                                         'workingDirectory': ['/home/ec2-user']
                                     },
-                                    TimeoutSeconds=1800  # 30 minutes - optimized for faster processing
+                                    TimeoutSeconds=3600  # 60 minutes - increased for large images
                                 )
                                 
                                 command_id = response['Command']['CommandId']
@@ -1296,8 +1004,8 @@ exit 1
                                 logger.info(f"[ECR] [{target_region}] Push script will: 1) Auth, 2) Pull from {source_region}, 3) Tag, 4) Push to {target_region}, 5) Verify")
                                 
                                 # Wait for command to complete (with extended timeout for large images)
-                                max_wait = 1800  # 30 minutes - optimized for faster failure detection
-                                wait_interval = 10  # Check every 10 seconds (faster status updates)
+                                max_wait = 3600  # 60 minutes - increased for large Docker images
+                                wait_interval = 20  # Check every 20 seconds (reduced frequency to avoid SSM API throttling)
                                 waited = 0
                                 last_status = None
                                 
@@ -1338,9 +1046,9 @@ exit 1
                                             
                                             # CRITICAL: Verify the image actually exists after EC2 push
                                             logger.info(f"[ECR] [{target_region}] Verifying image exists after EC2 push...")
-                                            time.sleep(2)  # Reduced wait time for ECR to update
+                                            time.sleep(3)  # Wait for ECR to update
                                             
-                                            verification_attempts = 3  # Reduced from 5 to 3 for faster processing
+                                            verification_attempts = 5
                                             image_verified = False
                                             for verify_attempt in range(verification_attempts):
                                                 try:
@@ -1354,7 +1062,7 @@ exit 1
                                                 except ClientError as verify_err:
                                                     if verify_err.response['Error']['Code'] == 'ImageNotFoundException':
                                                         logger.warning(f"[ECR] [{target_region}] Image not found yet (attempt {verify_attempt + 1}/{verification_attempts}), waiting...")
-                                                        time.sleep(2)  # Reduced from 3 to 2 seconds
+                                                        time.sleep(3)
                                                     else:
                                                         logger.error(f"[ECR] [{target_region}] Verification error: {verify_err}")
                                                         break
@@ -1566,11 +1274,11 @@ exit 1
                             
                             logger.info(f"[ECR] [{target_region}] ✓✓✓ Docker push command completed")
                             
-                            # CRITICAL: Verify the image actually exists after push (optimized for speed)
+                            # CRITICAL: Verify the image actually exists after push
                             logger.info(f"[ECR] [{target_region}] Verifying image exists after push...")
-                            time.sleep(2)  # Reduced wait time for ECR to update
+                            time.sleep(2)  # Wait a moment for ECR to update
                             
-                            verification_attempts = 3  # Reduced from 5 to 3 for faster processing
+                            verification_attempts = 5
                             image_verified = False
                             for verify_attempt in range(verification_attempts):
                                 try:
@@ -1584,7 +1292,7 @@ exit 1
                                 except ClientError as verify_err:
                                     if verify_err.response['Error']['Code'] == 'ImageNotFoundException':
                                         logger.warning(f"[ECR] [{target_region}] Image not found yet (attempt {verify_attempt + 1}/{verification_attempts}), waiting...")
-                                        time.sleep(2)  # Reduced from 3 to 2 seconds for faster processing
+                                        time.sleep(3)
                                     else:
                                         logger.error(f"[ECR] [{target_region}] Verification error: {verify_err}")
                                         break
@@ -1633,28 +1341,28 @@ exit 1
                     pass
                 
                 if using_ec2_for_any:
-                    # When using EC2, increase parallelism for faster processing
-                    # EC2 instances can handle more concurrent Docker operations
-                    max_workers = min(len(regions_to_process), 8)  # Increased from 3 to 8 for faster processing
-                    logger.info(f"[ECR] Using EC2 build box - processing {max_workers} regions in parallel for faster completion")
-                    logger.info(f"[ECR] Each push may take 5-15 minutes for large images. Total time: ~{len(regions_to_process) * 10 / max_workers:.0f} minutes")
+                    # When using EC2, limit to 3 concurrent pushes to avoid overwhelming the instance
+                    # Large Docker images (1-3GB) take 10-30 minutes each to push
+                    max_workers = min(len(target_regions), 3)
+                    logger.info(f"[ECR] Using EC2 build box - limiting to {max_workers} concurrent pushes to avoid overwhelming instance")
+                    logger.info(f"[ECR] Each push may take 10-30 minutes for large images. Total time: ~{len(target_regions) * 15 / max_workers:.0f} minutes")
                 else:
                     # When using local Docker or manual, can process more in parallel
-                    max_workers = min(len(regions_to_process), 15)  # Increased from 10 to 15 for faster processing
+                    max_workers = min(len(target_regions), 10)  # Reduced from 20 to 10 to avoid overwhelming Docker
                     logger.info(f"[ECR] Using local Docker/manual - processing up to {max_workers} regions in parallel")
                 
                 # Process all regions in PARALLEL using ThreadPoolExecutor
-                logger.info(f"[ECR] Starting PARALLEL push to {len(regions_to_process)} regions...")
+                logger.info(f"[ECR] Starting PARALLEL push to {len(target_regions)} regions...")
                 logger.info(f"[ECR] Using {max_workers} parallel workers")
                 
                 # Update job status to processing
                 with lambda_creation_lock:
                     if job_id in lambda_creation_jobs:
                         lambda_creation_jobs[job_id]['status'] = 'processing'
-                        lambda_creation_jobs[job_id]['message'] = f'Pushing to {len(regions_to_process)} regions in parallel...'
+                        lambda_creation_jobs[job_id]['message'] = f'Pushing to {len(target_regions)} regions in parallel...'
                 
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = {executor.submit(push_to_region, region): region for region in regions_to_process}
+                    futures = {executor.submit(push_to_region, region): region for region in target_regions}
                     
                     completed = 0
                     for future in as_completed(futures):
@@ -1666,10 +1374,10 @@ exit 1
                                 results[target_region] = region_result
                                 if region_result.get('success'):
                                     success_count += 1
-                                    logger.info(f"[ECR] [{target_region}] ✓ Completed ({completed}/{len(regions_to_process)})")
+                                    logger.info(f"[ECR] [{target_region}] ✓ Completed ({completed}/{len(target_regions)})")
                                 else:
                                     failure_count += 1
-                                    logger.error(f"[ECR] [{target_region}] ✗ Failed ({completed}/{len(regions_to_process)}): {region_result.get('error', 'Unknown error')}")
+                                    logger.error(f"[ECR] [{target_region}] ✗ Failed ({completed}/{len(target_regions)}): {region_result.get('error', 'Unknown error')}")
                             
                             # Update job status in real-time with AWS verification
                             with lambda_creation_lock:
@@ -1696,7 +1404,7 @@ exit 1
                                     lambda_creation_jobs[job_id]['success_count'] = success_count
                                     lambda_creation_jobs[job_id]['failure_count'] = failure_count
                                     lambda_creation_jobs[job_id]['results'] = results.copy()
-                                    lambda_creation_jobs[job_id]['message'] = f'Progress: {completed}/{len(regions_to_process)} regions completed ({success_count} success, {failure_count} failed)'
+                                    lambda_creation_jobs[job_id]['message'] = f'Progress: {completed}/{len(target_regions)} regions completed ({success_count} success, {failure_count} failed)'
                                     lambda_creation_jobs[job_id]['last_update'] = time.time()
                                     
                         except Exception as e:
@@ -1717,7 +1425,7 @@ exit 1
                 logger.info("[ECR] Performing final AWS verification pass...")
                 verified_success = 0
                 verified_failure = 0
-                for target_region in regions_to_process:
+                for target_region in target_regions:
                     try:
                         verify_session = boto3.Session(
                             aws_access_key_id=access_key,
@@ -1761,7 +1469,7 @@ exit 1
                 
                 # CRITICAL: Verify ALL geos were processed
                 processed_regions = set(results.keys())
-                expected_regions = set(regions_to_process)
+                expected_regions = set(target_regions)
                 missing_regions = expected_regions - processed_regions
                 
                 if missing_regions:
@@ -2007,7 +1715,44 @@ def create_lambdas():
             logger.info(f"[LAMBDA]   - {geo}: {len(func_list)} function(s) {func_names}")
         logger.info("=" * 60)
         
-
+        # Pre-check: Verify ECR image exists in all target regions before creating functions
+        logger.info("[LAMBDA] Pre-checking ECR image availability in all target regions...")
+        import re
+        ecr_match = re.match(r'(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com/([^:]+):(.+)', ecr_uri)
+        if ecr_match:
+            account_id, base_region, repo_name, image_tag = ecr_match.groups()
+            missing_regions = []
+            for geo in AVAILABLE_GEO_REGIONS:
+                if geo == base_region:
+                    continue  # Skip base region (image definitely exists there)
+                try:
+                    geo_session = boto3.Session(
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name=geo
+                    )
+                    ecr_client = geo_session.client('ecr')
+                    ecr_client.describe_images(
+                        repositoryName=repo_name,
+                        imageIds=[{"imageTag": image_tag}],
+                    )
+                    logger.info(f"[LAMBDA] ✓ ECR image verified in {geo}")
+                except ClientError as e:
+                    error_code = e.response.get('Error', {}).get('Code', '')
+                    if error_code in ['RepositoryNotFoundException', 'ImageNotFoundException']:
+                        missing_regions.append(geo)
+                        logger.warning(f"[LAMBDA] ⚠️ ECR image MISSING in {geo} - functions will fail to create here")
+                    else:
+                        logger.warning(f"[LAMBDA] ⚠️ Could not verify ECR image in {geo}: {error_code}")
+                except Exception as e:
+                    logger.warning(f"[LAMBDA] ⚠️ Error checking ECR image in {geo}: {e}")
+            
+            if missing_regions:
+                logger.warning("=" * 60)
+                logger.warning(f"[LAMBDA] ⚠️ WARNING: ECR image missing in {len(missing_regions)} region(s): {', '.join(missing_regions)}")
+                logger.warning(f"[LAMBDA] Functions in these regions will FAIL to create.")
+                logger.warning(f"[LAMBDA] Solution: Use 'Push ECR Image to All Regions' button first!")
+                logger.warning("=" * 60)
         
         # Start background thread to create/update Lambda functions across geos
         # Use 900 seconds (15 minutes) timeout for batch processing (10 users can take 5-10 minutes)
@@ -2104,95 +1849,60 @@ def create_lambdas():
                                 'errors': geo_errors
                             }
                         
-                        # Construct ECR URI for this region
+                        # If target geo is the same as base region, use the base ECR URI directly
                         if geo == base_region:
                             geo_ecr_uri = base_ecr_uri
+                            logger.info(f"[LAMBDA] [{geo}] Using base ECR URI (same region): {geo_ecr_uri}")
                         else:
+                            # For other regions, check if ECR image exists there
                             geo_ecr_uri = f"{account_id}.dkr.ecr.{geo}.amazonaws.com/{repo_name}:{image_tag}"
-                        
-                        logger.info(f"[LAMBDA] [{geo}] Checking for ECR image: {geo_ecr_uri}")
-                        
-                        try:
-                            ecr_client = geo_session.client('ecr')
+                            logger.info(f"[LAMBDA] [{geo}] Checking for ECR image in target region: {geo_ecr_uri}")
                             
-                            # 1. Check if repository exists
                             try:
-                                ecr_client.describe_repositories(repositoryNames=[repo_name])
-                            except ClientError as repo_err:
-                                error_code = repo_err.response.get('Error', {}).get('Code', '')
-                                if error_code in ['RepositoryNotFoundException', 'ResourceNotFoundException']:
-                                    logger.warning(f"[LAMBDA] [{geo}] ⚠️ ECR repository not found in {geo}. Skipping this region.")
+                                ecr_client = geo_session.client('ecr')
+                                # Check if repository and image exist
+                                ecr_client.describe_images(
+                                    repositoryName=repo_name,
+                                    imageIds=[{"imageTag": image_tag}],
+                                )
+                                logger.info(f"[LAMBDA] [{geo}] ✓ ECR image exists in region {geo}")
+                            except ClientError as ecr_err:
+                                error_code = ecr_err.response.get('Error', {}).get('Code', '')
+                                if error_code in ['RepositoryNotFoundException', 'ImageNotFoundException']:
+                                    logger.error(f"[LAMBDA] [{geo}] ✗ ECR image not found in {geo}. Lambda cannot pull images cross-region.")
+                                    logger.error(f"[LAMBDA] [{geo}] Solution: Push the image to {geo} first:")
+                                    logger.error(f"[LAMBDA] [{geo}]   1. docker pull {base_ecr_uri}")
+                                    logger.error(f"[LAMBDA] [{geo}]   2. docker tag {base_ecr_uri} {geo_ecr_uri}")
+                                    logger.error(f"[LAMBDA] [{geo}]   3. aws ecr get-login-password --region {geo} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{geo}.amazonaws.com")
+                                    logger.error(f"[LAMBDA] [{geo}]   4. docker push {geo_ecr_uri}")
+                                    geo_errors.append(f"ECR image not found in {geo}. Lambda cannot pull images cross-region. Push image to {geo} first.")
+                                    geo_failure = len(func_list)
                                     return {
                                         'geo': geo,
                                         'success_count': 0,
-                                        'failure_count': 0,
-                                        'errors': []
+                                        'failure_count': geo_failure,
+                                        'errors': geo_errors
                                     }
-                                raise repo_err
-
-                            # 2. Check for image using list_images (more reliable)
-                            image_found = False
-                            try:
-                                logger.info(f"[LAMBDA] [{geo}] DEBUG: Listing images in {repo_name}...")
-                                list_response = ecr_client.list_images(
-                                    repositoryName=repo_name,
-                                    maxResults=100
-                                )
-                                image_ids = list_response.get('imageIds', [])
-                                logger.info(f"[LAMBDA] [{geo}] DEBUG: Found {len(image_ids)} images. Checking for tag '{image_tag}'...")
-                                
-                                for img in image_ids:
-                                    img_tag = img.get('imageTag')
-                                    if img_tag == image_tag:
-                                        image_found = True
-                                        logger.info(f"[LAMBDA] [{geo}] DEBUG: Found matching tag in list_images: {img_tag}")
-                                        break
-                                
-                                if not image_found:
-                                    logger.info(f"[LAMBDA] [{geo}] DEBUG: Tag '{image_tag}' NOT found in list_images results.")
-                                    
-                            except Exception as list_err:
-                                logger.warning(f"[LAMBDA] [{geo}] list_images failed, falling back to describe_images: {list_err}")
-
-                            # 3. Fallback/Confirmation with describe_images
-                            if not image_found:
-                                logger.info(f"[LAMBDA] [{geo}] DEBUG: Attempting fallback describe_images check...")
-                                try:
-                                    ecr_client.describe_images(
-                                        repositoryName=repo_name,
-                                        imageIds=[{"imageTag": image_tag}],
-                                    )
-                                    image_found = True
-                                    logger.info(f"[LAMBDA] [{geo}] DEBUG: describe_images SUCCEEDED (image exists).")
-                                except ClientError as desc_err:
-                                    error_code = desc_err.response.get('Error', {}).get('Code', '')
-                                    logger.info(f"[LAMBDA] [{geo}] DEBUG: describe_images FAILED with {error_code}.")
-                                    if error_code in ['ImageNotFoundException', 'ResourceNotFoundException']:
-                                        pass # Still not found
-                                    else:
-                                        raise desc_err
-
-                            if not image_found:
-                                logger.warning(f"[LAMBDA] [{geo}] ⚠️ ECR image tag '{image_tag}' not found in {geo}. Skipping this region.")
+                                else:
+                                    logger.error(f"[LAMBDA] [{geo}] ✗ ECR check failed: {error_code} - {ecr_err}")
+                                    geo_errors.append(f"ECR access failed: {error_code}")
+                                    geo_failure = len(func_list)
+                                    return {
+                                        'geo': geo,
+                                        'success_count': 0,
+                                        'failure_count': geo_failure,
+                                        'errors': geo_errors
+                                    }
+                            except Exception as ecr_check_err:
+                                logger.error(f"[LAMBDA] [{geo}] ✗ ECR verification error: {ecr_check_err}")
+                                geo_errors.append(f"ECR verification failed: {ecr_check_err}")
+                                geo_failure = len(func_list)
                                 return {
                                     'geo': geo,
                                     'success_count': 0,
-                                    'failure_count': 0,
-                                    'errors': []
+                                    'failure_count': geo_failure,
+                                    'errors': geo_errors
                                 }
-
-                            logger.info(f"[LAMBDA] [{geo}] ✓ ECR image exists in region {geo}")
-
-                        except Exception as ecr_check_err:
-                            logger.error(f"[LAMBDA] [{geo}] ✗ ECR verification error: {ecr_check_err}")
-                            geo_errors.append(f"ECR verification failed: {ecr_check_err}")
-                            geo_failure = len(func_list)
-                            return {
-                                'geo': geo,
-                                'success_count': 0,
-                                'failure_count': geo_failure,
-                                'errors': geo_errors
-                            }
                         
                         logger.info(f"[LAMBDA] [{geo}] ✓ Using ECR URI: {geo_ecr_uri}")
                         
@@ -2291,135 +2001,6 @@ def create_lambdas():
                         'errors': geo_errors
                     }
                 
-                # --- EXPLICIT PRE-CHECK PHASE ---
-                logger.info("=" * 60)
-                logger.info(f"[LAMBDA] PRE-CHECK: Verifying ECR images in {len(functions_by_geo_dict)} regions...")
-                logger.info("=" * 60)
-                
-                # Parse ECR details once
-                import re
-                pc_repo_name = ECR_REPO_NAME
-                pc_image_tag = ECR_IMAGE_TAG
-                pc_account_id = None
-                
-                try:
-                    pc_match = re.match(r'(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com/([^:]+):(.+)', base_ecr_uri)
-                    if pc_match:
-                        pc_account_id, _, pc_repo_name, pc_image_tag = pc_match.groups()
-                except Exception:
-                    pass
-
-                def verify_geo_image(geo):
-                    """Check if ECR image exists in the region (Robust Check)"""
-                    try:
-                        pc_session = boto3.Session(
-                            aws_access_key_id=access_key,
-                            aws_secret_access_key=secret_key,
-                            region_name=geo
-                        )
-                        pc_ecr = pc_session.client('ecr')
-                        
-                        # 1. Check Repo
-                        try:
-                            pc_ecr.describe_repositories(repositoryNames=[pc_repo_name])
-                        except ClientError as re:
-                            if re.response.get('Error', {}).get('Code') in ['RepositoryNotFoundException', 'ResourceNotFoundException']:
-                                return geo, False, "Repository not found"
-                            raise re
-                            
-                        # 2. List Images
-                        found = False
-                        try:
-                            list_resp = pc_ecr.list_images(repositoryName=pc_repo_name, maxResults=100)
-                            for img in list_resp.get('imageIds', []):
-                                if img.get('imageTag') == pc_image_tag:
-                                    found = True
-                                    break
-                        except Exception:
-                            pass
-                            
-                        # 3. Describe Images (Fallback)
-                        if not found:
-                            try:
-                                pc_ecr.describe_images(repositoryName=pc_repo_name, imageIds=[{"imageTag": pc_image_tag}])
-                                found = True
-                            except ClientError:
-                                pass
-                        
-                        if found:
-                            return geo, True, "OK"
-                        else:
-                            return geo, False, f"Image tag '{pc_image_tag}' not found"
-                            
-                    except Exception as e:
-                        return geo, False, str(e)
-
-                valid_geos = set()
-                skipped_geos = []
-                
-                with ThreadPoolExecutor(max_workers=20) as pc_executor:
-                    pc_futures = {pc_executor.submit(verify_geo_image, geo): geo for geo in functions_by_geo_dict.keys()}
-                    
-                    for future in as_completed(pc_futures):
-                        geo, is_valid, reason = future.result()
-                        if is_valid:
-                            valid_geos.add(geo)
-                            logger.info(f"[LAMBDA] [PRE-CHECK] [{geo}] ✓ Image verified")
-                        else:
-                            skipped_geos.append(f"{geo} ({reason})")
-                            logger.warning(f"[LAMBDA] [PRE-CHECK] [{geo}] ⚠️ Image MISSING: {reason}")
-
-                # Filter and Redistribute
-                original_count = len(functions_by_geo_dict)
-                
-                # 1. Identify valid and skipped regions
-                valid_geos_list = sorted(list(valid_geos))
-                skipped_geos_list = [geo for geo in functions_by_geo_dict.keys() if geo not in valid_geos]
-                
-                # 2. Collect orphaned functions from skipped regions
-                orphaned_functions = []
-                for geo in skipped_geos_list:
-                    orphaned_functions.extend(functions_by_geo_dict[geo])
-                
-                # 3. Redistribute orphaned functions to valid regions
-                if orphaned_functions and valid_geos_list:
-                    logger.info(f"[LAMBDA] [REDISTRIBUTE] Found {len(orphaned_functions)} functions from skipped regions to redistribute.")
-                    
-                    for i, (func_num, old_name) in enumerate(orphaned_functions):
-                        # Round-robin assignment to valid regions
-                        target_geo = valid_geos_list[i % len(valid_geos_list)]
-                        
-                        # Generate new name for the target region
-                        # Name format: edu-gw-chromium-{geo_code}-{func_num}
-                        geo_code = target_geo.replace('-', '')
-                        new_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
-                        
-                        # Add to the target region's list
-                        functions_by_geo_dict[target_geo].append((func_num, new_name))
-                        
-                        logger.info(f"[LAMBDA] [REDISTRIBUTE] Moved function #{func_num} from skipped region to {target_geo} (Renamed: {old_name} -> {new_name})")
-                
-                # 4. Remove skipped regions from the dictionary
-                functions_by_geo_dict = {k: v for k, v in functions_by_geo_dict.items() if k in valid_geos}
-                
-                logger.info("=" * 60)
-                logger.info(f"[LAMBDA] PRE-CHECK COMPLETED")
-                logger.info(f"[LAMBDA]   Total requested: {original_count}")
-                logger.info(f"[LAMBDA]   ✓ Valid regions: {len(valid_geos)}")
-                logger.info(f"[LAMBDA]   ⚠️ Skipped regions: {len(skipped_geos)}")
-                if skipped_geos:
-                    logger.info(f"[LAMBDA]   Skipped list: {', '.join(skipped_geos)}")
-                logger.info("=" * 60)
-                
-                if not functions_by_geo_dict:
-                    logger.error("[LAMBDA] ✗✗✗ STOPPING: No valid regions found with ECR images.")
-                    # Update job status to failed
-                    if job_id:
-                        with lambda_creation_lock:
-                            if job_id in lambda_creation_jobs:
-                                lambda_creation_jobs[job_id]['errors'] = {'ALL': ['No valid regions found with ECR images']}
-                    return []
-
                 # Execute Lambda creation in parallel across all geos
                 max_workers = min(len(functions_by_geo_dict), 20)  # Increased to 20 for better parallelization
                 logger.info(f"[LAMBDA] Using ThreadPoolExecutor with {max_workers} workers for {len(functions_by_geo_dict)} regions")
@@ -2911,314 +2492,6 @@ def fix_lambda_concurrency():
 
 # --- Bulk Generation Logic ---
 
-def process_user_batch_sync(app, user_batch, assigned_function_name, access_key, secret_key, default_region, lambda_region=None):
-    """
-    Process a batch of up to 10 users synchronously (wait for completion).
-    Returns list of results, one per user.
-    This is used for sequential processing within each geo.
-
-    Args:
-        app: Flask app instance
-        user_batch: List of user dicts to process (MUST be <= 10 users)
-        assigned_function_name: Name of Lambda function to invoke
-        access_key: AWS Access Key
-        secret_key: AWS Secret Key
-        default_region: Default AWS region
-        lambda_region: AWS region where Lambda function is deployed (defaults to default_region)
-    """
-    with app.app_context():
-        # CRITICAL: Enforce 10-user limit
-        MAX_USERS_PER_BATCH = 10
-        if len(user_batch) > MAX_USERS_PER_BATCH:
-            print(f"[BULK] [{assigned_function_name}] ⚠️ CRITICAL ERROR: Batch has {len(user_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
-            print(f"[BULK] [{assigned_function_name}] Truncating batch to {MAX_USERS_PER_BATCH} users")
-            user_batch = user_batch[:MAX_USERS_PER_BATCH]
-        
-        # Use lambda_region if provided, otherwise fall back to user's selected region
-        target_region = lambda_region if lambda_region else default_region
-        
-        # Create INDEPENDENT boto3 session and clients for this batch
-        session_batch = boto3.Session(
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name=target_region
-        )
-        
-        # Each batch gets its own Lambda client with extended timeout
-        # CRITICAL: Set read_timeout to 1000 seconds (16+ minutes) to handle batch processing
-        lam_batch = session_batch.client("lambda", config=Config(
-            max_pool_connections=10,
-            retries={'max_attempts': 0},
-            read_timeout=1000,  # 16+ minutes - must exceed Lambda timeout (900s)
-            connect_timeout=60  # 60 seconds connection timeout
-        ))
-        
-        # Prepare all users for processing - NO pre-filtering
-        batch_results = []
-        users_to_process = user_batch  # Process ALL users in the batch (already limited to 10)
-        
-        # Final validation before sending to Lambda
-        if len(users_to_process) > MAX_USERS_PER_BATCH:
-            print(f"[BULK] [{assigned_function_name}] ⚠️ FINAL CHECK FAILED: {len(users_to_process)} users exceeds {MAX_USERS_PER_BATCH} limit!")
-            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
-        
-        print(f"[BULK] [{assigned_function_name}] Will process {len(users_to_process)} user(s) in batch")
-        
-        # Mark emails as being processed (for duplicate detection across parallel geos)
-        for user in users_to_process:
-            email = user['email']
-            with processing_lock:
-                if email in processing_emails:
-                    print(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
-                processing_emails.add(email)
-        
-        # Prepare batch payload for Lambda
-        batch_payload = {
-            "users": [
-                {"email": u['email'], "password": u['password']}
-                for u in users_to_process
-            ]
-        }
-        
-        print(f"[BULK] [{assigned_function_name}] Acquiring semaphore for Lambda invocation...")
-        lambda_invocation_semaphore.acquire()
-        print(f"[BULK] [{assigned_function_name}] ✓ Semaphore acquired, invoking Lambda NOW")
-        try:
-            # Retry logic for rate limiting
-            max_retries = 3
-            resp = None
-            for attempt in range(max_retries):
-                try:
-                    # Use SYNC invocation to wait for completion (sequential processing)
-                    print(f"[BULK] [{assigned_function_name}] Invoking Lambda function...")
-                    resp = lam_batch.invoke(
-                        FunctionName=assigned_function_name,
-                        InvocationType="RequestResponse",  # SYNC - wait for completion
-                        Payload=json.dumps(batch_payload).encode("utf-8"),
-                    )
-                
-                    # Check for function errors in the response
-                    status_code = resp.get("StatusCode", 0)
-                    function_error = resp.get("FunctionError")
-                    
-                    # Parse Lambda response
-                    payload = resp.get("Payload")
-                    body = payload.read().decode("utf-8") if payload else "{}"
-                    
-                    # Check for function errors
-                    if function_error:
-                        print(f"[BULK] [{assigned_function_name}] ⚠️ Lambda function error detected: {function_error}")
-                        print(f"[BULK] [{assigned_function_name}] Error response: {body}")
-                        # All users in batch fail
-                        for u in users_to_process:
-                            batch_results.append({
-                                'email': u['email'],
-                                'success': False,
-                                'error': f'Lambda function error ({function_error}): {body[:200]}'
-                            })
-                        return batch_results
-                
-                    try:
-                        lambda_response = json.loads(body)
-                    except json.JSONDecodeError as je:
-                        print(f"[BULK] Failed to parse Lambda response as JSON: {je}")
-                        # All users in batch fail
-                        for u in users_to_process:
-                            batch_results.append({
-                                'email': u['email'],
-                                'success': False,
-                                'error': f'Invalid JSON response: {body[:200]}'
-                            })
-                        return batch_results
-                
-                    # Handle batch response format
-                    if lambda_response.get("status") == "completed" and "results" in lambda_response:
-                        # Batch processing response
-                        lambda_results = lambda_response.get("results", [])
-                        print(f"[BULK] [{assigned_function_name}] Lambda returned {len(lambda_results)} results")
-                        for lambda_result in lambda_results:
-                            email = lambda_result.get("email", "unknown")
-                            lambda_status = lambda_result.get("status", "unknown")
-                            app_password = lambda_result.get("app_password")
-                            error_msg = lambda_result.get("error_message", "Unknown error")
-                            
-                            if lambda_status == 'success' and app_password:
-                                try:
-                                    save_app_password(email, app_password)
-                                    print(f"[BULK] ✓ Successfully processed {email}")
-                                except Exception as db_err:
-                                    print(f"[BULK] Failed to save to DB for {email}: {db_err}")
-                                batch_results.append({
-                                    'email': email,
-                                    'success': True,
-                                    'app_password': app_password
-                                })
-                            else:
-                                print(f"[BULK] ✗ Lambda failed for {email}: {error_msg}")
-                                batch_results.append({
-                                    'email': email,
-                                    'success': False,
-                                    'error': error_msg
-                                })
-                        break  # Success, exit retry loop
-                    else:
-                        # Fallback: single user response format (backward compatibility)
-                        lambda_status = lambda_response.get('status', 'unknown')
-                        app_password = lambda_response.get('app_password')
-                        error_msg = lambda_response.get('error_message', 'Unknown error')
-                    
-                        # If only one user in batch, use single response format
-                        if len(users_to_process) == 1:
-                            email = users_to_process[0]['email']
-                            if lambda_status == 'success' and app_password:
-                                try:
-                                    save_app_password(email, app_password)
-                                    print(f"[BULK] ✓ Successfully processed {email}")
-                                except Exception as db_err:
-                                    print(f"[BULK] Failed to save to DB for {email}: {db_err}")
-                                batch_results.append({
-                                    'email': email,
-                                    'success': True,
-                                    'app_password': app_password
-                                })
-                            else:
-                                batch_results.append({
-                                    'email': email,
-                                    'success': False,
-                                    'error': error_msg
-                                })
-                            break  # Success, exit retry loop
-                        else:
-                            # Multiple users but got single response - all fail
-                            print(f"[BULK] Expected batch response but got single user format")
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': 'Invalid response format from Lambda'
-                                })
-                            return batch_results
-                    
-                except ClientError as ce:
-                    error_code = ce.response['Error']['Code']
-                    error_message = ce.response['Error'].get('Message', '')
-                    
-                    if error_code == 'ResourceNotFoundException':
-                        print(f"[BULK] Lambda function {assigned_function_name} not found")
-                        # Try to fall back to default function
-                        if assigned_function_name != PRODUCTION_LAMBDA_NAME:
-                            print(f"[BULK] Falling back to default function {PRODUCTION_LAMBDA_NAME}")
-                            assigned_function_name = PRODUCTION_LAMBDA_NAME
-                            continue  # Retry with default function
-                        else:
-                            # All users in batch fail
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': f'Lambda function {assigned_function_name} not found'
-                                })
-                            return batch_results
-                    
-                    if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
-                        if attempt < max_retries - 1:
-                            base_wait = (2 ** attempt) * 2
-                            jitter = random.uniform(0, 1)
-                            wait_time = base_wait + jitter
-                            print(f"[BULK] Rate limited for batch, retrying in {wait_time:.2f}s (attempt {attempt + 1}/{max_retries})")
-                            time.sleep(wait_time)
-                        else:
-                            # All users in batch fail
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': f'Rate limited: {error_message}'
-                                })
-                            return batch_results
-                    else:
-                        print(f"[BULK] AWS error: {error_code} - {error_message}")
-                        # All users in batch fail
-                        for u in users_to_process:
-                            batch_results.append({
-                                'email': u['email'],
-                                'success': False,
-                                'error': f'AWS Error ({error_code}): {error_message}'
-                            })
-                        return batch_results
-                except Exception as invoke_err:
-                    # Check if it's a timeout error
-                    if 'Read timeout' in str(invoke_err) or 'timeout' in str(invoke_err).lower():
-                        print(f"[BULK] Read timeout on attempt {attempt + 1} - Lambda may still be processing")
-                        if attempt == max_retries - 1:
-                            # Final attempt failed - mark as timeout
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': f'Read timeout - Lambda processing may have exceeded timeout'
-                                })
-                            return batch_results
-                        time.sleep(5)
-                        continue
-                    else:
-                        print(f"[BULK] Invocation error: {invoke_err}")
-                        if attempt == max_retries - 1:
-                            # Final attempt failed
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': f'Invocation error: {str(invoke_err)}'
-                                })
-                            return batch_results
-                        time.sleep(2)
-                        continue
-        finally:
-            lambda_invocation_semaphore.release()
-            
-        # Remove processed emails from tracking set
-        for u in users_to_process:
-            with processing_lock:
-                processing_emails.discard(u['email'])
-
-        return batch_results
-
-def invoke_lambda_task(app, func_num, batch_users, geo, access_key, secret_key, default_region):
-    """
-    Helper function to invoke a single Lambda task (one batch).
-    """
-    func_name = f"{PRODUCTION_LAMBDA_NAME}-{geo.replace('-', '')}-{func_num}"
-    print(f"[BULK EXECUTION] STARTING: Invoking {func_name} in {geo} with {len(batch_users)} users")
-    try:
-        results = process_user_batch_sync(app, batch_users, func_name, access_key, secret_key, default_region, lambda_region=geo)
-        success_count = sum(1 for r in results if r['success'])
-        print(f"[BULK EXECUTION] COMPLETED: {func_name} in {geo} - {success_count}/{len(results)} success")
-        return results
-    except Exception as e:
-        print(f"[BULK EXECUTION] FAILED: {func_name} in {geo} - {e}")
-        print(traceback.format_exc())
-        return [{'email': u['email'], 'success': False, 'error': str(e)} for u in batch_users]
-        return [{'email': u['email'], 'success': False, 'error': str(e)} for u in batch_users]
-
-@aws_manager.route('/api/aws/debug-version', methods=['GET'])
-def debug_version():
-    """Debug endpoint to check code version"""
-    import os
-    import datetime
-    
-    file_path = os.path.abspath(__file__)
-    mod_time = os.path.getmtime(file_path)
-    mod_time_str = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
-    
-    return jsonify({
-        'version': 'REVERTED_LEGACY_WITH_LOGS_V5',
-        'timestamp': time.time(),
-        'file_path': file_path,
-        'last_modified': mod_time_str,
-        'message': 'If you see this, the new code is active.'
-    })
-
 @aws_manager.route('/api/aws/bulk-generate', methods=['POST'])
 @login_required
 def bulk_generate():
@@ -3264,15 +2537,6 @@ def bulk_generate():
         return jsonify({'success': False, 'error': 'No valid user:password pairs found'}), 400
 
     logger.info(f"[BULK] Received {len(users_raw)} raw user entries, parsed {len(users)} valid users")
-    
-    # CRITICAL LOGGING - GUARANTEED TO SHOW
-    logger.critical("!"*80)
-    logger.critical("!!! NEW CODE LOADED - REFACTOR V2 ACTIVE !!!")
-    logger.critical(f"!!! TIMESTAMP: {time.time()} !!!")
-    logger.critical("!"*80)
-    
-    # Force flush stdout just in case
-    print(f"!!! STDOUT PROOF OF LIFE: {time.time()} !!!", flush=True)
 
     job_id = str(int(time.time()))
     with jobs_lock:
@@ -3284,8 +2548,6 @@ def bulk_generate():
             'results': [],
             'status': 'processing'
         }
-        # Save to file for other workers
-        save_jobs({job_id: active_jobs[job_id]})
     
     logger.info(f"[BULK] Created job {job_id} for {len(users)} users")
 
@@ -3293,174 +2555,562 @@ def bulk_generate():
     # We pass app_context explicitly if needed, but db operations need app context inside the thread
     from app import app
     
-    thread = threading.Thread(target=background_process_task, args=(app, job_id, users, access_key, secret_key, region))
-    thread.daemon = True
-    thread.start()
-    
-    return jsonify({
-        'success': True, 
-        'job_id': job_id, 
-        'message': f'Started processing {len(users)} users in background'
-    })
-
-def background_process_task(app, job_id, users, access_key, secret_key, region):
-    """Background process to handle bulk user processing across geos"""
-    # CRITICAL LOGGING
-    logger.critical("!"*80)
-    logger.critical(f"!!! BACKGROUND PROCESS STARTED - V5 - Job {job_id} !!!")
-    logger.critical("!"*80)
-    print(f"!!! BACKGROUND STDOUT PROOF: {job_id} !!!", flush=True)
-    
-    # Helper to log to both file and job status for frontend visibility
-    def log_debug(msg):
-        logger.info(f"[BULK] {msg}")
+    def background_process(app, job_id, users, access_key, secret_key, region):
+        """Background process to handle bulk user processing across geos"""
+        logger.info(f"[BULK] ========== BACKGROUND PROCESS STARTED ==========")
+        logger.info(f"[BULK] Job ID: {job_id}")
+        logger.info(f"[BULK] Total users: {len(users)}")
+        logger.info(f"[BULK] Region: {region}")
+        
+        # Ensure job exists before starting processing
+        with jobs_lock:
+            if job_id not in active_jobs:
+                logger.error(f"[BULK] Job {job_id} not found in active_jobs at start of background_process!")
+                # Try to recreate it
+                active_jobs[job_id] = {
+                    'total': len(users),
+                    'completed': 0,
+                    'success': 0,
+                    'failed': 0,
+                    'results': [],
+                    'status': 'processing'
+                }
+                logger.info(f"[BULK] Recreated job {job_id}")
+            else:
+                logger.info(f"[BULK] Job {job_id} found in active_jobs")
+        
         try:
-            with jobs_lock:
-                if job_id in active_jobs:
-                    if 'debug_logs' not in active_jobs[job_id]:
-                        active_jobs[job_id]['debug_logs'] = []
-                    active_jobs[job_id]['debug_logs'].append(f"{datetime.datetime.now().strftime('%H:%M:%S')} - {msg}")
-        except Exception:
-            pass
-
-    log_debug(f"Job {job_id} started processing {len(users)} users")
-    log_debug(f"Region: {region}")
-    
-    # Ensure job exists before starting processing
-    with jobs_lock:
-        all_jobs = load_jobs()
-        if job_id not in all_jobs:
-            logger.error(f"[BULK] Job {job_id} not found in jobs file at start of background_process!")
-            all_jobs[job_id] = {
-                'total': len(users),
-                'completed': 0,
-                'success': 0,
-                'failed': 0,
-                'results': [],
-                'status': 'processing',
-                'debug_logs': []
-            }
-            save_jobs({job_id: all_jobs[job_id]})
-            log_debug(f"Recreated job {job_id}")
-        else:
-            log_debug(f"Job {job_id} found in jobs file")
-            active_jobs[job_id] = all_jobs[job_id]
-            if 'debug_logs' not in active_jobs[job_id]:
-                active_jobs[job_id]['debug_logs'] = []
-    
-    try:
-        log_debug("Entering app context...")
-        with app.app_context():
-            log_debug("App context entered successfully")
-            
-            import math
-            from collections import defaultdict
-            import boto3
-            from botocore.config import Config
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            import threading
-            
-            USERS_PER_FUNCTION = 10
-            total_users = len(users)
-            num_functions = math.ceil(total_users / USERS_PER_FUNCTION)
-            
-            log_debug(f"Total users: {total_users}")
-            log_debug(f"Users per function: {USERS_PER_FUNCTION}")
-            log_debug(f"Total functions needed: {num_functions}")
-            
-            # Get all available AWS regions (geos)
-            AVAILABLE_GEO_REGIONS = [
-                'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-                'af-south-1', 'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
-                'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-                'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
-                'ca-central-1', 'ca-west-1',
-                'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-north-1', 'eu-south-1', 'eu-south-2',
-                'mx-central-1',
-                'me-south-1', 'me-central-1', 'il-central-1',
-                'sa-east-1'
-            ]
-            
-            # Distribute functions across geos (Round Robin)
-            batches_by_geo = defaultdict(list)
-            
-            # Split users into batches of 10
-            user_batches = []
-            for i in range(num_functions):
-                start_idx = i * USERS_PER_FUNCTION
-                end_idx = min((i + 1) * USERS_PER_FUNCTION, total_users)
-                if start_idx >= total_users:
-                    break
-                batch_users = users[start_idx:end_idx]
+            logger.info(f"[BULK] Entering app context...")
+            with app.app_context():
+                logger.info(f"[BULK] App context entered successfully")
+                # Pre-detect Lambda functions across ALL geos
+                # This is necessary because functions are distributed across multiple AWS regions
+                lambda_functions = []
+                # We no longer pre-detect Lambda functions across all regions
+                # Instead, we'll look for functions in their assigned regions during processing
+                logger.info(f"[BULK] Will process users using geo-distributed Lambda functions")
                 
-                # Assign to geo
-                geo_idx = i % len(AVAILABLE_GEO_REGIONS)
-                geo = AVAILABLE_GEO_REGIONS[geo_idx]
-                func_num = i + 1
+                # NEW LOGIC: Calculate total functions based on user count
+                # Distribute functions evenly across ALL available geos
+                # Process functions sequentially within each geo
                 
-                user_batches.append((func_num, geo, batch_users))
+                import math
                 
-                if geo not in batches_by_geo:
-                    batches_by_geo[geo] = []
-                batches_by_geo[geo].append((func_num, batch_users))
+                USERS_PER_FUNCTION = 10  # Fixed: Each function handles exactly 10 users
                 
-            log_debug(f"Distributed {len(user_batches)} batches across {len(batches_by_geo)} regions")
-            
-            def process_geo_parallel(geo, geo_batches_list):
-                """Process all batches in a geo in PARALLEL"""
-                try:
-                    log_debug(f"[{geo}] Starting processing for {len(geo_batches_list)} functions")
+                # Calculate total number of functions needed
+                total_users = len(users)
+                num_functions = math.ceil(total_users / USERS_PER_FUNCTION)
+                
+                logger.info("=" * 60)
+                logger.info(f"[BULK] Function Calculation")
+                logger.info(f"[BULK] Total users: {total_users}")
+                logger.info(f"[BULK] Users per function: {USERS_PER_FUNCTION}")
+                logger.info(f"[BULK] Total functions needed: {num_functions}")
+                logger.info("=" * 60)
+                
+                # Get all available AWS regions (geos)
+                # These are all AWS regions where Lambda can be deployed
+                AVAILABLE_GEO_REGIONS = [
+                    # United States
+                    'us-east-1',      # N. Virginia
+                    'us-east-2',      # Ohio
+                    'us-west-1',      # N. California
+                    'us-west-2',      # Oregon
+                    # Africa
+                    'af-south-1',     # Cape Town
+                    # Asia Pacific
+                    'ap-east-1',      # Hong Kong
+                    'ap-east-2',      # Taipei
+                    'ap-south-1',     # Mumbai
+                    'ap-south-2',     # Hyderabad
+                    'ap-northeast-1', # Tokyo
+                    'ap-northeast-2', # Seoul
+                    'ap-northeast-3', # Osaka
+                    'ap-southeast-1', # Singapore
+                    'ap-southeast-2', # Sydney
+                    'ap-southeast-3', # Jakarta
+                    'ap-southeast-4', # Melbourne
+                    'ap-southeast-5', # Malaysia
+                    'ap-southeast-6', # New Zealand
+                    'ap-southeast-7', # Thailand
+                    # Canada
+                    'ca-central-1',   # Central
+                    'ca-west-1',      # Calgary
+                    # Europe
+                    'eu-central-1',   # Frankfurt
+                    'eu-west-1',      # Ireland
+                    'eu-west-2',      # London
+                    'eu-west-3',      # Paris
+                    'eu-north-1',     # Stockholm
+                    'eu-south-1',     # Milan
+                    'eu-south-2',     # Spain
+                    # Mexico
+                    'mx-central-1',   # Central
+                    # Middle East
+                    'me-south-1',     # Bahrain
+                    'me-central-1',   # UAE
+                    'il-central-1',   # Israel (Tel Aviv)
+                    # South America
+                    'sa-east-1',      # São Paulo
+                ]
+                
+                # Distribute functions evenly across all available geos using round-robin
+                # Example: 17 functions, 23 geos → 1 function per geo (first 17 geos get 1 function each)
+                # Example: 50 functions, 23 geos → ~2-3 functions per geo (distributed evenly)
+                functions_per_geo = {}  # {geo: [list of function_numbers]}
+                
+                for func_num in range(num_functions):
+                    # Round-robin distribution: function 0 → geo 0, function 1 → geo 1, etc.
+                    geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
+                    geo = AVAILABLE_GEO_REGIONS[geo_index]
                     
-                    # Create boto3 session for this geo
-                    try:
-                        session_boto = boto3.Session(
+                    if geo not in functions_per_geo:
+                        functions_per_geo[geo] = []
+                    functions_per_geo[geo].append(func_num + 1)  # Function numbers start at 1
+                
+                logger.info("=" * 60)
+                logger.info(f"[BULK] Function Distribution Across Geos")
+                logger.info(f"[BULK] Total functions: {num_functions}")
+                logger.info(f"[BULK] Available geos: {len(AVAILABLE_GEO_REGIONS)}")
+                logger.info(f"[BULK] Functions per geo:")
+                for geo, func_numbers in sorted(functions_per_geo.items()):
+                    logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
+                logger.info("=" * 60)
+                
+                # Split users into batches of 10, assigning each batch to a function
+                # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
+                # CRITICAL: Each batch MUST be exactly 10 users or less
+                user_batches = []  # List of (function_number, geo, user_batch) tuples
+                logger.info(f"[BULK] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
+                for func_num in range(num_functions):
+                    start_idx = func_num * USERS_PER_FUNCTION
+                    end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
+                    batch_users = users[start_idx:end_idx]
+                
+                    # ENFORCE: Ensure batch never exceeds 10 users
+                    if len(batch_users) > USERS_PER_FUNCTION:
+                        logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num + 1} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
+                        batch_users = batch_users[:USERS_PER_FUNCTION]
+                    
+                    if batch_users:
+                        # Determine which geo this function belongs to
+                        geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
+                        geo = AVAILABLE_GEO_REGIONS[geo_index]
+                        user_batches.append((func_num + 1, geo, batch_users))
+                        logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                        if len(batch_users) > USERS_PER_FUNCTION:
+                            logger.error(f"[BULK] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
+                    else:
+                        logger.warning(f"[BULK] Function {func_num + 1} has empty batch (start_idx={start_idx}, end_idx={end_idx}, total_users={total_users})")
+                
+                # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
+                USERS_PER_BATCH = 10
+                
+                def process_user_batch_sync(user_batch, assigned_function_name, lambda_region=None):
+                    """
+                    Process a batch of up to 10 users synchronously (wait for completion).
+                    Returns list of results, one per user.
+                    This is used for sequential processing within each geo.
+                
+                    Args:
+                        user_batch: List of user dicts to process (MUST be <= 10 users)
+                        assigned_function_name: Name of Lambda function to invoke
+                        lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
+                    """
+                    with app.app_context():
+                        # CRITICAL: Enforce 10-user limit
+                        MAX_USERS_PER_BATCH = 10
+                        if len(user_batch) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ CRITICAL ERROR: Batch has {len(user_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
+                            logger.error(f"[BULK] [{assigned_function_name}] Truncating batch to {MAX_USERS_PER_BATCH} users")
+                            user_batch = user_batch[:MAX_USERS_PER_BATCH]
+                        
+                        # Use lambda_region if provided, otherwise fall back to user's selected region
+                        target_region = lambda_region if lambda_region else region
+                        
+                        # Create INDEPENDENT boto3 session and clients for this batch
+                        session_batch = boto3.Session(
                             aws_access_key_id=access_key,
                             aws_secret_access_key=secret_key,
-                            region_name=geo
+                            region_name=target_region
                         )
                         
-                        # Verify credentials
-                        sts = session_boto.client('sts')
-                        identity = sts.get_caller_identity()
-                        log_debug(f"[{geo}] Credentials verified. Account: {identity.get('Account')}")
-                        
-                        lam_client = session_boto.client("lambda", config=Config(
+                        # Each batch gets its own Lambda client with extended timeout
+                        # CRITICAL: Set read_timeout to 1000 seconds (16+ minutes) to handle batch processing
+                        # Lambda timeout is 900 seconds, so we need client timeout > Lambda timeout
+                        # IMPORTANT: Lambda client uses the region from session_batch (target_region)
+                        lam_batch = session_batch.client("lambda", config=Config(
                             max_pool_connections=10,
-                            retries={'max_attempts': 3}
+                            retries={'max_attempts': 0},
+                            read_timeout=1000,  # 16+ minutes - must exceed Lambda timeout (900s)
+                            connect_timeout=60  # 60 seconds connection timeout
                         ))
                         
-                        # List existing functions
-                        all_functions = lam_client.list_functions()
-                        existing_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
-                        log_debug(f"[{geo}] Found {len(existing_function_names)} existing functions")
-                        
-                    except Exception as e:
-                        log_debug(f"[{geo}] CRITICAL ERROR: Could not initialize session: {e}")
-                        raise Exception(f"Failed to initialize {geo}: {e}")
+                        # Each batch gets its own DynamoDB resource
+                        dynamodb_batch = session_batch.resource('dynamodb', config=Config(
+                            max_pool_connections=10
+                        ))
+                        table_batch = dynamodb_batch.Table("gbot-app-passwords")
                     
-                    def process_single_function(func_num, batch_users, batch_idx):
-                        """Process a single Lambda function"""
-                        function_results = []
-                        func_name = None
+                        # Prepare all users for processing - NO pre-filtering
+                        # Lambda will handle deduplication if needed
+                        batch_results = []
+                        users_to_process = user_batch  # Process ALL users in the batch (already limited to 10)
+                    
+                        # Final validation before sending to Lambda
+                        if len(users_to_process) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ FINAL CHECK FAILED: {len(users_to_process)} users exceeds {MAX_USERS_PER_BATCH} limit!")
+                            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
                         
+                        logger.info(f"[BULK] [{assigned_function_name}] Will process {len(users_to_process)} user(s) in batch (MAX: {MAX_USERS_PER_BATCH})")
+                    
+                        # Mark emails as being processed (for duplicate detection across parallel geos)
+                        for user in users_to_process:
+                            email = user['email']
+                            with processing_lock:
+                                if email in processing_emails:
+                                    logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
+                                processing_emails.add(email)
+                    
+                        # Prepare batch payload for Lambda
+                        # CRITICAL: Final check - ensure we never send more than 10 users
+                        MAX_USERS_PER_BATCH = 10
+                        if len(users_to_process) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ PAYLOAD CHECK: Truncating {len(users_to_process)} users to {MAX_USERS_PER_BATCH}")
+                            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
+                        
+                        batch_payload = {
+                            "users": [
+                                {"email": u['email'], "password": u['password']}
+                                for u in users_to_process
+                            ]
+                        }
+                        
+                        logger.info("=" * 60)
+                        logger.info(f"[BULK] [{assigned_function_name}] PREPARING TO INVOKE LAMBDA")
+                        logger.info(f"[BULK] [{assigned_function_name}] Batch size: {len(users_to_process)} user(s) (MAX: {MAX_USERS_PER_BATCH})")
+                        if len(users_to_process) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ ERROR: Batch size {len(users_to_process)} exceeds limit {MAX_USERS_PER_BATCH}!")
+                        logger.info(f"[BULK] [{assigned_function_name}] Users in batch: {[u['email'] for u in users_to_process]}")
+                        logger.info(f"[BULK] [{assigned_function_name}] Payload structure: {{'users': [{{'email': ..., 'password': ...}}]}}")
+                        logger.info(f"[BULK] [{assigned_function_name}] Payload JSON length: {len(json.dumps(batch_payload))} bytes")
+                        logger.info(f"[BULK] [{assigned_function_name}] Payload preview: {json.dumps(batch_payload)[:500]}...")
+                        logger.info("=" * 60)
+                        
+                        # Rate limiting: Acquire semaphore to limit concurrent invocations
+                        # NOTE: Semaphore limit is now 500 to allow all functions in all geos to start in parallel
+                        # The semaphore is held for the duration of the Lambda invocation (up to 15 minutes)
+                        # This ensures we don't exceed AWS account limits while allowing maximum parallelism
+                        logger.info(f"[BULK] [{assigned_function_name}] Acquiring semaphore for Lambda invocation...")
+                        lambda_invocation_semaphore.acquire()
+                        logger.info(f"[BULK] [{assigned_function_name}] ✓ Semaphore acquired, invoking Lambda NOW (parallel execution enabled)")
                         try:
-                            log_debug(f"[{geo}] Processing Function {func_num} with {len(batch_users)} users")
-                            
-                            # Generate function name
-                            geo_code = geo.replace('-', '')
-                            func_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
-                            
-                            # Create function if it doesn't exist
-                            with threading.Lock():
-                                if func_name not in existing_function_names:
-                                    # Try to find similar functions logic (simplified here for brevity, focusing on creation)
-                                    matching_functions = [fn for fn in existing_function_names if PRODUCTION_LAMBDA_NAME in fn and geo_code in fn and str(func_num) in fn]
-                                    
-                                    if matching_functions:
-                                        func_name = matching_functions[0]
-                                        log_debug(f"[{geo}] Using existing similar function: {func_name}")
+                            # Retry logic for rate limiting
+                            max_retries = 3
+                            resp = None
+                            for attempt in range(max_retries):
+                                try:
+                                    # Use SYNC invocation to wait for completion (sequential processing)
+                                    resp = lam_batch.invoke(
+                                        FunctionName=assigned_function_name,
+                                        InvocationType="RequestResponse",  # SYNC - wait for completion
+                                        Payload=json.dumps(batch_payload).encode("utf-8"),
+                                    )
+                                
+                                    # Parse Lambda response
+                                    payload = resp.get("Payload")
+                                    body = payload.read().decode("utf-8") if payload else "{}"
+                                    logger.info("=" * 60)
+                                    logger.info(f"[BULK] [{assigned_function_name}] LAMBDA RESPONSE RECEIVED")
+                                    logger.info(f"[BULK] [{assigned_function_name}] Response status code: {resp.get('StatusCode')}")
+                                    logger.info(f"[BULK] [{assigned_function_name}] Response body (first 2000 chars): {body[:2000]}")
+                                    logger.info("=" * 60)
+                                
+                                    try:
+                                        lambda_response = json.loads(body)
+                                    except json.JSONDecodeError as je:
+                                        logger.error(f"[BULK] Failed to parse Lambda response as JSON: {je}")
+                                        # All users in batch fail
+                                        for u in users_to_process:
+                                            batch_results.append({
+                                                'email': u['email'],
+                                                'success': False,
+                                                'error': f'Invalid JSON response: {body[:200]}'
+                                            })
+                                        return batch_results
+                                
+                                    # Handle batch response format
+                                    if lambda_response.get("status") == "completed" and "results" in lambda_response:
+                                        # Batch processing response
+                                        lambda_results = lambda_response.get("results", [])
+                                        logger.info(f"[BULK] [{assigned_function_name}] Lambda returned {len(lambda_results)} results for {len(users_to_process)} users sent")
+                                        for lambda_result in lambda_results:
+                                            email = lambda_result.get("email", "unknown")
+                                            lambda_status = lambda_result.get("status", "unknown")
+                                            app_password = lambda_result.get("app_password")
+                                            error_msg = lambda_result.get("error_message", "Unknown error")
+                                        
+                                            if lambda_status == 'success' and app_password:
+                                                logger.info(f"[BULK] Saving password for {email} to DB")
+                                                try:
+                                                    save_app_password(email, app_password)
+                                                    logger.info(f"[BULK] ✓ Successfully processed {email}")
+                                                except Exception as db_err:
+                                                    logger.error(f"[BULK] Failed to save to DB for {email}: {db_err}")
+                                                batch_results.append({
+                                                    'email': email,
+                                                    'success': True,
+                                                    'app_password': app_password
+                                                })
+                                            else:
+                                                logger.warning(f"[BULK] ✗ Lambda failed for {email}: {error_msg}")
+                                                batch_results.append({
+                                                    'email': email,
+                                                    'success': False,
+                                                    'error': error_msg
+                                                })
+                                        break  # Success, exit retry loop
                                     else:
-                                        log_debug(f"[{geo}] Creating Lambda function: {func_name}")
+                                        # Fallback: single user response format (backward compatibility)
+                                        lambda_status = lambda_response.get('status', 'unknown')
+                                        app_password = lambda_response.get('app_password')
+                                        error_msg = lambda_response.get('error_message', 'Unknown error')
+                                    
+                                        # If only one user in batch, use single response format
+                                        if len(users_to_process) == 1:
+                                            email = users_to_process[0]['email']
+                                            if lambda_status == 'success' and app_password:
+                                                try:
+                                                    save_app_password(email, app_password)
+                                                    logger.info(f"[BULK] ✓ Successfully processed {email}")
+                                                except Exception as db_err:
+                                                    logger.error(f"[BULK] Failed to save to DB for {email}: {db_err}")
+                                                batch_results.append({
+                                                    'email': email,
+                                                    'success': True,
+                                                    'app_password': app_password
+                                                })
+                                            else:
+                                                batch_results.append({
+                                                    'email': email,
+                                                    'success': False,
+                                                    'error': error_msg
+                                                })
+                                            break  # Success, exit retry loop
+                                        else:
+                                            # Multiple users but got single response - all fail
+                                            logger.error(f"[BULK] Expected batch response but got single user format")
+                                            for u in users_to_process:
+                                                batch_results.append({
+                                                    'email': u['email'],
+                                                    'success': False,
+                                                    'error': 'Invalid response format from Lambda'
+                                                })
+                                            return batch_results
+                                    
+                                except ClientError as ce:
+                                    error_code = ce.response['Error']['Code']
+                                    error_message = ce.response['Error'].get('Message', '')
+                                    
+                                    if error_code == 'ResourceNotFoundException':
+                                        logger.error(f"[BULK] Lambda function {assigned_function_name} not found")
+                                        # Try to fall back to default function
+                                        if assigned_function_name != PRODUCTION_LAMBDA_NAME:
+                                            logger.warning(f"[BULK] Falling back to default function {PRODUCTION_LAMBDA_NAME}")
+                                            assigned_function_name = PRODUCTION_LAMBDA_NAME
+                                            continue  # Retry with default function
+                                        else:
+                                            # All users in batch fail
+                                            for u in users_to_process:
+                                                batch_results.append({
+                                                    'email': u['email'],
+                                                    'success': False,
+                                                    'error': f'Lambda function {assigned_function_name} not found'
+                                                })
+                                            return batch_results
+                                    
+                                    if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
+                                        if attempt < max_retries - 1:
+                                            base_wait = (2 ** attempt) * 2
+                                            jitter = random.uniform(0, 1)
+                                            wait_time = base_wait + jitter
+                                            logger.warning(f"[BULK] Rate limited for batch, retrying in {wait_time:.2f}s (attempt {attempt + 1}/{max_retries})")
+                                            time.sleep(wait_time)
+                                        else:
+                                            # All users in batch fail
+                                            for u in users_to_process:
+                                                batch_results.append({
+                                                    'email': u['email'],
+                                                    'success': False,
+                                                    'error': f'Rate limited: {error_message}'
+                                                })
+                                            return batch_results
+                                    else:
+                                        logger.error(f"[BULK] AWS error: {error_code} - {error_message}")
+                                        # All users in batch fail
+                                        for u in users_to_process:
+                                            batch_results.append({
+                                                'email': u['email'],
+                                                'success': False,
+                                                'error': f'AWS Error ({error_code}): {error_message}'
+                                            })
+                                        return batch_results
+                                except Exception as invoke_err:
+                                    # Check if it's a timeout error
+                                    if 'Read timeout' in str(invoke_err) or 'timeout' in str(invoke_err).lower():
+                                        logger.error(f"[BULK] Read timeout on attempt {attempt + 1} - Lambda may still be processing")
+                                        if attempt == max_retries - 1:
+                                            # Final attempt failed - mark as timeout
+                                            for u in users_to_process:
+                                                batch_results.append({
+                                                    'email': u['email'],
+                                                    'success': False,
+                                                    'error': f'Read timeout - Lambda processing may have exceeded timeout'
+                                                })
+                                            return batch_results
+                                        time.sleep(5)
+                                        continue
+                                    else:
+                                        logger.error(f"[BULK] Invocation error: {invoke_err}")
+                                        if attempt == max_retries - 1:
+                                            # Final attempt failed
+                                            for u in users_to_process:
+                                                batch_results.append({
+                                                    'email': u['email'],
+                                                    'success': False,
+                                                    'error': f'Invocation error: {str(invoke_err)}'
+                                                })
+                                            return batch_results
+                                        time.sleep(2)
+                                        continue
+                        finally:
+                            lambda_invocation_semaphore.release()
+                        
+                        # Remove processed emails from tracking set
+                        for u in users_to_process:
+                            with processing_lock:
+                                processing_emails.discard(u['email'])
+                    
+                        return batch_results
+            
+                # Group batches by geo for sequential processing within each geo
+                batches_by_geo = {}  # {geo: [(function_number, user_batch), ...]}
+                logger.info(f"[BULK] Grouping {len(user_batches)} batches by geo...")
+                for func_num, geo, batch_users in user_batches:
+                    logger.info(f"[BULK] Processing batch: func_num={func_num}, geo={geo}, batch_size={len(batch_users)}, users={[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                    if geo not in batches_by_geo:
+                        batches_by_geo[geo] = []
+                    batches_by_geo[geo].append((func_num, batch_users))
+                    logger.info(f"[BULK] Added to geo {geo}: Function {func_num} with {len(batch_users)} user(s)")
+            
+                logger.info("=" * 60)
+                logger.info(f"[BULK] Batches per geo:")
+                for geo, geo_batches in sorted(batches_by_geo.items()):
+                    total_users_in_geo = sum(len(batch) for _, batch in geo_batches)
+                    logger.info(f"[BULK]   - {geo}: {len(geo_batches)} function(s), {total_users_in_geo} user(s)")
+                logger.info(f"[BULK] TOTAL GEOS TO PROCESS: {len(batches_by_geo)}")
+                logger.info(f"[BULK] Geo list: {list(batches_by_geo.keys())}")
+                logger.info("=" * 60)
+            
+                def process_geo_parallel(geo, geo_batches_list):
+                    """
+                    Process all batches in a geo in PARALLEL (multiple functions at the same time).
+                    Creates Lambda functions as needed and processes them concurrently.
+                    Maximum 10 functions per geo at the same time (AWS Lambda concurrency limit).
+                    Minimum 2 functions per geo at the same time (as requested).
+                    """
+                    try:
+                        logger.info("=" * 60)
+                        logger.info(f"[BULK] [{geo}] ===== STARTING PARALLEL PROCESSING =====")
+                        logger.info(f"[BULK] [{geo}] Total functions to process: {len(geo_batches_list)}")
+                        logger.info(f"[BULK] [{geo}] Function numbers: {[func_num for func_num, _ in geo_batches_list]}")
+                        
+                        # Calculate max workers: min(10, number of functions, but at least 2 if we have 2+ functions)
+                        max_workers = min(10, len(geo_batches_list))
+                        if len(geo_batches_list) >= 2 and max_workers < 2:
+                            max_workers = 2
+                        logger.info(f"[BULK] [{geo}] Will process {max_workers} function(s) in parallel (max 10 per geo)")
+                        logger.info("=" * 60)
+                        
+                        # Create boto3 session for this geo (use the geo's region)
+                        try:
+                            logger.info(f"[BULK] [{geo}] Creating boto3 session for region: {geo}")
+                            session_boto = boto3.Session(
+                                aws_access_key_id=access_key,
+                                aws_secret_access_key=secret_key,
+                                region_name=geo  # Use geo as the region
+                            )
+                            
+                            # Verify credentials work for this region
+                            try:
+                                sts = session_boto.client('sts')
+                                identity = sts.get_caller_identity()
+                                logger.info(f"[BULK] [{geo}] ✓ Credentials verified. Account: {identity.get('Account')}")
+                            except Exception as sts_err:
+                                logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL: Credential verification failed: {sts_err}")
+                                logger.error(traceback.format_exc())
+                                raise Exception(f"Credential verification failed for {geo}: {sts_err}")
+                            
+                            lam_client = session_boto.client("lambda", config=Config(
+                                max_pool_connections=10,
+                                retries={'max_attempts': 3}
+                            ))
+                            
+                            logger.info(f"[BULK] [{geo}] Listing Lambda functions in region {geo}...")
+                            all_functions = lam_client.list_functions()
+                            existing_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
+                            logger.info(f"[BULK] [{geo}] ✓ Found {len(existing_function_names)} existing function(s) in {geo}: {existing_function_names[:5]}{'...' if len(existing_function_names) > 5 else ''}")
+                        except Exception as e:
+                            logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR: Could not initialize session or list functions: {e}")
+                            logger.error(traceback.format_exc())
+                            # Don't return empty - raise exception so it's caught by outer handler
+                            raise Exception(f"Failed to initialize {geo}: {e}")
+                        
+                        # Helper function to process a single function
+                        def process_single_function(func_num, batch_users, batch_idx):
+                            """Process a single Lambda function (thread-safe)"""
+                            function_results = []
+                            func_name = None
+                            
+                            try:
+                                logger.info("=" * 60)
+                                logger.info(f"[BULK] [{geo}] ===== FUNCTION {batch_idx + 1}/{len(geo_batches_list)} (PARALLEL) =====")
+                                logger.info(f"[BULK] [{geo}] Function number: {func_num}")
+                                logger.info(f"[BULK] [{geo}] Users in batch: {len(batch_users)}")
+                                logger.info(f"[BULK] [{geo}] User emails: {[u['email'] for u in batch_users[:5]]}{'...' if len(batch_users) > 5 else ''}")
+                                logger.info("=" * 60)
+                            
+                                # Generate function name: edu-gw-chromium-{geo_code}-{func_num}
+                                geo_code = geo.replace('-', '')  # Remove dashes: us-east-1 -> useast1
+                                func_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
+                                
+                                logger.info(f"[BULK] [{geo}] Looking for function: {func_name}")
+                                logger.info(f"[BULK] [{geo}] Available functions in {geo}: {existing_function_names}")
+                            
+                                # Create function if it doesn't exist (thread-safe check)
+                                with threading.Lock():
+                                    if func_name not in existing_function_names:
+                                        # Try to find any function matching the pattern
+                                        matching_functions = [fn for fn in existing_function_names if PRODUCTION_LAMBDA_NAME in fn and geo_code in fn]
+                                        if matching_functions:
+                                            logger.warning(f"[BULK] [{geo}] Function {func_name} not found, but found similar: {matching_functions}")
+                                            # Use the first matching function if exact match not found
+                                            if len(matching_functions) == 1:
+                                                func_name = matching_functions[0]
+                                                logger.info(f"[BULK] [{geo}] Using similar function: {func_name}")
+                                            else:
+                                                # Multiple matches - try to find one with func_num
+                                                func_num_str = str(func_num)
+                                                exact_match = [fn for fn in matching_functions if func_num_str in fn]
+                                                if exact_match:
+                                                    func_name = exact_match[0]
+                                                    logger.info(f"[BULK] [{geo}] Using function with matching number: {func_name}")
+                                                else:
+                                                    func_name = matching_functions[0]
+                                                    logger.warning(f"[BULK] [{geo}] Using first matching function: {func_name}")
+                                        else:
+                                            logger.info(f"[BULK] [{geo}] Creating Lambda function: {func_name}")
                                         try:
                                             role_arn = ensure_lambda_role(session_boto)
                                             chromium_env = {
@@ -3468,10 +3118,31 @@ def background_process_task(app, job_id, users, access_key, secret_key, region):
                                                 "DYNAMODB_REGION": "eu-west-1",
                                                 "APP_PASSWORDS_S3_BUCKET": S3_BUCKET_NAME,
                                                 "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
-                                                "PROXY_ENABLED": "false",
-                                                "TWOCAPTCHA_ENABLED": "false"
                                             }
                                             
+                                            # Add proxy configuration if enabled
+                                            proxy_config = get_proxy_config()
+                                            if proxy_config and proxy_config.get('enabled'):
+                                                proxies = parse_proxy_list(proxy_config.get('proxies', ''))
+                                                if proxies:
+                                                    chromium_env['PROXY_ENABLED'] = 'true'
+                                                    chromium_env['PROXY_LIST'] = proxy_config.get('proxies', '')
+                                                    logger.info(f"[PROXY] [{geo}] Proxy feature enabled with {len(proxies)} proxy/proxies")
+                                                else:
+                                                    chromium_env['PROXY_ENABLED'] = 'false'
+                                            else:
+                                                chromium_env['PROXY_ENABLED'] = 'false'
+                                            
+                                            # Add 2Captcha configuration if enabled
+                                            twocaptcha_config = get_twocaptcha_config()
+                                            if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
+                                                chromium_env['TWOCAPTCHA_ENABLED'] = 'true'
+                                                chromium_env['TWOCAPTCHA_API_KEY'] = twocaptcha_config.get('api_key', '')
+                                                logger.info(f"[2CAPTCHA] [{geo}] 2Captcha feature enabled for automatic CAPTCHA solving")
+                                            else:
+                                                chromium_env['TWOCAPTCHA_ENABLED'] = 'false'
+                                                chromium_env['TWOCAPTCHA_API_KEY'] = ''
+                                        
                                             # Extract ECR URI
                                             ecr_uri = None
                                             try:
@@ -3488,123 +3159,267 @@ def background_process_task(app, job_id, users, access_key, secret_key, region):
                                                 account_id = sts.get_caller_identity()['Account']
                                                 ecr_uri = f"{account_id}.dkr.ecr.{geo}.amazonaws.com/{ECR_REPO_NAME}:{ECR_IMAGE_TAG}"
                                         
-                                            create_or_update_lambda(
-                                                session=session_boto,
-                                                function_name=func_name,
-                                                role_arn=role_arn,
-                                                timeout=900,
-                                                env_vars=chromium_env,
-                                                package_type="Image",
-                                                image_uri=ecr_uri,
-                                            )
-                                            log_debug(f"[{geo}] Created Lambda function: {func_name}")
-                                            existing_function_names.append(func_name)
+                                            if func_name != PRODUCTION_LAMBDA_NAME:
+                                                create_or_update_lambda(
+                                                    session=session_boto,
+                                                    function_name=func_name,
+                                                    role_arn=role_arn,
+                                                    timeout=900,
+                                                    env_vars=chromium_env,
+                                                    package_type="Image",
+                                                    image_uri=ecr_uri,
+                                                )
+                                                logger.info(f"[BULK] [{geo}] ✓ Created Lambda function: {func_name}")
+                                                existing_function_names.append(func_name)
                                         except Exception as create_err:
-                                            log_debug(f"[{geo}] Failed to create {func_name}: {create_err}")
-                                            # Fallback to base name if creation fails? Or just fail?
-                                            # Legacy code fell back to PRODUCTION_LAMBDA_NAME
+                                            logger.error(f"[BULK] [{geo}] Failed to create {func_name}: {create_err}")
                                             func_name = PRODUCTION_LAMBDA_NAME
+                                
+                                # Verify function exists
+                                try:
+                                    all_functions_refresh = lam_client.list_functions()
+                                    existing_function_names_refresh = [fn['FunctionName'] for fn in all_functions_refresh.get('Functions', [])]
+                                    
+                                    if func_name not in existing_function_names_refresh:
+                                        logger.error(f"[BULK] [{geo}] ✗ Function {func_name} NOT FOUND in region {geo}!")
+                                        for u in batch_users:
+                                            function_results.append({
+                                                'email': u['email'],
+                                                'success': False,
+                                                'error': f'Lambda function {func_name} not found in region {geo}'
+                                            })
+                                        return function_results
+                                    
+                                    logger.info(f"[BULK] [{geo}] ✓ Verified function exists: {func_name}")
+                                except Exception as check_err:
+                                    logger.warning(f"[BULK] [{geo}] Could not verify function existence: {check_err}, proceeding anyway...")
+                                
+                                # Invoke Lambda function
+                                logger.info(f"[BULK] [{geo}] Invoking Lambda function: {func_name} in region: {geo}")
+                                batch_results = process_user_batch_sync(batch_users, func_name, lambda_region=geo)
+                                function_results.extend(batch_results)
+                                logger.info(f"[BULK] [{geo}] ✓ Function {func_num} completed: {sum(1 for r in batch_results if r['success'])}/{len(batch_results)} success")
+                                
+                            except Exception as func_err:
+                                logger.error(f"[BULK] [{geo}] ✗ Function {func_num} ({func_name}) failed: {func_err}")
+                                logger.error(traceback.format_exc())
+                                for u in batch_users:
+                                    function_results.append({
+                                        'email': u['email'],
+                                        'success': False,
+                                        'error': f'Function invocation failed: {str(func_err)}'
+                                    })
                             
-                            # Invoke Lambda function
-                            log_debug(f"[{geo}] Invoking {func_name}")
-                            # Fix: Pass all required arguments to process_user_batch_sync
-                            batch_results = process_user_batch_sync(app, batch_users, func_name, access_key, secret_key, region, lambda_region=geo)
-                            function_results.extend(batch_results)
-                            log_debug(f"[{geo}] Function {func_num} completed: {sum(1 for r in batch_results if r['success'])}/{len(batch_results)} success")
+                            return function_results
+                        
+                        # Process all functions in PARALLEL using ThreadPoolExecutor
+                        geo_results = []
+                        with ThreadPoolExecutor(max_workers=max_workers) as function_pool:
+                            # Submit all functions for parallel processing
+                            function_futures = {}
+                            for batch_idx, (func_num, batch_users) in enumerate(geo_batches_list):
+                                future = function_pool.submit(process_single_function, func_num, batch_users, batch_idx)
+                                function_futures[future] = (func_num, batch_idx)
+                                logger.info(f"[BULK] [{geo}] ✓ Submitted function {func_num} for parallel processing")
                             
-                        except Exception as func_err:
-                            log_debug(f"[{geo}] Function {func_num} failed: {func_err}")
+                            # Wait for all functions to complete and collect results
+                            for future in as_completed(function_futures):
+                                func_num, batch_idx = function_futures[future]
+                                try:
+                                    function_results = future.result()
+                                    geo_results.extend(function_results)
+                                    
+                                    # Update job status
+                                    with jobs_lock:
+                                        if job_id in active_jobs:
+                                            for result in function_results:
+                                                active_jobs[job_id]['completed'] += 1
+                                                if result.get('success'):
+                                                    active_jobs[job_id]['success'] += 1
+                                                    active_jobs[job_id]['results'].append({
+                                                        'email': result['email'],
+                                                        'app_password': result.get('app_password'),
+                                                        'success': True
+                                                    })
+                                                else:
+                                                    active_jobs[job_id]['failed'] += 1
+                                                    active_jobs[job_id]['results'].append({
+                                                        'email': result['email'],
+                                                        'error': result.get('error', 'Unknown error'),
+                                                        'success': False
+                                                    })
+                                    
+                                    logger.info(f"[BULK] [{geo}] ✓ Function {func_num} finished: {sum(1 for r in function_results if r.get('success'))}/{len(function_results)} success")
+                                except Exception as e:
+                                    logger.error(f"[BULK] [{geo}] ✗ Function {func_num} exception: {e}")
+                                    logger.error(traceback.format_exc())
+                        
+                        # Log completion summary
+                        logger.info("=" * 60)
+                        logger.info(f"[BULK] [{geo}] ===== PARALLEL PROCESSING COMPLETED =====")
+                        logger.info(f"[BULK] [{geo}] Total functions processed: {len(geo_batches_list)}")
+                        logger.info(f"[BULK] [{geo}] Total users processed: {len(geo_results)}")
+                        logger.info(f"[BULK] [{geo}] Success: {sum(1 for r in geo_results if r.get('success'))}")
+                        logger.info(f"[BULK] [{geo}] Failed: {sum(1 for r in geo_results if not r.get('success'))}")
+                        logger.info("=" * 60)
+                        return geo_results
+                    except Exception as geo_err:
+                        logger.error("=" * 60)
+                        logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR in process_geo_parallel: {geo_err}")
+                        logger.error(f"[BULK] [{geo}] Error type: {type(geo_err).__name__}")
+                        logger.error(f"[BULK] [{geo}] Error message: {str(geo_err)}")
+                        logger.error(f"[BULK] [{geo}] Traceback: {traceback.format_exc()}")
+                        logger.error("=" * 60)
+                        # Return empty results with error info so other geos can continue
+                        # But mark all users in this geo as failed
+                        failed_results = []
+                        for func_num, batch_users in geo_batches_list:
                             for u in batch_users:
-                                function_results.append({
+                                failed_results.append({
                                     'email': u['email'],
                                     'success': False,
-                                    'error': f'Function invocation failed: {str(func_err)}'
+                                    'error': f'Geo processing failed for {geo}: {str(geo_err)}'
                                 })
-                        
-                        return function_results
-
-                    # Process functions in parallel within this geo
-                    geo_results = []
-                    max_workers = min(10, len(geo_batches_list))
-                    if len(geo_batches_list) >= 2 and max_workers < 2:
-                        max_workers = 2
-                        
-                    with ThreadPoolExecutor(max_workers=max_workers) as function_pool:
-                        function_futures = {}
-                        for batch_idx, (func_num, batch_users) in enumerate(geo_batches_list):
-                            future = function_pool.submit(process_single_function, func_num, batch_users, batch_idx)
-                            function_futures[future] = func_num
-                        
-                        for future in as_completed(function_futures):
-                            try:
-                                results = future.result()
-                                geo_results.extend(results)
-                                
-                                # Update job status immediately
-                                with jobs_lock:
-                                    if job_id in active_jobs:
-                                        active_jobs[job_id]['results'].extend(results)
-                                        batch_success = sum(1 for r in results if r.get('success'))
-                                        batch_failed = len(results) - batch_success
-                                        active_jobs[job_id]['completed'] += len(results)
-                                        active_jobs[job_id]['success'] += batch_success
-                                        active_jobs[job_id]['failed'] += batch_failed
-                                        save_jobs({job_id: active_jobs[job_id]})
-                                        
-                            except Exception as e:
-                                log_debug(f"[{geo}] Function future exception: {e}")
-                    
-                    return geo_results
-
-                except Exception as geo_err:
-                    log_debug(f"[{geo}] CRITICAL ERROR in process_geo_parallel: {geo_err}")
-                    failed_results = []
-                    for func_num, batch_users in geo_batches_list:
-                        for u in batch_users:
-                            failed_results.append({
-                                'email': u['email'],
-                                'success': False,
-                                'error': f'Geo processing failed: {str(geo_err)}'
-                            })
-                    return failed_results
-
-            # Process ALL geos in parallel
-            max_geo_workers = len(batches_by_geo)
-            log_debug(f"Starting parallel processing of {max_geo_workers} regions")
+                        logger.error(f"[BULK] [{geo}] Returning {len(failed_results)} failed results for {geo}")
+                        return failed_results
             
-            with ThreadPoolExecutor(max_workers=max_geo_workers) as geo_pool:
-                geo_futures = {}
-                for geo, geo_batches_list in batches_by_geo.items():
-                    future = geo_pool.submit(process_geo_parallel, geo, geo_batches_list)
-                    geo_futures[future] = geo
+                # Process ALL geos in parallel (each geo processes its functions in parallel internally)
+                logger.info("=" * 60)
+                logger.info(f"[BULK] ===== STARTING PARALLEL GEO PROCESSING =====")
+                logger.info(f"[BULK] Total users: {total_users}")
+                logger.info(f"[BULK] Total functions: {num_functions}")
+                logger.info(f"[BULK] Number of geos: {len(batches_by_geo)}")
+                logger.info(f"[BULK] Users per function: {USERS_PER_FUNCTION}")
+                logger.info(f"[BULK] Geos to process: {list(batches_by_geo.keys())}")
+                logger.info("=" * 60)
+            
+                # Process ALL geos in parallel (each geo processes functions in parallel internally)
+                max_geo_workers = len(batches_by_geo)  # One worker per geo - ALL geos process in parallel
+                logger.info("=" * 60)
+                logger.info(f"[BULK] ===== STARTING PARALLEL GEO PROCESSING =====")
+                logger.info(f"[BULK] Total geos to process: {len(batches_by_geo)}")
+                logger.info(f"[BULK] Geos: {list(batches_by_geo.keys())}")
+                logger.info(f"[BULK] Max geo workers: {max_geo_workers}")
+                logger.info("=" * 60)
+            
+                # Collect all results from all geos
+                all_geo_results = []
                 
-                for future in as_completed(geo_futures):
-                    geo = geo_futures[future]
-                    try:
-                        future.result(timeout=3600)
-                        log_debug(f"Region {geo} completed processing")
-                    except Exception as e:
-                        log_debug(f"Region {geo} failed: {e}")
-
-            log_debug("All regions completed.")
+                with ThreadPoolExecutor(max_workers=max_geo_workers) as geo_pool:
+                    # Submit ALL geos for processing in parallel
+                    geo_futures = {}
+                    submitted_geos = []
+                    for geo, geo_batches_list in batches_by_geo.items():
+                        try:
+                            logger.info(f"[BULK] ✓ Submitting geo {geo} with {len(geo_batches_list)} function(s) to thread pool")
+                            future = geo_pool.submit(process_geo_parallel, geo, geo_batches_list)
+                            geo_futures[future] = geo
+                            submitted_geos.append(geo)
+                            logger.info(f"[BULK] ✓✓✓ Successfully submitted geo {geo} to thread pool")
+                        except Exception as submit_err:
+                            logger.error(f"[BULK] ✗✗✗ FAILED to submit geo {geo} to thread pool: {submit_err}")
+                            logger.error(traceback.format_exc())
+                            # Add failed results for this geo
+                            for func_num, batch_users in geo_batches_list:
+                                for u in batch_users:
+                                    all_geo_results.append({
+                                        'email': u['email'],
+                                        'success': False,
+                                        'error': f'Failed to submit geo {geo} to thread pool: {str(submit_err)}'
+                                    })
+                
+                    logger.info("=" * 60)
+                    logger.info(f"[BULK] ✓✓✓ SUBMISSION SUMMARY")
+                    logger.info(f"[BULK] Total geos to process: {len(batches_by_geo)}")
+                    logger.info(f"[BULK] Successfully submitted: {len(submitted_geos)} geo(s)")
+                    logger.info(f"[BULK] Submitted geos: {submitted_geos}")
+                    logger.info(f"[BULK] Futures created: {len(geo_futures)}")
+                    logger.info(f"[BULK] All geos should now be processing simultaneously")
+                    logger.info("=" * 60)
+                
+                    # Wait for all geos to complete and collect results
+                    completed_geos = []
+                    failed_geos = []
+                    for future in as_completed(geo_futures):
+                        geo = geo_futures[future]
+                        try:
+                            geo_results = future.result(timeout=3600)  # 1 hour timeout per geo
+                            all_geo_results.extend(geo_results)
+                            completed_geos.append(geo)
+                            success_count = sum(1 for r in geo_results if r.get('success'))
+                            total_count = len(geo_results)
+                            failed_count = total_count - success_count
+                            logger.info("=" * 60)
+                            logger.info(f"[BULK] [{geo}] ✓✓✓ GEO COMPLETED: {success_count}/{total_count} success, {failed_count} failed")
+                            logger.info(f"[BULK] [{geo}] Functions processed: {len(geo_batches_list)}")
+                            logger.info(f"[BULK] [{geo}] Results count: {len(geo_results)}")
+                            logger.info(f"[BULK] Completed geos so far: {len(completed_geos)}/{len(geo_futures)}")
+                            if failed_count > 0:
+                                logger.warning(f"[BULK] [{geo}] ⚠️ Some failures detected: {failed_count} user(s) failed")
+                            logger.info("=" * 60)
+                        except Exception as e:
+                            logger.error("=" * 60)
+                            logger.error(f"[BULK] [{geo}] ✗✗✗ GEO EXCEPTION (Future Error): {e}")
+                            logger.error(f"[BULK] [{geo}] Error type: {type(e).__name__}")
+                            logger.error(f"[BULK] [{geo}] Traceback: {traceback.format_exc()}")
+                            logger.error("=" * 60)
+                            failed_geos.append(geo)
+                            completed_geos.append(geo)  # Mark as completed even if failed
+                            
+                            # Add failed results for all users in this geo
+                            if geo in batches_by_geo:
+                                for func_num, batch_users in batches_by_geo[geo]:
+                                    for u in batch_users:
+                                        all_geo_results.append({
+                                            'email': u['email'],
+                                            'success': False,
+                                            'error': f'Geo processing exception for {geo}: {str(e)}'
+                                        })
+                
+                    logger.info("=" * 60)
+                    logger.info(f"[BULK] ===== ALL GEOS COMPLETED PROCESSING =====")
+                    logger.info(f"[BULK] Total geos processed: {len(completed_geos)}/{len(geo_futures)}")
+                    logger.info(f"[BULK] Completed geos: {completed_geos}")
+                    logger.info(f"[BULK] Total results collected: {len(all_geo_results)}")
+                    logger.info("=" * 60)
             
-            # Update final status
+            # Set job status to completed (outside ThreadPoolExecutor but inside app_context)
+            # Use lock to ensure thread-safe access
             with jobs_lock:
-                current_job = active_jobs.get(job_id)
-                if current_job:
-                    current_job['status'] = 'completed'
-                    save_jobs({job_id: current_job})
-            
-            log_debug("Job marked as completed.")
+                if job_id in active_jobs:
+                    completed_count = active_jobs[job_id].get('completed', 0)
+                    success_count = active_jobs[job_id].get('success', 0)
+                    failed_count = active_jobs[job_id].get('failed', 0)
+                    active_jobs[job_id]['status'] = 'completed'
+                    logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {completed_count}/{len(users)} users. Success: {success_count}, Failed: {failed_count}")
+                else:
+                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in active_jobs when trying to mark as completed!")
+                    # Try to create it if it doesn't exist (shouldn't happen, but safety check)
+                    # Since we don't have the actual counts, use defaults
+                    active_jobs[job_id] = {
+                        'total': len(users),
+                        'completed': 0,
+                        'success': 0,
+                        'failed': len(users),
+                        'results': [],
+                        'status': 'completed'
+                    }
+                    logger.warning(f"[BULK] Created fallback job entry for {job_id} with default values")
+        except Exception as bg_error:
+            logger.error(f"[BULK] ❌ CRITICAL ERROR in background_process: {bg_error}")
+            logger.error(f"[BULK] Traceback: {traceback.format_exc()}")
+            # Use lock to ensure thread-safe access
+            with jobs_lock:
+                if job_id in active_jobs:
+                    active_jobs[job_id]['status'] = 'failed'
+                    active_jobs[job_id]['error'] = str(bg_error)
+                    active_jobs[job_id]['completed'] = active_jobs[job_id].get('completed', 0)
+                else:
+                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in active_jobs when trying to mark as failed!")
 
-    except Exception as e:
-        log_debug(f"CRITICAL ERROR in background process: {e}")
-        traceback.print_exc()
-        with jobs_lock:
-            if job_id in active_jobs:
-                active_jobs[job_id]['status'] = 'failed'
-                active_jobs[job_id]['error'] = str(e)
-                save_jobs({job_id: active_jobs[job_id]})
+    threading.Thread(target=background_process, args=(app, job_id, users, access_key, secret_key, region)).start()
+
+    return jsonify({'success': True, 'job_id': job_id, 'message': f'Started processing {len(users)} users'})
 
 @aws_manager.route('/api/aws/lambda-creation-status/<job_id>', methods=['GET'])
 @login_required
@@ -3634,9 +3449,7 @@ def get_lambda_creation_status(job_id):
 def get_job_status(job_id):
     try:
         with jobs_lock:
-            # Load from file to get latest status from any worker
-            all_jobs = load_jobs()
-            job = all_jobs.get(job_id)
+            job = active_jobs.get(job_id)
         if not job:
             logger.warning(f"[JOB_STATUS] Job {job_id} not found. Available jobs: {list(active_jobs.keys())}")
             return jsonify({'success': False, 'error': 'Job not found'}), 404
@@ -3875,225 +3688,80 @@ def invoke_lambda():
 
         # Determine which Lambda function to use
         lambda_function_name = PRODUCTION_LAMBDA_NAME
-        lambda_region = region  # Track which region the function is in
-        
         try:
-            # List all Lambda functions that match our pattern in the specified region
-            logger.info(f"[INVOKE] Searching for Lambda functions in region: {region}")
+            # List all Lambda functions that match our pattern
             all_functions = lam.list_functions()
             matching_functions = [
                 fn['FunctionName'] for fn in all_functions.get('Functions', [])
                 if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
             ]
             
-            logger.info(f"[INVOKE] Found {len(matching_functions)} matching function(s) in {region}: {matching_functions}")
-            
             if len(matching_functions) > 1:
                 # Multiple functions exist - use hash to pick one consistently
                 user_hash = int(hashlib.md5(email.encode()).hexdigest(), 16)
                 function_index = user_hash % len(matching_functions)
                 lambda_function_name = matching_functions[function_index]
-                logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} in {region} for {email} (distributed across {len(matching_functions)} functions)")
+                logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} for {email} (distributed across {len(matching_functions)} functions)")
             elif len(matching_functions) == 1:
                 # Only one function exists, use it
                 lambda_function_name = matching_functions[0]
-                logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} in {region} for {email}")
+                logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} for {email}")
             else:
-                # No matching functions found in this region - try to find in other regions
-                logger.warning(f"[INVOKE] No matching Lambda functions found in {region}, searching other regions...")
-                
-                # List of common AWS regions to search
-                search_regions = [
-                    'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-                    'eu-west-1', 'eu-central-1', 'ap-southeast-1', 'ap-northeast-1'
-                ]
-                
-                found_function = False
-                for search_region in search_regions:
-                    if search_region == region:
-                        continue  # Skip the region we already checked
-                    try:
-                        search_session = get_boto3_session(access_key, secret_key, search_region)
-                        search_lam = search_session.client("lambda")
-                        search_functions = search_lam.list_functions()
-                        search_matching = [
-                            fn['FunctionName'] for fn in search_functions.get('Functions', [])
-                            if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
-                        ]
-                        if search_matching:
-                            lambda_function_name = search_matching[0]  # Use first found
-                            lambda_region = search_region
-                            logger.info(f"[INVOKE] Found Lambda function {lambda_function_name} in {search_region}, using it")
-                            lam = search_lam  # Update Lambda client to use the correct region
-                            found_function = True
-                            break
-                    except Exception as search_err:
-                        logger.debug(f"[INVOKE] Could not search region {search_region}: {search_err}")
-                        continue
-                
-                if not found_function:
-                    logger.warning(f"[INVOKE] No matching Lambda functions found in any region, using default {PRODUCTION_LAMBDA_NAME} in {region}")
+                # No matching functions found, use default
+                logger.warning(f"[INVOKE] No matching Lambda functions found, using default {PRODUCTION_LAMBDA_NAME}")
         except Exception as list_err:
-            logger.error(f"[INVOKE] Error listing Lambda functions: {list_err}")
-            logger.error(traceback.format_exc())
-            logger.warning(f"[INVOKE] Using default {PRODUCTION_LAMBDA_NAME} in {region}")
-
-        # Verify the function exists before invoking
-        try:
-            logger.info(f"[INVOKE] Verifying Lambda function {lambda_function_name} exists in {lambda_region}...")
-            func_info = lam.get_function(FunctionName=lambda_function_name)
-            func_state = func_info.get('Configuration', {}).get('State', 'Unknown')
-            logger.info(f"[INVOKE] Lambda function {lambda_function_name} state: {func_state}")
-            if func_state != 'Active':
-                logger.warning(f"[INVOKE] Lambda function is not in Active state: {func_state}")
-        except ClientError as verify_err:
-            error_code = verify_err.response.get('Error', {}).get('Code', '')
-            if error_code == 'ResourceNotFoundException':
-                logger.error(f"[INVOKE] Lambda function {lambda_function_name} not found in {lambda_region}")
-                return jsonify({
-                    'success': False,
-                    'error': f'Lambda function {lambda_function_name} not found in region {lambda_region}. Please create Lambda functions first.'
-                }), 404
-            else:
-                logger.error(f"[INVOKE] Error verifying function: {verify_err}")
-                raise
+            logger.warning(f"[INVOKE] Could not list Lambda functions, using default: {list_err}")
 
         event = {
             "email": email,
             "password": password,
         }
 
-        logger.info(f"[INVOKE] Invoking Lambda function {lambda_function_name} in {lambda_region} (async={async_mode})...")
-        logger.info(f"[INVOKE] Event payload: {json.dumps(event)}")
-        
         invocation_type = "Event" if async_mode else "RequestResponse"
-        
-        try:
-            resp = lam.invoke(
-                FunctionName=lambda_function_name,
-                InvocationType=invocation_type,
-                Payload=json.dumps(event).encode("utf-8"),
-            )
-            
-            status_code = resp.get("StatusCode", 0)
-            function_error = resp.get("FunctionError")
-            executed_version = resp.get("ExecutedVersion")
-            
-            logger.info(f"[INVOKE] Lambda invocation response:")
-            logger.info(f"[INVOKE]   Status Code: {status_code}")
-            logger.info(f"[INVOKE]   Function Error: {function_error}")
-            logger.info(f"[INVOKE]   Executed Version: {executed_version}")
-            
-            # Check for function errors
-            if function_error:
-                payload = resp.get("Payload")
-                error_body = payload.read().decode("utf-8") if payload else ""
-                logger.error(f"[INVOKE] Lambda function error ({function_error}): {error_body}")
-                try:
-                    error_data = json.loads(error_body)
-                    error_message = error_data.get('errorMessage', error_data.get('errorType', 'Unknown error'))
-                    error_type = error_data.get('errorType', 'FunctionError')
-                    return jsonify({
-                        'success': False,
-                        'error': f'Lambda function error ({error_type}): {error_message}',
-                        'error_type': error_type,
-                        'error_message': error_message,
-                        'full_error': error_body
-                    }), 500
-                except:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Lambda function error: {error_body}',
-                        'raw_error': error_body
-                    }), 500
+        resp = lam.invoke(
+            FunctionName=lambda_function_name,
+            InvocationType=invocation_type,
+            Payload=json.dumps(event).encode("utf-8"),
+        )
 
-            if async_mode:
-                if status_code == 202:
-                    logger.info(f"[INVOKE] ✓ Lambda invoked asynchronously (status 202)")
-                    return jsonify({
-                        'success': True,
-                        'status': 'invoked',
-                        'message': 'Lambda invoked asynchronously',
-                        'function_name': lambda_function_name,
-                        'region': lambda_region
-                    })
-                else:
-                    logger.error(f"[INVOKE] Unexpected status code for async: {status_code}")
-                    return jsonify({
-                        'success': False,
-                        'error': f'Unexpected status code: {status_code}',
-                        'function_name': lambda_function_name,
-                        'region': lambda_region
-                    }), 500
+        if async_mode:
+            status_code = resp.get("StatusCode", 0)
+            if status_code == 202:
+                return jsonify({
+                    'success': True,
+                    'status': 'invoked',
+                    'message': 'Lambda invoked asynchronously'
+                })
             else:
-                payload = resp.get("Payload")
-                body = payload.read().decode("utf-8") if payload else ""
-                logger.info(f"[INVOKE] Response body length: {len(body)} characters")
-                logger.info(f"[INVOKE] Response body preview: {body[:500]}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Unexpected status code: {status_code}'
+                }), 500
+        else:
+            payload = resp.get("Payload")
+            body = payload.read().decode("utf-8") if payload else ""
+            try:
+                response_data = json.loads(body)
                 
-                if not body:
-                    logger.warning(f"[INVOKE] Empty response body from Lambda")
-                    return jsonify({
-                        'success': False,
-                        'error': 'Lambda returned empty response',
-                        'status_code': status_code,
-                        'function_name': lambda_function_name,
-                        'region': lambda_region
-                    }), 500
+                # Save to DB if successful
+                if response_data.get('app_password'):
+                    try:
+                        save_app_password(email, response_data['app_password'])
+                        logger.info(f"[INVOKE] ✓ Password saved for {email}")
+                    except Exception as db_error:
+                        logger.error(f"[INVOKE] Failed to save password to DB: {db_error}")
+                        # Continue anyway - return the password even if DB save fails
                 
-                try:
-                    response_data = json.loads(body)
-                    logger.info(f"[INVOKE] Parsed response: {json.dumps(response_data, indent=2)[:500]}")
-                    
-                    # Check if Lambda returned an error in the response
-                    if response_data.get('status') == 'error' or response_data.get('error'):
-                        error_msg = response_data.get('error', response_data.get('error_message', 'Unknown error'))
-                        logger.error(f"[INVOKE] Lambda returned error in response: {error_msg}")
-                        return jsonify({
-                            'success': False,
-                            'error': error_msg,
-                            'function_name': lambda_function_name,
-                            'region': lambda_region,
-                            'lambda_response': response_data
-                        }), 500
-                    
-                    # Save to DB if successful
-                    if response_data.get('app_password'):
-                        try:
-                            save_app_password(email, response_data['app_password'])
-                            logger.info(f"[INVOKE] ✓ Password saved for {email}")
-                        except Exception as db_error:
-                            logger.error(f"[INVOKE] Failed to save password to DB: {db_error}")
-                            # Continue anyway - return the password even if DB save fails
-                    
-                    logger.info(f"[INVOKE] ✓ Lambda invocation successful")
-                    return jsonify({
-                        'success': True,
-                        'function_name': lambda_function_name,
-                        'region': lambda_region,
-                        **response_data
-                    })
-                except json.JSONDecodeError as parse_error:
-                    logger.error(f"[INVOKE] Failed to parse response as JSON: {parse_error}")
-                    logger.error(f"[INVOKE] Raw response: {body}")
-                    return jsonify({
-                        'success': False,
-                        'error': f'Failed to parse Lambda response: {str(parse_error)}',
-                        'raw_response': body,
-                        'function_name': lambda_function_name,
-                        'region': lambda_region
-                    }), 500
-        except ClientError as invoke_err:
-            error_code = invoke_err.response.get('Error', {}).get('Code', '')
-            error_message = invoke_err.response.get('Error', {}).get('Message', str(invoke_err))
-            logger.error(f"[INVOKE] AWS ClientError during invocation: {error_code} - {error_message}")
-            logger.error(traceback.format_exc())
-            return jsonify({
-                'success': False,
-                'error': f'AWS Error ({error_code}): {error_message}',
-                'function_name': lambda_function_name,
-                'region': lambda_region
-            }), 500
+                return jsonify({
+                    'success': True,
+                    **response_data
+                })
+            except Exception as parse_error:
+                logger.warning(f"[INVOKE] Failed to parse response as JSON: {parse_error}")
+                return jsonify({
+                    'success': True,
+                    'raw_response': body
+                })
     except ClientError as ce:
         if ce.response['Error']['Code'] == 'ResourceNotFoundException':
             return jsonify({
@@ -4187,29 +3855,12 @@ def stop_all_lambdas():
                                 try:
                                     # Put reserved concurrency to 0 to stop new invocations
                                     # This effectively stops the function from accepting new requests
-                                    # Also update function configuration to disable it
-                                    try:
-                                        lam.put_function_concurrency(
-                                            FunctionName=fn_name,
-                                            ReservedConcurrentExecutions=0
-                                        )
-                                        logger.info(f"[STOP LAMBDA] [{target_region}] ✓ Set concurrency to 0 for: {fn_name}")
-                                    except ClientError as concurrency_err:
-                                        # If concurrency update fails, try to get current config and update
-                                        logger.warning(f"[STOP LAMBDA] [{target_region}] Concurrency update failed for {fn_name}: {concurrency_err}")
-                                    
-                                    # Also try to update function configuration to disable it
-                                    try:
-                                        lam.update_function_configuration(
-                                            FunctionName=fn_name,
-                                            Description="Stopped - reserved concurrency set to 0"
-                                        )
-                                    except Exception as config_err:
-                                        # Config update is optional, just log warning
-                                        logger.debug(f"[STOP LAMBDA] [{target_region}] Config update optional, continuing: {config_err}")
-                                    
-                                    region_stopped += 1
+                                    lam.put_function_concurrency(
+                                        FunctionName=fn_name,
+                                        ReservedConcurrentExecutions=0
+                                    )
                                     logger.info(f"[STOP LAMBDA] [{target_region}] ✓ Stopped function: {fn_name}")
+                                    region_stopped += 1
                                 except Exception as e:
                                     error_msg = f"{target_region}: {fn_name} - {str(e)}"
                                     logger.error(f"[STOP LAMBDA] [{target_region}] Error stopping {fn_name}: {e}")
@@ -4326,7 +3977,7 @@ def delete_all_lambdas():
                 logger.info(f"[DELETE LAMBDA] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
                 lam = session.client("lambda")
-    
+
                 # Try to delete production lambda
                 try:
                     lam.delete_function(FunctionName=PRODUCTION_LAMBDA_NAME)
@@ -4338,7 +3989,7 @@ def delete_all_lambdas():
                     logger.error(f"[DELETE LAMBDA] [{target_region}] Error: {error_msg}")
                     region_errors.append(error_msg)
 
-        # Also check for any other edu-gw lambdas
+                # Also check for any other edu-gw lambdas
                 try:
                     paginator = lam.get_paginator("list_functions")
                     for page in paginator.paginate():
@@ -4618,7 +4269,7 @@ def delete_ecr_repo():
                 logger.info(f"[DELETE ECR] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
                 ecr = session.client("ecr")
-    
+
                 try:
                     ecr.delete_repository(
                         repositoryName=ECR_REPO_NAME,
@@ -4745,7 +4396,7 @@ def delete_cloudwatch_logs():
                 logger.info(f"[DELETE CLOUDWATCH] Processing region: {target_region}")
                 session = get_boto3_session(access_key, secret_key, target_region)
                 logs = session.client("logs")
-    
+
                 paginator = logs.get_paginator('describe_log_groups')
                 for page in paginator.paginate():
                     for log_group in page.get('logGroups', []):
@@ -4842,254 +4493,6 @@ def ec2_create_build_box():
         logger.error(f"Error creating EC2 build box: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
-
-@aws_manager.route('/api/aws/get-aws-status', methods=['POST'])
-@login_required
-def get_aws_status():
-    """Get comprehensive AWS status: Lambdas, ECR repos/images, DynamoDB for all geos"""
-    try:
-        data = request.get_json()
-        access_key = data.get('access_key', '').strip()
-        secret_key = data.get('secret_key', '').strip()
-        region = data.get('region', '').strip()
-
-        if not access_key or not secret_key or not region:
-            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
-
-        # List of all AWS regions
-        AVAILABLE_GEO_REGIONS = [
-            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-            'af-south-1',
-            'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
-            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
-            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4',
-            'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
-            'ca-central-1', 'ca-west-1',
-            'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3',
-            'eu-north-1', 'eu-south-1', 'eu-south-2',
-            'mx-central-1',
-            'me-south-1', 'me-central-1', 'il-central-1',
-            'sa-east-1',
-        ]
-
-        status_data = {}
-
-        def get_region_status(target_region):
-            """Get status for a single region"""
-            region_status = {
-                'region': target_region,
-                'lambdas': [],
-                'lambda_count': 0,
-                'ecr_repo_exists': False,
-                'ecr_image_count': 0,
-                'ecr_images': [],
-                'error': None
-            }
-            
-            try:
-                session = get_boto3_session(access_key, secret_key, target_region)
-                
-                # Get Lambda functions
-                try:
-                    lam = session.client("lambda")
-                    paginator = lam.get_paginator("list_functions")
-                    for page in paginator.paginate():
-                        for fn in page.get("Functions", []):
-                            fn_name = fn["FunctionName"]
-                            if PRODUCTION_LAMBDA_NAME in fn_name or "edu-gw" in fn_name:
-                                region_status['lambdas'].append({
-                                    'name': fn_name,
-                                    'runtime': fn.get('Runtime', 'N/A'),
-                                    'state': fn.get('State', 'Active'),
-                                    'last_modified': fn.get('LastModified', 'N/A')
-                                })
-                    region_status['lambda_count'] = len(region_status['lambdas'])
-                except Exception as e:
-                    region_status['error'] = f"Lambda error: {str(e)}"
-                
-                # Get ECR repository and images
-                try:
-                    ecr = session.client("ecr")
-                    try:
-                        repo_response = ecr.describe_repositories(repositoryNames=[ECR_REPO_NAME])
-                        if repo_response.get('repositories'):
-                            region_status['ecr_repo_exists'] = True
-                            # Get images
-                            try:
-                                images_response = ecr.list_images(repositoryName=ECR_REPO_NAME)
-                                images = images_response.get('imageIds', [])
-                                region_status['ecr_image_count'] = len(images)
-                                region_status['ecr_images'] = [
-                                    {
-                                        'tag': img.get('imageTag', 'untagged'),
-                                        'digest': img.get('imageDigest', 'N/A')[:20] + '...' if img.get('imageDigest') else 'N/A'
-                                    }
-                                    for img in images[:10]  # Limit to first 10
-                                ]
-                            except Exception as img_err:
-                                region_status['error'] = f"ECR images error: {str(img_err)}"
-                    except ClientError as repo_err:
-                        if repo_err.response['Error']['Code'] != 'RepositoryNotFoundException':
-                            region_status['error'] = f"ECR repo error: {str(repo_err)}"
-                except Exception as e:
-                    if not region_status['error']:
-                        region_status['error'] = f"ECR error: {str(e)}"
-                        
-            except Exception as e:
-                region_status['error'] = f"Region error: {str(e)}"
-            
-            return region_status
-
-        # Get DynamoDB status (centralized in eu-west-1)
-        dynamodb_status = {
-            'region': 'eu-west-1',
-            'table_exists': False,
-            'item_count': 0,
-            'error': None
-        }
-        try:
-            dynamodb_session = get_boto3_session(access_key, secret_key, 'eu-west-1')
-            dynamodb = dynamodb_session.resource('dynamodb')
-            table = dynamodb.Table("gbot-app-passwords")
-            try:
-                table.load()
-                dynamodb_status['table_exists'] = True
-                # Get item count (approximate)
-                try:
-                    response = table.scan(Select='COUNT')
-                    dynamodb_status['item_count'] = response.get('Count', 0)
-                    # If count is large, get ScannedCount too
-                    if 'ScannedCount' in response:
-                        dynamodb_status['scanned_count'] = response['ScannedCount']
-                except Exception as count_err:
-                    dynamodb_status['error'] = f"Count error: {str(count_err)}"
-            except ClientError as table_err:
-                if table_err.response['Error']['Code'] != 'ResourceNotFoundException':
-                    dynamodb_status['error'] = f"Table error: {str(table_err)}"
-        except Exception as e:
-            dynamodb_status['error'] = f"DynamoDB error: {str(e)}"
-
-        # Get status for all regions in parallel
-        logger.info(f"[STATUS] Getting AWS status for {len(AVAILABLE_GEO_REGIONS)} regions...")
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            futures = {executor.submit(get_region_status, region): region for region in AVAILABLE_GEO_REGIONS}
-            
-            for future in as_completed(futures):
-                region = futures[future]
-                try:
-                    region_status = future.result()
-                    status_data[region] = region_status
-                except Exception as e:
-                    logger.error(f"[STATUS] [{region}] Error: {e}")
-                    status_data[region] = {
-                        'region': region,
-                        'lambdas': [],
-                        'lambda_count': 0,
-                        'ecr_repo_exists': False,
-                        'ecr_image_count': 0,
-                        'ecr_images': [],
-                        'error': str(e)
-                    }
-
-        return jsonify({
-            'success': True,
-            'regions': status_data,
-            'dynamodb': dynamodb_status,
-            'total_regions': len(AVAILABLE_GEO_REGIONS)
-        })
-    except Exception as e:
-        logger.error(f"Error getting AWS status: {e}")
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@aws_manager.route('/api/aws/empty-dynamodb-table', methods=['POST'])
-@login_required
-def empty_dynamodb_table():
-    """Empty (clear all items from) DynamoDB table without deleting the table"""
-    try:
-        data = request.get_json()
-        access_key = data.get('access_key', '').strip()
-        secret_key = data.get('secret_key', '').strip()
-        region = data.get('region', '').strip()
-
-        if not access_key or not secret_key or not region:
-            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
-
-        # DynamoDB is centralized in eu-west-1
-        dynamodb_region = 'eu-west-1'
-        table_name = "gbot-app-passwords"
-        
-        session = get_boto3_session(access_key, secret_key, dynamodb_region)
-        dynamodb = session.resource('dynamodb')
-        table = dynamodb.Table(table_name)
-        
-        # Check if table exists
-        try:
-            table.load()
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceNotFoundException':
-                return jsonify({
-                    'success': False,
-                    'error': f'DynamoDB table {table_name} does not exist in {dynamodb_region}.'
-                }), 404
-            raise e
-        
-        # Delete all items using scan and batch delete
-        deleted_count = 0
-        try:
-            # Scan and delete in batches
-            while True:
-                response = table.scan()
-                items = response.get('Items', [])
-                
-                if not items:
-                    break
-                
-                # Delete items in batches of 25 (DynamoDB batch_write_item limit)
-                with table.batch_writer() as batch:
-                    for item in items:
-                        batch.delete_item(Key={'email': item['email']})
-                        deleted_count += 1
-                
-                # Check if there are more items
-                if 'LastEvaluatedKey' not in response:
-                    break
-                    
-                # Continue scanning from last key
-                response = table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
-                items = response.get('Items', [])
-                
-                if not items:
-                    break
-                    
-                with table.batch_writer() as batch:
-                    for item in items:
-                        batch.delete_item(Key={'email': item['email']})
-                        deleted_count += 1
-                        
-        except Exception as e:
-            logger.error(f"[DYNAMODB] Error emptying table: {e}")
-            return jsonify({
-                'success': False,
-                'error': f'Error emptying table: {str(e)}'
-            }), 500
-
-        logger.info(f"[DYNAMODB] Emptied {deleted_count} items from {table_name}")
-        return jsonify({
-            'success': True,
-            'deleted_count': deleted_count,
-            'message': f'DynamoDB table emptied successfully. Deleted {deleted_count} item(s).'
-        })
-    except Exception as e:
-        logger.error(f"Error emptying DynamoDB table: {e}")
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@aws_manager.route('/api/aws/clean-logs', methods=['POST'])
-@login_required
-def clean_logs():
-    """Clean log output (simple endpoint for frontend)"""
-    return jsonify({'success': True, 'message': 'Logs cleared'})
 
 @aws_manager.route('/api/aws/ec2-show-status', methods=['POST'])
 @login_required
@@ -5659,7 +5062,7 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
     )
     ami_id = param["Parameter"]["Value"]
 
-    instance_type = "c5.xlarge"  # Using c5.xlarge for high network bandwidth (10Gbps)
+    instance_type = "t3.small"  # Using t3.small for reliable Docker builds
 
     repo_uri_base = f"{account_id}.dkr.ecr.{region}.amazonaws.com/{ECR_REPO_NAME}"
 
@@ -5671,6 +5074,7 @@ exec > >(tee /var/log/user-data.log) 2>&1
 echo "=== EC2 Build Box User Data Script Started ==="
 date
 
+yum update -y
 amazon-linux-extras install docker -y || yum install -y docker
 systemctl enable docker
 systemctl start docker
@@ -5779,116 +5183,79 @@ SUCCESS_COUNT=0
 FAILED_COUNT=0
 FAILED_REGIONS=()
 
-# Function to push to a single region (for parallel execution)
-push_region() {{
-    TARGET_REGION=$1
-    TARGET_ECR_URI="$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com/$REPO_NAME:$IMAGE_TAG"
-    
-    echo "[$TARGET_REGION] Starting push process..."
-    
-    # Check if image already exists
-    if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" --region "$TARGET_REGION" 2>/dev/null; then
-        echo "[$TARGET_REGION] ✓ Image already exists, skipping..."
-        echo "[$TARGET_REGION] SUCCESS" > /tmp/ecr_push_$TARGET_REGION.result
-        return 0
-    fi
-    
-    # Create ECR repository if it doesn't exist
-    if ! aws ecr describe-repositories --repository-names "$REPO_NAME" --region "$TARGET_REGION" 2>/dev/null; then
-        echo "[$TARGET_REGION] Creating ECR repository..."
-        aws ecr create-repository --repository-name "$REPO_NAME" --region "$TARGET_REGION" --image-tag-mutability MUTABLE 2>/dev/null || true
-        sleep 1  # Reduced wait time
-    fi
-    
-    # Authenticate with target region
-    if ! aws ecr get-login-password --region "$TARGET_REGION" | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com" 2>/dev/null; then
-        echo "[$TARGET_REGION] ✗ Failed to authenticate"
-        echo "[$TARGET_REGION] FAILED" > /tmp/ecr_push_$TARGET_REGION.result
-        return 1
-    fi
-    
-    # Tag image for target region
-    docker tag "$SOURCE_ECR_URI" "$TARGET_ECR_URI" 2>/dev/null || {{
-        echo "[$TARGET_REGION] ✗ Failed to tag image"
-        echo "[$TARGET_REGION] FAILED" > /tmp/ecr_push_$TARGET_REGION.result
-        return 1
-    }}
-    
-    # Push image to target region
-    if docker push "$TARGET_ECR_URI" 2>/dev/null; then
-        # Verify image exists after push (optimized)
-        sleep 2  # Reduced wait time
-        VERIFIED=0
-        for verify_attempt in {{1..3}}; do
-            if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" --region "$TARGET_REGION" 2>&1; then
-                echo "[$TARGET_REGION] ✓✓✓ VERIFIED: Image exists in ECR!"
-                VERIFIED=1
-                break
-            fi
-            sleep 2  # Reduced wait time
-        done
-        
-        if [ $VERIFIED -eq 1 ]; then
-            echo "[$TARGET_REGION] ✓ Successfully pushed and verified"
-            echo "[$TARGET_REGION] SUCCESS" > /tmp/ecr_push_$TARGET_REGION.result
-            return 0
-        else
-            echo "[$TARGET_REGION] ✗ Push completed but verification failed"
-            echo "[$TARGET_REGION] FAILED" > /tmp/ecr_push_$TARGET_REGION.result
-            return 1
-        fi
-    else
-        echo "[$TARGET_REGION] ✗ Failed to push"
-        echo "[$TARGET_REGION] FAILED" > /tmp/ecr_push_$TARGET_REGION.result
-        return 1
-    fi
-}}
-
-# Export function for parallel execution
-export -f push_region
-export SOURCE_ECR_URI ACCOUNT_ID REPO_NAME IMAGE_TAG SOURCE_REGION
-
-# Process regions in PARALLEL using GNU parallel or background jobs
-echo "Starting PARALLEL push to all regions..."
-echo "Using up to 20 concurrent pushes for faster completion"
-
-# Use background jobs for parallel execution
-PIDS=()
 for TARGET_REGION in "${{" + "TARGET_REGIONS[@]" + "}}"; do
     # Skip source region
     if [ "$TARGET_REGION" = "$SOURCE_REGION" ]; then
         continue
     fi
     
-    # Run push in background (limit to 20 concurrent)
-    while [ $(jobs -r | wc -l) -ge 20 ]; do
-        sleep 1
-    done
+    echo ""
+    echo "=========================================="
+    echo "Processing region: $TARGET_REGION"
+    echo "=========================================="
     
-    push_region "$TARGET_REGION" &
-    PIDS+=($!)
-done
-
-# Wait for all background jobs to complete
-echo "Waiting for all pushes to complete..."
-for PID in "${{PIDS[@]}}"; do
-    wait $PID
-done
-
-# Collect results
-for TARGET_REGION in "${{" + "TARGET_REGIONS[@]" + "}}"; do
-    if [ "$TARGET_REGION" = "$SOURCE_REGION" ]; then
+    TARGET_ECR_URI="$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com/$REPO_NAME:$IMAGE_TAG"
+    
+    # Check if image already exists
+    if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" --region "$TARGET_REGION" 2>/dev/null; then
+        echo "✓ Image already exists in $TARGET_REGION, skipping..."
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         continue
     fi
     
-    if [ -f "/tmp/ecr_push_$TARGET_REGION.result" ]; then
-        if grep -q "SUCCESS" "/tmp/ecr_push_$TARGET_REGION.result"; then
+    # Create ECR repository if it doesn't exist
+    echo "Ensuring ECR repository exists in $TARGET_REGION..."
+    if ! aws ecr describe-repositories --repository-names "$REPO_NAME" --region "$TARGET_REGION" 2>/dev/null; then
+        echo "Creating ECR repository in $TARGET_REGION..."
+        aws ecr create-repository --repository-name "$REPO_NAME" --region "$TARGET_REGION" --image-tag-mutability MUTABLE 2>/dev/null || echo "Repository may already exist or creation failed"
+        sleep 2
+    fi
+    
+    # Authenticate with target region
+    echo "Authenticating with ECR in $TARGET_REGION..."
+    if ! aws ecr get-login-password --region "$TARGET_REGION" | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$TARGET_REGION.amazonaws.com"; then
+        echo "✗ Failed to authenticate with $TARGET_REGION (check error output above)"
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+        FAILED_REGIONS+=("$TARGET_REGION")
+        continue
+    fi
+    echo "✓ Authenticated with $TARGET_REGION"
+    
+    # Tag image for target region
+    echo "Tagging image for $TARGET_REGION..."
+    docker tag "$SOURCE_ECR_URI" "$TARGET_ECR_URI"
+    
+    # Push image to target region
+    echo "Pushing image to $TARGET_REGION..."
+    if docker push "$TARGET_ECR_URI"; then
+        echo "✓ Docker push command completed"
+        
+        # Verify image exists after push
+        echo "Verifying image exists in $TARGET_REGION..."
+        sleep 3
+        VERIFIED=0
+        for verify_attempt in {{1..5}}; do
+            if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" --region "$TARGET_REGION" 2>&1; then
+                echo "✓✓✓ VERIFIED: Image exists in ECR after push!"
+                VERIFIED=1
+                break
+            fi
+            echo "Image not found yet (attempt $verify_attempt/5), waiting..."
+            sleep 3
+        done
+        
+        if [ $VERIFIED -eq 1 ]; then
+            echo "✓ Successfully pushed and verified in $TARGET_REGION"
             SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         else
+            echo "✗ Push completed but verification failed for $TARGET_REGION"
             FAILED_COUNT=$((FAILED_COUNT + 1))
             FAILED_REGIONS+=("$TARGET_REGION")
         fi
-        rm -f "/tmp/ecr_push_$TARGET_REGION.result"
+    else
+        echo "✗ Failed to push to $TARGET_REGION (check error output above)"
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+        FAILED_REGIONS+=("$TARGET_REGION")
     fi
 done
 
