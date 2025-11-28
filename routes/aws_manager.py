@@ -17,6 +17,7 @@ import hashlib
 import subprocess
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import defaultdict
 from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
 from functools import wraps
 from database import db, UserAppPassword, AwsGeneratedPassword, AwsConfig, ProxyConfig, TwoCaptchaConfig
@@ -3522,21 +3523,27 @@ def bulk_generate():
             
                 # Group batches by geo for sequential processing within each geo
                 batches_by_geo = {}  # {geo: [(function_number, user_batch), ...]}
-                print(f"[BULK DEBUG] Grouping {len(user_batches)} batches by geo...")
-                for func_num, geo, batch_users in user_batches:
-                    # print(f"[BULK DEBUG] Processing batch: func_num={func_num}, geo={geo}, batch_size={len(batch_users)}")
-                    if geo not in batches_by_geo:
-                        batches_by_geo[geo] = []
-                    batches_by_geo[geo].append((func_num, batch_users))
-                    # print(f"[BULK DEBUG] Added to geo {geo}: Function {func_num} with {len(batch_users)} user(s)")
+                try:
+                    print(f"[BULK DEBUG] Grouping {len(user_batches)} batches by geo...")
+                    for func_num, batch_users, geo in user_batches:
+                        # print(f"[BULK DEBUG] Processing batch: func_num={func_num}, geo={geo}, batch_size={len(batch_users)}")
+                        if geo not in batches_by_geo:
+                            batches_by_geo[geo] = []
+                        batches_by_geo[geo].append((func_num, batch_users))
+                        # print(f"[BULK DEBUG] Added to geo {geo}: Function {func_num} with {len(batch_users)} user(s)")
             
-                print("=" * 60)
-                print(f"[BULK DEBUG] Batches per geo:")
-                for geo, geo_batches in sorted(batches_by_geo.items()):
-                    total_users_in_geo = sum(len(batch) for _, batch in geo_batches)
-                    print(f"[BULK DEBUG]   - {geo}: {len(geo_batches)} function(s), {total_users_in_geo} user(s)")
-                print(f"[BULK DEBUG] TOTAL GEOS TO PROCESS: {len(batches_by_geo)}")
-                print(f"[BULK DEBUG] Geo list: {list(batches_by_geo.keys())}")
+                    print("=" * 60)
+                    print(f"[BULK DEBUG] Batches per geo:")
+                    for geo, geo_batches in sorted(batches_by_geo.items()):
+                        total_users_in_geo = sum(len(batch) for _, batch in geo_batches)
+                        print(f"[BULK DEBUG]   - {geo}: {len(geo_batches)} function(s), {total_users_in_geo} user(s)")
+                    print(f"[BULK DEBUG] TOTAL GEOS TO PROCESS: {len(batches_by_geo)}")
+                    print(f"[BULK DEBUG] Geo list: {list(batches_by_geo.keys())}")
+                except Exception as group_err:
+                    print(f"[BULK DEBUG] ✗✗✗ CRITICAL ERROR during batch grouping: {group_err}")
+                    print(traceback.format_exc())
+                    # Re-raise to stop execution
+                    raise
                 print("=" * 60)
             
                 def process_geo_parallel(geo, geo_batches_list):
