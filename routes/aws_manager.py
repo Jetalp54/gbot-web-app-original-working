@@ -1925,13 +1925,13 @@ def create_lambdas():
                                 logger.info(f"[LAMBDA] [{geo}] Creating function {function_name}...")
                                 logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri}")
                                 
-                        create_or_update_lambda(
+                                create_or_update_lambda(
                                     session=geo_session,
-                            function_name=function_name,
+                                    function_name=function_name,
                                     role_arn=geo_role_arn,
-                            timeout=timeout,
-                            env_vars=env_vars,
-                            package_type=package_type,
+                                    timeout=timeout,
+                                    env_vars=env_vars,
+                                    package_type=package_type,
                                     image_uri=geo_ecr_uri,
                                 )
                                 
@@ -1968,7 +1968,7 @@ def create_lambdas():
                                     else:
                                         raise
                                 
-                    except Exception as func_error:
+                            except Exception as func_error:
                                 error_msg = str(func_error)
                                 logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED to create/update {function_name}: {error_msg}")
                                 
@@ -1977,7 +1977,7 @@ def create_lambdas():
                                     logger.error(f"[LAMBDA] [{geo}] ⚠️ ECR IMAGE MISSING in region {geo}")
                                     logger.error(f"[LAMBDA] [{geo}] Solution: Use 'Push ECR to All Regions' button to push image to {geo}")
                                 
-                        logger.error(traceback.format_exc())
+                                logger.error(traceback.format_exc())
                                 geo_failure += 1
                                 geo_failures.append(f"{function_name}: {error_msg}")
                                 update_job_status()
