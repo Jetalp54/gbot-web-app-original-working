@@ -46,6 +46,47 @@ jobs_lock = threading.Lock()  # Lock for job storage
 lambda_creation_jobs = {}
 lambda_creation_lock = threading.Lock()
 
+# --- File-Based Job Store (Fix for Gunicorn Multi-Worker) ---
+JOBS_FILE = 'jobs.json'
+jobs_file_lock = threading.Lock()
+
+def load_jobs():
+    """Load jobs from JSON file (shared across workers)"""
+    try:
+        if os.path.exists(JOBS_FILE):
+            with open(JOBS_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading jobs file: {e}")
+    return {}
+
+def save_jobs(jobs_data):
+    """Save jobs to JSON file (shared across workers)"""
+    try:
+        with jobs_file_lock:
+            # First load existing to merge (in case other workers updated other jobs)
+            # But for simplicity and since we key by job_id, we might overwrite.
+            # Ideally we should read-modify-write.
+            current_jobs = {}
+            if os.path.exists(JOBS_FILE):
+                try:
+                    with open(JOBS_FILE, 'r') as f:
+                        current_jobs = json.load(f)
+                except:
+                    pass
+            
+            # Update with new data
+            current_jobs.update(jobs_data)
+            
+            with open(JOBS_FILE, 'w') as f:
+                json.dump(current_jobs, f)
+    except Exception as e:
+        logger.error(f"Error saving jobs file: {e}")
+
+# Initialize active_jobs from file
+active_jobs = load_jobs()
+
+
 # Global set to track emails currently being processed (prevent duplicates within a job)
 processing_emails = set()
 processing_lock = threading.Lock()
@@ -2925,6 +2966,8 @@ def bulk_generate():
             'results': [],
             'status': 'processing'
         }
+        # Save to file for other workers
+        save_jobs({job_id: active_jobs[job_id]})
     
     logger.info(f"[BULK] Created job {job_id} for {len(users)} users")
 
@@ -2940,11 +2983,14 @@ def bulk_generate():
         logger.info(f"[BULK] Region: {region}")
         
         # Ensure job exists before starting processing
+        # Ensure job exists before starting processing
         with jobs_lock:
-            if job_id not in active_jobs:
-                logger.error(f"[BULK] Job {job_id} not found in active_jobs at start of background_process!")
+            # Load from file to ensure we have the latest state
+            all_jobs = load_jobs()
+            if job_id not in all_jobs:
+                logger.error(f"[BULK] Job {job_id} not found in jobs file at start of background_process!")
                 # Try to recreate it
-                active_jobs[job_id] = {
+                all_jobs[job_id] = {
                     'total': len(users),
                     'completed': 0,
                     'success': 0,
@@ -2952,9 +2998,12 @@ def bulk_generate():
                     'results': [],
                     'status': 'processing'
                 }
+                save_jobs({job_id: all_jobs[job_id]})
                 logger.info(f"[BULK] Recreated job {job_id}")
             else:
-                logger.info(f"[BULK] Job {job_id} found in active_jobs")
+                logger.info(f"[BULK] Job {job_id} found in jobs file")
+                # Update local active_jobs cache
+                active_jobs[job_id] = all_jobs[job_id]
         
         try:
             logger.info(f"[BULK] Entering app context...")
@@ -3824,6 +3873,18 @@ def bulk_generate():
                             logger.info(f"[BULK] Completed geos so far: {len(completed_geos)}/{len(geo_futures)}")
                             if failed_count > 0:
                                 logger.warning(f"[BULK] [{geo}] ⚠️ Some failures detected: {failed_count} user(s) failed")
+                            
+                            # Update progress in file-based store
+                            with jobs_lock:
+                                all_jobs = load_jobs()
+                                if job_id in all_jobs:
+                                    job = all_jobs[job_id]
+                                    job['completed'] = job.get('completed', 0) + total_count
+                                    job['success'] = job.get('success', 0) + success_count
+                                    job['failed'] = job.get('failed', 0) + failed_count
+                                    job['results'].extend(geo_results)
+                                    save_jobs({job_id: job})
+                            
                             logger.info("=" * 60)
                         except Exception as e:
                             logger.error("=" * 60)
@@ -3853,18 +3914,27 @@ def bulk_generate():
             
             # Set job status to completed (outside ThreadPoolExecutor but inside app_context)
             # Use lock to ensure thread-safe access
+            # Set job status to completed (outside ThreadPoolExecutor but inside app_context)
+            # Use lock to ensure thread-safe access
             with jobs_lock:
-                if job_id in active_jobs:
-                    completed_count = active_jobs[job_id].get('completed', 0)
-                    success_count = active_jobs[job_id].get('success', 0)
-                    failed_count = active_jobs[job_id].get('failed', 0)
-                    active_jobs[job_id]['status'] = 'completed'
-                    logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {completed_count}/{len(users)} users. Success: {success_count}, Failed: {failed_count}")
+                all_jobs = load_jobs()
+                if job_id in all_jobs:
+                    # Update counts from local tracking if needed, or trust what's in memory?
+                    # Since we are single threaded here (end of function), we can trust local vars
+                    # But we should merge with file content
+                    job = all_jobs[job_id]
+                    job['status'] = 'completed'
+                    # Ensure counts are accurate
+                    job['completed'] = job.get('completed', 0)
+                    job['success'] = job.get('success', 0)
+                    job['failed'] = job.get('failed', 0)
+                    
+                    save_jobs({job_id: job})
+                    logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {job['completed']}/{len(users)} users. Success: {job['success']}, Failed: {job['failed']}")
                 else:
-                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in active_jobs when trying to mark as completed!")
+                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in jobs file when trying to mark as completed!")
                     # Try to create it if it doesn't exist (shouldn't happen, but safety check)
-                    # Since we don't have the actual counts, use defaults
-                    active_jobs[job_id] = {
+                    all_jobs[job_id] = {
                         'total': len(users),
                         'completed': 0,
                         'success': 0,
@@ -3872,18 +3942,23 @@ def bulk_generate():
                         'results': [],
                         'status': 'completed'
                     }
+                    save_jobs({job_id: all_jobs[job_id]})
                     logger.warning(f"[BULK] Created fallback job entry for {job_id} with default values")
         except Exception as bg_error:
             logger.error(f"[BULK] ❌ CRITICAL ERROR in background_process: {bg_error}")
             logger.error(f"[BULK] Traceback: {traceback.format_exc()}")
             # Use lock to ensure thread-safe access
+            # Use lock to ensure thread-safe access
             with jobs_lock:
-                if job_id in active_jobs:
-                    active_jobs[job_id]['status'] = 'failed'
-                    active_jobs[job_id]['error'] = str(bg_error)
-                    active_jobs[job_id]['completed'] = active_jobs[job_id].get('completed', 0)
+                all_jobs = load_jobs()
+                if job_id in all_jobs:
+                    job = all_jobs[job_id]
+                    job['status'] = 'failed'
+                    job['error'] = str(bg_error)
+                    job['completed'] = job.get('completed', 0)
+                    save_jobs({job_id: job})
                 else:
-                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in active_jobs when trying to mark as failed!")
+                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in jobs file when trying to mark as failed!")
 
     threading.Thread(target=background_process, args=(app, job_id, users, access_key, secret_key, region)).start()
 
@@ -3917,7 +3992,9 @@ def get_lambda_creation_status(job_id):
 def get_job_status(job_id):
     try:
         with jobs_lock:
-            job = active_jobs.get(job_id)
+            # Load from file to get latest status from any worker
+            all_jobs = load_jobs()
+            job = all_jobs.get(job_id)
         if not job:
             logger.warning(f"[JOB_STATUS] Job {job_id} not found. Available jobs: {list(active_jobs.keys())}")
             return jsonify({'success': False, 'error': 'Job not found'}), 404
