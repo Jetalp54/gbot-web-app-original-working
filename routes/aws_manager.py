@@ -2327,8 +2327,37 @@ def create_lambdas():
                             skipped_geos.append(f"{geo} ({reason})")
                             logger.warning(f"[LAMBDA] [PRE-CHECK] [{geo}] ⚠️ Image MISSING: {reason}")
 
-                # Filter the dictionary
+                # Filter and Redistribute
                 original_count = len(functions_by_geo_dict)
+                
+                # 1. Identify valid and skipped regions
+                valid_geos_list = sorted(list(valid_geos))
+                skipped_geos_list = [geo for geo in functions_by_geo_dict.keys() if geo not in valid_geos]
+                
+                # 2. Collect orphaned functions from skipped regions
+                orphaned_functions = []
+                for geo in skipped_geos_list:
+                    orphaned_functions.extend(functions_by_geo_dict[geo])
+                
+                # 3. Redistribute orphaned functions to valid regions
+                if orphaned_functions and valid_geos_list:
+                    logger.info(f"[LAMBDA] [REDISTRIBUTE] Found {len(orphaned_functions)} functions from skipped regions to redistribute.")
+                    
+                    for i, (func_num, old_name) in enumerate(orphaned_functions):
+                        # Round-robin assignment to valid regions
+                        target_geo = valid_geos_list[i % len(valid_geos_list)]
+                        
+                        # Generate new name for the target region
+                        # Name format: edu-gw-chromium-{geo_code}-{func_num}
+                        geo_code = target_geo.replace('-', '')
+                        new_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
+                        
+                        # Add to the target region's list
+                        functions_by_geo_dict[target_geo].append((func_num, new_name))
+                        
+                        logger.info(f"[LAMBDA] [REDISTRIBUTE] Moved function #{func_num} from skipped region to {target_geo} (Renamed: {old_name} -> {new_name})")
+                
+                # 4. Remove skipped regions from the dictionary
                 functions_by_geo_dict = {k: v for k, v in functions_by_geo_dict.items() if k in valid_geos}
                 
                 logger.info("=" * 60)
