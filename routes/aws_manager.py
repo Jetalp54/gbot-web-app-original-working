@@ -3547,21 +3547,21 @@ def bulk_generate():
                     Minimum 2 functions per geo at the same time (as requested).
                     """
                     try:
-                        logger.info("=" * 60)
-                        logger.info(f"[BULK] [{geo}] ===== STARTING PARALLEL PROCESSING =====")
-                        logger.info(f"[BULK] [{geo}] Total functions to process: {len(geo_batches_list)}")
-                        logger.info(f"[BULK] [{geo}] Function numbers: {[func_num for func_num, _ in geo_batches_list]}")
+                        print("=" * 60)
+                        print(f"[BULK DEBUG] [{geo}] ===== STARTING PARALLEL PROCESSING =====")
+                        print(f"[BULK DEBUG] [{geo}] Total functions to process: {len(geo_batches_list)}")
+                        # print(f"[BULK DEBUG] [{geo}] Function numbers: {[func_num for func_num, _ in geo_batches_list]}")
                         
                         # Calculate max workers: min(10, number of functions, but at least 2 if we have 2+ functions)
                         max_workers = min(10, len(geo_batches_list))
                         if len(geo_batches_list) >= 2 and max_workers < 2:
                             max_workers = 2
-                        logger.info(f"[BULK] [{geo}] Will process {max_workers} function(s) in parallel (max 10 per geo)")
-                        logger.info("=" * 60)
+                        print(f"[BULK DEBUG] [{geo}] Will process {max_workers} function(s) in parallel (max 10 per geo)")
+                        print("=" * 60)
                         
                         # Create boto3 session for this geo (use the geo's region)
                         try:
-                            logger.info(f"[BULK] [{geo}] Creating boto3 session for region: {geo}")
+                            print(f"[BULK DEBUG] [{geo}] Creating boto3 session for region: {geo}")
                             session_boto = boto3.Session(
                                 aws_access_key_id=access_key,
                                 aws_secret_access_key=secret_key,
@@ -3572,10 +3572,10 @@ def bulk_generate():
                             try:
                                 sts = session_boto.client('sts')
                                 identity = sts.get_caller_identity()
-                                logger.info(f"[BULK] [{geo}] ✓ Credentials verified. Account: {identity.get('Account')}")
+                                print(f"[BULK DEBUG] [{geo}] ✓ Credentials verified. Account: {identity.get('Account')}")
                             except Exception as sts_err:
-                                logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL: Credential verification failed: {sts_err}")
-                                logger.error(traceback.format_exc())
+                                print(f"[BULK DEBUG] [{geo}] ✗✗✗ CRITICAL: Credential verification failed: {sts_err}")
+                                print(traceback.format_exc())
                                 raise Exception(f"Credential verification failed for {geo}: {sts_err}")
                             
                             lam_client = session_boto.client("lambda", config=Config(
@@ -3583,13 +3583,13 @@ def bulk_generate():
                                 retries={'max_attempts': 3}
                             ))
                             
-                            logger.info(f"[BULK] [{geo}] Listing Lambda functions in region {geo}...")
+                            print(f"[BULK DEBUG] [{geo}] Listing Lambda functions in region {geo}...")
                             all_functions = lam_client.list_functions()
                             existing_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
-                            logger.info(f"[BULK] [{geo}] ✓ Found {len(existing_function_names)} existing function(s) in {geo}: {existing_function_names[:5]}{'...' if len(existing_function_names) > 5 else ''}")
+                            print(f"[BULK DEBUG] [{geo}] ✓ Found {len(existing_function_names)} existing function(s) in {geo}")
                         except Exception as e:
-                            logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR: Could not initialize session or list functions: {e}")
-                            logger.error(traceback.format_exc())
+                            print(f"[BULK DEBUG] [{geo}] ✗✗✗ CRITICAL ERROR: Could not initialize session or list functions: {e}")
+                            print(traceback.format_exc())
                             # Don't return empty - raise exception so it's caught by outer handler
                             raise Exception(f"Failed to initialize {geo}: {e}")
                         
@@ -3600,19 +3600,18 @@ def bulk_generate():
                             func_name = None
                             
                             try:
-                                logger.info("=" * 60)
-                                logger.info(f"[BULK] [{geo}] ===== FUNCTION {batch_idx + 1}/{len(geo_batches_list)} (PARALLEL) =====")
-                                logger.info(f"[BULK] [{geo}] Function number: {func_num}")
-                                logger.info(f"[BULK] [{geo}] Users in batch: {len(batch_users)}")
-                                logger.info(f"[BULK] [{geo}] User emails: {[u['email'] for u in batch_users[:5]]}{'...' if len(batch_users) > 5 else ''}")
-                                logger.info("=" * 60)
+                                print("=" * 60)
+                                print(f"[BULK DEBUG] [{geo}] ===== FUNCTION {batch_idx + 1}/{len(geo_batches_list)} (PARALLEL) =====")
+                                print(f"[BULK DEBUG] [{geo}] Function number: {func_num}")
+                                print(f"[BULK DEBUG] [{geo}] Users in batch: {len(batch_users)}")
+                                # print(f"[BULK DEBUG] [{geo}] User emails: {[u['email'] for u in batch_users[:5]]}{'...' if len(batch_users) > 5 else ''}")
+                                print("=" * 60)
                             
                                 # Generate function name: edu-gw-chromium-{geo_code}-{func_num}
                                 geo_code = geo.replace('-', '')  # Remove dashes: us-east-1 -> useast1
                                 func_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
                                 
-                                logger.info(f"[BULK] [{geo}] Looking for function: {func_name}")
-                                logger.info(f"[BULK] [{geo}] Available functions in {geo}: {existing_function_names}")
+                                print(f"[BULK DEBUG] [{geo}] Looking for function: {func_name}")
                             
                                 # Create function if it doesn't exist (thread-safe check)
                                 with threading.Lock():
@@ -3620,23 +3619,23 @@ def bulk_generate():
                                         # Try to find any function matching the pattern
                                         matching_functions = [fn for fn in existing_function_names if PRODUCTION_LAMBDA_NAME in fn and geo_code in fn]
                                         if matching_functions:
-                                            logger.warning(f"[BULK] [{geo}] Function {func_name} not found, but found similar: {matching_functions}")
+                                            print(f"[BULK DEBUG] [{geo}] Function {func_name} not found, but found similar: {matching_functions}")
                                             # Use the first matching function if exact match not found
                                             if len(matching_functions) == 1:
                                                 func_name = matching_functions[0]
-                                                logger.info(f"[BULK] [{geo}] Using similar function: {func_name}")
+                                                print(f"[BULK DEBUG] [{geo}] Using similar function: {func_name}")
                                             else:
                                                 # Multiple matches - try to find one with func_num
                                                 func_num_str = str(func_num)
                                                 exact_match = [fn for fn in matching_functions if func_num_str in fn]
                                                 if exact_match:
                                                     func_name = exact_match[0]
-                                                    logger.info(f"[BULK] [{geo}] Using function with matching number: {func_name}")
+                                                    print(f"[BULK DEBUG] [{geo}] Using function with matching number: {func_name}")
                                                 else:
                                                     func_name = matching_functions[0]
-                                                    logger.warning(f"[BULK] [{geo}] Using first matching function: {func_name}")
+                                                    print(f"[BULK DEBUG] [{geo}] Using first matching function: {func_name}")
                                         else:
-                                            logger.info(f"[BULK] [{geo}] Creating Lambda function: {func_name}")
+                                            print(f"[BULK DEBUG] [{geo}] Creating Lambda function: {func_name}")
                                         try:
                                             role_arn = ensure_lambda_role(session_boto)
                                             chromium_env = {
@@ -3653,7 +3652,7 @@ def bulk_generate():
                                                 if proxies:
                                                     chromium_env['PROXY_ENABLED'] = 'true'
                                                     chromium_env['PROXY_LIST'] = proxy_config.get('proxies', '')
-                                                    logger.info(f"[PROXY] [{geo}] Proxy feature enabled with {len(proxies)} proxy/proxies")
+                                                    print(f"[PROXY] [{geo}] Proxy feature enabled with {len(proxies)} proxy/proxies")
                                                 else:
                                                     chromium_env['PROXY_ENABLED'] = 'false'
                                             else:
@@ -3664,7 +3663,7 @@ def bulk_generate():
                                             if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
                                                 chromium_env['TWOCAPTCHA_ENABLED'] = 'true'
                                                 chromium_env['TWOCAPTCHA_API_KEY'] = twocaptcha_config.get('api_key', '')
-                                                logger.info(f"[2CAPTCHA] [{geo}] 2Captcha feature enabled for automatic CAPTCHA solving")
+                                                print(f"[2CAPTCHA] [{geo}] 2Captcha feature enabled for automatic CAPTCHA solving")
                                             else:
                                                 chromium_env['TWOCAPTCHA_ENABLED'] = 'false'
                                                 chromium_env['TWOCAPTCHA_API_KEY'] = ''
@@ -3695,10 +3694,10 @@ def bulk_generate():
                                                     package_type="Image",
                                                     image_uri=ecr_uri,
                                                 )
-                                                logger.info(f"[BULK] [{geo}] ✓ Created Lambda function: {func_name}")
+                                                print(f"[BULK DEBUG] [{geo}] ✓ Created Lambda function: {func_name}")
                                                 existing_function_names.append(func_name)
                                         except Exception as create_err:
-                                            logger.error(f"[BULK] [{geo}] Failed to create {func_name}: {create_err}")
+                                            print(f"[BULK DEBUG] [{geo}] Failed to create {func_name}: {create_err}")
                                             func_name = PRODUCTION_LAMBDA_NAME
                                 
                                 # Verify function exists
@@ -3707,7 +3706,7 @@ def bulk_generate():
                                     existing_function_names_refresh = [fn['FunctionName'] for fn in all_functions_refresh.get('Functions', [])]
                                     
                                     if func_name not in existing_function_names_refresh:
-                                        logger.error(f"[BULK] [{geo}] ✗ Function {func_name} NOT FOUND in region {geo}!")
+                                        print(f"[BULK DEBUG] [{geo}] ✗ Function {func_name} NOT FOUND in region {geo}!")
                                         for u in batch_users:
                                             function_results.append({
                                                 'email': u['email'],
@@ -3716,19 +3715,19 @@ def bulk_generate():
                                             })
                                         return function_results
                                     
-                                    logger.info(f"[BULK] [{geo}] ✓ Verified function exists: {func_name}")
+                                    print(f"[BULK DEBUG] [{geo}] ✓ Verified function exists: {func_name}")
                                 except Exception as check_err:
-                                    logger.warning(f"[BULK] [{geo}] Could not verify function existence: {check_err}, proceeding anyway...")
+                                    print(f"[BULK DEBUG] [{geo}] Could not verify function existence: {check_err}, proceeding anyway...")
                                 
                                 # Invoke Lambda function
-                                logger.info(f"[BULK] [{geo}] Invoking Lambda function: {func_name} in region: {geo}")
+                                print(f"[BULK DEBUG] [{geo}] Invoking Lambda function: {func_name} in region: {geo}")
                                 batch_results = process_user_batch_sync(batch_users, func_name, lambda_region=geo)
                                 function_results.extend(batch_results)
-                                logger.info(f"[BULK] [{geo}] ✓ Function {func_num} completed: {sum(1 for r in batch_results if r['success'])}/{len(batch_results)} success")
+                                print(f"[BULK DEBUG] [{geo}] ✓ Function {func_num} completed: {sum(1 for r in batch_results if r['success'])}/{len(batch_results)} success")
                                 
                             except Exception as func_err:
-                                logger.error(f"[BULK] [{geo}] ✗ Function {func_num} ({func_name}) failed: {func_err}")
-                                logger.error(traceback.format_exc())
+                                print(f"[BULK DEBUG] [{geo}] ✗ Function {func_num} ({func_name}) failed: {func_err}")
+                                print(traceback.format_exc())
                                 for u in batch_users:
                                     function_results.append({
                                         'email': u['email'],
@@ -3746,7 +3745,7 @@ def bulk_generate():
                             for batch_idx, (func_num, batch_users) in enumerate(geo_batches_list):
                                 future = function_pool.submit(process_single_function, func_num, batch_users, batch_idx)
                                 function_futures[future] = (func_num, batch_idx)
-                                logger.info(f"[BULK] [{geo}] ✓ Submitted function {func_num} for parallel processing")
+                                print(f"[BULK DEBUG] [{geo}] ✓ Submitted function {func_num} for parallel processing")
                             
                             # Wait for all functions to complete and collect results
                             for future in as_completed(function_futures):
