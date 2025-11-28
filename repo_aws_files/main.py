@@ -187,6 +187,32 @@ def get_proxy_from_env():
         logger.warning(f"[PROXY] Error formatting proxy config: {e}")
         return None
 
+# =====================================================================
+# Anti-Detection Constants
+# =====================================================================
+
+# Modern User-Agents for rotation
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15"
+]
+
+# Common Window Sizes for rotation
+WINDOW_SIZES = [
+    "1920,1080",
+    "1366,768",
+    "1440,900",
+    "1536,864",
+    "1280,800",
+    "1280,720"
+]
+
 def get_chrome_driver():
     """
     Initialize Selenium Chrome driver for AWS Lambda environment.
@@ -280,12 +306,21 @@ def get_chrome_driver():
         logger.info(f"[PROXY] Using proxy: {proxy_config['ip']}:{proxy_config['port']}")
         chrome_options.add_argument(f"--proxy-server={proxy_config['http']}")
     
+    # Randomize User-Agent
+    user_agent = random.choice(USER_AGENTS)
+    chrome_options.add_argument(f"--user-agent={user_agent}")
+    logger.info(f"[ANTI-DETECT] Using User-Agent: {user_agent}")
+
+    # Randomize Window Size
+    window_size = random.choice(WINDOW_SIZES)
+    chrome_options.add_argument(f"--window-size={window_size}")
+    logger.info(f"[ANTI-DETECT] Using Window Size: {window_size}")
+    
     # Core stability options for Lambda
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1280,800")
     chrome_options.add_argument("--lang=en-US")
     
     # Additional stability options for Lambda environment
@@ -308,6 +343,8 @@ def get_chrome_driver():
     chrome_options.add_experimental_option("prefs", {
         "profile.default_content_setting_values.notifications": 2,
         "profile.default_content_settings.popups": 0,
+        "credentials_enable_service": False,
+        "profile.password_manager_enabled": False,
     })
 
     try:
@@ -339,31 +376,31 @@ def get_chrome_driver():
         try:
             # Enhanced anti-detection script with multiple techniques
             anti_detection_script = '''
-                // Hide webdriver property
-                    Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                // 1. Hide webdriver property
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
                 
-                // Spoof plugins
+                // 2. Spoof plugins
                 Object.defineProperty(navigator, 'plugins', {
                     get: () => [1, 2, 3, 4, 5],
                     configurable: true
                 });
                 
-                // Spoof languages
+                // 3. Spoof languages
                 Object.defineProperty(navigator, 'languages', {
                     get: () => ['en-US', 'en'],
                     configurable: true
                 });
                 
-                // Spoof platform
+                // 4. Spoof platform
                 Object.defineProperty(navigator, 'platform', {
                     get: () => 'Win32',
                     configurable: true
                 });
                 
-                // Add chrome runtime
-                    window.chrome = {runtime: {}};
+                // 5. Add chrome runtime
+                window.chrome = {runtime: {}};
                 
-                // Spoof permissions
+                // 6. Spoof permissions
                 const originalQuery = window.navigator.permissions.query;
                 window.navigator.permissions.query = (parameters) => (
                     parameters.name === 'notifications' ?
@@ -371,7 +408,7 @@ def get_chrome_driver():
                         originalQuery(parameters)
                 );
                 
-                // Spoof WebGL vendor and renderer
+                // 7. Spoof WebGL vendor and renderer (Intel)
                 const getParameter = WebGLRenderingContext.prototype.getParameter;
                 WebGLRenderingContext.prototype.getParameter = function(parameter) {
                     if (parameter === 37445) {
@@ -383,15 +420,7 @@ def get_chrome_driver():
                     return getParameter.call(this, parameter);
                 };
                 
-                // Override permissions API
-                if (navigator.permissions && navigator.permissions.query) {
-                    const originalQuery = navigator.permissions.query;
-                    navigator.permissions.query = function(params) {
-                        return originalQuery.call(this, params).catch(() => ({ state: 'prompt' }));
-                    };
-                }
-                
-                // Randomize canvas fingerprinting
+                // 8. Randomize canvas fingerprinting (Canvas Noise)
                 const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
                 HTMLCanvasElement.prototype.toDataURL = function() {
                     const context = this.getContext('2d');
@@ -405,11 +434,42 @@ def get_chrome_driver():
                     return originalToDataURL.apply(this, arguments);
                 };
                 
-                // Add realistic mouse movement simulation
+                // 9. Spoof mediaDevices (enumerateDevices)
+                if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+                    const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
+                    navigator.mediaDevices.enumerateDevices = function() {
+                        return Promise.resolve([
+                            {
+                                deviceId: "default",
+                                kind: "audioinput",
+                                label: "Default Audio Input",
+                                groupId: "group1"
+                            },
+                            {
+                                deviceId: "default",
+                                kind: "videoinput",
+                                label: "Default Video Input",
+                                groupId: "group1"
+                            },
+                            {
+                                deviceId: "default",
+                                kind: "audiooutput",
+                                label: "Default Audio Output",
+                                groupId: "group1"
+                            }
+                        ]);
+                    };
+                }
+                
+                // 10. Spoof Hardware Concurrency and Device Memory
+                Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
+                Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
+                
+                // 11. Add realistic mouse movement simulation
                 let mouseMoveCount = 0;
                 document.addEventListener('DOMContentLoaded', function() {
                     setInterval(function() {
-                        if (mouseMoveCount < 5) {
+                        if (mouseMoveCount < 10) {
                             const event = new MouseEvent('mousemove', {
                                 view: window,
                                 bubbles: true,
