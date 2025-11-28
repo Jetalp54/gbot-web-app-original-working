@@ -3146,6 +3146,7 @@ def bulk_generate():
                         functions_per_geo[geo].append(func_num + 1)
                 
                 logger.info("=" * 60)
+                logger.info("=" * 60)
                 logger.info(f"[BULK] Function Distribution (Actual)")
                 for geo, func_numbers in sorted(functions_per_geo.items()):
                     logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
@@ -3156,6 +3157,8 @@ def bulk_generate():
             for geo, fnums in functions_per_geo.items():
                 for fnum in fnums:
                     func_to_geo[fnum] = geo
+            
+            logger.info(f"[BULK] func_to_geo map size: {len(func_to_geo)}")
             
             # Split users into batches of 10, assigning each batch to a function
             # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
@@ -3180,24 +3183,25 @@ def bulk_generate():
                     
                     if not geo:
                         # Fallback: If function number not found in discovery (e.g. we need 65 but only found 60)
-                        # We must assign it somewhere or skip. 
-                        # If we skip, users are not processed.
-                        # If we assign to a random valid region, we might use a function that doesn't exist there.
-                        # Best effort: Assign to a region that HAS functions, round-robin
                         valid_geos_with_funcs = [g for g, f in functions_per_geo.items() if f]
                         if valid_geos_with_funcs:
                             geo = valid_geos_with_funcs[func_num_idx % len(valid_geos_with_funcs)]
                             logger.warning(f"[BULK] ⚠️ Function #{func_num} not found in discovery! Fallback assignment to {geo}")
                         else:
-                            logger.error(f"[BULK] ✗✗✗ CRITICAL: No valid regions found for Function #{func_num}. Users will be skipped!")
+                            logger.error(f"[BULK] ✗✗✗ CRITICAL: No valid regions found for Function #{func_num}. Users will be skipped! (functions_per_geo is empty)")
                             continue
 
                     user_batches.append((func_num, geo, batch_users))
-                    logger.info(f"[BULK] Function {func_num} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                    logger.info(f"[BULK] Function {func_num} ({geo}) will process {len(batch_users)} user(s)")
                     if len(batch_users) > USERS_PER_FUNCTION:
                         logger.error(f"[BULK] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
                 else:
-                    logger.warning(f"[BULK] Function {func_num + 1} has empty batch (start_idx={start_idx}, end_idx={end_idx}, total_users={total_users})")
+                    logger.warning(f"[BULK] Batch {func_num} is empty (start={start_idx}, end={end_idx})")
+            
+            logger.info(f"[BULK] Total batches created: {len(user_batches)}")
+            if len(user_batches) == 0:
+                logger.error("[BULK] ✗✗✗ CRITICAL: No batches were created! Process will exit with 0 results.")
+
             
             # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
             USERS_PER_BATCH = 10
