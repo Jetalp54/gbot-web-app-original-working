@@ -1925,13 +1925,13 @@ def create_lambdas():
                                 logger.info(f"[LAMBDA] [{geo}] Creating function {function_name}...")
                                 logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri}")
                                 
-                                create_or_update_lambda(
+                        create_or_update_lambda(
                                     session=geo_session,
-                                    function_name=function_name,
+                            function_name=function_name,
                                     role_arn=geo_role_arn,
-                                    timeout=timeout,
-                                    env_vars=env_vars,
-                                    package_type=package_type,
+                            timeout=timeout,
+                            env_vars=env_vars,
+                            package_type=package_type,
                                     image_uri=geo_ecr_uri,
                                 )
                                 
@@ -1968,7 +1968,7 @@ def create_lambdas():
                                     else:
                                         raise
                                 
-                            except Exception as func_error:
+                    except Exception as func_error:
                                 error_msg = str(func_error)
                                 logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED to create/update {function_name}: {error_msg}")
                                 
@@ -1977,7 +1977,7 @@ def create_lambdas():
                                     logger.error(f"[LAMBDA] [{geo}] ⚠️ ECR IMAGE MISSING in region {geo}")
                                     logger.error(f"[LAMBDA] [{geo}] Solution: Use 'Push ECR to All Regions' button to push image to {geo}")
                                 
-                                logger.error(traceback.format_exc())
+                        logger.error(traceback.format_exc())
                                 geo_failure += 1
                                 geo_failures.append(f"{function_name}: {error_msg}")
                                 update_job_status()
@@ -2687,7 +2687,7 @@ def bulk_generate():
                     start_idx = func_num * USERS_PER_FUNCTION
                     end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
                     batch_users = users[start_idx:end_idx]
-                
+                    
                     # ENFORCE: Ensure batch never exceeds 10 users
                     if len(batch_users) > USERS_PER_FUNCTION:
                         logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num + 1} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
@@ -2718,7 +2718,7 @@ def bulk_generate():
                         assigned_function_name: Name of Lambda function to invoke
                         lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
                     """
-                with app.app_context():
+                    with app.app_context():
                         # CRITICAL: Enforce 10-user limit
                         MAX_USERS_PER_BATCH = 10
                         if len(user_batch) > MAX_USERS_PER_BATCH:
@@ -2731,8 +2731,8 @@ def bulk_generate():
                         
                         # Create INDEPENDENT boto3 session and clients for this batch
                         session_batch = boto3.Session(
-                        aws_access_key_id=access_key,
-                        aws_secret_access_key=secret_key,
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
                             region_name=target_region
                         )
                         
@@ -2749,8 +2749,8 @@ def bulk_generate():
                         
                         # Each batch gets its own DynamoDB resource
                         dynamodb_batch = session_batch.resource('dynamodb', config=Config(
-                        max_pool_connections=10
-                    ))
+                            max_pool_connections=10
+                        ))
                         table_batch = dynamodb_batch.Table("gbot-app-passwords")
                     
                         # Prepare all users for processing - NO pre-filtering
@@ -2768,10 +2768,10 @@ def bulk_generate():
                         # Mark emails as being processed (for duplicate detection across parallel geos)
                         for user in users_to_process:
                             email = user['email']
-                    with processing_lock:
-                        if email in processing_emails:
+                            with processing_lock:
+                                if email in processing_emails:
                                     logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
-                        processing_emails.add(email)
+                                processing_emails.add(email)
                     
                         # Prepare batch payload for Lambda
                         # CRITICAL: Final check - ensure we never send more than 10 users
@@ -2870,13 +2870,13 @@ def bulk_generate():
                                                     'success': False,
                                                     'error': error_msg
                                                 })
-                                    break  # Success, exit retry loop
+                                        break  # Success, exit retry loop
                                     else:
                                         # Fallback: single user response format (backward compatibility)
                                         lambda_status = lambda_response.get('status', 'unknown')
                                         app_password = lambda_response.get('app_password')
                                         error_msg = lambda_response.get('error_message', 'Unknown error')
-                                    
+                                        
                                         # If only one user in batch, use single response format
                                         if len(users_to_process) == 1:
                                             email = users_to_process[0]['email']
@@ -2897,6 +2897,7 @@ def bulk_generate():
                                                     'success': False,
                                                     'error': error_msg
                                                 })
+                                        break  # Success, exit retry loop
                                             break  # Success, exit retry loop
                                         else:
                                             # Multiple users but got single response - all fail
@@ -3230,27 +3231,27 @@ def bulk_generate():
                                     geo_results.extend(function_results)
                                     
                                     # Update job status
-                        with jobs_lock:
-                            if job_id in active_jobs:
+                                    with jobs_lock:
+                                        if job_id in active_jobs:
                                             for result in function_results:
-                                active_jobs[job_id]['completed'] += 1
+                                                active_jobs[job_id]['completed'] += 1
                                                 if result.get('success'):
-                                    active_jobs[job_id]['success'] += 1
-                                    active_jobs[job_id]['results'].append({
-                                        'email': result['email'],
+                                                    active_jobs[job_id]['success'] += 1
+                                                    active_jobs[job_id]['results'].append({
+                                                        'email': result['email'],
                                                         'app_password': result.get('app_password'),
-                                        'success': True
-                                    })
-                                else:
-                                    active_jobs[job_id]['failed'] += 1
-                                    active_jobs[job_id]['results'].append({
-                                        'email': result['email'],
+                                                        'success': True
+                                                    })
+                                                else:
+                                                    active_jobs[job_id]['failed'] += 1
+                                                    active_jobs[job_id]['results'].append({
+                                                        'email': result['email'],
                                                         'error': result.get('error', 'Unknown error'),
-                                        'success': False
-                                    })
+                                                        'success': False
+                                                    })
                                     
                                     logger.info(f"[BULK] [{geo}] ✓ Function {func_num} finished: {sum(1 for r in function_results if r.get('success'))}/{len(function_results)} success")
-                    except Exception as e:
+                                except Exception as e:
                                     logger.error(f"[BULK] [{geo}] ✗ Function {func_num} exception: {e}")
                         logger.error(traceback.format_exc())
                 
