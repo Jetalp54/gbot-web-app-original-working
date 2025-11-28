@@ -3212,7 +3212,7 @@ def debug_version():
     mod_time_str = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
     
     return jsonify({
-        'version': 'REVERTED_LEGACY_WITH_LOGS_V5',
+        'version': 'REFACTORED_FLAT_EXECUTION_MODEL_V4_BLINDFIRE',
         'timestamp': time.time(),
         'file_path': file_path,
         'last_modified': mod_time_str,
@@ -3307,7 +3307,7 @@ def background_process_task(app, job_id, users, access_key, secret_key, region):
     """Background process to handle bulk user processing across geos"""
     # CRITICAL LOGGING
     logger.critical("!"*80)
-    logger.critical(f"!!! BACKGROUND PROCESS STARTED - V5 - Job {job_id} !!!")
+    logger.critical(f"!!! BACKGROUND PROCESS STARTED - V3 - Job {job_id} !!!")
     logger.critical("!"*80)
     print(f"!!! BACKGROUND STDOUT PROOF: {job_id} !!!", flush=True)
     
@@ -3320,6 +3320,8 @@ def background_process_task(app, job_id, users, access_key, secret_key, region):
                     if 'debug_logs' not in active_jobs[job_id]:
                         active_jobs[job_id]['debug_logs'] = []
                     active_jobs[job_id]['debug_logs'].append(f"{datetime.datetime.now().strftime('%H:%M:%S')} - {msg}")
+                    # Save periodically or on critical updates? 
+                    # For now, rely on periodic saves in the main loop to avoid lock contention
         except Exception:
             pass
 
@@ -3328,9 +3330,11 @@ def background_process_task(app, job_id, users, access_key, secret_key, region):
     
     # Ensure job exists before starting processing
     with jobs_lock:
+        # Load from file to ensure we have the latest state
         all_jobs = load_jobs()
         if job_id not in all_jobs:
             logger.error(f"[BULK] Job {job_id} not found in jobs file at start of background_process!")
+            # Try to recreate it
             all_jobs[job_id] = {
                 'total': len(users),
                 'completed': 0,
@@ -3344,6 +3348,7 @@ def background_process_task(app, job_id, users, access_key, secret_key, region):
             log_debug(f"Recreated job {job_id}")
         else:
             log_debug(f"Job {job_id} found in jobs file")
+            # Update local active_jobs cache
             active_jobs[job_id] = all_jobs[job_id]
             if 'debug_logs' not in active_jobs[job_id]:
                 active_jobs[job_id]['debug_logs'] = []
@@ -3354,13 +3359,10 @@ def background_process_task(app, job_id, users, access_key, secret_key, region):
             log_debug("App context entered successfully")
             
             import math
-            from collections import defaultdict
-            import boto3
-            from botocore.config import Config
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            import threading
             
-            USERS_PER_FUNCTION = 10
+            USERS_PER_FUNCTION = 10  # Fixed: Each function handles exactly 10 users
+            
+            # Calculate total number of functions needed
             total_users = len(users)
             num_functions = math.ceil(total_users / USERS_PER_FUNCTION)
             
@@ -3380,223 +3382,122 @@ def background_process_task(app, job_id, users, access_key, secret_key, region):
                 'me-south-1', 'me-central-1', 'il-central-1',
                 'sa-east-1'
             ]
+                    # DYNAMIC DISCOVERY: SKIPPED (BLINDFIRE MODE)
+            # User requested to skip checking and just try to invoke everything.
+            # We assume functions 1-10 exist in all regions.
+            log_debug(f"BLINDFIRE MODE: Skipping discovery. Assuming functions 1-10 exist in all {len(AVAILABLE_GEO_REGIONS)} regions.")
             
-            # Distribute functions across geos (Round Robin)
-            batches_by_geo = defaultdict(list)
+            functions_per_geo = {}
+            MAX_FUNCTIONS_PER_GEO = 10
             
-            # Split users into batches of 10
+            for geo in AVAILABLE_GEO_REGIONS:
+                # Assume functions 1 through 10 exist
+                functions_per_geo[geo] = list(range(1, MAX_FUNCTIONS_PER_GEO + 1))
+            
+            discovered_count = len(AVAILABLE_GEO_REGIONS) * MAX_FUNCTIONS_PER_GEO
+            log_debug(f"Blindfire setup complete. Targetting {discovered_count} potential functions.")
+            
+            # Map function numbers to geos for O(1) lookup
+            # NOTE: This logic assumes function numbers are unique globally, which might NOT be true if we just generated 1-10 for everyone.
+            # The previous logic relied on unique function numbers (e.g. 1-340).
+            # If we have 1-10 in US-EAST-1 and 1-10 in US-WEST-1, we have a collision if we just map {1: 'us-east-1', 1: 'us-west-1'}.
+            #
+            # WE NEED TO REDESIGN THE BATCH ASSIGNMENT FOR BLINDFIRE.
+            # Instead of mapping FuncNum -> Geo, we should just iterate through all available (Geo, FuncNum) pairs.
+            
+            # Flatten all available slots: [(geo, func_num), ...]
+            available_slots = []
+            for geo in AVAILABLE_GEO_REGIONS:
+                for fnum in range(1, MAX_FUNCTIONS_PER_GEO + 1):
+                    available_slots.append((geo, fnum))
+            
+            # Shuffle slots to distribute load? Or keep sequential?
+            # Sequential is better for debugging.
+            
+            # Assign users to slots
             user_batches = []
-            for i in range(num_functions):
+            
+            # We have total_users. We split them into chunks of USERS_PER_FUNCTION (10).
+            # We assign each chunk to a slot.
+            
+            num_batches_needed = math.ceil(total_users / USERS_PER_FUNCTION)
+            log_debug(f"Need {num_batches_needed} slots for {total_users} users.")
+            
+            if num_batches_needed > len(available_slots):
+                log_debug(f"WARNING: Need {num_batches_needed} slots but only have {len(available_slots)}. Some users will be skipped (or we need to reuse slots).")
+                # For now, let's just reuse slots if needed (wrap around)
+            
+            for i in range(num_batches_needed):
                 start_idx = i * USERS_PER_FUNCTION
                 end_idx = min((i + 1) * USERS_PER_FUNCTION, total_users)
-                if start_idx >= total_users:
-                    break
                 batch_users = users[start_idx:end_idx]
                 
-                # Assign to geo
-                geo_idx = i % len(AVAILABLE_GEO_REGIONS)
-                geo = AVAILABLE_GEO_REGIONS[geo_idx]
-                func_num = i + 1
+                # Pick a slot
+                slot_idx = i % len(available_slots)
+                geo, func_num = available_slots[slot_idx]
                 
-                user_batches.append((func_num, geo, batch_users))
-                
-                if geo not in batches_by_geo:
-                    batches_by_geo[geo] = []
-                batches_by_geo[geo].append((func_num, batch_users))
-                
-            log_debug(f"Distributed {len(user_batches)} batches across {len(batches_by_geo)} regions")
-            
-            def process_geo_parallel(geo, geo_batches_list):
-                """Process all batches in a geo in PARALLEL"""
-                try:
-                    log_debug(f"[{geo}] Starting processing for {len(geo_batches_list)} functions")
-                    
-                    # Create boto3 session for this geo
-                    try:
-                        session_boto = boto3.Session(
-                            aws_access_key_id=access_key,
-                            aws_secret_access_key=secret_key,
-                            region_name=geo
-                        )
-                        
-                        # Verify credentials
-                        sts = session_boto.client('sts')
-                        identity = sts.get_caller_identity()
-                        log_debug(f"[{geo}] Credentials verified. Account: {identity.get('Account')}")
-                        
-                        lam_client = session_boto.client("lambda", config=Config(
-                            max_pool_connections=10,
-                            retries={'max_attempts': 3}
-                        ))
-                        
-                        # List existing functions
-                        all_functions = lam_client.list_functions()
-                        existing_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
-                        log_debug(f"[{geo}] Found {len(existing_function_names)} existing functions")
-                        
-                    except Exception as e:
-                        log_debug(f"[{geo}] CRITICAL ERROR: Could not initialize session: {e}")
-                        raise Exception(f"Failed to initialize {geo}: {e}")
-                    
-                    def process_single_function(func_num, batch_users, batch_idx):
-                        """Process a single Lambda function"""
-                        function_results = []
-                        func_name = None
-                        
-                        try:
-                            log_debug(f"[{geo}] Processing Function {func_num} with {len(batch_users)} users")
-                            
-                            # Generate function name
-                            geo_code = geo.replace('-', '')
-                            func_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
-                            
-                            # Create function if it doesn't exist
-                            with threading.Lock():
-                                if func_name not in existing_function_names:
-                                    # Try to find similar functions logic (simplified here for brevity, focusing on creation)
-                                    matching_functions = [fn for fn in existing_function_names if PRODUCTION_LAMBDA_NAME in fn and geo_code in fn and str(func_num) in fn]
-                                    
-                                    if matching_functions:
-                                        func_name = matching_functions[0]
-                                        log_debug(f"[{geo}] Using existing similar function: {func_name}")
-                                    else:
-                                        log_debug(f"[{geo}] Creating Lambda function: {func_name}")
-                                        try:
-                                            role_arn = ensure_lambda_role(session_boto)
-                                            chromium_env = {
-                                                "DYNAMODB_TABLE_NAME": "gbot-app-passwords",
-                                                "DYNAMODB_REGION": "eu-west-1",
-                                                "APP_PASSWORDS_S3_BUCKET": S3_BUCKET_NAME,
-                                                "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
-                                                "PROXY_ENABLED": "false",
-                                                "TWOCAPTCHA_ENABLED": "false"
-                                            }
-                                            
-                                            # Extract ECR URI
-                                            ecr_uri = None
-                                            try:
-                                                if existing_function_names:
-                                                    existing_func = lam_client.get_function(FunctionName=existing_function_names[0])
-                                                    code_location = existing_func.get('Code', {}).get('ImageUri')
-                                                    if code_location:
-                                                        ecr_uri = code_location
-                                            except Exception:
-                                                pass
-                                        
-                                            if not ecr_uri:
-                                                sts = session_boto.client('sts')
-                                                account_id = sts.get_caller_identity()['Account']
-                                                ecr_uri = f"{account_id}.dkr.ecr.{geo}.amazonaws.com/{ECR_REPO_NAME}:{ECR_IMAGE_TAG}"
-                                        
-                                            create_or_update_lambda(
-                                                session=session_boto,
-                                                function_name=func_name,
-                                                role_arn=role_arn,
-                                                timeout=900,
-                                                env_vars=chromium_env,
-                                                package_type="Image",
-                                                image_uri=ecr_uri,
-                                            )
-                                            log_debug(f"[{geo}] Created Lambda function: {func_name}")
-                                            existing_function_names.append(func_name)
-                                        except Exception as create_err:
-                                            log_debug(f"[{geo}] Failed to create {func_name}: {create_err}")
-                                            # Fallback to base name if creation fails? Or just fail?
-                                            # Legacy code fell back to PRODUCTION_LAMBDA_NAME
-                                            func_name = PRODUCTION_LAMBDA_NAME
-                            
-                            # Invoke Lambda function
-                            log_debug(f"[{geo}] Invoking {func_name}")
-                            # Fix: Pass all required arguments to process_user_batch_sync
-                            batch_results = process_user_batch_sync(app, batch_users, func_name, access_key, secret_key, region, lambda_region=geo)
-                            function_results.extend(batch_results)
-                            log_debug(f"[{geo}] Function {func_num} completed: {sum(1 for r in batch_results if r['success'])}/{len(batch_results)} success")
-                            
-                        except Exception as func_err:
-                            log_debug(f"[{geo}] Function {func_num} failed: {func_err}")
-                            for u in batch_users:
-                                function_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': f'Function invocation failed: {str(func_err)}'
-                                })
-                        
-                        return function_results
+                user_batches.append((func_num, batch_users, geo))
+                log_debug(f"Assigning Batch {i+1} to {geo} Function #{func_num} ({len(batch_users)} users)")
 
-                    # Process functions in parallel within this geo
-                    geo_results = []
-                    max_workers = min(10, len(geo_batches_list))
-                    if len(geo_batches_list) >= 2 and max_workers < 2:
-                        max_workers = 2
+            log_debug(f"Created {len(user_batches)} batches for processing")
+            
+            if not user_batches:
+                log_debug("No batches created! (Maybe function count mismatch?)")
+                return
+
+            # Execute batches in parallel
+            log_debug(f"Starting parallel execution of {len(user_batches)} batches...")
+            
+            completed_batches = 0
+            total_batches = len(user_batches)
+            
+            with ThreadPoolExecutor(max_workers=50) as geo_pool:
+                # Submit all tasks
+                future_to_batch = {
+                    geo_pool.submit(invoke_lambda_task, app, func_num, batch_users, geo, access_key, secret_key, region): (func_num, geo)
+                    for func_num, batch_users, geo in user_batches
+                }
+                
+                for future in as_completed(future_to_batch):
+                    func_num, geo = future_to_batch[future]
+                    try:
+                        results = future.result()
                         
-                    with ThreadPoolExecutor(max_workers=max_workers) as function_pool:
-                        function_futures = {}
-                        for batch_idx, (func_num, batch_users) in enumerate(geo_batches_list):
-                            future = function_pool.submit(process_single_function, func_num, batch_users, batch_idx)
-                            function_futures[future] = func_num
-                        
-                        for future in as_completed(function_futures):
-                            try:
-                                results = future.result()
-                                geo_results.extend(results)
+                        # Update job progress
+                        with jobs_lock:
+                            active_jobs[job_id]['results'].extend(results)
+                            
+                            # Update counts
+                            batch_success = sum(1 for r in results if r.get('success'))
+                            batch_failed = len(results) - batch_success
+                            
+                            active_jobs[job_id]['completed'] += len(results)
+                            active_jobs[job_id]['success'] += batch_success
+                            active_jobs[job_id]['failed'] += batch_failed
+                            
+                            completed_batches += 1
+                            
+                            # Save progress periodically (every 5 batches or last one)
+                            if completed_batches % 5 == 0 or completed_batches == total_batches:
+                                save_jobs({job_id: active_jobs[job_id]})
                                 
-                                # Update job status immediately
-                                with jobs_lock:
-                                    if job_id in active_jobs:
-                                        active_jobs[job_id]['results'].extend(results)
-                                        batch_success = sum(1 for r in results if r.get('success'))
-                                        batch_failed = len(results) - batch_success
-                                        active_jobs[job_id]['completed'] += len(results)
-                                        active_jobs[job_id]['success'] += batch_success
-                                        active_jobs[job_id]['failed'] += batch_failed
-                                        save_jobs({job_id: active_jobs[job_id]})
-                                        
-                            except Exception as e:
-                                log_debug(f"[{geo}] Function future exception: {e}")
-                    
-                    return geo_results
-
-                except Exception as geo_err:
-                    log_debug(f"[{geo}] CRITICAL ERROR in process_geo_parallel: {geo_err}")
-                    failed_results = []
-                    for func_num, batch_users in geo_batches_list:
-                        for u in batch_users:
-                            failed_results.append({
-                                'email': u['email'],
-                                'success': False,
-                                'error': f'Geo processing failed: {str(geo_err)}'
-                            })
-                    return failed_results
-
-            # Process ALL geos in parallel
-            max_geo_workers = len(batches_by_geo)
-            log_debug(f"Starting parallel processing of {max_geo_workers} regions")
+                        log_debug(f"Batch {func_num} ({geo}) completed. Progress: {completed_batches}/{total_batches}")
+                        
+                    except Exception as exc:
+                        log_debug(f"Batch {func_num} ({geo}) generated an exception: {exc}")
             
-            with ThreadPoolExecutor(max_workers=max_geo_workers) as geo_pool:
-                geo_futures = {}
-                for geo, geo_batches_list in batches_by_geo.items():
-                    future = geo_pool.submit(process_geo_parallel, geo, geo_batches_list)
-                    geo_futures[future] = geo
-                
-                for future in as_completed(geo_futures):
-                    geo = geo_futures[future]
-                    try:
-                        future.result(timeout=3600)
-                        log_debug(f"Region {geo} completed processing")
-                    except Exception as e:
-                        log_debug(f"Region {geo} failed: {e}")
-
-            log_debug("All regions completed.")
+            log_debug("All batches completed.")
             
             # Update final status
             with jobs_lock:
+                # Reload to get latest state
                 current_job = active_jobs.get(job_id)
                 if current_job:
                     current_job['status'] = 'completed'
                     save_jobs({job_id: current_job})
             
             log_debug("Job marked as completed.")
-
+            
     except Exception as e:
         log_debug(f"CRITICAL ERROR in background process: {e}")
         traceback.print_exc()
