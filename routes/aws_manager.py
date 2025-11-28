@@ -3032,28 +3032,75 @@ def bulk_generate():
                     'sa-east-1',      # São Paulo
                 ]
                 
-                # Distribute functions evenly across all available geos using round-robin
-                # Example: 17 functions, 23 geos → 1 function per geo (first 17 geos get 1 function each)
-                # Example: 50 functions, 23 geos → ~2-3 functions per geo (distributed evenly)
-                functions_per_geo = {}  # {geo: [list of function_numbers]}
+                # DYNAMIC DISCOVERY: Find where functions are actually located
+                # This handles cases where functions were redistributed from skipped regions
+                logger.info("=" * 60)
+                logger.info(f"[BULK] DISCOVERY PHASE: Scanning {len(AVAILABLE_GEO_REGIONS)} regions for Lambda functions...")
                 
-                for func_num in range(num_functions):
-                    # Round-robin distribution: function 0 → geo 0, function 1 → geo 1, etc.
-                    geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
-                    geo = AVAILABLE_GEO_REGIONS[geo_index]
+                functions_per_geo = {}  # {geo: [list of function_numbers]}
+                discovered_count = 0
+                
+                def discover_functions_in_geo(geo):
+                    """List functions in a geo and extract their numbers"""
+                    found_funcs = []
+                    try:
+                        d_session = boto3.Session(
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
+                            region_name=geo
+                        )
+                        d_lam = d_session.client('lambda')
+                        paginator = d_lam.get_paginator('list_functions')
+                        
+                        for page in paginator.paginate():
+                            for fn in page.get('Functions', []):
+                                fname = fn['FunctionName']
+                                # Match pattern: edu-gw-chromium-{geo_code}-{func_num}
+                                if fname.startswith(PRODUCTION_LAMBDA_NAME) and '-' in fname:
+                                    try:
+                                        # Extract the number at the end
+                                        parts = fname.rsplit('-', 1)
+                                        if len(parts) == 2 and parts[1].isdigit():
+                                            fnum = int(parts[1])
+                                            found_funcs.append(fnum)
+                                    except:
+                                        pass
+                        return geo, found_funcs, None
+                    except Exception as e:
+                        return geo, [], str(e)
+
+                with ThreadPoolExecutor(max_workers=20) as d_executor:
+                    d_futures = {d_executor.submit(discover_functions_in_geo, geo): geo for geo in AVAILABLE_GEO_REGIONS}
                     
-                    if geo not in functions_per_geo:
-                        functions_per_geo[geo] = []
-                    functions_per_geo[geo].append(func_num + 1)  # Function numbers start at 1
-            
-            logger.info("=" * 60)
-            logger.info(f"[BULK] Function Distribution Across Geos")
-            logger.info(f"[BULK] Total functions: {num_functions}")
-            logger.info(f"[BULK] Available geos: {len(AVAILABLE_GEO_REGIONS)}")
-            logger.info(f"[BULK] Functions per geo:")
-            for geo, func_numbers in sorted(functions_per_geo.items()):
-                logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
-            logger.info("=" * 60)
+                    for future in as_completed(d_futures):
+                        geo, fnums, error = future.result()
+                        if error:
+                            logger.warning(f"[BULK] [DISCOVERY] [{geo}] ⚠️ Error scanning region: {error}")
+                        elif fnums:
+                            functions_per_geo[geo] = sorted(fnums)
+                            discovered_count += len(fnums)
+                            logger.info(f"[BULK] [DISCOVERY] [{geo}] ✓ Found {len(fnums)} function(s): {fnums}")
+                
+                logger.info(f"[BULK] DISCOVERY COMPLETED: Found {discovered_count} total functions across {len(functions_per_geo)} regions")
+                
+                if discovered_count == 0:
+                    logger.error("[BULK] ✗✗✗ CRITICAL: No Lambda functions found in any region! Please create Lambdas first.")
+                    # Fallback to static calculation just in case, or fail?
+                    # Better to fail so user knows
+                    # But for robustness, let's try static as a last resort if discovery failed completely (e.g. permission issues)
+                    logger.warning("[BULK] Attempting fallback to static calculation...")
+                    for func_num in range(num_functions):
+                        geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
+                        geo = AVAILABLE_GEO_REGIONS[geo_index]
+                        if geo not in functions_per_geo:
+                            functions_per_geo[geo] = []
+                        functions_per_geo[geo].append(func_num + 1)
+                
+                logger.info("=" * 60)
+                logger.info(f"[BULK] Function Distribution (Actual)")
+                for geo, func_numbers in sorted(functions_per_geo.items()):
+                    logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
+                logger.info("=" * 60)
             
             # Split users into batches of 10, assigning each batch to a function
             # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
