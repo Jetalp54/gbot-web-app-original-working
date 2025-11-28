@@ -3523,6 +3523,7 @@ def bulk_generate():
                     Minimum 2 functions per geo at the same time (as requested).
                     """
                     try:
+                        logger.info(f"[BULK] [{geo}] Starting process_geo_parallel with {len(geo_batches_list)} batches")
                         logger.info("=" * 60)
                         logger.info(f"[BULK] [{geo}] ===== STARTING PARALLEL PROCESSING =====")
                         logger.info(f"[BULK] [{geo}] Total functions to process: {len(geo_batches_list)}")
@@ -3682,7 +3683,7 @@ def bulk_generate():
                             logger.error(f"[BULK] ✗✗✗ FAILED to submit geo {geo} to thread pool: {submit_err}")
                             logger.error(traceback.format_exc())
                             # Add failed results for this geo
-                            for func_num, batch_users in geo_batches_list:
+                            for func_num, batch_users, func_name in geo_batches_list:
                                 for u in batch_users:
                                     all_geo_results.append({
                                         'email': u['email'],
@@ -3730,7 +3731,7 @@ def bulk_generate():
                             
                             # Add failed results for all users in this geo
                             if geo in batches_by_geo:
-                                for func_num, batch_users in batches_by_geo[geo]:
+                                for func_num, batch_users, func_name in batches_by_geo[geo]:
                                     for u in batch_users:
                                         all_geo_results.append({
                                             'email': u['email'],
