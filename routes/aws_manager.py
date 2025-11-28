@@ -1925,13 +1925,13 @@ def create_lambdas():
                                 logger.info(f"[LAMBDA] [{geo}] Creating function {function_name}...")
                                 logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri}")
                                 
-                                create_or_update_lambda(
+                        create_or_update_lambda(
                                     session=geo_session,
-                                    function_name=function_name,
+                            function_name=function_name,
                                     role_arn=geo_role_arn,
-                                    timeout=timeout,
-                                    env_vars=env_vars,
-                                    package_type=package_type,
+                            timeout=timeout,
+                            env_vars=env_vars,
+                            package_type=package_type,
                                     image_uri=geo_ecr_uri,
                                 )
                                 
@@ -1968,7 +1968,7 @@ def create_lambdas():
                                     else:
                                         raise
                                 
-                            except Exception as func_error:
+                    except Exception as func_error:
                                 error_msg = str(func_error)
                                 logger.error(f"[LAMBDA] [{geo}] ✗✗✗ FAILED to create/update {function_name}: {error_msg}")
                                 
@@ -1977,7 +1977,7 @@ def create_lambdas():
                                     logger.error(f"[LAMBDA] [{geo}] ⚠️ ECR IMAGE MISSING in region {geo}")
                                     logger.error(f"[LAMBDA] [{geo}] Solution: Use 'Push ECR to All Regions' button to push image to {geo}")
                                 
-                                logger.error(traceback.format_exc())
+                        logger.error(traceback.format_exc())
                                 geo_failure += 1
                                 geo_failures.append(f"{function_name}: {error_msg}")
                                 update_job_status()
@@ -2752,19 +2752,19 @@ def bulk_generate():
                         max_pool_connections=10
                     ))
                         table_batch = dynamodb_batch.Table("gbot-app-passwords")
-                    
+                        
                         # Prepare all users for processing - NO pre-filtering
                         # Lambda will handle deduplication if needed
                         batch_results = []
                         users_to_process = user_batch  # Process ALL users in the batch (already limited to 10)
-                    
+                        
                         # Final validation before sending to Lambda
                         if len(users_to_process) > MAX_USERS_PER_BATCH:
                             logger.error(f"[BULK] [{assigned_function_name}] ⚠️ FINAL CHECK FAILED: {len(users_to_process)} users exceeds {MAX_USERS_PER_BATCH} limit!")
                             users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
                         
                         logger.info(f"[BULK] [{assigned_function_name}] Will process {len(users_to_process)} user(s) in batch (MAX: {MAX_USERS_PER_BATCH})")
-                    
+                        
                         # Mark emails as being processed (for duplicate detection across parallel geos)
                         for user in users_to_process:
                             email = user['email']
@@ -4858,7 +4858,7 @@ def create_or_update_lambda(session, function_name, role_arn, timeout, env_vars,
             "EphemeralStorage": {"Size": 2048}
         }
         try:
-            lam.create_function(**create_params)
+        lam.create_function(**create_params)
         except ClientError as create_err:
             error_code = create_err.response.get('Error', {}).get('Code', '')
             error_msg = create_err.response.get('Error', {}).get('Message', str(create_err))
