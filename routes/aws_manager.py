@@ -3204,11 +3204,21 @@ def invoke_lambda_task(app, func_num, batch_users, geo, access_key, secret_key, 
 @aws_manager.route('/api/aws/debug-version', methods=['GET'])
 def debug_version():
     """Debug endpoint to check code version"""
+    import os
+    import datetime
+    
+    file_path = os.path.abspath(__file__)
+    mod_time = os.path.getmtime(file_path)
+    mod_time_str = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
+    
     return jsonify({
-        'version': 'REFACTORED_FLAT_EXECUTION_MODEL_V1',
+        'version': 'REFACTORED_FLAT_EXECUTION_MODEL_V2_LOGGING_ENHANCED',
         'timestamp': time.time(),
+        'file_path': file_path,
+        'last_modified': mod_time_str,
         'message': 'If you see this, the new code is active.'
     })
+
 @aws_manager.route('/api/aws/bulk-generate', methods=['POST'])
 @login_required
 def bulk_generate():
@@ -3255,10 +3265,14 @@ def bulk_generate():
 
     logger.info(f"[BULK] Received {len(users_raw)} raw user entries, parsed {len(users)} valid users")
     
-    print("\n" + "!"*80)
-    print("!!! NEW CODE LOADED - REFACTOR ACTIVE !!!")
-    print(f"!!! TIMESTAMP: {time.time()} !!!")
-    print("!"*80 + "\n")
+    # CRITICAL LOGGING - GUARANTEED TO SHOW
+    logger.critical("!"*80)
+    logger.critical("!!! NEW CODE LOADED - REFACTOR V2 ACTIVE !!!")
+    logger.critical(f"!!! TIMESTAMP: {time.time()} !!!")
+    logger.critical("!"*80)
+    
+    # Force flush stdout just in case
+    print(f"!!! STDOUT PROOF OF LIFE: {time.time()} !!!", flush=True)
 
     job_id = str(int(time.time()))
     with jobs_lock:
@@ -3281,9 +3295,11 @@ def bulk_generate():
     
     def background_process(app, job_id, users, access_key, secret_key, region):
         """Background process to handle bulk user processing across geos"""
-        print("\n" + "!"*80)
-        print(f"!!! BACKGROUND PROCESS STARTED - NEW CODE ACTIVE - Job {job_id} !!!")
-        print("!"*80 + "\n")
+        # CRITICAL LOGGING
+        logger.critical("!"*80)
+        logger.critical(f"!!! BACKGROUND PROCESS STARTED - V2 - Job {job_id} !!!")
+        logger.critical("!"*80)
+        print(f"!!! BACKGROUND STDOUT PROOF: {job_id} !!!", flush=True)
         
         logger.info(f"[BULK] ========== BACKGROUND PROCESS STARTED ==========")
         logger.info(f"[BULK] Job ID: {job_id}")
