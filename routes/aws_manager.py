@@ -3212,7 +3212,7 @@ def debug_version():
     mod_time_str = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
     
     return jsonify({
-        'version': 'REFACTORED_FLAT_EXECUTION_MODEL_V3_MODULE_LEVEL',
+        'version': 'REFACTORED_FLAT_EXECUTION_MODEL_V4_BLINDFIRE',
         'timestamp': time.time(),
         'file_path': file_path,
         'last_modified': mod_time_str,
@@ -3382,99 +3382,62 @@ def background_process_task(app, job_id, users, access_key, secret_key, region):
                 'me-south-1', 'me-central-1', 'il-central-1',
                 'sa-east-1'
             ]
+                    # DYNAMIC DISCOVERY: SKIPPED (BLINDFIRE MODE)
+            # User requested to skip checking and just try to invoke everything.
+            # We assume functions 1-10 exist in all regions.
+            log_debug(f"BLINDFIRE MODE: Skipping discovery. Assuming functions 1-10 exist in all {len(AVAILABLE_GEO_REGIONS)} regions.")
             
-            # DYNAMIC DISCOVERY: Find where functions are actually located
-            log_debug(f"DISCOVERY PHASE: Scanning {len(AVAILABLE_GEO_REGIONS)} regions...")
+            functions_per_geo = {}
+            MAX_FUNCTIONS_PER_GEO = 10
             
-            functions_per_geo = {}  # {geo: [list of function_numbers]}
-            discovered_count = 0
+            for geo in AVAILABLE_GEO_REGIONS:
+                # Assume functions 1 through 10 exist
+                functions_per_geo[geo] = list(range(1, MAX_FUNCTIONS_PER_GEO + 1))
             
-            def discover_functions_in_geo(geo):
-                """List functions in a geo and extract their numbers"""
-                found_funcs = []
-                try:
-                    d_session = boto3.Session(
-                        aws_access_key_id=access_key,
-                        aws_secret_access_key=secret_key,
-                        region_name=geo
-                    )
-                    d_lam = d_session.client('lambda')
-                    paginator = d_lam.get_paginator('list_functions')
-                    
-                    for page in paginator.paginate():
-                        for fn in page.get('Functions', []):
-                            fname = fn['FunctionName']
-                            # Match pattern: edu-gw-chromium-{geo_code}-{func_num}
-                            if fname.startswith(PRODUCTION_LAMBDA_NAME) and '-' in fname:
-                                try:
-                                    # Extract the number at the end
-                                    parts = fname.rsplit('-', 1)
-                                    if len(parts) == 2 and parts[1].isdigit():
-                                        fnum = int(parts[1])
-                                        found_funcs.append(fnum)
-                                except:
-                                    pass
-                    return geo, found_funcs, None
-                except Exception as e:
-                    return geo, [], str(e)
-
-            with ThreadPoolExecutor(max_workers=20) as d_executor:
-                d_futures = {d_executor.submit(discover_functions_in_geo, geo): geo for geo in AVAILABLE_GEO_REGIONS}
-                
-                for future in as_completed(d_futures):
-                    geo, fnums, error = future.result()
-                    if error:
-                        # log_debug(f"Error scanning {geo}: {error}") # Too verbose
-                        pass
-                    elif fnums:
-                        functions_per_geo[geo] = sorted(fnums)
-                        discovered_count += len(fnums)
-                        log_debug(f"Found {len(fnums)} functions in {geo}")
-
-            log_debug(f"Discovery complete. Found {discovered_count} total functions across {len(functions_per_geo)} regions.")
+            discovered_count = len(AVAILABLE_GEO_REGIONS) * MAX_FUNCTIONS_PER_GEO
+            log_debug(f"Blindfire setup complete. Targetting {discovered_count} potential functions.")
             
             # Map function numbers to geos for O(1) lookup
-            func_to_geo = {}
-            for geo, fnums in functions_per_geo.items():
-                for fnum in fnums:
-                    func_to_geo[fnum] = geo
-
-            # If no functions found, we can't proceed
-            if discovered_count == 0:
-                log_debug("CRITICAL: No Lambda functions found! Cannot process users.")
-                with jobs_lock:
-                    active_jobs[job_id]['status'] = 'failed'
-                    active_jobs[job_id]['error'] = "No Lambda functions found. Please click 'Create / Update Production Lambda' first."
-                    save_jobs({job_id: active_jobs[job_id]})
-                return
-
-            # Assign users to batches
+            # NOTE: This logic assumes function numbers are unique globally, which might NOT be true if we just generated 1-10 for everyone.
+            # The previous logic relied on unique function numbers (e.g. 1-340).
+            # If we have 1-10 in US-EAST-1 and 1-10 in US-WEST-1, we have a collision if we just map {1: 'us-east-1', 1: 'us-west-1'}.
+            #
+            # WE NEED TO REDESIGN THE BATCH ASSIGNMENT FOR BLINDFIRE.
+            # Instead of mapping FuncNum -> Geo, we should just iterate through all available (Geo, FuncNum) pairs.
+            
+            # Flatten all available slots: [(geo, func_num), ...]
+            available_slots = []
+            for geo in AVAILABLE_GEO_REGIONS:
+                for fnum in range(1, MAX_FUNCTIONS_PER_GEO + 1):
+                    available_slots.append((geo, fnum))
+            
+            # Shuffle slots to distribute load? Or keep sequential?
+            # Sequential is better for debugging.
+            
+            # Assign users to slots
             user_batches = []
             
-            for i in range(num_functions):
+            # We have total_users. We split them into chunks of USERS_PER_FUNCTION (10).
+            # We assign each chunk to a slot.
+            
+            num_batches_needed = math.ceil(total_users / USERS_PER_FUNCTION)
+            log_debug(f"Need {num_batches_needed} slots for {total_users} users.")
+            
+            if num_batches_needed > len(available_slots):
+                log_debug(f"WARNING: Need {num_batches_needed} slots but only have {len(available_slots)}. Some users will be skipped (or we need to reuse slots).")
+                # For now, let's just reuse slots if needed (wrap around)
+            
+            for i in range(num_batches_needed):
                 start_idx = i * USERS_PER_FUNCTION
                 end_idx = min((i + 1) * USERS_PER_FUNCTION, total_users)
-                
-                if start_idx >= total_users:
-                    break
-                    
                 batch_users = users[start_idx:end_idx]
-                func_num = i + 1
                 
-                # Find which geo has this function number
-                geo = func_to_geo.get(func_num)
+                # Pick a slot
+                slot_idx = i % len(available_slots)
+                geo, func_num = available_slots[slot_idx]
                 
-                if not geo:
-                    if discovered_count > 0:
-                        logger.warning(f"[BULK] Function {func_num} not found. Skipping batch {i+1}.")
-                        continue
-                    else:
-                        logger.error(f"[BULK] No functions available to assign batch {i+1}")
-                        continue
-                
-                # Log batch assignment
-                log_debug(f"Assigning Batch {i+1} (Func {func_num}) to {geo} with {len(batch_users)} users")
                 user_batches.append((func_num, batch_users, geo))
+                log_debug(f"Assigning Batch {i+1} to {geo} Function #{func_num} ({len(batch_users)} users)")
 
             log_debug(f"Created {len(user_batches)} batches for processing")
             
