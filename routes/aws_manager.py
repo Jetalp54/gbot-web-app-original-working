@@ -3212,7 +3212,7 @@ def debug_version():
     mod_time_str = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
     
     return jsonify({
-        'version': 'REFACTORED_FLAT_EXECUTION_MODEL_V4_BLINDFIRE',
+        'version': 'REFACTORED_FLAT_EXECUTION_MODEL_V5_LOCK_FIX',
         'timestamp': time.time(),
         'file_path': file_path,
         'last_modified': mod_time_str,
@@ -3534,13 +3534,20 @@ def get_lambda_creation_status(job_id):
 @login_required
 def get_job_status(job_id):
     try:
-        with jobs_lock:
-            # Load from file to get latest status from any worker
-            all_jobs = load_jobs()
-            job = all_jobs.get(job_id)
+        # Load from file to get latest status from any worker
+        # No need for jobs_lock here as load_jobs handles file reading safely
+        all_jobs = load_jobs()
+        job = all_jobs.get(job_id)
+        
         if not job:
-            logger.warning(f"[JOB_STATUS] Job {job_id} not found. Available jobs: {list(active_jobs.keys())}")
+            # Fallback to in-memory cache if file read failed or job not yet saved
+            with jobs_lock:
+                job = active_jobs.get(job_id)
+                
+        if not job:
+            logger.warning(f"[JOB_STATUS] Job {job_id} not found.")
             return jsonify({'success': False, 'error': 'Job not found'}), 404
+            
         # Return the job status including the results list (which has the new passwords)
         return jsonify({'success': True, 'job': job})
     except Exception as e:
