@@ -3130,27 +3130,32 @@ def bulk_generate():
                             discovered_count += len(fnums)
                             logger.info(f"[BULK] [DISCOVERY] [{geo}] ✓ Found {len(fnums)} function(s): {fnums}")
                 
-                logger.info(f"[BULK] DISCOVERY COMPLETED: Found {discovered_count} total functions across {len(functions_per_geo)} regions")
+                print(f"[BULK DEBUG] DISCOVERY COMPLETED: Found {discovered_count} total functions across {len(functions_per_geo)} regions")
                 
-                if discovered_count == 0:
-                    logger.error("[BULK] ✗✗✗ CRITICAL: No Lambda functions found in any region! Please create Lambdas first.")
-                    # Fallback to static calculation just in case, or fail?
-                    # Better to fail so user knows
-                    # But for robustness, let's try static as a last resort if discovery failed completely (e.g. permission issues)
-                    logger.warning("[BULK] Attempting fallback to static calculation...")
+                # Fallback if we found fewer functions than needed
+                if discovered_count < num_functions:
+                    print(f"[BULK DEBUG] ⚠️ Found only {discovered_count} functions, but need {num_functions}. Triggering fallback for missing ones...")
                     for func_num in range(num_functions):
-                        geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
-                        geo = AVAILABLE_GEO_REGIONS[geo_index]
-                        if geo not in functions_per_geo:
-                            functions_per_geo[geo] = []
-                        functions_per_geo[geo].append(func_num + 1)
-                
-                logger.info("=" * 60)
-                logger.info("=" * 60)
-                logger.info(f"[BULK] Function Distribution (Actual)")
+                        # If this function number wasn't found, assign it statically
+                        found = False
+                        for geo, fnums in functions_per_geo.items():
+                            if (func_num + 1) in fnums:
+                                found = True
+                                break
+                        
+                        if not found:
+                            geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
+                            geo = AVAILABLE_GEO_REGIONS[geo_index]
+                            if geo not in functions_per_geo:
+                                functions_per_geo[geo] = []
+                            functions_per_geo[geo].append(func_num + 1)
+                            print(f"[BULK DEBUG] Fallback: Assigned Function #{func_num + 1} to {geo}")
+
+                print("=" * 60)
+                print(f"[BULK DEBUG] Function Distribution (Actual)")
                 for geo, func_numbers in sorted(functions_per_geo.items()):
-                    logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
-                logger.info("=" * 60)
+                    print(f"[BULK DEBUG]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
+                print("=" * 60)
             
             # Create reverse map for easy lookup: function_number -> geo
             func_to_geo = {}
@@ -3158,13 +3163,13 @@ def bulk_generate():
                 for fnum in fnums:
                     func_to_geo[fnum] = geo
             
-            logger.info(f"[BULK] func_to_geo map size: {len(func_to_geo)}")
+            print(f"[BULK DEBUG] func_to_geo map size: {len(func_to_geo)}")
             
             # Split users into batches of 10, assigning each batch to a function
             # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
             # CRITICAL: Each batch MUST be exactly 10 users or less
             user_batches = []  # List of (function_number, geo, user_batch) tuples
-            logger.info(f"[BULK] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
+            print(f"[BULK DEBUG] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
             
             for func_num_idx in range(num_functions):
                 func_num = func_num_idx + 1
@@ -3174,7 +3179,7 @@ def bulk_generate():
                 
                 # ENFORCE: Ensure batch never exceeds 10 users
                 if len(batch_users) > USERS_PER_FUNCTION:
-                    logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
+                    print(f"[BULK DEBUG] ⚠️ CRITICAL: Batch {func_num} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
                     batch_users = batch_users[:USERS_PER_FUNCTION]
                 
                 if batch_users:
@@ -3182,25 +3187,25 @@ def bulk_generate():
                     geo = func_to_geo.get(func_num)
                     
                     if not geo:
-                        # Fallback: If function number not found in discovery (e.g. we need 65 but only found 60)
+                        # Should not happen due to fallback above, but double check
                         valid_geos_with_funcs = [g for g, f in functions_per_geo.items() if f]
                         if valid_geos_with_funcs:
                             geo = valid_geos_with_funcs[func_num_idx % len(valid_geos_with_funcs)]
-                            logger.warning(f"[BULK] ⚠️ Function #{func_num} not found in discovery! Fallback assignment to {geo}")
+                            print(f"[BULK DEBUG] ⚠️ Function #{func_num} still not in map! Fallback assignment to {geo}")
                         else:
-                            logger.error(f"[BULK] ✗✗✗ CRITICAL: No valid regions found for Function #{func_num}. Users will be skipped! (functions_per_geo is empty)")
+                            print(f"[BULK DEBUG] ✗✗✗ CRITICAL: No valid regions found for Function #{func_num}. Users will be skipped! (functions_per_geo is empty)")
                             continue
 
                     user_batches.append((func_num, geo, batch_users))
-                    logger.info(f"[BULK] Function {func_num} ({geo}) will process {len(batch_users)} user(s)")
+                    print(f"[BULK DEBUG] Function {func_num} ({geo}) will process {len(batch_users)} user(s)")
                     if len(batch_users) > USERS_PER_FUNCTION:
-                        logger.error(f"[BULK] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
+                        print(f"[BULK DEBUG] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
                 else:
-                    logger.warning(f"[BULK] Batch {func_num} is empty (start={start_idx}, end={end_idx})")
+                    print(f"[BULK DEBUG] Batch {func_num} is empty (start={start_idx}, end={end_idx})")
             
-            logger.info(f"[BULK] Total batches created: {len(user_batches)}")
+            print(f"[BULK DEBUG] Total batches created: {len(user_batches)}")
             if len(user_batches) == 0:
-                logger.error("[BULK] ✗✗✗ CRITICAL: No batches were created! Process will exit with 0 results.")
+                print("[BULK DEBUG] ✗✗✗ CRITICAL: No batches were created! Process will exit with 0 results.")
 
             
             # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
