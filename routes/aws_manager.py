@@ -3820,12 +3820,12 @@ def bulk_generate():
             
                 # Process ALL geos in parallel (each geo processes functions in parallel internally)
                 max_geo_workers = len(batches_by_geo)  # One worker per geo - ALL geos process in parallel
-                logger.info("=" * 60)
-                logger.info(f"[BULK] ===== STARTING PARALLEL GEO PROCESSING =====")
-                logger.info(f"[BULK] Total geos to process: {len(batches_by_geo)}")
-                logger.info(f"[BULK] Geos: {list(batches_by_geo.keys())}")
-                logger.info(f"[BULK] Max geo workers: {max_geo_workers}")
-                logger.info("=" * 60)
+                print("=" * 60)
+                print(f"[BULK DEBUG] ===== STARTING PARALLEL GEO PROCESSING =====")
+                print(f"[BULK DEBUG] Total geos to process: {len(batches_by_geo)}")
+                print(f"[BULK DEBUG] Geos: {list(batches_by_geo.keys())}")
+                print(f"[BULK DEBUG] Max geo workers: {max_geo_workers}")
+                print("=" * 60)
             
                 # Collect all results from all geos
                 all_geo_results = []
