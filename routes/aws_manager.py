@@ -3202,6 +3202,7 @@ def bulk_generate():
                     lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
                 """
                 with app.app_context():
+                    logger.info(f"[BULK] DEBUG: Entering process_user_batch_sync for {assigned_function_name}")
                     # CRITICAL: Enforce 10-user limit
                     MAX_USERS_PER_BATCH = 10
                     if len(user_batch) > MAX_USERS_PER_BATCH:
@@ -3582,6 +3583,7 @@ def bulk_generate():
                                 logger.info(f"[BULK] [{geo}] Function Name: {explicit_func_name}")
                                 logger.info(f"[BULK] [{geo}] Users in batch: {len(batch_users)}")
                                 logger.info("=" * 60)
+                                logger.info(f"[BULK] DEBUG: Entering process_single_function for {explicit_func_name}")
                             
                                 # Use the explicit function name discovered earlier
                                 func_name = explicit_func_name
