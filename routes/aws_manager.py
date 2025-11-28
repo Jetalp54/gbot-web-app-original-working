@@ -3189,20 +3189,42 @@ def bulk_generate():
                         for attempt in range(max_retries):
                             try:
                                 # Use SYNC invocation to wait for completion (sequential processing)
+                                logger.info(f"[BULK] [{assigned_function_name}] Invoking Lambda function...")
                                 resp = lam_batch.invoke(
                                     FunctionName=assigned_function_name,
                                     InvocationType="RequestResponse",  # SYNC - wait for completion
                                     Payload=json.dumps(batch_payload).encode("utf-8"),
                                 )
                             
+                                # Check for function errors in the response
+                                status_code = resp.get("StatusCode", 0)
+                                function_error = resp.get("FunctionError")
+                                executed_version = resp.get("ExecutedVersion")
+                                
+                                logger.info("=" * 60)
+                                logger.info(f"[BULK] [{assigned_function_name}] LAMBDA RESPONSE RECEIVED")
+                                logger.info(f"[BULK] [{assigned_function_name}] Response status code: {status_code}")
+                                logger.info(f"[BULK] [{assigned_function_name}] Function error: {function_error}")
+                                logger.info(f"[BULK] [{assigned_function_name}] Executed version: {executed_version}")
+                                
                                 # Parse Lambda response
                                 payload = resp.get("Payload")
                                 body = payload.read().decode("utf-8") if payload else "{}"
-                                logger.info("=" * 60)
-                                logger.info(f"[BULK] [{assigned_function_name}] LAMBDA RESPONSE RECEIVED")
-                                logger.info(f"[BULK] [{assigned_function_name}] Response status code: {resp.get('StatusCode')}")
                                 logger.info(f"[BULK] [{assigned_function_name}] Response body (first 2000 chars): {body[:2000]}")
                                 logger.info("=" * 60)
+                                
+                                # Check for function errors
+                                if function_error:
+                                    logger.error(f"[BULK] [{assigned_function_name}] ⚠️ Lambda function error detected: {function_error}")
+                                    logger.error(f"[BULK] [{assigned_function_name}] Error response: {body}")
+                                    # All users in batch fail
+                                    for u in users_to_process:
+                                        batch_results.append({
+                                            'email': u['email'],
+                                            'success': False,
+                                            'error': f'Lambda function error ({function_error}): {body[:200]}'
+                                        })
+                                    return batch_results
                             
                                 try:
                                     lambda_response = json.loads(body)
@@ -4154,52 +4176,136 @@ def invoke_lambda():
         }
 
         logger.info(f"[INVOKE] Invoking Lambda function {lambda_function_name} in {lambda_region} (async={async_mode})...")
+        logger.info(f"[INVOKE] Event payload: {json.dumps(event)}")
+        
         invocation_type = "Event" if async_mode else "RequestResponse"
-        resp = lam.invoke(
-            FunctionName=lambda_function_name,
-            InvocationType=invocation_type,
-            Payload=json.dumps(event).encode("utf-8"),
-        )
-        logger.info(f"[INVOKE] Lambda invocation response status: {resp.get('StatusCode')}")
-
-        if async_mode:
+        
+        try:
+            resp = lam.invoke(
+                FunctionName=lambda_function_name,
+                InvocationType=invocation_type,
+                Payload=json.dumps(event).encode("utf-8"),
+            )
+            
             status_code = resp.get("StatusCode", 0)
-            if status_code == 202:
-                return jsonify({
-                    'success': True,
-                    'status': 'invoked',
-                    'message': 'Lambda invoked asynchronously'
-                })
+            function_error = resp.get("FunctionError")
+            executed_version = resp.get("ExecutedVersion")
+            
+            logger.info(f"[INVOKE] Lambda invocation response:")
+            logger.info(f"[INVOKE]   Status Code: {status_code}")
+            logger.info(f"[INVOKE]   Function Error: {function_error}")
+            logger.info(f"[INVOKE]   Executed Version: {executed_version}")
+            
+            # Check for function errors
+            if function_error:
+                payload = resp.get("Payload")
+                error_body = payload.read().decode("utf-8") if payload else ""
+                logger.error(f"[INVOKE] Lambda function error ({function_error}): {error_body}")
+                try:
+                    error_data = json.loads(error_body)
+                    error_message = error_data.get('errorMessage', error_data.get('errorType', 'Unknown error'))
+                    error_type = error_data.get('errorType', 'FunctionError')
+                    return jsonify({
+                        'success': False,
+                        'error': f'Lambda function error ({error_type}): {error_message}',
+                        'error_type': error_type,
+                        'error_message': error_message,
+                        'full_error': error_body
+                    }), 500
+                except:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Lambda function error: {error_body}',
+                        'raw_error': error_body
+                    }), 500
+
+            if async_mode:
+                if status_code == 202:
+                    logger.info(f"[INVOKE] ✓ Lambda invoked asynchronously (status 202)")
+                    return jsonify({
+                        'success': True,
+                        'status': 'invoked',
+                        'message': 'Lambda invoked asynchronously',
+                        'function_name': lambda_function_name,
+                        'region': lambda_region
+                    })
+                else:
+                    logger.error(f"[INVOKE] Unexpected status code for async: {status_code}")
+                    return jsonify({
+                        'success': False,
+                        'error': f'Unexpected status code: {status_code}',
+                        'function_name': lambda_function_name,
+                        'region': lambda_region
+                    }), 500
             else:
-                return jsonify({
-                    'success': False,
-                    'error': f'Unexpected status code: {status_code}'
-                }), 500
-        else:
-            payload = resp.get("Payload")
-            body = payload.read().decode("utf-8") if payload else ""
-            try:
-                response_data = json.loads(body)
+                payload = resp.get("Payload")
+                body = payload.read().decode("utf-8") if payload else ""
+                logger.info(f"[INVOKE] Response body length: {len(body)} characters")
+                logger.info(f"[INVOKE] Response body preview: {body[:500]}")
                 
-                # Save to DB if successful
-                if response_data.get('app_password'):
-                    try:
-                        save_app_password(email, response_data['app_password'])
-                        logger.info(f"[INVOKE] ✓ Password saved for {email}")
-                    except Exception as db_error:
-                        logger.error(f"[INVOKE] Failed to save password to DB: {db_error}")
-                        # Continue anyway - return the password even if DB save fails
+                if not body:
+                    logger.warning(f"[INVOKE] Empty response body from Lambda")
+                    return jsonify({
+                        'success': False,
+                        'error': 'Lambda returned empty response',
+                        'status_code': status_code,
+                        'function_name': lambda_function_name,
+                        'region': lambda_region
+                    }), 500
                 
-                return jsonify({
-                    'success': True,
-                    **response_data
-                })
-            except Exception as parse_error:
-                logger.warning(f"[INVOKE] Failed to parse response as JSON: {parse_error}")
-                return jsonify({
-                    'success': True,
-                    'raw_response': body
-                })
+                try:
+                    response_data = json.loads(body)
+                    logger.info(f"[INVOKE] Parsed response: {json.dumps(response_data, indent=2)[:500]}")
+                    
+                    # Check if Lambda returned an error in the response
+                    if response_data.get('status') == 'error' or response_data.get('error'):
+                        error_msg = response_data.get('error', response_data.get('error_message', 'Unknown error'))
+                        logger.error(f"[INVOKE] Lambda returned error in response: {error_msg}")
+                        return jsonify({
+                            'success': False,
+                            'error': error_msg,
+                            'function_name': lambda_function_name,
+                            'region': lambda_region,
+                            'lambda_response': response_data
+                        }), 500
+                    
+                    # Save to DB if successful
+                    if response_data.get('app_password'):
+                        try:
+                            save_app_password(email, response_data['app_password'])
+                            logger.info(f"[INVOKE] ✓ Password saved for {email}")
+                        except Exception as db_error:
+                            logger.error(f"[INVOKE] Failed to save password to DB: {db_error}")
+                            # Continue anyway - return the password even if DB save fails
+                    
+                    logger.info(f"[INVOKE] ✓ Lambda invocation successful")
+                    return jsonify({
+                        'success': True,
+                        'function_name': lambda_function_name,
+                        'region': lambda_region,
+                        **response_data
+                    })
+                except json.JSONDecodeError as parse_error:
+                    logger.error(f"[INVOKE] Failed to parse response as JSON: {parse_error}")
+                    logger.error(f"[INVOKE] Raw response: {body}")
+                    return jsonify({
+                        'success': False,
+                        'error': f'Failed to parse Lambda response: {str(parse_error)}',
+                        'raw_response': body,
+                        'function_name': lambda_function_name,
+                        'region': lambda_region
+                    }), 500
+        except ClientError as invoke_err:
+            error_code = invoke_err.response.get('Error', {}).get('Code', '')
+            error_message = invoke_err.response.get('Error', {}).get('Message', str(invoke_err))
+            logger.error(f"[INVOKE] AWS ClientError during invocation: {error_code} - {error_message}")
+            logger.error(traceback.format_exc())
+            return jsonify({
+                'success': False,
+                'error': f'AWS Error ({error_code}): {error_message}',
+                'function_name': lambda_function_name,
+                'region': lambda_region
+            }), 500
     except ClientError as ce:
         if ce.response['Error']['Code'] == 'ResourceNotFoundException':
             return jsonify({
