@@ -4065,41 +4065,102 @@ def invoke_lambda():
 
         # Determine which Lambda function to use
         lambda_function_name = PRODUCTION_LAMBDA_NAME
+        lambda_region = region  # Track which region the function is in
+        
         try:
-            # List all Lambda functions that match our pattern
+            # List all Lambda functions that match our pattern in the specified region
+            logger.info(f"[INVOKE] Searching for Lambda functions in region: {region}")
             all_functions = lam.list_functions()
             matching_functions = [
                 fn['FunctionName'] for fn in all_functions.get('Functions', [])
                 if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
             ]
             
+            logger.info(f"[INVOKE] Found {len(matching_functions)} matching function(s) in {region}: {matching_functions}")
+            
             if len(matching_functions) > 1:
                 # Multiple functions exist - use hash to pick one consistently
                 user_hash = int(hashlib.md5(email.encode()).hexdigest(), 16)
                 function_index = user_hash % len(matching_functions)
                 lambda_function_name = matching_functions[function_index]
-                logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} for {email} (distributed across {len(matching_functions)} functions)")
+                logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} in {region} for {email} (distributed across {len(matching_functions)} functions)")
             elif len(matching_functions) == 1:
                 # Only one function exists, use it
                 lambda_function_name = matching_functions[0]
-                logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} for {email}")
+                logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} in {region} for {email}")
             else:
-                # No matching functions found, use default
-                logger.warning(f"[INVOKE] No matching Lambda functions found, using default {PRODUCTION_LAMBDA_NAME}")
+                # No matching functions found in this region - try to find in other regions
+                logger.warning(f"[INVOKE] No matching Lambda functions found in {region}, searching other regions...")
+                
+                # List of common AWS regions to search
+                search_regions = [
+                    'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+                    'eu-west-1', 'eu-central-1', 'ap-southeast-1', 'ap-northeast-1'
+                ]
+                
+                found_function = False
+                for search_region in search_regions:
+                    if search_region == region:
+                        continue  # Skip the region we already checked
+                    try:
+                        search_session = get_boto3_session(access_key, secret_key, search_region)
+                        search_lam = search_session.client("lambda")
+                        search_functions = search_lam.list_functions()
+                        search_matching = [
+                            fn['FunctionName'] for fn in search_functions.get('Functions', [])
+                            if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
+                        ]
+                        if search_matching:
+                            lambda_function_name = search_matching[0]  # Use first found
+                            lambda_region = search_region
+                            logger.info(f"[INVOKE] Found Lambda function {lambda_function_name} in {search_region}, using it")
+                            lam = search_lam  # Update Lambda client to use the correct region
+                            found_function = True
+                            break
+                    except Exception as search_err:
+                        logger.debug(f"[INVOKE] Could not search region {search_region}: {search_err}")
+                        continue
+                
+                if not found_function:
+                    logger.warning(f"[INVOKE] No matching Lambda functions found in any region, using default {PRODUCTION_LAMBDA_NAME} in {region}")
         except Exception as list_err:
-            logger.warning(f"[INVOKE] Could not list Lambda functions, using default: {list_err}")
+            logger.error(f"[INVOKE] Error listing Lambda functions: {list_err}")
+            logger.error(traceback.format_exc())
+            logger.warning(f"[INVOKE] Using default {PRODUCTION_LAMBDA_NAME} in {region}")
+
+        # Verify the function exists before invoking
+        try:
+            logger.info(f"[INVOKE] Verifying Lambda function {lambda_function_name} exists in {lambda_region}...")
+            func_info = lam.get_function(FunctionName=lambda_function_name)
+            func_state = func_info.get('Configuration', {}).get('State', 'Unknown')
+            logger.info(f"[INVOKE] Lambda function {lambda_function_name} state: {func_state}")
+            if func_state != 'Active':
+                logger.warning(f"[INVOKE] Lambda function is not in Active state: {func_state}")
+        except ClientError as verify_err:
+            error_code = verify_err.response.get('Error', {}).get('Code', '')
+            if error_code == 'ResourceNotFoundException':
+                logger.error(f"[INVOKE] Lambda function {lambda_function_name} not found in {lambda_region}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Lambda function {lambda_function_name} not found in region {lambda_region}. Please create Lambda functions first.'
+                }), 404
+            else:
+                logger.error(f"[INVOKE] Error verifying function: {verify_err}")
+                raise
 
         event = {
             "email": email,
             "password": password,
         }
 
+        logger.info(f"[INVOKE] Invoking Lambda function {lambda_function_name} in {lambda_region} (async={async_mode})...")
         invocation_type = "Event" if async_mode else "RequestResponse"
         resp = lam.invoke(
             FunctionName=lambda_function_name,
             InvocationType=invocation_type,
             Payload=json.dumps(event).encode("utf-8"),
         )
+        logger.info(f"[INVOKE] Lambda invocation response status: {resp.get('StatusCode')}")
 
         if async_mode:
             status_code = resp.get("StatusCode", 0)
