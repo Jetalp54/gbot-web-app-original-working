@@ -1870,6 +1870,144 @@ def inspect_resources():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# Global list of available AWS regions
+AVAILABLE_GEO_REGIONS = [
+    # United States
+    'us-east-1',      # N. Virginia
+    'us-east-2',      # Ohio
+    'us-west-1',      # N. California
+    'us-west-2',      # Oregon
+    # Africa
+    'af-south-1',     # Cape Town
+    # Asia Pacific
+    'ap-east-1',      # Hong Kong
+    'ap-east-2',      # Taipei
+    'ap-south-1',     # Mumbai
+    'ap-south-2',     # Hyderabad
+    'ap-northeast-1', # Tokyo
+    'ap-northeast-2', # Seoul
+    'ap-northeast-3', # Osaka
+    'ap-southeast-1', # Singapore
+    'ap-southeast-2', # Sydney
+    'ap-southeast-3', # Jakarta
+    'ap-southeast-4', # Melbourne
+    'ap-southeast-5', # Malaysia
+    'ap-southeast-6', # New Zealand
+    'ap-southeast-7', # Thailand
+    # Canada
+    'ca-central-1',   # Central
+    'ca-west-1',      # Calgary
+    # Europe
+    'eu-central-1',   # Frankfurt
+    'eu-west-1',      # Ireland
+    'eu-west-2',      # London
+    'eu-west-3',      # Paris
+    'eu-north-1',     # Stockholm
+    'eu-south-1',     # Milan
+    'eu-south-2',     # Spain
+    # Mexico
+    'mx-central-1',   # Central
+    # Middle East
+    'me-south-1',     # Bahrain
+    'me-central-1',   # UAE
+    'il-central-1',   # Israel (Tel Aviv)
+    # South America
+    'sa-east-1',      # São Paulo
+]
+
+def inspect_region_task(access_key, secret_key, region):
+    """Inspect resources in a single region (for parallel execution)"""
+    result = {
+        'region': region,
+        'status': 'unknown',
+        'lambda_count': 0,
+        'ecr_repo': False,
+        'image_tag': None,
+        'error': None
+    }
+    
+    try:
+        session = get_boto3_session(access_key, secret_key, region)
+        
+        # Check Lambda Functions
+        lam = session.client('lambda', config=Config(connect_timeout=5, read_timeout=5, retries={'max_attempts': 2}))
+        functions = lam.list_functions()
+        func_names = [f['FunctionName'] for f in functions.get('Functions', [])]
+        # Filter for our production lambdas
+        prod_funcs = [f for f in func_names if PRODUCTION_LAMBDA_NAME in f]
+        result['lambda_count'] = len(prod_funcs)
+        
+        # Check ECR Repo
+        ecr = session.client('ecr', config=Config(connect_timeout=5, read_timeout=5, retries={'max_attempts': 2}))
+        try:
+            ecr.describe_repositories(repositoryNames=[ECR_REPO_NAME])
+            result['ecr_repo'] = True
+            
+            # Check Image
+            images = ecr.list_images(repositoryName=ECR_REPO_NAME, filter={'tagStatus': 'TAGGED'})
+            tags = [i.get('imageTag') for i in images.get('imageIds', [])]
+            if ECR_IMAGE_TAG in tags:
+                result['image_tag'] = ECR_IMAGE_TAG
+            else:
+                result['image_tag'] = 'MISSING'
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'RepositoryNotFoundException':
+                result['ecr_repo'] = False
+            else:
+                raise
+                
+        result['status'] = 'ready' if result['lambda_count'] > 0 and result['ecr_repo'] and result['image_tag'] == ECR_IMAGE_TAG else 'incomplete'
+        
+    except Exception as e:
+        result['status'] = 'error'
+        result['error'] = str(e)
+        
+    return result
+
+@aws_manager.route('/api/aws/inspect-all-regions', methods=['POST'])
+@login_required
+def inspect_all_regions():
+    """Inspect resources across ALL regions in parallel"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        
+        if not access_key or not secret_key:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+            
+        logger.info(f"[INSPECT] Starting global inspection for {len(AVAILABLE_GEO_REGIONS)} regions...")
+        
+        results = []
+        with ThreadPoolExecutor(max_workers=20) as pool:
+            future_to_region = {pool.submit(inspect_region_task, access_key, secret_key, region): region for region in AVAILABLE_GEO_REGIONS}
+            
+            for future in as_completed(future_to_region):
+                region = future_to_region[future]
+                try:
+                    data = future.result()
+                    results.append(data)
+                except Exception as exc:
+                    logger.error(f"[INSPECT] Region {region} generated an exception: {exc}")
+                    results.append({
+                        'region': region,
+                        'status': 'error',
+                        'error': str(exc)
+                    })
+                    
+        # Sort results by region name
+        results.sort(key=lambda x: x['region'])
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in global inspection: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @aws_manager.route('/api/aws/create-lambdas', methods=['POST'])
 @login_required
 def create_lambdas():
@@ -2909,295 +3047,6 @@ def fix_lambda_concurrency():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# --- Bulk Generation Logic ---
-
-def process_user_batch_sync(app, user_batch, assigned_function_name, access_key, secret_key, default_region, lambda_region=None):
-    """
-    Process a batch of up to 10 users synchronously (wait for completion).
-    Returns list of results, one per user.
-    This is used for sequential processing within each geo.
-
-    Args:
-        app: Flask app instance
-        user_batch: List of user dicts to process (MUST be <= 10 users)
-        assigned_function_name: Name of Lambda function to invoke
-        access_key: AWS Access Key
-        secret_key: AWS Secret Key
-        default_region: Default AWS region
-        lambda_region: AWS region where Lambda function is deployed (defaults to default_region)
-    """
-    with app.app_context():
-        # CRITICAL: Enforce 10-user limit
-        MAX_USERS_PER_BATCH = 10
-        if len(user_batch) > MAX_USERS_PER_BATCH:
-            print(f"[BULK] [{assigned_function_name}] ⚠️ CRITICAL ERROR: Batch has {len(user_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
-            print(f"[BULK] [{assigned_function_name}] Truncating batch to {MAX_USERS_PER_BATCH} users")
-            user_batch = user_batch[:MAX_USERS_PER_BATCH]
-        
-        # Use lambda_region if provided, otherwise fall back to user's selected region
-        target_region = lambda_region if lambda_region else default_region
-        
-        # Create INDEPENDENT boto3 session and clients for this batch
-        session_batch = boto3.Session(
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name=target_region
-        )
-        
-        # Each batch gets its own Lambda client with extended timeout
-        # CRITICAL: Set read_timeout to 1000 seconds (16+ minutes) to handle batch processing
-        lam_batch = session_batch.client("lambda", config=Config(
-            max_pool_connections=10,
-            retries={'max_attempts': 0},
-            read_timeout=1000,  # 16+ minutes - must exceed Lambda timeout (900s)
-            connect_timeout=60  # 60 seconds connection timeout
-        ))
-        
-        # Prepare all users for processing - NO pre-filtering
-        batch_results = []
-        users_to_process = user_batch  # Process ALL users in the batch (already limited to 10)
-        
-        # Final validation before sending to Lambda
-        if len(users_to_process) > MAX_USERS_PER_BATCH:
-            print(f"[BULK] [{assigned_function_name}] ⚠️ FINAL CHECK FAILED: {len(users_to_process)} users exceeds {MAX_USERS_PER_BATCH} limit!")
-            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
-        
-        print(f"[BULK] [{assigned_function_name}] Will process {len(users_to_process)} user(s) in batch")
-        
-        # Mark emails as being processed (for duplicate detection across parallel geos)
-        for user in users_to_process:
-            email = user['email']
-            with processing_lock:
-                if email in processing_emails:
-                    print(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
-                processing_emails.add(email)
-        
-        # Prepare batch payload for Lambda
-        batch_payload = {
-            "users": [
-                {"email": u['email'], "password": u['password']}
-                for u in users_to_process
-            ]
-        }
-        
-        print(f"[BULK] [{assigned_function_name}] Acquiring semaphore for Lambda invocation...")
-        lambda_invocation_semaphore.acquire()
-        print(f"[BULK] [{assigned_function_name}] ✓ Semaphore acquired, invoking Lambda NOW")
-        try:
-            # Retry logic for rate limiting
-            max_retries = 3
-            resp = None
-            for attempt in range(max_retries):
-                try:
-                    # Use SYNC invocation to wait for completion (sequential processing)
-                    print(f"[BULK] [{assigned_function_name}] Invoking Lambda function...")
-                    resp = lam_batch.invoke(
-                        FunctionName=assigned_function_name,
-                        InvocationType="RequestResponse",  # SYNC - wait for completion
-                        Payload=json.dumps(batch_payload).encode("utf-8"),
-                    )
-                
-                    # Check for function errors in the response
-                    status_code = resp.get("StatusCode", 0)
-                    function_error = resp.get("FunctionError")
-                    
-                    # Parse Lambda response
-                    payload = resp.get("Payload")
-                    body = payload.read().decode("utf-8") if payload else "{}"
-                    
-                    # Check for function errors
-                    if function_error:
-                        print(f"[BULK] [{assigned_function_name}] ⚠️ Lambda function error detected: {function_error}")
-                        print(f"[BULK] [{assigned_function_name}] Error response: {body}")
-                        # All users in batch fail
-                        for u in users_to_process:
-                            batch_results.append({
-                                'email': u['email'],
-                                'success': False,
-                                'error': f'Lambda function error ({function_error}): {body[:200]}'
-                            })
-                        return batch_results
-                
-                    try:
-                        lambda_response = json.loads(body)
-                    except json.JSONDecodeError as je:
-                        print(f"[BULK] Failed to parse Lambda response as JSON: {je}")
-                        # All users in batch fail
-                        for u in users_to_process:
-                            batch_results.append({
-                                'email': u['email'],
-                                'success': False,
-                                'error': f'Invalid JSON response: {body[:200]}'
-                            })
-                        return batch_results
-                
-                    # Handle batch response format
-                    if lambda_response.get("status") == "completed" and "results" in lambda_response:
-                        # Batch processing response
-                        lambda_results = lambda_response.get("results", [])
-                        print(f"[BULK] [{assigned_function_name}] Lambda returned {len(lambda_results)} results")
-                        for lambda_result in lambda_results:
-                            email = lambda_result.get("email", "unknown")
-                            lambda_status = lambda_result.get("status", "unknown")
-                            app_password = lambda_result.get("app_password")
-                            error_msg = lambda_result.get("error_message", "Unknown error")
-                            
-                            if lambda_status == 'success' and app_password:
-                                try:
-                                    save_app_password(email, app_password)
-                                    print(f"[BULK] ✓ Successfully processed {email}")
-                                except Exception as db_err:
-                                    print(f"[BULK] Failed to save to DB for {email}: {db_err}")
-                                batch_results.append({
-                                    'email': email,
-                                    'success': True,
-                                    'app_password': app_password
-                                })
-                            else:
-                                print(f"[BULK] ✗ Lambda failed for {email}: {error_msg}")
-                                batch_results.append({
-                                    'email': email,
-                                    'success': False,
-                                    'error': error_msg
-                                })
-                        break  # Success, exit retry loop
-                    else:
-                        # Fallback: single user response format (backward compatibility)
-                        lambda_status = lambda_response.get('status', 'unknown')
-                        app_password = lambda_response.get('app_password')
-                        error_msg = lambda_response.get('error_message', 'Unknown error')
-                    
-                        # If only one user in batch, use single response format
-                        if len(users_to_process) == 1:
-                            email = users_to_process[0]['email']
-                            if lambda_status == 'success' and app_password:
-                                try:
-                                    save_app_password(email, app_password)
-                                    print(f"[BULK] ✓ Successfully processed {email}")
-                                except Exception as db_err:
-                                    print(f"[BULK] Failed to save to DB for {email}: {db_err}")
-                                batch_results.append({
-                                    'email': email,
-                                    'success': True,
-                                    'app_password': app_password
-                                })
-                            else:
-                                batch_results.append({
-                                    'email': email,
-                                    'success': False,
-                                    'error': error_msg
-                                })
-                            break  # Success, exit retry loop
-                        else:
-                            # Multiple users but got single response - all fail
-                            print(f"[BULK] Expected batch response but got single user format")
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': 'Invalid response format from Lambda'
-                                })
-                            return batch_results
-                    
-                except ClientError as ce:
-                    error_code = ce.response['Error']['Code']
-                    error_message = ce.response['Error'].get('Message', '')
-                    
-                    if error_code == 'ResourceNotFoundException':
-                        print(f"[BULK] Lambda function {assigned_function_name} not found")
-                        # Try to fall back to default function
-                        if assigned_function_name != PRODUCTION_LAMBDA_NAME:
-                            print(f"[BULK] Falling back to default function {PRODUCTION_LAMBDA_NAME}")
-                            assigned_function_name = PRODUCTION_LAMBDA_NAME
-                            continue  # Retry with default function
-                        else:
-                            # All users in batch fail
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': f'Lambda function {assigned_function_name} not found'
-                                })
-                            return batch_results
-                    
-                    if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
-                        if attempt < max_retries - 1:
-                            base_wait = (2 ** attempt) * 2
-                            jitter = random.uniform(0, 1)
-                            wait_time = base_wait + jitter
-                            print(f"[BULK] Rate limited for batch, retrying in {wait_time:.2f}s (attempt {attempt + 1}/{max_retries})")
-                            time.sleep(wait_time)
-                        else:
-                            # All users in batch fail
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': f'Rate limited: {error_message}'
-                                })
-                            return batch_results
-                    else:
-                        print(f"[BULK] AWS error: {error_code} - {error_message}")
-                        # All users in batch fail
-                        for u in users_to_process:
-                            batch_results.append({
-                                'email': u['email'],
-                                'success': False,
-                                'error': f'AWS Error ({error_code}): {error_message}'
-                            })
-                        return batch_results
-                except Exception as invoke_err:
-                    # Check if it's a timeout error
-                    if 'Read timeout' in str(invoke_err) or 'timeout' in str(invoke_err).lower():
-                        print(f"[BULK] Read timeout on attempt {attempt + 1} - Lambda may still be processing")
-                        if attempt == max_retries - 1:
-                            # Final attempt failed - mark as timeout
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': f'Read timeout - Lambda processing may have exceeded timeout'
-                                })
-                            return batch_results
-                        time.sleep(5)
-                        continue
-                    else:
-                        print(f"[BULK] Invocation error: {invoke_err}")
-                        if attempt == max_retries - 1:
-                            # Final attempt failed
-                            for u in users_to_process:
-                                batch_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': f'Invocation error: {str(invoke_err)}'
-                                })
-                            return batch_results
-                        time.sleep(2)
-                        continue
-        finally:
-            lambda_invocation_semaphore.release()
-            
-        # Remove processed emails from tracking set
-        for u in users_to_process:
-            with processing_lock:
-                processing_emails.discard(u['email'])
-
-        return batch_results
-
-def invoke_lambda_task(app, func_num, batch_users, geo, access_key, secret_key, default_region):
-    """
-    Helper function to invoke a single Lambda task (one batch).
-    """
-    func_name = f"{PRODUCTION_LAMBDA_NAME}-{geo.replace('-', '')}-{func_num}"
-    print(f"[BULK EXECUTION] STARTING: Invoking {func_name} in {geo} with {len(batch_users)} users")
-    try:
-        results = process_user_batch_sync(app, batch_users, func_name, access_key, secret_key, default_region, lambda_region=geo)
-        success_count = sum(1 for r in results if r['success'])
-        print(f"[BULK EXECUTION] COMPLETED: {func_name} in {geo} - {success_count}/{len(results)} success")
-        return results
-    except Exception as e:
-        print(f"[BULK EXECUTION] FAILED: {func_name} in {geo} - {e}")
-        print(traceback.format_exc())
         return [{'email': u['email'], 'success': False, 'error': str(e)} for u in batch_users]
         return [{'email': u['email'], 'success': False, 'error': str(e)} for u in batch_users]
 
@@ -3264,15 +3113,13 @@ def bulk_generate():
         return jsonify({'success': False, 'error': 'No valid user:password pairs found'}), 400
 
     logger.info(f"[BULK] Received {len(users_raw)} raw user entries, parsed {len(users)} valid users")
-    
-    # CRITICAL LOGGING - GUARANTEED TO SHOW
-    logger.critical("!"*80)
-    logger.critical("!!! NEW CODE LOADED - REFACTOR V2 ACTIVE !!!")
-    logger.critical(f"!!! TIMESTAMP: {time.time()} !!!")
-    logger.critical("!"*80)
-    
-    # Force flush stdout just in case
-    print(f"!!! STDOUT PROOF OF LIFE: {time.time()} !!!", flush=True)
+
+    # --- PROOF OF LIFE LOGGING ---
+    print("\n" + "!"*80, flush=True)
+    print("!!! NEW CODE LOADED - RESTORED NESTED PARALLELISM !!!", flush=True)
+    print(f"!!! TIMESTAMP: {time.time()} !!!", flush=True)
+    print("!"*80 + "\n", flush=True)
+    # -----------------------------
 
     job_id = str(int(time.time()))
     with jobs_lock:
@@ -3295,26 +3142,23 @@ def bulk_generate():
     
     def background_process(app, job_id, users, access_key, secret_key, region):
         """Background process to handle bulk user processing across geos"""
-        # CRITICAL LOGGING
-        logger.critical("!"*80)
-        logger.critical(f"!!! BACKGROUND PROCESS STARTED - V2 - Job {job_id} !!!")
-        logger.critical("!"*80)
-        print(f"!!! BACKGROUND STDOUT PROOF: {job_id} !!!", flush=True)
-        
+        # --- PROOF OF LIFE LOGGING ---
+        print("\n" + "!"*80, flush=True)
+        print(f"!!! BACKGROUND PROCESS STARTED - NESTED PARALLELISM - Job {job_id} !!!", flush=True)
+        print("!"*80 + "\n", flush=True)
+        # -----------------------------
+
         logger.info(f"[BULK] ========== BACKGROUND PROCESS STARTED ==========")
         logger.info(f"[BULK] Job ID: {job_id}")
         logger.info(f"[BULK] Total users: {len(users)}")
         logger.info(f"[BULK] Region: {region}")
         
         # Ensure job exists before starting processing
-        # Ensure job exists before starting processing
         with jobs_lock:
-            # Load from file to ensure we have the latest state
-            all_jobs = load_jobs()
-            if job_id not in all_jobs:
-                logger.error(f"[BULK] Job {job_id} not found in jobs file at start of background_process!")
+            if job_id not in active_jobs:
+                logger.error(f"[BULK] Job {job_id} not found in active_jobs at start of background_process!")
                 # Try to recreate it
-                all_jobs[job_id] = {
+                active_jobs[job_id] = {
                     'total': len(users),
                     'completed': 0,
                     'success': 0,
@@ -3322,12 +3166,9 @@ def bulk_generate():
                     'results': [],
                     'status': 'processing'
                 }
-                save_jobs({job_id: all_jobs[job_id]})
                 logger.info(f"[BULK] Recreated job {job_id}")
             else:
-                logger.info(f"[BULK] Job {job_id} found in jobs file")
-                # Update local active_jobs cache
-                active_jobs[job_id] = all_jobs[job_id]
+                logger.info(f"[BULK] Job {job_id} found in active_jobs")
         
         try:
             logger.info(f"[BULK] Entering app context...")
@@ -3361,109 +3202,182 @@ def bulk_generate():
                 
                 # Get all available AWS regions (geos)
                 # These are all AWS regions where Lambda can be deployed
-                AVAILABLE_GEO_REGIONS = [
-                    # United States
-                    'us-east-1',      # N. Virginia
-                    'us-east-2',      # Ohio
-                    'us-west-1',      # N. California
-                    'us-west-2',      # Oregon
-                    # Africa
-                    'af-south-1',     # Cape Town
-                    # Asia Pacific
-                    'ap-east-1',      # Hong Kong
-                    'ap-east-2',      # Taipei
-                    'ap-south-1',     # Mumbai
-                    'ap-south-2',     # Hyderabad
-                    'ap-northeast-1', # Tokyo
-                    'ap-northeast-2', # Seoul
-                    'ap-northeast-3', # Osaka
-                    'ap-southeast-1', # Singapore
-                    'ap-southeast-2', # Sydney
-                    'ap-southeast-3', # Jakarta
-                    'ap-southeast-4', # Melbourne
-                    'ap-southeast-5', # Malaysia
-                    'ap-southeast-6', # New Zealand
-                    'ap-southeast-7', # Thailand
-                    # Canada
-                    'ca-central-1',   # Central
-                    'ca-west-1',      # Calgary
-                    # Europe
-                    'eu-central-1',   # Frankfurt
-                    'eu-west-1',      # Ireland
-                    'eu-west-2',      # London
-                    'eu-west-3',      # Paris
-                    'eu-north-1',     # Stockholm
-                    'eu-south-1',     # Milan
-                    'eu-south-2',     # Spain
-                    # Mexico
-                    'mx-central-1',   # Central
-                    # Middle East
-                    'me-south-1',     # Bahrain
-                    'me-central-1',   # UAE
-                    'il-central-1',   # Israel (Tel Aviv)
-                    # South America
-                    'sa-east-1',      # São Paulo
-                ]
+                # Use the global constant we defined earlier
+                # AVAILABLE_GEO_REGIONS is already defined in the module scope
                 
-                # DYNAMIC DISCOVERY: Find where functions are actually located
-                # This handles cases where functions were redistributed from skipped regions
-                logger.info("=" * 60)
-                logger.info(f"[BULK] DISCOVERY PHASE: Scanning {len(AVAILABLE_GEO_REGIONS)} regions for Lambda functions...")
-                
+                # Distribute functions evenly across all available geos using round-robin
+                # Example: 17 functions, 23 geos → 1 function per geo (first 17 geos get 1 function each)
+                # Example: 50 functions, 23 geos → ~2-3 functions per geo (distributed evenly)
                 functions_per_geo = {}  # {geo: [list of function_numbers]}
-                discovered_count = 0
                 
-                def discover_functions_in_geo(geo):
-                    """List functions in a geo and extract their numbers"""
-                    found_funcs = []
-                    try:
-                        d_session = boto3.Session(
+                for func_num in range(num_functions):
+                    # Round-robin distribution: function 0 → geo 0, function 1 → geo 1, etc.
+                    geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
+                    geo = AVAILABLE_GEO_REGIONS[geo_index]
+                    
+                    if geo not in functions_per_geo:
+                        functions_per_geo[geo] = []
+                    functions_per_geo[geo].append(func_num + 1)  # Function numbers start at 1
+                
+                logger.info("=" * 60)
+                logger.info(f"[BULK] Function Distribution Across Geos")
+                logger.info(f"[BULK] Total functions: {num_functions}")
+                logger.info(f"[BULK] Available geos: {len(AVAILABLE_GEO_REGIONS)}")
+                logger.info(f"[BULK] Functions per geo:")
+                for geo, func_numbers in sorted(functions_per_geo.items()):
+                    logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
+                logger.info("=" * 60)
+                
+                # Split users into batches of 10, assigning each batch to a function
+                # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
+                # CRITICAL: Each batch MUST be exactly 10 users or less
+                user_batches = []  # List of (function_number, geo, user_batch) tuples
+                logger.info(f"[BULK] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
+                for func_num in range(num_functions):
+                    start_idx = func_num * USERS_PER_FUNCTION
+                    end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
+                    batch_users = users[start_idx:end_idx]
+                
+                    # ENFORCE: Ensure batch never exceeds 10 users
+                    if len(batch_users) > USERS_PER_FUNCTION:
+                        logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num + 1} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
+                        batch_users = batch_users[:USERS_PER_FUNCTION]
+                    
+                    if batch_users:
+                        # Determine which geo this function belongs to
+                        geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
+                        geo = AVAILABLE_GEO_REGIONS[geo_index]
+                        user_batches.append((func_num + 1, geo, batch_users))
+                        logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                        if len(batch_users) > USERS_PER_FUNCTION:
+                            logger.error(f"[BULK] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
+                    else:
+                        logger.warning(f"[BULK] Function {func_num + 1} has empty batch (start_idx={start_idx}, end_idx={end_idx}, total_users={total_users})")
+                
+                # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
+                USERS_PER_BATCH = 10
+                
+                def process_user_batch_sync(user_batch, assigned_function_name, lambda_region=None):
+                    """
+                    Process a batch of up to 10 users synchronously (wait for completion).
+                    Returns list of results, one per user.
+                    This is used for sequential processing within each geo.
+                
+                    Args:
+                        user_batch: List of user dicts to process (MUST be <= 10 users)
+                        assigned_function_name: Name of Lambda function to invoke
+                        lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
+                    """
+                    with app.app_context():
+                        # CRITICAL: Enforce 10-user limit
+                        MAX_USERS_PER_BATCH = 10
+                        if len(user_batch) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ CRITICAL ERROR: Batch has {len(user_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
+                            logger.error(f"[BULK] [{assigned_function_name}] Truncating batch to {MAX_USERS_PER_BATCH} users")
+                            user_batch = user_batch[:MAX_USERS_PER_BATCH]
+                        
+                        # Use lambda_region if provided, otherwise fall back to user's selected region
+                        target_region = lambda_region if lambda_region else region
+                        
+                        # Create INDEPENDENT boto3 session and clients for this batch
+                        session_batch = boto3.Session(
                             aws_access_key_id=access_key,
                             aws_secret_access_key=secret_key,
-                            region_name=geo
+                            region_name=target_region
                         )
-                        d_lam = d_session.client('lambda')
-                        paginator = d_lam.get_paginator('list_functions')
                         
-                        for page in paginator.paginate():
-                            for fn in page.get('Functions', []):
-                                fname = fn['FunctionName']
-                                # Match pattern: edu-gw-chromium-{geo_code}-{func_num}
-                                if fname.startswith(PRODUCTION_LAMBDA_NAME) and '-' in fname:
-                                    try:
-                                        # Extract the number at the end
-                                        parts = fname.rsplit('-', 1)
-                                        if len(parts) == 2 and parts[1].isdigit():
-                                            fnum = int(parts[1])
-                                            found_funcs.append(fnum)
-                                    except:
-                                        pass
-                        return geo, found_funcs, None
-                    except Exception as e:
-                        return geo, [], str(e)
-
-                with ThreadPoolExecutor(max_workers=20) as d_executor:
-                    d_futures = {d_executor.submit(discover_functions_in_geo, geo): geo for geo in AVAILABLE_GEO_REGIONS}
+                        # Each batch gets its own Lambda client with extended timeout
+                        # CRITICAL: Set read_timeout to 1000 seconds (16+ minutes) to handle batch processing
+                        # Lambda timeout is 900 seconds, so we need client timeout > Lambda timeout
+                        # IMPORTANT: Lambda client uses the region from session_batch (target_region)
+                        lam_batch = session_batch.client("lambda", config=Config(
+                            max_pool_connections=10,
+                            retries={'max_attempts': 0},
+                            read_timeout=1000,  # 16+ minutes - must exceed Lambda timeout (900s)
+                            connect_timeout=60  # 60 seconds connection timeout
+                        ))
+                        
+                        # Each batch gets its own DynamoDB resource
+                        dynamodb_batch = session_batch.resource('dynamodb', config=Config(
+                            max_pool_connections=10
+                        ))
+                        table_batch = dynamodb_batch.Table("gbot-app-passwords")
                     
-                    for future in as_completed(d_futures):
-                        geo, fnums, error = future.result()
-                        if error:
-                            logger.warning(f"[BULK] [DISCOVERY] [{geo}] ⚠️ Error scanning region: {error}")
-                        elif fnums:
-                            functions_per_geo[geo] = sorted(fnums)
-                            discovered_count += len(fnums)
-                            logger.info(f"[BULK] [DISCOVERY] [{geo}] ✓ Found {len(fnums)} function(s): {fnums}")
-                
-                print(f"[BULK DEBUG] DISCOVERY COMPLETED: Found {discovered_count} total functions across {len(functions_per_geo)} regions")
-                
-                # Fallback if we found fewer functions than needed
-                if discovered_count < num_functions:
-                    print(f"[BULK DEBUG] ⚠️ Found only {discovered_count} functions, but need {num_functions}. Triggering fallback for missing ones...")
-                    for func_num in range(num_functions):
-                        # If this function number wasn't found, assign it statically
-                        found = False
-                        for geo, fnums in functions_per_geo.items():
-                            if (func_num + 1) in fnums:
+                        # Prepare all users for processing - NO pre-filtering
+                        # Lambda will handle deduplication if needed
+                        batch_results = []
+                        users_to_process = user_batch  # Process ALL users in the batch (already limited to 10)
+                    
+                        # Final validation before sending to Lambda
+                        if len(users_to_process) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ FINAL CHECK FAILED: {len(users_to_process)} users exceeds {MAX_USERS_PER_BATCH} limit!")
+                            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
+                        
+                        logger.info(f"[BULK] [{assigned_function_name}] Will process {len(users_to_process)} user(s) in batch (MAX: {MAX_USERS_PER_BATCH})")
+                    
+                        # Mark emails as being processed (for duplicate detection across parallel geos)
+                        for user in users_to_process:
+                            email = user['email']
+                            with processing_lock:
+                                if email in processing_emails:
+                                    logger.warning(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
+                                processing_emails.add(email)
+                    
+                        # Prepare batch payload for Lambda
+                        # CRITICAL: Final check - ensure we never send more than 10 users
+                        MAX_USERS_PER_BATCH = 10
+                        if len(users_to_process) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ PAYLOAD CHECK: Truncating {len(users_to_process)} users to {MAX_USERS_PER_BATCH}")
+                            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
+                        
+                        batch_payload = {
+                            "users": [
+                                {"email": u['email'], "password": u['password']}
+                                for u in users_to_process
+                            ]
+                        }
+                        
+                        logger.info("=" * 60)
+                        logger.info(f"[BULK] [{assigned_function_name}] PREPARING TO INVOKE LAMBDA")
+                        logger.info(f"[BULK] [{assigned_function_name}] Batch size: {len(users_to_process)} user(s) (MAX: {MAX_USERS_PER_BATCH})")
+                        if len(users_to_process) > MAX_USERS_PER_BATCH:
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ ERROR: Batch size {len(users_to_process)} exceeds limit {MAX_USERS_PER_BATCH}!")
+                        logger.info(f"[BULK] [{assigned_function_name}] Users in batch: {[u['email'] for u in users_to_process]}")
+                        logger.info(f"[BULK] [{assigned_function_name}] Payload structure: {{'users': [{{'email': ..., 'password': ...}}]}}")
+                        logger.info(f"[BULK] [{assigned_function_name}] Payload JSON length: {len(json.dumps(batch_payload))} bytes")
+                        logger.info(f"[BULK] [{assigned_function_name}] Payload preview: {json.dumps(batch_payload)[:500]}...")
+                        logger.info("=" * 60)
+                        
+                        # Rate limiting: Acquire semaphore to limit concurrent invocations
+                        # NOTE: Semaphore limit is now 500 to allow all functions in all geos to start in parallel
+                        # The semaphore is held for the duration of the Lambda invocation (up to 15 minutes)
+                        # This ensures we don't exceed AWS account limits while allowing maximum parallelism
+                        logger.info(f"[BULK] [{assigned_function_name}] Acquiring semaphore for Lambda invocation...")
+                        lambda_invocation_semaphore.acquire()
+                        logger.info(f"[BULK] [{assigned_function_name}] ✓ Semaphore acquired, invoking Lambda NOW (parallel execution enabled)")
+                        try:
+                            # Retry logic for rate limiting
+                            max_retries = 3
+                            resp = None
+                            for attempt in range(max_retries):
+                                try:
+                                    # Use SYNC invocation to wait for completion (sequential processing)
+                                    resp = lam_batch.invoke(
+                                        FunctionName=assigned_function_name,
+                                        InvocationType="RequestResponse",  # SYNC - wait for completion
+                                        Payload=json.dumps(batch_payload).encode("utf-8"),
+                                    )
+                                
+                                    # Parse Lambda response
+                                    payload = resp.get("Payload")
+                                    body = payload.read().decode("utf-8") if payload else "{}"
+                                    logger.info("=" * 60)
+                                    logger.info(f"[BULK] [{assigned_function_name}] LAMBDA RESPONSE RECEIVED")
+                                    logger.info(f"[BULK] [{assigned_function_name}] Response status code: {resp.get('StatusCode')}")
+                                    logger.info(f"[BULK] [{assigned_function_name}] Response body (first 2000 chars): {body[:2000]}")
+                                    logger.info("=" * 60)
+                                
+                                    try:
                                 found = True
                                 break
                         
