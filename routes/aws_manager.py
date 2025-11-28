@@ -3032,54 +3032,102 @@ def bulk_generate():
                     'sa-east-1',      # São Paulo
                 ]
                 
-                # Distribute functions evenly across all available geos using round-robin
-                # Example: 17 functions, 23 geos → 1 function per geo (first 17 geos get 1 function each)
-                # Example: 50 functions, 23 geos → ~2-3 functions per geo (distributed evenly)
-                functions_per_geo = {}  # {geo: [list of function_numbers]}
+                # --- FUNCTION DISCOVERY PHASE ---
+                logger.info("=" * 60)
+                logger.info(f"[BULK] FUNCTION DISCOVERY: Scanning 33 regions for existing Lambda functions...")
+                logger.info("=" * 60)
                 
-                for func_num in range(num_functions):
-                    # Round-robin distribution: function 0 → geo 0, function 1 → geo 1, etc.
-                    geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
-                    geo = AVAILABLE_GEO_REGIONS[geo_index]
+                discovered_functions = {}  # {func_num: {'geo': geo, 'name': name}}
+                
+                def scan_region_for_functions(geo):
+                    """Scan a region for relevant Lambda functions"""
+                    found_funcs = []
+                    try:
+                        scan_session = boto3.Session(
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
+                            region_name=geo
+                        )
+                        scan_lam = scan_session.client('lambda')
+                        paginator = scan_lam.get_paginator('list_functions')
+                        
+                        for page in paginator.paginate():
+                            for fn in page['Functions']:
+                                fname = fn['FunctionName']
+                                # Match our function pattern: edu-gw-chromium-...
+                                if fname.startswith(PRODUCTION_LAMBDA_NAME):
+                                    # Extract function number from end of name
+                                    # Format: ...-geo-NUM or just ...-NUM
+                                    try:
+                                        parts = fname.rsplit('-', 1)
+                                        if len(parts) > 1 and parts[1].isdigit():
+                                            fnum = int(parts[1])
+                                            found_funcs.append({'num': fnum, 'name': fname, 'geo': geo})
+                                    except Exception:
+                                        pass
+                        return geo, found_funcs, None
+                    except Exception as e:
+                        return geo, [], str(e)
+
+                # Execute scan in parallel
+                with ThreadPoolExecutor(max_workers=33) as scan_executor:
+                    scan_futures = {scan_executor.submit(scan_region_for_functions, geo): geo for geo in AVAILABLE_GEO_REGIONS}
                     
-                    if geo not in functions_per_geo:
-                        functions_per_geo[geo] = []
-                    functions_per_geo[geo].append(func_num + 1)  # Function numbers start at 1
-            
-            logger.info("=" * 60)
-            logger.info(f"[BULK] Function Distribution Across Geos")
-            logger.info(f"[BULK] Total functions: {num_functions}")
-            logger.info(f"[BULK] Available geos: {len(AVAILABLE_GEO_REGIONS)}")
-            logger.info(f"[BULK] Functions per geo:")
-            for geo, func_numbers in sorted(functions_per_geo.items()):
-                logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
-            logger.info("=" * 60)
-            
-            # Split users into batches of 10, assigning each batch to a function
-            # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
-            # CRITICAL: Each batch MUST be exactly 10 users or less
-            user_batches = []  # List of (function_number, geo, user_batch) tuples
-            logger.info(f"[BULK] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
-            for func_num in range(num_functions):
-                start_idx = func_num * USERS_PER_FUNCTION
-                end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
-                batch_users = users[start_idx:end_idx]
+                    for future in as_completed(scan_futures):
+                        geo, funcs, error = future.result()
+                        if error:
+                            logger.warning(f"[BULK] [DISCOVERY] [{geo}] Scan failed: {error}")
+                        elif funcs:
+                            logger.info(f"[BULK] [DISCOVERY] [{geo}] Found {len(funcs)} function(s): {[f['name'] for f in funcs]}")
+                            for f in funcs:
+                                fnum = f['num']
+                                # If duplicate function numbers exist (shouldn't happen with correct logic), 
+                                # we overwrite. This handles the case where a function moved.
+                                discovered_functions[fnum] = {'geo': geo, 'name': f['name']}
                 
-                # ENFORCE: Ensure batch never exceeds 10 users
-                if len(batch_users) > USERS_PER_FUNCTION:
-                    logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num + 1} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
-                    batch_users = batch_users[:USERS_PER_FUNCTION]
+                total_discovered = len(discovered_functions)
+                logger.info("=" * 60)
+                logger.info(f"[BULK] DISCOVERY COMPLETED")
+                logger.info(f"[BULK]   Total functions found: {total_discovered}")
+                logger.info(f"[BULK]   Function map: {sorted(discovered_functions.keys())}")
+                logger.info("=" * 60)
                 
-                if batch_users:
-                    # Determine which geo this function belongs to
-                    geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
-                    geo = AVAILABLE_GEO_REGIONS[geo_index]
-                    user_batches.append((func_num + 1, geo, batch_users))
-                    logger.info(f"[BULK] Function {func_num + 1} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
-                    if len(batch_users) > USERS_PER_FUNCTION:
-                        logger.error(f"[BULK] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
-                else:
-                    logger.warning(f"[BULK] Function {func_num + 1} has empty batch (start_idx={start_idx}, end_idx={end_idx}, total_users={total_users})")
+                if total_discovered == 0:
+                    logger.error("[BULK] ✗✗✗ STOPPING: No Lambda functions found in any region. Please create them first.")
+                    # Update job status
+                    with jobs_lock:
+                        if job_id in active_jobs:
+                            active_jobs[job_id]['status'] = 'failed'
+                            active_jobs[job_id]['failed'] = len(users)
+                    return
+
+                # Assign batches based on DISCOVERED functions
+                user_batches = []
+                
+                # We process users in order, assigning them to available functions
+                # If we have more users than function capacity, we cycle through functions
+                
+                # Sort functions by number to ensure deterministic assignment
+                sorted_func_nums = sorted(discovered_functions.keys())
+                
+                current_user_idx = 0
+                batch_count = 0
+                
+                while current_user_idx < total_users:
+                    # Get next 10 users
+                    end_idx = min(current_user_idx + USERS_PER_FUNCTION, total_users)
+                    batch_users = users[current_user_idx:end_idx]
+                    
+                    # Assign to next function (round-robin among DISCOVERED functions)
+                    func_num = sorted_func_nums[batch_count % len(sorted_func_nums)]
+                    func_info = discovered_functions[func_num]
+                    
+                    user_batches.append((func_num, func_info['geo'], batch_users, func_info['name']))
+                    
+                    logger.info(f"[BULK] Batch {batch_count+1}: Assigned {len(batch_users)} users to Function #{func_num} ({func_info['name']} in {func_info['geo']})")
+                    
+                    current_user_idx = end_idx
+                    batch_count += 1
             
             # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
             USERS_PER_BATCH = 10
@@ -3372,14 +3420,15 @@ def bulk_generate():
                     return batch_results
             
                 # Group batches by geo for sequential processing within each geo
-                batches_by_geo = {}  # {geo: [(function_number, user_batch), ...]}
+                # Group batches by geo for sequential processing within each geo
+                batches_by_geo = {}  # {geo: [(function_number, user_batch, function_name), ...]}
                 logger.info(f"[BULK] Grouping {len(user_batches)} batches by geo...")
-                for func_num, geo, batch_users in user_batches:
-                    logger.info(f"[BULK] Processing batch: func_num={func_num}, geo={geo}, batch_size={len(batch_users)}, users={[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                for func_num, geo, batch_users, func_name in user_batches:
+                    logger.info(f"[BULK] Processing batch: func_num={func_num}, geo={geo}, func_name={func_name}, batch_size={len(batch_users)}")
                     if geo not in batches_by_geo:
                         batches_by_geo[geo] = []
-                    batches_by_geo[geo].append((func_num, batch_users))
-                    logger.info(f"[BULK] Added to geo {geo}: Function {func_num} with {len(batch_users)} user(s)")
+                    batches_by_geo[geo].append((func_num, batch_users, func_name))
+                    logger.info(f"[BULK] Added to geo {geo}: Function {func_num} ({func_name}) with {len(batch_users)} user(s)")
             
                 logger.info("=" * 60)
                 logger.info(f"[BULK] Batches per geo:")
@@ -3445,110 +3494,61 @@ def bulk_generate():
                             raise Exception(f"Failed to initialize {geo}: {e}")
                         
                         # Helper function to process a single function
-                        def process_single_function(func_num, batch_users, batch_idx):
+                        def process_single_function(func_num, batch_users, batch_idx, explicit_func_name):
                             """Process a single Lambda function (thread-safe)"""
                             function_results = []
-                            func_name = None
                             
                             try:
                                 logger.info("=" * 60)
                                 logger.info(f"[BULK] [{geo}] ===== FUNCTION {batch_idx + 1}/{len(geo_batches_list)} (PARALLEL) =====")
                                 logger.info(f"[BULK] [{geo}] Function number: {func_num}")
+                                logger.info(f"[BULK] [{geo}] Function Name: {explicit_func_name}")
                                 logger.info(f"[BULK] [{geo}] Users in batch: {len(batch_users)}")
-                                logger.info(f"[BULK] [{geo}] User emails: {[u['email'] for u in batch_users[:5]]}{'...' if len(batch_users) > 5 else ''}")
                                 logger.info("=" * 60)
                             
-                                # Generate function name: edu-gw-chromium-{geo_code}-{func_num}
-                                geo_code = geo.replace('-', '')  # Remove dashes: us-east-1 -> useast1
-                                func_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
+                                # Use the explicit function name discovered earlier
+                                func_name = explicit_func_name
                                 
-                                logger.info(f"[BULK] [{geo}] Looking for function: {func_name}")
-                                logger.info(f"[BULK] [{geo}] Available functions in {geo}: {existing_function_names}")
+                                # Verify function exists in the list we retrieved earlier
+                                if func_name not in existing_function_names:
+                                    logger.warning(f"[BULK] [{geo}] Function {func_name} not found in list_functions cache. It might have been deleted.")
+                                    # Try to invoke anyway, maybe the cache is stale
+                                
+                                # Invoke the function
+                                logger.info(f"[BULK] [{geo}] Invoking function: {func_name}")
+                                results = process_user_batch_sync(batch_users, func_name, lambda_region=geo)
+                                function_results.extend(results)
+                                
+                            except Exception as e:
+                                logger.error(f"[BULK] [{geo}] Error processing function {func_num}: {e}")
+                                logger.error(traceback.format_exc())
+                                for u in batch_users:
+                                    function_results.append({
+                                        'email': u['email'],
+                                        'success': False,
+                                        'error': f"Processing error: {str(e)}"
+                                    })
                             
-                                # Create function if it doesn't exist (thread-safe check)
-                                with threading.Lock():
-                                    if func_name not in existing_function_names:
-                                        # Try to find any function matching the pattern
-                                        matching_functions = [fn for fn in existing_function_names if PRODUCTION_LAMBDA_NAME in fn and geo_code in fn]
-                                        if matching_functions:
-                                            logger.warning(f"[BULK] [{geo}] Function {func_name} not found, but found similar: {matching_functions}")
-                                            # Use the first matching function if exact match not found
-                                            if len(matching_functions) == 1:
-                                                func_name = matching_functions[0]
-                                                logger.info(f"[BULK] [{geo}] Using similar function: {func_name}")
-                                            else:
-                                                # Multiple matches - try to find one with func_num
-                                                func_num_str = str(func_num)
-                                                exact_match = [fn for fn in matching_functions if func_num_str in fn]
-                                                if exact_match:
-                                                    func_name = exact_match[0]
-                                                    logger.info(f"[BULK] [{geo}] Using function with matching number: {func_name}")
-                                                else:
-                                                    func_name = matching_functions[0]
-                                                    logger.warning(f"[BULK] [{geo}] Using first matching function: {func_name}")
-                                        else:
-                                            logger.info(f"[BULK] [{geo}] Creating Lambda function: {func_name}")
-                                        try:
-                                            role_arn = ensure_lambda_role(session_boto)
-                                            chromium_env = {
-                                                "DYNAMODB_TABLE_NAME": "gbot-app-passwords",
-                                                "DYNAMODB_REGION": "eu-west-1",
-                                                "APP_PASSWORDS_S3_BUCKET": S3_BUCKET_NAME,
-                                                "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
-                                            }
-                                            
-                                            # Add proxy configuration if enabled
-                                            proxy_config = get_proxy_config()
-                                            if proxy_config and proxy_config.get('enabled'):
-                                                proxies = parse_proxy_list(proxy_config.get('proxies', ''))
-                                                if proxies:
-                                                    chromium_env['PROXY_ENABLED'] = 'true'
-                                                    chromium_env['PROXY_LIST'] = proxy_config.get('proxies', '')
-                                                    logger.info(f"[PROXY] [{geo}] Proxy feature enabled with {len(proxies)} proxy/proxies")
-                                                else:
-                                                    chromium_env['PROXY_ENABLED'] = 'false'
-                                            else:
-                                                chromium_env['PROXY_ENABLED'] = 'false'
-                                            
-                                            # Add 2Captcha configuration if enabled
-                                            twocaptcha_config = get_twocaptcha_config()
-                                            if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
-                                                chromium_env['TWOCAPTCHA_ENABLED'] = 'true'
-                                                chromium_env['TWOCAPTCHA_API_KEY'] = twocaptcha_config.get('api_key', '')
-                                                logger.info(f"[2CAPTCHA] [{geo}] 2Captcha feature enabled for automatic CAPTCHA solving")
-                                            else:
-                                                chromium_env['TWOCAPTCHA_ENABLED'] = 'false'
-                                                chromium_env['TWOCAPTCHA_API_KEY'] = ''
-                                        
-                                            # Extract ECR URI
-                                            ecr_uri = None
-                                            try:
-                                                if existing_function_names:
-                                                    existing_func = lam_client.get_function(FunctionName=existing_function_names[0])
-                                                    code_location = existing_func.get('Code', {}).get('ImageUri')
-                                                    if code_location:
-                                                        ecr_uri = code_location
-                                            except Exception:
-                                                pass
-                                        
-                                            if not ecr_uri:
-                                                sts = session_boto.client('sts')
-                                                account_id = sts.get_caller_identity()['Account']
-                                                ecr_uri = f"{account_id}.dkr.ecr.{geo}.amazonaws.com/{ECR_REPO_NAME}:{ECR_IMAGE_TAG}"
-                                        
-                                            if func_name != PRODUCTION_LAMBDA_NAME:
-                                                create_or_update_lambda(
-                                                    session=session_boto,
-                                                    function_name=func_name,
-                                                    role_arn=role_arn,
-                                                    timeout=900,
-                                                    env_vars=chromium_env,
-                                                    package_type="Image",
-                                                    image_uri=ecr_uri,
-                                                )
-                                                logger.info(f"[BULK] [{geo}] ✓ Created Lambda function: {func_name}")
-                                                existing_function_names.append(func_name)
-                                        except Exception as create_err:
+                            return function_results
+
+                        # Execute functions in parallel within the geo
+                        geo_results = []
+                        with ThreadPoolExecutor(max_workers=max_workers) as geo_executor:
+                            # Submit tasks for each batch in this geo
+                            # batch is now (func_num, batch_users, func_name)
+                            future_to_batch = {
+                                geo_executor.submit(process_single_function, batch[0], batch[1], i, batch[2]): i 
+                                for i, batch in enumerate(geo_batches_list)
+                            }
+                            
+                            for future in as_completed(future_to_batch):
+                                try:
+                                    res = future.result()
+                                    geo_results.extend(res)
+                                except Exception as exc:
+                                    logger.error(f"[BULK] [{geo}] Batch execution generated an exception: {exc}")
+                        
+                        return geo_results                                        except Exception as create_err:
                                             logger.error(f"[BULK] [{geo}] Failed to create {func_name}: {create_err}")
                                             func_name = PRODUCTION_LAMBDA_NAME
                                 
