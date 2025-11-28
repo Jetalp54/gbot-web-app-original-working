@@ -2911,6 +2911,295 @@ def fix_lambda_concurrency():
 
 # --- Bulk Generation Logic ---
 
+def process_user_batch_sync(app, user_batch, assigned_function_name, access_key, secret_key, default_region, lambda_region=None):
+    """
+    Process a batch of up to 10 users synchronously (wait for completion).
+    Returns list of results, one per user.
+    This is used for sequential processing within each geo.
+
+    Args:
+        app: Flask app instance
+        user_batch: List of user dicts to process (MUST be <= 10 users)
+        assigned_function_name: Name of Lambda function to invoke
+        access_key: AWS Access Key
+        secret_key: AWS Secret Key
+        default_region: Default AWS region
+        lambda_region: AWS region where Lambda function is deployed (defaults to default_region)
+    """
+    with app.app_context():
+        # CRITICAL: Enforce 10-user limit
+        MAX_USERS_PER_BATCH = 10
+        if len(user_batch) > MAX_USERS_PER_BATCH:
+            print(f"[BULK] [{assigned_function_name}] ⚠️ CRITICAL ERROR: Batch has {len(user_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
+            print(f"[BULK] [{assigned_function_name}] Truncating batch to {MAX_USERS_PER_BATCH} users")
+            user_batch = user_batch[:MAX_USERS_PER_BATCH]
+        
+        # Use lambda_region if provided, otherwise fall back to user's selected region
+        target_region = lambda_region if lambda_region else default_region
+        
+        # Create INDEPENDENT boto3 session and clients for this batch
+        session_batch = boto3.Session(
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name=target_region
+        )
+        
+        # Each batch gets its own Lambda client with extended timeout
+        # CRITICAL: Set read_timeout to 1000 seconds (16+ minutes) to handle batch processing
+        lam_batch = session_batch.client("lambda", config=Config(
+            max_pool_connections=10,
+            retries={'max_attempts': 0},
+            read_timeout=1000,  # 16+ minutes - must exceed Lambda timeout (900s)
+            connect_timeout=60  # 60 seconds connection timeout
+        ))
+        
+        # Prepare all users for processing - NO pre-filtering
+        batch_results = []
+        users_to_process = user_batch  # Process ALL users in the batch (already limited to 10)
+        
+        # Final validation before sending to Lambda
+        if len(users_to_process) > MAX_USERS_PER_BATCH:
+            print(f"[BULK] [{assigned_function_name}] ⚠️ FINAL CHECK FAILED: {len(users_to_process)} users exceeds {MAX_USERS_PER_BATCH} limit!")
+            users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
+        
+        print(f"[BULK] [{assigned_function_name}] Will process {len(users_to_process)} user(s) in batch")
+        
+        # Mark emails as being processed (for duplicate detection across parallel geos)
+        for user in users_to_process:
+            email = user['email']
+            with processing_lock:
+                if email in processing_emails:
+                    print(f"[BULK] ⚠️ WARNING: {email} is already being processed in another geo!")
+                processing_emails.add(email)
+        
+        # Prepare batch payload for Lambda
+        batch_payload = {
+            "users": [
+                {"email": u['email'], "password": u['password']}
+                for u in users_to_process
+            ]
+        }
+        
+        print(f"[BULK] [{assigned_function_name}] Acquiring semaphore for Lambda invocation...")
+        lambda_invocation_semaphore.acquire()
+        print(f"[BULK] [{assigned_function_name}] ✓ Semaphore acquired, invoking Lambda NOW")
+        try:
+            # Retry logic for rate limiting
+            max_retries = 3
+            resp = None
+            for attempt in range(max_retries):
+                try:
+                    # Use SYNC invocation to wait for completion (sequential processing)
+                    print(f"[BULK] [{assigned_function_name}] Invoking Lambda function...")
+                    resp = lam_batch.invoke(
+                        FunctionName=assigned_function_name,
+                        InvocationType="RequestResponse",  # SYNC - wait for completion
+                        Payload=json.dumps(batch_payload).encode("utf-8"),
+                    )
+                
+                    # Check for function errors in the response
+                    status_code = resp.get("StatusCode", 0)
+                    function_error = resp.get("FunctionError")
+                    
+                    # Parse Lambda response
+                    payload = resp.get("Payload")
+                    body = payload.read().decode("utf-8") if payload else "{}"
+                    
+                    # Check for function errors
+                    if function_error:
+                        print(f"[BULK] [{assigned_function_name}] ⚠️ Lambda function error detected: {function_error}")
+                        print(f"[BULK] [{assigned_function_name}] Error response: {body}")
+                        # All users in batch fail
+                        for u in users_to_process:
+                            batch_results.append({
+                                'email': u['email'],
+                                'success': False,
+                                'error': f'Lambda function error ({function_error}): {body[:200]}'
+                            })
+                        return batch_results
+                
+                    try:
+                        lambda_response = json.loads(body)
+                    except json.JSONDecodeError as je:
+                        print(f"[BULK] Failed to parse Lambda response as JSON: {je}")
+                        # All users in batch fail
+                        for u in users_to_process:
+                            batch_results.append({
+                                'email': u['email'],
+                                'success': False,
+                                'error': f'Invalid JSON response: {body[:200]}'
+                            })
+                        return batch_results
+                
+                    # Handle batch response format
+                    if lambda_response.get("status") == "completed" and "results" in lambda_response:
+                        # Batch processing response
+                        lambda_results = lambda_response.get("results", [])
+                        print(f"[BULK] [{assigned_function_name}] Lambda returned {len(lambda_results)} results")
+                        for lambda_result in lambda_results:
+                            email = lambda_result.get("email", "unknown")
+                            lambda_status = lambda_result.get("status", "unknown")
+                            app_password = lambda_result.get("app_password")
+                            error_msg = lambda_result.get("error_message", "Unknown error")
+                            
+                            if lambda_status == 'success' and app_password:
+                                try:
+                                    save_app_password(email, app_password)
+                                    print(f"[BULK] ✓ Successfully processed {email}")
+                                except Exception as db_err:
+                                    print(f"[BULK] Failed to save to DB for {email}: {db_err}")
+                                batch_results.append({
+                                    'email': email,
+                                    'success': True,
+                                    'app_password': app_password
+                                })
+                            else:
+                                print(f"[BULK] ✗ Lambda failed for {email}: {error_msg}")
+                                batch_results.append({
+                                    'email': email,
+                                    'success': False,
+                                    'error': error_msg
+                                })
+                        break  # Success, exit retry loop
+                    else:
+                        # Fallback: single user response format (backward compatibility)
+                        lambda_status = lambda_response.get('status', 'unknown')
+                        app_password = lambda_response.get('app_password')
+                        error_msg = lambda_response.get('error_message', 'Unknown error')
+                    
+                        # If only one user in batch, use single response format
+                        if len(users_to_process) == 1:
+                            email = users_to_process[0]['email']
+                            if lambda_status == 'success' and app_password:
+                                try:
+                                    save_app_password(email, app_password)
+                                    print(f"[BULK] ✓ Successfully processed {email}")
+                                except Exception as db_err:
+                                    print(f"[BULK] Failed to save to DB for {email}: {db_err}")
+                                batch_results.append({
+                                    'email': email,
+                                    'success': True,
+                                    'app_password': app_password
+                                })
+                            else:
+                                batch_results.append({
+                                    'email': email,
+                                    'success': False,
+                                    'error': error_msg
+                                })
+                            break  # Success, exit retry loop
+                        else:
+                            # Multiple users but got single response - all fail
+                            print(f"[BULK] Expected batch response but got single user format")
+                            for u in users_to_process:
+                                batch_results.append({
+                                    'email': u['email'],
+                                    'success': False,
+                                    'error': 'Invalid response format from Lambda'
+                                })
+                            return batch_results
+                    
+                except ClientError as ce:
+                    error_code = ce.response['Error']['Code']
+                    error_message = ce.response['Error'].get('Message', '')
+                    
+                    if error_code == 'ResourceNotFoundException':
+                        print(f"[BULK] Lambda function {assigned_function_name} not found")
+                        # Try to fall back to default function
+                        if assigned_function_name != PRODUCTION_LAMBDA_NAME:
+                            print(f"[BULK] Falling back to default function {PRODUCTION_LAMBDA_NAME}")
+                            assigned_function_name = PRODUCTION_LAMBDA_NAME
+                            continue  # Retry with default function
+                        else:
+                            # All users in batch fail
+                            for u in users_to_process:
+                                batch_results.append({
+                                    'email': u['email'],
+                                    'success': False,
+                                    'error': f'Lambda function {assigned_function_name} not found'
+                                })
+                            return batch_results
+                    
+                    if error_code == 'TooManyRequestsException' or error_code == 'ThrottlingException':
+                        if attempt < max_retries - 1:
+                            base_wait = (2 ** attempt) * 2
+                            jitter = random.uniform(0, 1)
+                            wait_time = base_wait + jitter
+                            print(f"[BULK] Rate limited for batch, retrying in {wait_time:.2f}s (attempt {attempt + 1}/{max_retries})")
+                            time.sleep(wait_time)
+                        else:
+                            # All users in batch fail
+                            for u in users_to_process:
+                                batch_results.append({
+                                    'email': u['email'],
+                                    'success': False,
+                                    'error': f'Rate limited: {error_message}'
+                                })
+                            return batch_results
+                    else:
+                        print(f"[BULK] AWS error: {error_code} - {error_message}")
+                        # All users in batch fail
+                        for u in users_to_process:
+                            batch_results.append({
+                                'email': u['email'],
+                                'success': False,
+                                'error': f'AWS Error ({error_code}): {error_message}'
+                            })
+                        return batch_results
+                except Exception as invoke_err:
+                    # Check if it's a timeout error
+                    if 'Read timeout' in str(invoke_err) or 'timeout' in str(invoke_err).lower():
+                        print(f"[BULK] Read timeout on attempt {attempt + 1} - Lambda may still be processing")
+                        if attempt == max_retries - 1:
+                            # Final attempt failed - mark as timeout
+                            for u in users_to_process:
+                                batch_results.append({
+                                    'email': u['email'],
+                                    'success': False,
+                                    'error': f'Read timeout - Lambda processing may have exceeded timeout'
+                                })
+                            return batch_results
+                        time.sleep(5)
+                        continue
+                    else:
+                        print(f"[BULK] Invocation error: {invoke_err}")
+                        if attempt == max_retries - 1:
+                            # Final attempt failed
+                            for u in users_to_process:
+                                batch_results.append({
+                                    'email': u['email'],
+                                    'success': False,
+                                    'error': f'Invocation error: {str(invoke_err)}'
+                                })
+                            return batch_results
+                        time.sleep(2)
+                        continue
+        finally:
+            lambda_invocation_semaphore.release()
+            
+        # Remove processed emails from tracking set
+        for u in users_to_process:
+            with processing_lock:
+                processing_emails.discard(u['email'])
+
+        return batch_results
+
+def invoke_lambda_task(app, func_num, batch_users, geo, access_key, secret_key, default_region):
+    """
+    Helper function to invoke a single Lambda task (one batch).
+    """
+    func_name = f"{PRODUCTION_LAMBDA_NAME}-{geo.replace('-', '')}-{func_num}"
+    print(f"[BULK EXECUTION] STARTING: Invoking {func_name} in {geo} with {len(batch_users)} users")
+    try:
+        results = process_user_batch_sync(app, batch_users, func_name, access_key, secret_key, default_region, lambda_region=geo)
+        success_count = sum(1 for r in results if r['success'])
+        print(f"[BULK EXECUTION] COMPLETED: {func_name} in {geo} - {success_count}/{len(results)} success")
+        return results
+    except Exception as e:
+        print(f"[BULK EXECUTION] FAILED: {func_name} in {geo} - {e}")
+        print(traceback.format_exc())
+        return [{'email': u['email'], 'success': False, 'error': str(e)} for u in batch_users]
+
 @aws_manager.route('/api/aws/bulk-generate', methods=['POST'])
 @login_required
 def bulk_generate():
