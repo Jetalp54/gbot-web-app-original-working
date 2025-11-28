@@ -3199,7 +3199,16 @@ def invoke_lambda_task(app, func_num, batch_users, geo, access_key, secret_key, 
         print(f"[BULK EXECUTION] FAILED: {func_name} in {geo} - {e}")
         print(traceback.format_exc())
         return [{'email': u['email'], 'success': False, 'error': str(e)} for u in batch_users]
+        return [{'email': u['email'], 'success': False, 'error': str(e)} for u in batch_users]
 
+@aws_manager.route('/api/aws/debug-version', methods=['GET'])
+def debug_version():
+    """Debug endpoint to check code version"""
+    return jsonify({
+        'version': 'REFACTORED_FLAT_EXECUTION_MODEL_V1',
+        'timestamp': time.time(),
+        'message': 'If you see this, the new code is active.'
+    })
 @aws_manager.route('/api/aws/bulk-generate', methods=['POST'])
 @login_required
 def bulk_generate():
