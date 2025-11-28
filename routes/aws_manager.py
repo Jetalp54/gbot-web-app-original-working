@@ -39,8 +39,59 @@ aws_manager = Blueprint('aws_manager', __name__)
 
 # Global executor for background tasks
 executor = ThreadPoolExecutor(max_workers=20)
-active_jobs = {}
+active_jobs = {}  # Kept for backward compatibility, but we use file persistence now
 jobs_lock = threading.Lock()  # Lock for job storage
+
+# --- File-Based Job Persistence ---
+JOBS_DIR = os.path.join(os.getcwd(), 'jobs')
+if not os.path.exists(JOBS_DIR):
+    try:
+        os.makedirs(JOBS_DIR)
+        logger.info(f"[JOBS] Created jobs directory: {JOBS_DIR}")
+    except Exception as e:
+        logger.error(f"[JOBS] Failed to create jobs directory: {e}")
+
+def save_job(job_id, data):
+    """Save job data to JSON file"""
+    try:
+        file_path = os.path.join(JOBS_DIR, f"{job_id}.json")
+        # Write to temp file first then atomic rename to avoid partial reads
+        temp_path = f"{file_path}.tmp"
+        with open(temp_path, 'w') as f:
+            json.dump(data, f)
+        os.replace(temp_path, file_path)
+        
+        # Also update in-memory cache for this worker
+        with jobs_lock:
+            active_jobs[job_id] = data
+            
+        return True
+    except Exception as e:
+        logger.error(f"[JOBS] Failed to save job {job_id}: {e}")
+        return False
+
+def load_job(job_id):
+    """Load job data from JSON file"""
+    try:
+        # First check memory (fast path)
+        with jobs_lock:
+            if job_id in active_jobs:
+                return active_jobs[job_id]
+        
+        # Fallback to disk
+        file_path = os.path.join(JOBS_DIR, f"{job_id}.json")
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            
+            # Update memory cache
+            with jobs_lock:
+                active_jobs[job_id] = data
+            return data
+        return None
+    except Exception as e:
+        logger.error(f"[JOBS] Failed to load job {job_id}: {e}")
+        return None
 
 # Track Lambda creation jobs
 lambda_creation_jobs = {}
@@ -2914,17 +2965,21 @@ def bulk_generate():
         return jsonify({'success': False, 'error': 'No valid user:password pairs found'}), 400
 
     logger.info(f"[BULK] Received {len(users_raw)} raw user entries, parsed {len(users)} valid users")
-
+    
     job_id = str(int(time.time()))
-    with jobs_lock:
-        active_jobs[job_id] = {
-            'total': len(users),
-            'completed': 0,
-            'success': 0,
-            'failed': 0,
-            'results': [],
-            'status': 'processing'
-        }
+    
+    # Initialize job data
+    job_data = {
+        'total': len(users),
+        'completed': 0,
+        'success': 0,
+        'failed': 0,
+        'results': [],
+        'status': 'processing'
+    }
+    
+    # Save to file (and memory)
+    save_job(job_id, job_data)
     
     logger.info(f"[BULK] Created job {job_id} for {len(users)} users")
 
@@ -2940,21 +2995,22 @@ def bulk_generate():
         logger.info(f"[BULK] Region: {region}")
         
         # Ensure job exists before starting processing
-        with jobs_lock:
-            if job_id not in active_jobs:
-                logger.error(f"[BULK] Job {job_id} not found in active_jobs at start of background_process!")
-                # Try to recreate it
-                active_jobs[job_id] = {
-                    'total': len(users),
-                    'completed': 0,
-                    'success': 0,
-                    'failed': 0,
-                    'results': [],
-                    'status': 'processing'
-                }
-                logger.info(f"[BULK] Recreated job {job_id}")
-            else:
-                logger.info(f"[BULK] Job {job_id} found in active_jobs")
+        job_data = load_job(job_id)
+        if not job_data:
+            logger.error(f"[BULK] Job {job_id} not found at start of background_process!")
+            # Try to recreate it
+            job_data = {
+                'total': len(users),
+                'completed': 0,
+                'success': 0,
+                'failed': 0,
+                'results': [],
+                'status': 'processing'
+            }
+            save_job(job_id, job_data)
+            logger.info(f"[BULK] Recreated job {job_id}")
+        else:
+            logger.info(f"[BULK] Job {job_id} found")
         
         try:
             logger.info(f"[BULK] Entering app context...")
@@ -3094,11 +3150,13 @@ def bulk_generate():
                 
                 if total_discovered == 0:
                     logger.error("[BULK] ✗✗✗ STOPPING: No Lambda functions found in any region. Please create them first.")
+                    logger.error("[BULK] ✗✗✗ STOPPING: No Lambda functions found in any region. Please create them first.")
                     # Update job status
-                    with jobs_lock:
-                        if job_id in active_jobs:
-                            active_jobs[job_id]['status'] = 'failed'
-                            active_jobs[job_id]['failed'] = len(users)
+                    job_data = load_job(job_id)
+                    if job_data:
+                        job_data['status'] = 'failed'
+                        job_data['failed'] = len(users)
+                        save_job(job_id, job_data)
                     return
 
                 # Assign batches based on DISCOVERED functions
@@ -3272,29 +3330,47 @@ def bulk_generate():
                                     logger.info(f"[BULK] [{assigned_function_name}] Lambda returned {len(lambda_results)} results for {len(users_to_process)} users sent")
                                     for lambda_result in lambda_results:
                                         email = lambda_result.get("email", "unknown")
-                                        lambda_status = lambda_result.get("status", "unknown")
-                                        app_password = lambda_result.get("app_password")
-                                        error_msg = lambda_result.get("error_message", "Unknown error")
-                                        
-                                        if lambda_status == 'success' and app_password:
-                                            logger.info(f"[BULK] Saving password for {email} to DB")
-                                            try:
-                                                save_app_password(email, app_password)
-                                                logger.info(f"[BULK] ✓ Successfully processed {email}")
-                                            except Exception as db_err:
-                                                logger.error(f"[BULK] Failed to save to DB for {email}: {db_err}")
-                                            batch_results.append({
-                                                'email': email,
-                                                'success': True,
-                                                'app_password': app_password
-                                            })
-                                        else:
-                                            logger.warning(f"[BULK] ✗ Lambda failed for {email}: {error_msg}")
-                                            batch_results.append({
-                                                'email': email,
-                                                'success': False,
-                                                'error': error_msg
-                                            })
+                                    
+                                    # Update job status
+                                    job_data = load_job(job_id)
+                                    if job_data:
+                                        for result in lambda_results: # Changed from function_results to lambda_results
+                                            job_data['completed'] += 1
+                                            if result.get('status') == 'success': # Changed from result.get('success') to result.get('status') == 'success'
+                                                job_data['success'] += 1
+                                                # Save app password to DB
+                                                email = result['email']
+                                                app_password = result.get('app_password')
+                                                if app_password:
+                                                    logger.info(f"[BULK] Saving password for {email} to DB")
+                                                    try:
+                                                        save_app_password(email, app_password)
+                                                        logger.info(f"[BULK] ✓ Successfully processed {email}")
+                                                    except Exception as db_err:
+                                                        logger.error(f"[BULK] Failed to save to DB for {email}: {db_err}")
+                                                job_data['results'].append({
+                                                    'email': result['email'],
+                                                    'app_password': result.get('app_password'),
+                                                    'success': True
+                                                })
+                                                batch_results.append({ # Keep batch_results for function return
+                                                    'email': result['email'],
+                                                    'success': True,
+                                                    'app_password': result.get('app_password')
+                                                })
+                                            else:
+                                                job_data['failed'] += 1
+                                                job_data['results'].append({
+                                                    'email': result['email'],
+                                                    'error': result.get('error_message', 'Unknown error'), # Changed from 'error' to 'error_message'
+                                                    'success': False
+                                                })
+                                                batch_results.append({ # Keep batch_results for function return
+                                                    'email': result['email'],
+                                                    'success': False,
+                                                    'error': result.get('error_message', 'Unknown error')
+                                                })
+                                        save_job(job_id, job_data)
                                     break  # Success, exit retry loop
                                 else:
                                     # Fallback: single user response format (backward compatibility)
@@ -3670,38 +3746,40 @@ def bulk_generate():
                     logger.info("=" * 60)
             
             # Set job status to completed (outside ThreadPoolExecutor but inside app_context)
-            # Use lock to ensure thread-safe access
-            with jobs_lock:
-                if job_id in active_jobs:
-                    completed_count = active_jobs[job_id].get('completed', 0)
-                    success_count = active_jobs[job_id].get('success', 0)
-                    failed_count = active_jobs[job_id].get('failed', 0)
-                    active_jobs[job_id]['status'] = 'completed'
-                    logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {completed_count}/{len(users)} users. Success: {success_count}, Failed: {failed_count}")
-                else:
-                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in active_jobs when trying to mark as completed!")
-                    # Try to create it if it doesn't exist (shouldn't happen, but safety check)
-                    # Since we don't have the actual counts, use defaults
-                    active_jobs[job_id] = {
-                        'total': len(users),
-                        'completed': 0,
-                        'success': 0,
-                        'failed': len(users),
-                        'results': [],
-                        'status': 'completed'
-                    }
-                    logger.warning(f"[BULK] Created fallback job entry for {job_id} with default values")
+            job_data = load_job(job_id)
+            if job_data:
+                completed_count = job_data.get('completed', 0)
+                success_count = job_data.get('success', 0)
+                failed_count = job_data.get('failed', 0)
+                job_data['status'] = 'completed'
+                save_job(job_id, job_data)
+                logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {completed_count}/{len(users)} users. Success: {success_count}, Failed: {failed_count}")
+            else:
+                logger.error(f"[BULK] ⚠️ Job {job_id} not found when trying to mark as completed!")
+                # Try to create it if it doesn't exist (shouldn't happen, but safety check)
+                # Since we don't have the actual counts, use defaults
+                job_data = {
+                    'total': len(users),
+                    'completed': 0,
+                    'success': 0,
+                    'failed': len(users),
+                    'results': [],
+                    'status': 'completed'
+                }
+                save_job(job_id, job_data)
+                logger.warning(f"[BULK] Created fallback job entry for {job_id} with default values")
         except Exception as bg_error:
             logger.error(f"[BULK] ❌ CRITICAL ERROR in background_process: {bg_error}")
             logger.error(f"[BULK] Traceback: {traceback.format_exc()}")
             # Use lock to ensure thread-safe access
-            with jobs_lock:
-                if job_id in active_jobs:
-                    active_jobs[job_id]['status'] = 'failed'
-                    active_jobs[job_id]['error'] = str(bg_error)
-                    active_jobs[job_id]['completed'] = active_jobs[job_id].get('completed', 0)
-                else:
-                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in active_jobs when trying to mark as failed!")
+            job_data = load_job(job_id)
+            if job_data:
+                job_data['status'] = 'failed'
+                job_data['error'] = str(bg_error)
+                job_data['completed'] = job_data.get('completed', 0)
+                save_job(job_id, job_data)
+            else:
+                logger.error(f"[BULK] ⚠️ Job {job_id} not found when trying to mark as failed!")
 
     threading.Thread(target=background_process, args=(app, job_id, users, access_key, secret_key, region)).start()
 
@@ -3734,8 +3812,7 @@ def get_lambda_creation_status(job_id):
 @login_required
 def get_job_status(job_id):
     try:
-        with jobs_lock:
-            job = active_jobs.get(job_id)
+        job = load_job(job_id)
         if not job:
             logger.warning(f"[JOB_STATUS] Job {job_id} not found. Available jobs: {list(active_jobs.keys())}")
             return jsonify({'success': False, 'error': 'Job not found'}), 404
