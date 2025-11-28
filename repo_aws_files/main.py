@@ -30,7 +30,6 @@ import boto3
 from botocore.exceptions import ClientError
 import paramiko
 import pyotp
-from fake_useragent import UserAgent
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -114,82 +113,6 @@ import threading
 _proxy_list_cache = None
 _proxy_rotation_counter = 0
 _proxy_lock = threading.Lock()
-
-# Global UserAgent instance (cached for performance)
-_user_agent_cache = None
-_ua_lock = threading.Lock()
-
-def get_user_agent():
-    """Get a random realistic User-Agent using fake_useragent library
-    
-    Uses fake_useragent to generate realistic, up-to-date User-Agents.
-    Falls back to hardcoded list if fake_useragent fails (e.g., offline in Lambda).
-    """
-    global _user_agent_cache
-    
-    with _ua_lock:
-        if _user_agent_cache is None:
-            try:
-                # Try to create UserAgent instance
-                # In Lambda, we use cache=True to use cached database (if available)
-                # If cache doesn't exist, it will download once and cache it
-                # Use verify_ssl=False for Lambda environments that may have SSL issues
-                try:
-                    _user_agent_cache = UserAgent(
-                        cache=True,  # Use cache to avoid re-downloading
-                        verify_ssl=False,  # Lambda may have SSL certificate issues
-                        fallback='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
-                    )
-                    # Test if it works by getting one UA
-                    _user_agent_cache.random
-                    logger.info("[USER-AGENT] ✓ fake_useragent initialized successfully")
-                except Exception as init_err:
-                    logger.warning(f"[USER-AGENT] Initial UserAgent creation failed: {init_err}")
-                    # Try with cache=False as fallback
-                    try:
-                        _user_agent_cache = UserAgent(cache=False, verify_ssl=False)
-                        _user_agent_cache.random
-                        logger.info("[USER-AGENT] ✓ fake_useragent initialized with cache=False")
-                    except Exception as fallback_err:
-                        logger.warning(f"[USER-AGENT] Both initialization methods failed: {fallback_err}")
-                        _user_agent_cache = None
-            except Exception as e:
-                logger.warning(f"[USER-AGENT] Failed to initialize fake_useragent: {e}, using fallback")
-                # Fallback to hardcoded list if fake_useragent fails
-                _user_agent_cache = None
-        
-        # Get random User-Agent
-        try:
-            if _user_agent_cache:
-                # Try to get Chrome-specific User-Agent for better compatibility
-                try:
-                    ua = _user_agent_cache.chrome  # Get Chrome-specific UA
-                except:
-                    ua = _user_agent_cache.random  # Fallback to random
-                
-                # Validate UA is reasonable (should contain Mozilla and Chrome)
-                if ua and 'Mozilla' in ua and ('Chrome' in ua or 'chromium' in ua.lower()):
-                    logger.debug(f"[USER-AGENT] Generated User-Agent: {ua[:60]}...")
-                    return ua
-                else:
-                    logger.warning(f"[USER-AGENT] Invalid UA generated: {ua[:60]}..., using fallback")
-                    raise ValueError("Invalid User-Agent generated")
-            else:
-                # Fallback to hardcoded list if fake_useragent not available
-                fallback_agents = [
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                    "Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-                ]
-                selected = random.choice(fallback_agents)
-                logger.debug(f"[USER-AGENT] Using fallback User-Agent: {selected[:60]}...")
-                return selected
-        except Exception as e:
-            logger.warning(f"[USER-AGENT] Error getting User-Agent: {e}, using fallback")
-            return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 def get_proxy_list_from_env():
     """Get and parse proxy list from environment variable"""
@@ -405,8 +328,13 @@ def get_chrome_driver():
         "password_manager_enabled": False,
     })
     
-    # Add random but realistic User-Agent using fake_useragent
-    selected_ua = get_user_agent()
+    # Add random but realistic User-Agent
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    ]
+    selected_ua = random.choice(user_agents)
     chrome_options.add_argument(f"--user-agent={selected_ua}")
     logger.info(f"[LAMBDA] Using User-Agent: {selected_ua[:60]}...")
 
@@ -441,8 +369,13 @@ def get_chrome_driver():
             # This makes each session unique and harder to detect
             random_seed = random.randint(1000, 9999)
             
-            # Get realistic User-Agent using fake_useragent (more variety than hardcoded list)
-            selected_ua = get_user_agent()
+            # Realistic User-Agent pool (Windows 10/11 Chrome)
+            user_agents = [
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            ]
+            selected_ua = random.choice(user_agents)
             
             # Generate random hardware specs (realistic values)
             hardware_cores = random.choice([4, 8, 12, 16])
@@ -1754,9 +1687,9 @@ def login_google(driver, email, password, known_totp_secret=None):
         
         if not password_input:
             # Fallback: Try XPath methods (fixed invalid XPath syntax)
-        password_input_xpaths = [
-            "//input[@name='Passwd']",
-            "//input[@type='password']",
+            password_input_xpaths = [
+                "//input[@name='Passwd']",
+                "//input[@type='password']",
                 "/html/body/div[2]/div[1]/div[1]/div[2]/c-wiz/main/div[2]/div/div/div/form/span/section[2]/div/div/div[1]/div[1]/div/div/div/div/div[1]/div/div[1]/input",  # User-provided working XPath
                 "//input[@id='password']",
                 "//input[@name='password']",
@@ -2067,7 +2000,7 @@ def login_google(driver, email, password, known_totp_secret=None):
             
             # Try standard clear first
             try:
-        password_input.clear()
+                password_input.clear()
             except:
                 # If clear fails, use JavaScript
                 driver.execute_script("arguments[0].value = '';", password_input)
@@ -3426,8 +3359,8 @@ def handler(event, context):
     
     else:
         # Single user mode (backward compatible)
-    email = event.get("email", os.environ.get("GW_EMAIL"))
-    password = event.get("password", os.environ.get("GW_PASSWORD"))
+        email = event.get("email", os.environ.get("GW_EMAIL"))
+        password = event.get("password", os.environ.get("GW_PASSWORD"))
     
     if not email or not password:
         return {

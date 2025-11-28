@@ -2687,7 +2687,7 @@ def bulk_generate():
                     start_idx = func_num * USERS_PER_FUNCTION
                     end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
                     batch_users = users[start_idx:end_idx]
-                    
+                
                     # ENFORCE: Ensure batch never exceeds 10 users
                     if len(batch_users) > USERS_PER_FUNCTION:
                         logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num + 1} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
@@ -2752,19 +2752,19 @@ def bulk_generate():
                         max_pool_connections=10
                     ))
                         table_batch = dynamodb_batch.Table("gbot-app-passwords")
-                        
+                    
                         # Prepare all users for processing - NO pre-filtering
                         # Lambda will handle deduplication if needed
                         batch_results = []
                         users_to_process = user_batch  # Process ALL users in the batch (already limited to 10)
-                        
+                    
                         # Final validation before sending to Lambda
                         if len(users_to_process) > MAX_USERS_PER_BATCH:
                             logger.error(f"[BULK] [{assigned_function_name}] ⚠️ FINAL CHECK FAILED: {len(users_to_process)} users exceeds {MAX_USERS_PER_BATCH} limit!")
                             users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
                         
                         logger.info(f"[BULK] [{assigned_function_name}] Will process {len(users_to_process)} user(s) in batch (MAX: {MAX_USERS_PER_BATCH})")
-                        
+                    
                         # Mark emails as being processed (for duplicate detection across parallel geos)
                         for user in users_to_process:
                             email = user['email']
@@ -2876,7 +2876,7 @@ def bulk_generate():
                                         lambda_status = lambda_response.get('status', 'unknown')
                                         app_password = lambda_response.get('app_password')
                                         error_msg = lambda_response.get('error_message', 'Unknown error')
-                                        
+                                    
                                         # If only one user in batch, use single response format
                                         if len(users_to_process) == 1:
                                             email = users_to_process[0]['email']
@@ -3111,69 +3111,69 @@ def bulk_generate():
                                                     logger.warning(f"[BULK] [{geo}] Using first matching function: {func_name}")
                                         else:
                                             logger.info(f"[BULK] [{geo}] Creating Lambda function: {func_name}")
-                                            try:
-                                                role_arn = ensure_lambda_role(session_boto)
-                                                chromium_env = {
-                                                    "DYNAMODB_TABLE_NAME": "gbot-app-passwords",
-                                                    "DYNAMODB_REGION": "eu-west-1",
-                                                    "APP_PASSWORDS_S3_BUCKET": S3_BUCKET_NAME,
-                                                    "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
-                                                }
-                                                
-                                                # Add proxy configuration if enabled
-                                                proxy_config = get_proxy_config()
-                                                if proxy_config and proxy_config.get('enabled'):
-                                                    proxies = parse_proxy_list(proxy_config.get('proxies', ''))
-                                                    if proxies:
-                                                        chromium_env['PROXY_ENABLED'] = 'true'
-                                                        chromium_env['PROXY_LIST'] = proxy_config.get('proxies', '')
-                                                        logger.info(f"[PROXY] [{geo}] Proxy feature enabled with {len(proxies)} proxy/proxies")
-                                                    else:
-                                                        chromium_env['PROXY_ENABLED'] = 'false'
+                                        try:
+                                            role_arn = ensure_lambda_role(session_boto)
+                                            chromium_env = {
+                                                "DYNAMODB_TABLE_NAME": "gbot-app-passwords",
+                                                "DYNAMODB_REGION": "eu-west-1",
+                                                "APP_PASSWORDS_S3_BUCKET": S3_BUCKET_NAME,
+                                                "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
+                                            }
+                                            
+                                            # Add proxy configuration if enabled
+                                            proxy_config = get_proxy_config()
+                                            if proxy_config and proxy_config.get('enabled'):
+                                                proxies = parse_proxy_list(proxy_config.get('proxies', ''))
+                                                if proxies:
+                                                    chromium_env['PROXY_ENABLED'] = 'true'
+                                                    chromium_env['PROXY_LIST'] = proxy_config.get('proxies', '')
+                                                    logger.info(f"[PROXY] [{geo}] Proxy feature enabled with {len(proxies)} proxy/proxies")
                                                 else:
                                                     chromium_env['PROXY_ENABLED'] = 'false'
-                                                
-                                                # Add 2Captcha configuration if enabled
-                                                twocaptcha_config = get_twocaptcha_config()
-                                                if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
-                                                    chromium_env['TWOCAPTCHA_ENABLED'] = 'true'
-                                                    chromium_env['TWOCAPTCHA_API_KEY'] = twocaptcha_config.get('api_key', '')
-                                                    logger.info(f"[2CAPTCHA] [{geo}] 2Captcha feature enabled for automatic CAPTCHA solving")
-                                                else:
-                                                    chromium_env['TWOCAPTCHA_ENABLED'] = 'false'
-                                                    chromium_env['TWOCAPTCHA_API_KEY'] = ''
+                                            else:
+                                                chromium_env['PROXY_ENABLED'] = 'false'
                                             
-                                                # Extract ECR URI
-                                                ecr_uri = None
-                                                try:
-                                                    if existing_function_names:
-                                                        existing_func = lam_client.get_function(FunctionName=existing_function_names[0])
-                                                        code_location = existing_func.get('Code', {}).get('ImageUri')
-                                                        if code_location:
-                                                            ecr_uri = code_location
-                                                except Exception:
-                                                    pass
-                                            
-                                                if not ecr_uri:
-                                                    sts = session_boto.client('sts')
-                                                    account_id = sts.get_caller_identity()['Account']
-                                                    ecr_uri = f"{account_id}.dkr.ecr.{geo}.amazonaws.com/{ECR_REPO_NAME}:{ECR_IMAGE_TAG}"
-                                            
-                                                if func_name != PRODUCTION_LAMBDA_NAME:
-                                                    create_or_update_lambda(
-                                                        session=session_boto,
-                                                        function_name=func_name,
-                                                        role_arn=role_arn,
-                                                        timeout=900,
-                                                        env_vars=chromium_env,
-                                                        package_type="Image",
-                                                        image_uri=ecr_uri,
-                                                    )
-                                                    logger.info(f"[BULK] [{geo}] ✓ Created Lambda function: {func_name}")
-                                                    existing_function_names.append(func_name)
-                                            except Exception as create_err:
-                                                logger.error(f"[BULK] [{geo}] Failed to create {func_name}: {create_err}")
-                                                func_name = PRODUCTION_LAMBDA_NAME
+                                            # Add 2Captcha configuration if enabled
+                                            twocaptcha_config = get_twocaptcha_config()
+                                            if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
+                                                chromium_env['TWOCAPTCHA_ENABLED'] = 'true'
+                                                chromium_env['TWOCAPTCHA_API_KEY'] = twocaptcha_config.get('api_key', '')
+                                                logger.info(f"[2CAPTCHA] [{geo}] 2Captcha feature enabled for automatic CAPTCHA solving")
+                                            else:
+                                                chromium_env['TWOCAPTCHA_ENABLED'] = 'false'
+                                                chromium_env['TWOCAPTCHA_API_KEY'] = ''
+                                        
+                                            # Extract ECR URI
+                                            ecr_uri = None
+                                            try:
+                                                if existing_function_names:
+                                                    existing_func = lam_client.get_function(FunctionName=existing_function_names[0])
+                                                    code_location = existing_func.get('Code', {}).get('ImageUri')
+                                                    if code_location:
+                                                        ecr_uri = code_location
+                                            except Exception:
+                                                pass
+                                        
+                                            if not ecr_uri:
+                                                sts = session_boto.client('sts')
+                                                account_id = sts.get_caller_identity()['Account']
+                                                ecr_uri = f"{account_id}.dkr.ecr.{geo}.amazonaws.com/{ECR_REPO_NAME}:{ECR_IMAGE_TAG}"
+                                        
+                                            if func_name != PRODUCTION_LAMBDA_NAME:
+                                                create_or_update_lambda(
+                                                    session=session_boto,
+                                                    function_name=func_name,
+                                                    role_arn=role_arn,
+                                                    timeout=900,
+                                                    env_vars=chromium_env,
+                                                    package_type="Image",
+                                                    image_uri=ecr_uri,
+                                                )
+                                                logger.info(f"[BULK] [{geo}] ✓ Created Lambda function: {func_name}")
+                                                existing_function_names.append(func_name)
+                                        except Exception as create_err:
+                                            logger.error(f"[BULK] [{geo}] Failed to create {func_name}: {create_err}")
+                                            func_name = PRODUCTION_LAMBDA_NAME
                                 
                                 # Verify function exists
                                 try:
