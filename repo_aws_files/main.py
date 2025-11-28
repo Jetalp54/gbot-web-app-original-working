@@ -763,7 +763,8 @@ def inject_recaptcha_token(driver, token):
         var scripts = document.getElementsByTagName('script');
         for (var i = 0; i < scripts.length; i++) {{
             var scriptText = scripts[i].innerHTML;
-            var match = scriptText.match(/grecaptcha\.execute\([^,]+,\s*{{[^}}]*callback:\s*['"]([^'"]+)['"]/);
+            // Fixed invalid escape sequences by double escaping backslashes
+            var match = scriptText.match(/grecaptcha\\.execute\\([^,]+,\\s*{{[^}}]*callback:\\s*['"]([^'"]+)['"]/);
             if (match) {{
                 callbackName = match[1];
                 break;
