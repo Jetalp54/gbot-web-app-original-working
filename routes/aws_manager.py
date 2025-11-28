@@ -3245,6 +3245,11 @@ def bulk_generate():
         return jsonify({'success': False, 'error': 'No valid user:password pairs found'}), 400
 
     logger.info(f"[BULK] Received {len(users_raw)} raw user entries, parsed {len(users)} valid users")
+    
+    print("\n" + "!"*80)
+    print("!!! NEW CODE LOADED - REFACTOR ACTIVE !!!")
+    print(f"!!! TIMESTAMP: {time.time()} !!!")
+    print("!"*80 + "\n")
 
     job_id = str(int(time.time()))
     with jobs_lock:
@@ -3267,6 +3272,10 @@ def bulk_generate():
     
     def background_process(app, job_id, users, access_key, secret_key, region):
         """Background process to handle bulk user processing across geos"""
+        print("\n" + "!"*80)
+        print(f"!!! BACKGROUND PROCESS STARTED - NEW CODE ACTIVE - Job {job_id} !!!")
+        print("!"*80 + "\n")
+        
         logger.info(f"[BULK] ========== BACKGROUND PROCESS STARTED ==========")
         logger.info(f"[BULK] Job ID: {job_id}")
         logger.info(f"[BULK] Total users: {len(users)}")
