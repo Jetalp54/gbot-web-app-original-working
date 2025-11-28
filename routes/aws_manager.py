@@ -3212,7 +3212,7 @@ def debug_version():
     mod_time_str = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
     
     return jsonify({
-        'version': 'REFACTORED_FLAT_EXECUTION_MODEL_V2_LOGGING_ENHANCED',
+        'version': 'REFACTORED_FLAT_EXECUTION_MODEL_V3_MODULE_LEVEL',
         'timestamp': time.time(),
         'file_path': file_path,
         'last_modified': mod_time_str,
@@ -3293,375 +3293,256 @@ def bulk_generate():
     # We pass app_context explicitly if needed, but db operations need app context inside the thread
     from app import app
     
-    def background_process(app, job_id, users, access_key, secret_key, region):
-        """Background process to handle bulk user processing across geos"""
-        # CRITICAL LOGGING
-        logger.critical("!"*80)
-        logger.critical(f"!!! BACKGROUND PROCESS STARTED - V2 - Job {job_id} !!!")
-        logger.critical("!"*80)
-        print(f"!!! BACKGROUND STDOUT PROOF: {job_id} !!!", flush=True)
-        
-        logger.info(f"[BULK] ========== BACKGROUND PROCESS STARTED ==========")
-        logger.info(f"[BULK] Job ID: {job_id}")
-        logger.info(f"[BULK] Total users: {len(users)}")
-        logger.info(f"[BULK] Region: {region}")
-        
-        # Ensure job exists before starting processing
-        # Ensure job exists before starting processing
-        with jobs_lock:
-            # Load from file to ensure we have the latest state
-            all_jobs = load_jobs()
-            if job_id not in all_jobs:
-                logger.error(f"[BULK] Job {job_id} not found in jobs file at start of background_process!")
-                # Try to recreate it
-                all_jobs[job_id] = {
-                    'total': len(users),
-                    'completed': 0,
-                    'success': 0,
-                    'failed': 0,
-                    'results': [],
-                    'status': 'processing'
-                }
-                save_jobs({job_id: all_jobs[job_id]})
-                logger.info(f"[BULK] Recreated job {job_id}")
-            else:
-                logger.info(f"[BULK] Job {job_id} found in jobs file")
-                # Update local active_jobs cache
-                active_jobs[job_id] = all_jobs[job_id]
-        
+    thread = threading.Thread(target=background_process_task, args=(app, job_id, users, access_key, secret_key, region))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        'success': True, 
+        'job_id': job_id, 
+        'message': f'Started processing {len(users)} users in background'
+    })
+
+def background_process_task(app, job_id, users, access_key, secret_key, region):
+    """Background process to handle bulk user processing across geos"""
+    # CRITICAL LOGGING
+    logger.critical("!"*80)
+    logger.critical(f"!!! BACKGROUND PROCESS STARTED - V3 - Job {job_id} !!!")
+    logger.critical("!"*80)
+    print(f"!!! BACKGROUND STDOUT PROOF: {job_id} !!!", flush=True)
+    
+    # Helper to log to both file and job status for frontend visibility
+    def log_debug(msg):
+        logger.info(f"[BULK] {msg}")
         try:
-            logger.info(f"[BULK] Entering app context...")
-            with app.app_context():
-                logger.info(f"[BULK] App context entered successfully")
-                # Pre-detect Lambda functions across ALL geos
-                # This is necessary because functions are distributed across multiple AWS regions
-                lambda_functions = []
-                # We no longer pre-detect Lambda functions across all regions
-                # Instead, we'll look for functions in their assigned regions during processing
-                logger.info(f"[BULK] Will process users using geo-distributed Lambda functions")
-                
-                # NEW LOGIC: Calculate total functions based on user count
-                # Distribute functions evenly across ALL available geos
-                # Process functions sequentially within each geo
-                
-                import math
-                
-                USERS_PER_FUNCTION = 10  # Fixed: Each function handles exactly 10 users
-                
-                # Calculate total number of functions needed
-                total_users = len(users)
-                num_functions = math.ceil(total_users / USERS_PER_FUNCTION)
-                
-                logger.info("=" * 60)
-                logger.info(f"[BULK] Function Calculation")
-                logger.info(f"[BULK] Total users: {total_users}")
-                logger.info(f"[BULK] Users per function: {USERS_PER_FUNCTION}")
-                logger.info(f"[BULK] Total functions needed: {num_functions}")
-                logger.info("=" * 60)
-                
-                # Get all available AWS regions (geos)
-                # These are all AWS regions where Lambda can be deployed
-                AVAILABLE_GEO_REGIONS = [
-                    # United States
-                    'us-east-1',      # N. Virginia
-                    'us-east-2',      # Ohio
-                    'us-west-1',      # N. California
-                    'us-west-2',      # Oregon
-                    # Africa
-                    'af-south-1',     # Cape Town
-                    # Asia Pacific
-                    'ap-east-1',      # Hong Kong
-                    'ap-east-2',      # Taipei
-                    'ap-south-1',     # Mumbai
-                    'ap-south-2',     # Hyderabad
-                    'ap-northeast-1', # Tokyo
-                    'ap-northeast-2', # Seoul
-                    'ap-northeast-3', # Osaka
-                    'ap-southeast-1', # Singapore
-                    'ap-southeast-2', # Sydney
-                    'ap-southeast-3', # Jakarta
-                    'ap-southeast-4', # Melbourne
-                    'ap-southeast-5', # Malaysia
-                    'ap-southeast-6', # New Zealand
-                    'ap-southeast-7', # Thailand
-                    # Canada
-                    'ca-central-1',   # Central
-                    'ca-west-1',      # Calgary
-                    # Europe
-                    'eu-central-1',   # Frankfurt
-                    'eu-west-1',      # Ireland
-                    'eu-west-2',      # London
-                    'eu-west-3',      # Paris
-                    'eu-north-1',     # Stockholm
-                    'eu-south-1',     # Milan
-                    'eu-south-2',     # Spain
-                    # Mexico
-                    'mx-central-1',   # Central
-                    # Middle East
-                    'me-south-1',     # Bahrain
-                    'me-central-1',   # UAE
-                    'il-central-1',   # Israel (Tel Aviv)
-                    # South America
-                    'sa-east-1',      # São Paulo
-                ]
-                
-                # DYNAMIC DISCOVERY: Find where functions are actually located
-                # This handles cases where functions were redistributed from skipped regions
-                logger.info("=" * 60)
-                logger.info(f"[BULK] DISCOVERY PHASE: Scanning {len(AVAILABLE_GEO_REGIONS)} regions for Lambda functions...")
-                
-                functions_per_geo = {}  # {geo: [list of function_numbers]}
-                discovered_count = 0
-                
-                def discover_functions_in_geo(geo):
-                    """List functions in a geo and extract their numbers"""
-                    found_funcs = []
-                    try:
-                        d_session = boto3.Session(
-                            aws_access_key_id=access_key,
-                            aws_secret_access_key=secret_key,
-                            region_name=geo
-                        )
-                        d_lam = d_session.client('lambda')
-                        paginator = d_lam.get_paginator('list_functions')
-                        
-                        for page in paginator.paginate():
-                            for fn in page.get('Functions', []):
-                                fname = fn['FunctionName']
-                                # Match pattern: edu-gw-chromium-{geo_code}-{func_num}
-                                if fname.startswith(PRODUCTION_LAMBDA_NAME) and '-' in fname:
-                                    try:
-                                        # Extract the number at the end
-                                        parts = fname.rsplit('-', 1)
-                                        if len(parts) == 2 and parts[1].isdigit():
-                                            fnum = int(parts[1])
-                                            found_funcs.append(fnum)
-                                    except:
-                                        pass
-                        return geo, found_funcs, None
-                    except Exception as e:
-                        return geo, [], str(e)
+            with jobs_lock:
+                if job_id in active_jobs:
+                    if 'debug_logs' not in active_jobs[job_id]:
+                        active_jobs[job_id]['debug_logs'] = []
+                    active_jobs[job_id]['debug_logs'].append(f"{datetime.datetime.now().strftime('%H:%M:%S')} - {msg}")
+                    # Save periodically or on critical updates? 
+                    # For now, rely on periodic saves in the main loop to avoid lock contention
+        except Exception:
+            pass
 
-                with ThreadPoolExecutor(max_workers=20) as d_executor:
-                    d_futures = {d_executor.submit(discover_functions_in_geo, geo): geo for geo in AVAILABLE_GEO_REGIONS}
-                    
-                    for future in as_completed(d_futures):
-                        geo, fnums, error = future.result()
-                        if error:
-                            logger.warning(f"[BULK] [DISCOVERY] [{geo}] ⚠️ Error scanning region: {error}")
-                        elif fnums:
-                            functions_per_geo[geo] = sorted(fnums)
-                            discovered_count += len(fnums)
-                            logger.info(f"[BULK] [DISCOVERY] [{geo}] ✓ Found {len(fnums)} function(s): {fnums}")
-                
-                print(f"[BULK DEBUG] DISCOVERY COMPLETED: Found {discovered_count} total functions across {len(functions_per_geo)} regions")
-                
-                # Fallback if we found fewer functions than needed
-                if discovered_count < num_functions:
-                    print(f"[BULK DEBUG] ⚠️ Found only {discovered_count} functions, but need {num_functions}. Triggering fallback for missing ones...")
-                    for func_num in range(num_functions):
-                        # If this function number wasn't found, assign it statically
-                        found = False
-                        for geo, fnums in functions_per_geo.items():
-                            if (func_num + 1) in fnums:
-                                found = True
-                                break
-                        
-                        if not found:
-                            geo_index = func_num % len(AVAILABLE_GEO_REGIONS)
-                            geo = AVAILABLE_GEO_REGIONS[geo_index]
-                            if geo not in functions_per_geo:
-                                functions_per_geo[geo] = []
-                            functions_per_geo[geo].append(func_num + 1)
-                            print(f"[BULK DEBUG] Fallback: Assigned Function #{func_num + 1} to {geo}")
-
-                print("=" * 60)
-                print(f"[BULK DEBUG] Function Distribution (Actual)")
-                for geo, func_numbers in sorted(functions_per_geo.items()):
-                    print(f"[BULK DEBUG]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
-                print("=" * 60)
+    log_debug(f"Job {job_id} started processing {len(users)} users")
+    log_debug(f"Region: {region}")
+    
+    # Ensure job exists before starting processing
+    with jobs_lock:
+        # Load from file to ensure we have the latest state
+        all_jobs = load_jobs()
+        if job_id not in all_jobs:
+            logger.error(f"[BULK] Job {job_id} not found in jobs file at start of background_process!")
+            # Try to recreate it
+            all_jobs[job_id] = {
+                'total': len(users),
+                'completed': 0,
+                'success': 0,
+                'failed': 0,
+                'results': [],
+                'status': 'processing',
+                'debug_logs': []
+            }
+            save_jobs({job_id: all_jobs[job_id]})
+            log_debug(f"Recreated job {job_id}")
+        else:
+            log_debug(f"Job {job_id} found in jobs file")
+            # Update local active_jobs cache
+            active_jobs[job_id] = all_jobs[job_id]
+            if 'debug_logs' not in active_jobs[job_id]:
+                active_jobs[job_id]['debug_logs'] = []
+    
+    try:
+        log_debug("Entering app context...")
+        with app.app_context():
+            log_debug("App context entered successfully")
             
-            # Create reverse map for easy lookup: function_number -> geo
+            import math
+            
+            USERS_PER_FUNCTION = 10  # Fixed: Each function handles exactly 10 users
+            
+            # Calculate total number of functions needed
+            total_users = len(users)
+            num_functions = math.ceil(total_users / USERS_PER_FUNCTION)
+            
+            log_debug(f"Total users: {total_users}")
+            log_debug(f"Users per function: {USERS_PER_FUNCTION}")
+            log_debug(f"Total functions needed: {num_functions}")
+            
+            # Get all available AWS regions (geos)
+            AVAILABLE_GEO_REGIONS = [
+                'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+                'af-south-1', 'ap-east-1', 'ap-east-2', 'ap-south-1', 'ap-south-2',
+                'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
+                'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-6', 'ap-southeast-7',
+                'ca-central-1', 'ca-west-1',
+                'eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-north-1', 'eu-south-1', 'eu-south-2',
+                'mx-central-1',
+                'me-south-1', 'me-central-1', 'il-central-1',
+                'sa-east-1'
+            ]
+            
+            # DYNAMIC DISCOVERY: Find where functions are actually located
+            log_debug(f"DISCOVERY PHASE: Scanning {len(AVAILABLE_GEO_REGIONS)} regions...")
+            
+            functions_per_geo = {}  # {geo: [list of function_numbers]}
+            discovered_count = 0
+            
+            def discover_functions_in_geo(geo):
+                """List functions in a geo and extract their numbers"""
+                found_funcs = []
+                try:
+                    d_session = boto3.Session(
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name=geo
+                    )
+                    d_lam = d_session.client('lambda')
+                    paginator = d_lam.get_paginator('list_functions')
+                    
+                    for page in paginator.paginate():
+                        for fn in page.get('Functions', []):
+                            fname = fn['FunctionName']
+                            # Match pattern: edu-gw-chromium-{geo_code}-{func_num}
+                            if fname.startswith(PRODUCTION_LAMBDA_NAME) and '-' in fname:
+                                try:
+                                    # Extract the number at the end
+                                    parts = fname.rsplit('-', 1)
+                                    if len(parts) == 2 and parts[1].isdigit():
+                                        fnum = int(parts[1])
+                                        found_funcs.append(fnum)
+                                except:
+                                    pass
+                    return geo, found_funcs, None
+                except Exception as e:
+                    return geo, [], str(e)
+
+            with ThreadPoolExecutor(max_workers=20) as d_executor:
+                d_futures = {d_executor.submit(discover_functions_in_geo, geo): geo for geo in AVAILABLE_GEO_REGIONS}
+                
+                for future in as_completed(d_futures):
+                    geo, fnums, error = future.result()
+                    if error:
+                        # log_debug(f"Error scanning {geo}: {error}") # Too verbose
+                        pass
+                    elif fnums:
+                        functions_per_geo[geo] = sorted(fnums)
+                        discovered_count += len(fnums)
+                        log_debug(f"Found {len(fnums)} functions in {geo}")
+
+            log_debug(f"Discovery complete. Found {discovered_count} total functions across {len(functions_per_geo)} regions.")
+            
+            # Map function numbers to geos for O(1) lookup
             func_to_geo = {}
             for geo, fnums in functions_per_geo.items():
                 for fnum in fnums:
                     func_to_geo[fnum] = geo
+
+            # If no functions found, we can't proceed
+            if discovered_count == 0:
+                log_debug("CRITICAL: No Lambda functions found! Cannot process users.")
+                with jobs_lock:
+                    active_jobs[job_id]['status'] = 'failed'
+                    active_jobs[job_id]['error'] = "No Lambda functions found. Please click 'Create / Update Production Lambda' first."
+                    save_jobs({job_id: active_jobs[job_id]})
+                return
+
+            # Assign users to batches
+            user_batches = []
             
-            print(f"[BULK DEBUG] func_to_geo map size: {len(func_to_geo)}")
-            
-            # Split users into batches of 10, assigning each batch to a function
-            # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
-            # CRITICAL: Each batch MUST be exactly 10 users or less
-            user_batches = []  # List of (function_number, geo, user_batch) tuples
-            print(f"[BULK DEBUG] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
-            
-            for func_num_idx in range(num_functions):
-                func_num = func_num_idx + 1
-                start_idx = func_num_idx * USERS_PER_FUNCTION
-                end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
+            for i in range(num_functions):
+                start_idx = i * USERS_PER_FUNCTION
+                end_idx = min((i + 1) * USERS_PER_FUNCTION, total_users)
+                
+                if start_idx >= total_users:
+                    break
+                    
                 batch_users = users[start_idx:end_idx]
+                func_num = i + 1
                 
-                # ENFORCE: Ensure batch never exceeds 10 users
-                if len(batch_users) > USERS_PER_FUNCTION:
-                    print(f"[BULK DEBUG] ⚠️ CRITICAL: Batch {func_num} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
-                    batch_users = batch_users[:USERS_PER_FUNCTION]
+                # Find which geo has this function number
+                geo = func_to_geo.get(func_num)
                 
-                if batch_users:
-                    # Determine which geo this function belongs to using ACTUAL discovered location
-                    geo = func_to_geo.get(func_num)
-                    
-                    if not geo:
-                        # Should not happen due to fallback above, but double check
-                        valid_geos_with_funcs = [g for g, f in functions_per_geo.items() if f]
-                        if valid_geos_with_funcs:
-                            geo = valid_geos_with_funcs[func_num_idx % len(valid_geos_with_funcs)]
-                            print(f"[BULK DEBUG] ⚠️ Function #{func_num} still not in map! Fallback assignment to {geo}")
-                        else:
-                            print(f"[BULK DEBUG] ✗✗✗ CRITICAL: No valid regions found for Function #{func_num}. Users will be skipped! (functions_per_geo is empty)")
-                            continue
+                if not geo:
+                    if discovered_count > 0:
+                        logger.warning(f"[BULK] Function {func_num} not found. Skipping batch {i+1}.")
+                        continue
+                    else:
+                        logger.error(f"[BULK] No functions available to assign batch {i+1}")
+                        continue
+                
+                # Log batch assignment
+                log_debug(f"Assigning Batch {i+1} (Func {func_num}) to {geo} with {len(batch_users)} users")
+                user_batches.append((func_num, batch_users, geo))
 
-                    user_batches.append((func_num, geo, batch_users))
-                    print(f"[BULK DEBUG] Function {func_num} ({geo}) will process {len(batch_users)} user(s)")
-                    if len(batch_users) > USERS_PER_FUNCTION:
-                        print(f"[BULK DEBUG] ⚠️ ERROR: Function {func_num + 1} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
-                else:
-                    print(f"[BULK DEBUG] Batch {func_num} is empty (start={start_idx}, end={end_idx})")
+            log_debug(f"Created {len(user_batches)} batches for processing")
             
-            print(f"[BULK DEBUG] Total batches created: {len(user_batches)}")
-            if len(user_batches) == 0:
-                print("[BULK DEBUG] ✗✗✗ CRITICAL: No batches were created! Process will exit with 0 results.")
+            if not user_batches:
+                log_debug("No batches created! (Maybe function count mismatch?)")
+                return
 
+            # Execute batches in parallel
+            log_debug(f"Starting parallel execution of {len(user_batches)} batches...")
             
-                # --- FLAT EXECUTION MODEL ---
-                # Create a flat list of all invocation tasks
-                invocation_tasks = []
-                print(f"[BULK DEBUG] Creating flat task list from {len(user_batches)} batches...")
+            completed_batches = 0
+            total_batches = len(user_batches)
+            
+            with ThreadPoolExecutor(max_workers=50) as geo_pool:
+                # Submit all tasks
+                future_to_batch = {
+                    geo_pool.submit(invoke_lambda_task, app, func_num, batch_users, geo, access_key, secret_key, region): (func_num, geo)
+                    for func_num, batch_users, geo in user_batches
+                }
                 
-                for func_num, geo, batch_users in user_batches: # Corrected unpacking order
-                    invocation_tasks.append({
-                        'func_num': func_num,
-                        'batch_users': batch_users,
-                        'geo': geo
-                    })
-                
-                print(f"[BULK DEBUG] Created {len(invocation_tasks)} invocation tasks.")
-                print(f"[BULK DEBUG] Launching MASSIVE PARALLEL execution with 100 workers...")
-                
-                all_results = []
-                completed_tasks = 0
-                failed_tasks = 0
-                
-                with ThreadPoolExecutor(max_workers=100) as executor:
-                    # Submit all tasks
-                    future_to_task = {
-                        executor.submit(
-                            invoke_lambda_task, 
-                            app, 
-                            task['func_num'], 
-                            task['batch_users'], 
-                            task['geo'], 
-                            access_key, 
-                            secret_key, 
-                            region
-                        ): task for task in invocation_tasks
-                    }
-                    
-                    print(f"[BULK DEBUG] ✓ All {len(invocation_tasks)} tasks submitted to thread pool.")
-                    
-                    # Process results as they complete
-                    for future in as_completed(future_to_task):
-                        task = future_to_task[future]
-                        try:
-                            results = future.result()
-                            all_results.extend(results)
+                for future in as_completed(future_to_batch):
+                    func_num, geo = future_to_batch[future]
+                    try:
+                        results = future.result()
+                        
+                        # Update job progress
+                        with jobs_lock:
+                            active_jobs[job_id]['results'].extend(results)
                             
-                            # Update progress
-                            batch_success = sum(1 for r in results if r['success'])
+                            # Update counts
+                            batch_success = sum(1 for r in results if r.get('success'))
                             batch_failed = len(results) - batch_success
                             
-                            with jobs_lock:
-                                all_jobs = load_jobs()
-                                if job_id in all_jobs:
-                                    job = all_jobs[job_id]
-                                    job['completed'] = job.get('completed', 0) + len(results)
-                                    job['success'] = job.get('success', 0) + batch_success
-                                    job['failed'] = job.get('failed', 0) + batch_failed
-                                    job['results'].extend(results)
-                                    save_jobs({job_id: job})
+                            active_jobs[job_id]['completed'] += len(results)
+                            active_jobs[job_id]['success'] += batch_success
+                            active_jobs[job_id]['failed'] += batch_failed
                             
-                            completed_tasks += 1
-                            if completed_tasks % 10 == 0:
-                                print(f"[BULK DEBUG] Progress: {completed_tasks}/{len(invocation_tasks)} tasks completed")
+                            completed_batches += 1
+                            
+                            # Save progress periodically (every 5 batches or last one)
+                            if completed_batches % 5 == 0 or completed_batches == total_batches:
+                                save_jobs({job_id: active_jobs[job_id]})
                                 
-                        except Exception as e:
-                            print(f"[BULK DEBUG] ✗ Task failed: {e}")
-                            failed_tasks += 1
-                            # Add failed results
-                            for u in task['batch_users']:
-                                all_results.append({
-                                    'email': u['email'],
-                                    'success': False,
-                                    'error': str(e)
-                                })
-                
-                print("=" * 60)
-                print(f"[BULK DEBUG] ===== ALL TASKS COMPLETED =====")
-                print(f"[BULK DEBUG] Total tasks: {len(invocation_tasks)}")
-                print(f"[BULK DEBUG] Successful batches: {completed_tasks}")
-                print(f"[BULK DEBUG] Failed batches: {failed_tasks}")
-                print("=" * 60)
+                        log_debug(f"Batch {func_num} ({geo}) completed. Progress: {completed_batches}/{total_batches}")
+                        
+                    except Exception as exc:
+                        log_debug(f"Batch {func_num} ({geo}) generated an exception: {exc}")
             
-            # Set job status to completed (outside ThreadPoolExecutor but inside app_context)
-            # Use lock to ensure thread-safe access
-            # Set job status to completed (outside ThreadPoolExecutor but inside app_context)
-            # Use lock to ensure thread-safe access
+            log_debug("All batches completed.")
+            
+            # Update final status
             with jobs_lock:
-                all_jobs = load_jobs()
-                if job_id in all_jobs:
-                    # Update counts from local tracking if needed, or trust what's in memory?
-                    # Since we are single threaded here (end of function), we can trust local vars
-                    # But we should merge with file content
-                    job = all_jobs[job_id]
-                    job['status'] = 'completed'
-                    # Ensure counts are accurate
-                    job['completed'] = job.get('completed', 0)
-                    job['success'] = job.get('success', 0)
-                    job['failed'] = job.get('failed', 0)
-                    
-                    save_jobs({job_id: job})
-                    logger.info(f"[BULK] ✅ Job {job_id} completed successfully. Processed {job['completed']}/{len(users)} users. Success: {job['success']}, Failed: {job['failed']}")
-                else:
-                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in jobs file when trying to mark as completed!")
-                    # Try to create it if it doesn't exist (shouldn't happen, but safety check)
-                    all_jobs[job_id] = {
-                        'total': len(users),
-                        'completed': 0,
-                        'success': 0,
-                        'failed': len(users),
-                        'results': [],
-                        'status': 'completed'
-                    }
-                    save_jobs({job_id: all_jobs[job_id]})
-                    logger.warning(f"[BULK] Created fallback job entry for {job_id} with default values")
-        except Exception as bg_error:
-            logger.error(f"[BULK] ❌ CRITICAL ERROR in background_process: {bg_error}")
-            logger.error(f"[BULK] Traceback: {traceback.format_exc()}")
-            # Use lock to ensure thread-safe access
-            # Use lock to ensure thread-safe access
-            with jobs_lock:
-                all_jobs = load_jobs()
-                if job_id in all_jobs:
-                    job = all_jobs[job_id]
-                    job['status'] = 'failed'
-                    job['error'] = str(bg_error)
-                    job['completed'] = job.get('completed', 0)
-                    save_jobs({job_id: job})
-                else:
-                    logger.error(f"[BULK] ⚠️ Job {job_id} not found in jobs file when trying to mark as failed!")
-
-    threading.Thread(target=background_process, args=(app, job_id, users, access_key, secret_key, region)).start()
-
-    return jsonify({'success': True, 'job_id': job_id, 'message': f'Started processing {len(users)} users'})
+                # Reload to get latest state
+                current_job = active_jobs.get(job_id)
+                if current_job:
+                    current_job['status'] = 'completed'
+                    save_jobs({job_id: current_job})
+            
+            log_debug("Job marked as completed.")
+            
+    except Exception as e:
+        log_debug(f"CRITICAL ERROR in background process: {e}")
+        traceback.print_exc()
+        with jobs_lock:
+            if job_id in active_jobs:
+                active_jobs[job_id]['status'] = 'failed'
+                active_jobs[job_id]['error'] = str(e)
+                save_jobs({job_id: active_jobs[job_id]})
 
 @aws_manager.route('/api/aws/lambda-creation-status/<job_id>', methods=['GET'])
 @login_required
