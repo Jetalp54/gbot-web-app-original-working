@@ -158,7 +158,11 @@ echo "🔄 Starting Services..."
 sudo systemctl restart gbot
 sudo systemctl restart gbot-memory-monitor
 
-# 9. Firewall Setup (Whitelist IP / Security)
+# 9. Run Database Migration
+echo "🔄 Running Database Migration..."
+python3 migrate_db.py
+
+# 10. Firewall Setup (Whitelist IP / Security)
 echo "🛡️ Configuring Firewall (UFW)..."
 # Enable UFW if not enabled
 sudo ufw --force enable
