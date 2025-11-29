@@ -59,7 +59,8 @@ class GoogleServiceAccount:
         """
         try:
             service = self.build_service('admin', 'directory_v1')
-            service.users().list(customer='my_customer', maxResults=1).execute()
+            # Match G_Bot_api.py verification method exactly
+            service.domains().list(customer='my_customer').execute()
             return True, "Connection successful"
         except Exception as e:
             error_msg = str(e)
