@@ -1660,130 +1660,67 @@
                             color: white;
                             border: 1px solid #28a745;
                             border-radius: 6px;
-                            <!-- Account Selection & Authentication -->
-            <div class=" col-md-6 mb-4">
-                            <div class="card h-100 shadow-sm">
-                                <div class="card-header bg-white py-3">
-                                    <h5 class="mb-0 text-primary"><i class="fas fa-key me-2"></i>Account Selection &
-                                        Authentication</h5>
-                                </div>
-                                <div class="card-body">
-                                    <div class="mb-3">
-                                        <label for="account-select" class="form-label">Select Google Account</label>
-                                        <select class="form-select" id="account-select">
-                                            <option value="" selected disabled>Choose an account...</option>
-                                            {% for account in accounts %}
-                                            <option value="{{ account.id }}" data-account-type="oauth">{{
-                                                account.account_name }} (OAuth)</option>
-                                            {% endfor %}
-                                            {% for sa in service_accounts %}
-                                            <option value="{{ sa.id }}" data-account-type="service_account">{{ sa.name
-                                                }} (Service Account)</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div class="d-grid gap-2">
-                                        <button class="btn btn-primary" onclick="authenticateAccount()">
-                                            <i class="fas fa-sign-in-alt me-2"></i>Authenticate Selected Account
-                                        </button>
-                                        <div class="d-flex gap-2">
-                                            <button class="btn btn-outline-secondary flex-grow-1" data-bs-toggle="modal"
-                                                data-bs-target="#addAccountModal">
-                                                <i class="fas fa-plus me-2"></i>Add OAuth Account
-                                            </button>
-                                            <button class="btn btn-outline-info flex-grow-1" data-bs-toggle="modal"
-                                                data-bs-target="#addServiceAccountModal">
-                                                <i class="fas fa-robot me-2"></i>Add Service Account
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div id="auth-status" class="mt-3"></div>
-                                </div>
-                            </div>
+                            transition: all 0.2s ease;
+                            display: flex;
+                            align-items: center;
+                            gap: 6px;
+                        " onmouseover="this.style.background='#1e7e34'" onmouseout="this.style.background='#28a745'">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                        <button onclick="readyToTest();" class="btn-github" style="
+                            padding: 8px 16px; 
+                            font-size: 13px; 
+                            font-weight: 500;
+                            background: #ff6b35;
+                            color: white;
+                            border: 1px solid #ff6b35;
+                            border-radius: 6px;
+                            transition: all 0.2s ease;
+                            display: flex;
+                            align-items: center;
+                            gap: 6px;
+                        " onmouseover="this.style.background='#e55a2b'" onmouseout="this.style.background='#ff6b35'">
+                            <i class="fas fa-vial"></i> Ready to Test
+                        </button>
                     </div>
-                </div>
-
-                <!-- Add OAuth Account Modal -->
-                <div class="modal fade" id="addAccountModal" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Add Google Account (OAuth)</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <form id="addAccountForm">
-                                    <div class="mb-3">
-                                        <label class="form-label">Account Email</label>
-                                        <input type="email" class="form-control" name="account_name" required
-                                            placeholder="admin@example.com">
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Client ID</label>
-                                        <input type="text" class="form-control" name="client_id" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Client Secret</label>
-                                        <input type="text" class="form-control" name="client_secret" required>
-                                    </div>
-                                </form>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                <button type="button" class="btn btn-primary" onclick="addAccount()">Add
-                                    Account</button>
-                            </div>
+                    <div style="position: relative;">
+                        <textarea id="automation-users-text" class="form-control-github" rows="15"
+                            placeholder="Users will appear here after automation process..." readonly style="
+                                    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+                                    font-size: 13px;
+                                    line-height: 1.5;
+                                    background: #f6f8fa;
+                                    border: 2px solid #d0d7de;
+                                    border-radius: 8px;
+                                    padding: 16px;
+                                    resize: vertical;
+                                    min-height: 300px;
+                                  "></textarea>
+                        <div style="
+                            position: absolute;
+                            top: 8px;
+                            right: 8px;
+                            background: rgba(255, 255, 255, 0.9);
+                            padding: 4px 8px;
+                            border-radius: 4px;
+                            font-size: 11px;
+                            color: #656d76;
+                            font-weight: 500;
+                        ">
+                            <i class="fas fa-lock"></i> Read-only
                         </div>
                     </div>
-                </div>
-
-                <!-- Add Service Account Modal -->
-                <div class="modal fade" id="addServiceAccountModal" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Add Service Account</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <form id="addServiceAccountForm">
-                                    <div class="mb-3">
-                                        <label class="form-label">Display Name</label>
-                                        <input type="text" class="form-control" id="sa_display_name" required
-                                            placeholder="e.g., My Service Account">
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Admin Email (for Delegation)</label>
-                                        <input type="email" class="form-control" id="sa_admin_email" required
-                                            placeholder="admin@yourdomain.com">
-                                        <div class="form-text">The Google Workspace admin email this service account
-                                            will impersonate.</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">JSON Key File</label>
-                                        <input type="file" class="form-control" id="sa_json_file" accept=".json"
-                                            required>
-                                    </div>
-                                </form>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                <button type="button" class="btn btn-primary" onclick="uploadServiceAccount()">Upload &
-                                    Verify</button>
-                            </div>
+                    <div
+                        style="margin-top: 12px; padding: 12px; background: #f6f8fa; border-radius: 6px; border-left: 4px solid #0969da;">
+                        <div style="display: flex; align-items: center; gap: 8px; color: #656d76; font-size: 12px;">
+                            <i class="fas fa-info-circle" style="color: #0969da;"></i>
+                            <span><strong>Format:</strong> email,app_password,smtp.gmail.com,587 (one per line)</span>
                         </div>
                     </div>
-                </div> style="margin-top: 12px; padding: 12px; background: #f6f8fa; border-radius: 6px; border-left: 4px
-                solid #0969da;">
-                <div style="display: flex; align-items: center; gap: 8px; color: #656d76; font-size: 12px;">
-                    <i class="fas fa-info-circle" style="color: #0969da;"></i>
-                    <span><strong>Format:</strong> email,app_password,smtp.gmail.com,587 (one per line)</span>
                 </div>
             </div>
         </div>
     </div>
-</div>
-</div>
 </div>
 </div>
 
@@ -3533,107 +3470,58 @@
     }
     function authenticateAccount() {
         const select = document.getElementById('account-select');
-        const accountName = select.value; // This is actually the ID or Name depending on value
+        const accountName = select.value;
 
         if (!accountName) {
             alert('Please select an account first');
             return;
         }
 
-        // Get the account ID and Type from the selected option
-        const selectedOption = select.options[select.selectedIndex];
-        const accountId = selectedOption.value; // Value is ID
-        const accountType = selectedOption.getAttribute('data-account-type') || 'oauth';
-        const displayName = selectedOption.text;
+        // Get the account ID from the selected option
+        const selectedOption = select.querySelector(`option[value="${accountName}"]`);
+        const accountId = selectedOption ? selectedOption.getAttribute('data-account-id') : null;
 
-        console.log('DEBUG: Authenticating account:', displayName, 'ID:', accountId, 'Type:', accountType);
-        updateAuthStatus(displayName, false, 'Authenticating...');
+        if (!accountId) {
+            alert('Account ID not found. Please refresh the page and try again.');
+            return;
+        }
+
+        console.log('DEBUG: Authenticating account:', accountName, 'ID:', accountId);
+        updateAuthStatus(accountName, false, 'Authenticating...');
 
         fetch('/api/authenticate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                account_id: accountId,
-                account_name: displayName, // Just for logging/display
-                account_type: accountType
-            })
+            body: JSON.stringify({ account_id: accountId, account_name: accountName })
         })
             .then(response => response.json())
             .then(data => {
                 console.log('DEBUG: API response:', data);
 
                 if (data.success) {
-                    updateAuthStatus(displayName, true, data.message);
+                    updateAuthStatus(accountName, true, data.message);
 
                     // Store the authenticated account in sessionStorage for persistence
-                    sessionStorage.setItem('current_account_name', displayName);
-                    sessionStorage.setItem('account_type', accountType);
+                    sessionStorage.setItem('current_account_name', accountName);
 
                     // UPDATE THE VISUAL STATUS IMMEDIATELY
-                    updateAccountStatusAfterAuth(displayName, true);
-
-                    // Reload to ensure all UI components pick up the new session state
-                    setTimeout(() => location.reload(), 1000);
+                    updateAccountStatusAfterAuth(accountName, true);
 
                 } else if (data.oauth_required && data.oauth_url) {
                     console.log('DEBUG: OAuth URL received:', data.oauth_url);
-                    updateAuthStatus(displayName, false, 'OAuth URL generated - opening...');
+                    updateAuthStatus(accountName, false, 'OAuth URL generated - opening...');
 
                     // Show OAuth modal with the URL
                     showOAuthModal(data.oauth_url);
 
                 } else {
                     console.error('DEBUG: Authentication failed:', data.error);
-                    updateAuthStatus(displayName, false, data.error || 'Authentication failed');
+                    updateAuthStatus(accountName, false, data.error || 'Authentication failed');
                 }
             })
             .catch(error => {
                 console.error('DEBUG: Network error:', error);
-                updateAuthStatus(displayName, false, 'Network error: ' + error);
-            });
-    }
-
-    function uploadServiceAccount() {
-        const displayName = document.getElementById('sa_display_name').value;
-        const adminEmail = document.getElementById('sa_admin_email').value;
-        const fileInput = document.getElementById('sa_json_file');
-        const file = fileInput.files[0];
-
-        if (!displayName || !adminEmail || !file) {
-            alert('Please fill in all fields');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('name', displayName);
-        formData.append('admin_email', adminEmail);
-        formData.append('file', file);
-
-        // Show loading state
-        const btn = document.querySelector('#addServiceAccountModal .btn-primary');
-        const originalText = btn.textContent;
-        btn.textContent = 'Uploading & Verifying...';
-        btn.disabled = true;
-
-        fetch('/api/service-accounts/upload', {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('✅ Service Account added successfully!');
-                    location.reload(); // Reload to show in dropdown
-                } else {
-                    alert('❌ Error: ' + data.error);
-                }
-            })
-            .catch(error => {
-                alert('❌ Network Error: ' + error);
-            })
-            .finally(() => {
-                btn.textContent = originalText;
-                btn.disabled = false;
+                updateAuthStatus(accountName, false, 'Network error: ' + error);
             });
     }
 

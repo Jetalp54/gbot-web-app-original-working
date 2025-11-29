@@ -29,7 +29,7 @@ from email.mime.multipart import MIMEMultipart
 import re
 
 from core_logic import google_api
-from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig, ServiceAccount
+from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig
 from routes.dns_manager import dns_manager
 from routes.aws_manager import aws_manager
 
@@ -368,8 +368,7 @@ def health_check():
 @login_required
 def dashboard():
     accounts = GoogleAccount.query.all()
-    service_accounts = ServiceAccount.query.all()
-    return render_template('dashboard.html', accounts=accounts, service_accounts=service_accounts, user=session.get('user'), role=session.get('role'))
+    return render_template('dashboard.html', accounts=accounts, user=session.get('user'), role=session.get('role'))
 
 @app.route('/users')
 @login_required
@@ -1021,43 +1020,10 @@ def api_authenticate():
         data = request.get_json()
         account_name = data.get('account_name')
         account_id = data.get('account_id')
-        account_type = data.get('account_type', 'oauth') # Default to oauth for backward compatibility
         
         if not account_name and not account_id:
             return jsonify({'success': False, 'error': 'No account specified'})
         
-        # Handle Service Account Authentication
-        if account_type == 'service_account':
-            if account_id:
-                account = ServiceAccount.query.get(account_id)
-            else:
-                # For service accounts, account_name might be the display name or admin_email
-                # It's safer to rely on ID, but we can try to find by name
-                account = ServiceAccount.query.filter_by(name=account_name).first()
-            
-            if not account:
-                return jsonify({'success': False, 'error': 'Service Account not found'})
-            
-            # Set session variables for Service Account
-            session['current_account_name'] = account.name # Use display name or admin email?
-            session['account_type'] = 'service_account'
-            session['service_account_id'] = account.id
-            
-            # Verify connection immediately to ensure it works
-            from services.google_service_account import GoogleServiceAccount
-            sa_service = GoogleServiceAccount(account.id)
-            success, message = sa_service.verify_connection()
-            
-            if success:
-                return jsonify({
-                    'success': True,
-                    'message': f'Authenticated with Service Account: {account.name}',
-                    'account_type': 'service_account'
-                })
-            else:
-                return jsonify({'success': False, 'error': f'Service Account verification failed: {message}'})
-
-        # Handle Standard OAuth Authentication
         # Try to find account by ID first (more reliable), then by name
         if account_id:
             account = GoogleAccount.query.get(account_id)
@@ -1073,7 +1039,6 @@ def api_authenticate():
         service_key = google_api._get_session_key(account_name)
         if service_key in session and session.get(service_key):
             session['current_account_name'] = account_name
-            session['account_type'] = 'oauth'
             return jsonify({
                 'success': True, 
                 'message': f'Already authenticated for {account_name} in this session'
@@ -1084,7 +1049,6 @@ def api_authenticate():
             if success:
                 # Set the current account in session for persistence
                 session['current_account_name'] = account_name
-                session['account_type'] = 'oauth'
                 return jsonify({
                     'success': True, 
                     'message': f'Authenticated using cached tokens for {account_name}'
