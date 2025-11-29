@@ -9,8 +9,8 @@ echo "🚀 Deploying GBot Web App with MAXIMUM resource utilization..."
 echo "Server specs: 4 vCPU, 16GB RAM"
 echo "================================================"
 
-# Navigate to the application directory (current directory)
-cd "$(dirname "$0")"
+# Navigate to the application directory
+cd /opt/gbot-web-app
 
 # 1. Pull the latest code
 echo "📥 Pulling latest code from Git..."
@@ -24,7 +24,7 @@ deactivate
 
 # 3. Update to maximum Gunicorn configuration
 echo "⚡ Updating to MAXIMUM Gunicorn configuration..."
-sudo cp gunicorn_maximum.conf.py "$(pwd)/gunicorn.conf.py"
+sudo cp gunicorn_maximum.conf.py /opt/gbot-web-app/gunicorn.conf.py
 
 # 4. Update Nginx configuration for maximum load
 echo "🌐 Updating Nginx for maximum load..."

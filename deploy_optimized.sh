@@ -10,7 +10,7 @@ sudo systemctl stop gbot-memory-monitor 2>/dev/null || true
 
 # Update code
 echo "📥 Pulling latest code..."
-cd "$(dirname "$0")"
+cd /opt/gbot-web-app
 git pull
 
 # Install dependencies
