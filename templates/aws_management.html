@@ -154,6 +154,9 @@
                                 <tbody id="statusTableBody">
                                     <!-- Populated by JS -->
                                 </tbody>
+                                <tfoot id="statusTableFoot">
+                                    <!-- Populated by JS -->
+                                </tfoot>
                             </table>
                         </div>
                     </div>
@@ -542,9 +545,12 @@
 
         const loading = document.getElementById('globalStatusLoading');
         const tbody = document.getElementById('statusTableBody');
+        const tfoot = document.getElementById('statusTableFoot');
 
         loading.style.display = 'block';
-        tbody.innerHTML = ''; // Clear table
+        tbody.innerHTML = ''; // Clear table body
+        if (tfoot) tfoot.innerHTML = ''; // Clear table footer
+
         log('Initiating global AWS resource status check...');
 
         try {
@@ -563,7 +569,21 @@
 
             if (data.success) {
                 log('Global status check completed. Populating table...');
+
+                // Initialize counters
+                let totalRegions = 0;
+                let totalLambdas = 0;
+                let totalRepos = 0;
+                let totalImages = 0;
+                let readyRegions = 0;
+
                 data.results.forEach(region => {
+                    totalRegions++;
+                    if (region.lambda_count) totalLambdas += region.lambda_count;
+                    if (region.ecr_repo) totalRepos++;
+                    if (region.image_tag && region.image_tag !== 'MISSING') totalImages++;
+                    if (region.status === 'ready') readyRegions++;
+
                     const tr = document.createElement('tr');
 
                     // Status Icon
@@ -592,6 +612,32 @@
                     `;
                     tbody.appendChild(tr);
                 });
+
+                // Add Total Row
+                if (!tfoot) {
+                    // Create tfoot if it doesn't exist (though we should add it to HTML)
+                    const newTfoot = document.createElement('tfoot');
+                    newTfoot.id = 'statusTableFoot';
+                    document.querySelector('.github-table').appendChild(newTfoot);
+                }
+
+                const footerRow = document.createElement('tr');
+                footerRow.style.backgroundColor = 'var(--color-canvas-subtle)';
+                footerRow.style.fontWeight = 'bold';
+                footerRow.style.borderTop = '2px solid var(--color-border-default)';
+
+                footerRow.innerHTML = `
+                    <td style="padding: 12px;">TOTAL (${totalRegions} Regions)</td>
+                    <td style="padding: 12px;">${totalLambdas} function(s)</td>
+                    <td style="padding: 12px;">${totalRepos} Repo(s)</td>
+                    <td style="padding: 12px;">${totalImages} Image(s)</td>
+                    <td style="padding: 12px;">${readyRegions}/${totalRegions} Ready</td>
+                `;
+
+                const targetTfoot = document.getElementById('statusTableFoot') || document.querySelector('tfoot');
+                targetTfoot.innerHTML = '';
+                targetTfoot.appendChild(footerRow);
+
             } else {
                 log(`❌ Error checking global status: ${data.error}`);
                 alert('Error: ' + data.error);
