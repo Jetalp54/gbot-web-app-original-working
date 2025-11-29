@@ -11,8 +11,8 @@ echo "🚀 Starting Gbot Automation Installation..."
 echo "📦 Updating system and installing dependencies..."
 sudo apt-get update
 sudo apt-get upgrade -y
-# Added postgresql, postgresql-contrib, and ufw
-sudo apt-get install -y python3-pip python3-venv nginx git libpq-dev build-essential curl postgresql postgresql-contrib ufw
+# Added postgresql, postgresql-contrib, ufw, unzip, jq, awscli
+sudo apt-get install -y python3-pip python3-venv nginx git libpq-dev build-essential curl postgresql postgresql-contrib ufw unzip jq awscli
 
 # 2. Database Setup (PostgreSQL)
 echo "🐘 Configuring PostgreSQL..."
