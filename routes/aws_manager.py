@@ -70,8 +70,8 @@ def upload_service_account():
             return jsonify({'success': False, 'error': 'No file part'}), 400
         
         file = request.files['file']
-        name = request.form.get('name')
-        admin_email = request.form.get('admin_email')
+        name = request.form.get('name', '').strip()
+        admin_email = request.form.get('admin_email', '').strip()
 
         if not file or not name or not admin_email:
             return jsonify({'success': False, 'error': 'Missing required fields'}), 400

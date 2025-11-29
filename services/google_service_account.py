@@ -35,6 +35,8 @@ class GoogleServiceAccount:
             self.credentials_info, scopes=self.SCOPES
         )
         # Delegate to the admin user
+        logger.info(f"Attempting DWD Auth - Client ID: {self.credentials_info.get('client_id')} | Subject: {self.admin_email}")
+        logger.info(f"Scopes: {self.SCOPES}")
         delegated_creds = creds.with_subject(self.admin_email)
         return delegated_creds
 
