@@ -8,7 +8,8 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import google.auth.transport.requests
 from flask import session
-from database import db, GoogleAccount, GoogleToken
+from database import db, GoogleAccount, GoogleToken, ServiceAccount
+from services.google_service_account import GoogleServiceAccount
 from config import SCOPES
 
 # Use a more robust session service storage
@@ -34,26 +35,44 @@ class WebGoogleAPI:
 
     def has_valid_tokens(self, account_name):
         creds = self.get_credentials(account_name)
-        if not creds:
-            return False
-        return creds.valid
+        if creds:
+            return creds.valid
+            
+        # Check if it's a service account
+        service_account = ServiceAccount.query.filter_by(name=account_name).first()
+        if service_account:
+            return True
+            
+        return False
 
     def is_token_valid(self, account_name):
         """Alias for has_valid_tokens for backward compatibility"""
         return self.has_valid_tokens(account_name)
 
     def authenticate_with_tokens(self, account_name):
+        # Try OAuth first
         creds = self.get_credentials(account_name)
-        if not creds:
-            return False
+        if creds:
+            if creds.expired and creds.refresh_token:
+                creds.refresh(google.auth.transport.requests.Request())
 
-        if creds.expired and creds.refresh_token:
-            creds.refresh(google.auth.transport.requests.Request())
-
-        if creds.valid:
-            service = build('admin', 'directory_v1', credentials=creds)
-            self._set_current_service(account_name, service)
-            return True
+            if creds.valid:
+                service = build('admin', 'directory_v1', credentials=creds)
+                self._set_current_service(account_name, service)
+                return True
+        
+        # Try Service Account
+        service_account = ServiceAccount.query.filter_by(name=account_name).first()
+        if service_account:
+            try:
+                gsa = GoogleServiceAccount(service_account.id)
+                service = gsa.build_service('admin', 'directory_v1')
+                self._set_current_service(account_name, service)
+                return True
+            except Exception as e:
+                logging.error(f"Failed to authenticate service account {account_name}: {e}")
+                return False
+                
         return False
 
     def get_oauth_url(self, account_name, creds_data):

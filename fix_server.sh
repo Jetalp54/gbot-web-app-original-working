@@ -19,11 +19,13 @@ else
     # Copy specific files we fixed
     sudo cp services/google_service_account.py $TARGET_DIR/services/
     sudo cp routes/aws_manager.py $TARGET_DIR/routes/
+    sudo cp core_logic.py $TARGET_DIR/
     sudo cp debug_gcp.py $TARGET_DIR/
     
     # Ensure permissions
     sudo chown -R root:root $TARGET_DIR/services/google_service_account.py
     sudo chown -R root:root $TARGET_DIR/routes/aws_manager.py
+    sudo chown -R root:root $TARGET_DIR/core_logic.py
     
     echo "✅ Files copied successfully."
 fi
