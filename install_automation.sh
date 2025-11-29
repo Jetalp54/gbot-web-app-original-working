@@ -17,7 +17,9 @@ sudo apt-get install -y python3-pip python3-venv nginx git libpq-dev build-essen
 # 2. Generate Secrets & Configuration
 echo "🔐 Generating secrets and configuration..."
 if [ -f .env ]; then
-    echo "ℹ️  .env file already exists. Skipping generation to prevent overwriting."
+    echo "ℹ️  .env file already exists. Updating DATABASE_URL to force IPv4..."
+    # Force update localhost to 127.0.0.1 to avoid IPv6 errors
+    sed -i 's/@localhost/@127.0.0.1/g' .env
     # Try to extract DB password from existing .env for DB setup (optional, but good practice)
     # For now, we assume if .env exists, DB is likely set up.
 else
@@ -34,7 +36,7 @@ else
 
 SECRET_KEY=$GEN_SECRET_KEY
 WHITELIST_TOKEN=$GEN_WHITELIST_TOKEN
-DATABASE_URL=postgresql://gbot_user:$GEN_DB_PASSWORD@localhost/gbot_db
+DATABASE_URL=postgresql://gbot_user:$GEN_DB_PASSWORD@127.0.0.1/gbot_db
 
 # IP Whitelist Configuration - ENABLED FOR SECURITY
 ENABLE_IP_WHITELIST=True
@@ -60,6 +62,10 @@ fi
 
 # 3. Database Setup (PostgreSQL)
 echo "🐘 Configuring PostgreSQL..."
+# Ensure PostgreSQL is running
+sudo systemctl enable postgresql
+sudo systemctl start postgresql
+
 # If we generated a password, use it. If not (env exists), we might skip password reset or use a default/extracted one.
 # Here we only update the password if we just generated one, to ensure sync.
 if [ ! -z "$GEN_DB_PASSWORD" ]; then
