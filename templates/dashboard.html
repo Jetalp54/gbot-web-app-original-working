@@ -57,6 +57,9 @@
             <button onclick="addFromServerJSON()" class="btn-github">
                 <i class="fas fa-folder-open"></i> Add from Server JSON
             </button>
+            <button onclick="openAddGCPAccountModal()" class="btn-github">
+                <i class="fas fa-cloud"></i> Add GCP Accounts
+            </button>
             {% endif %}
             {% if session.role == 'admin' %}
             <button onclick="forceTokenStatusCheck()" class="btn-github"
@@ -194,6 +197,55 @@
                     <i class="fas fa-save"></i> Save Account
                 </button>
                 <button type="button" onclick="closeAddAccountModal()" class="btn-github">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add GCP Account Modal -->
+    <div id="addGCPAccountModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-cloud"></i> Add GCP Account
+                </h3>
+                <button type="button" class="btn-github" onclick="closeAddGCPAccountModal()" style="margin-left: auto;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="addGCPAccountForm">
+                    <div class="form-group-github">
+                        <label for="gcp-name" class="form-label-github">
+                            <i class="fas fa-tag"></i> Account Name (Display Name)
+                        </label>
+                        <input type="text" id="gcp-name" class="form-control-github" required
+                            placeholder="e.g., Production Service Account">
+                    </div>
+                    <div class="form-group-github">
+                        <label for="gcp-admin-email" class="form-label-github">
+                            <i class="fas fa-user-shield"></i> Admin Email (for Delegation)
+                        </label>
+                        <input type="email" id="gcp-admin-email" class="form-control-github" required
+                            placeholder="admin@yourdomain.com">
+                        <small style="color: var(--color-fg-muted); font-size: 12px;">
+                            The email address of a Google Workspace admin user to impersonate.
+                        </small>
+                    </div>
+                    <div class="form-group-github">
+                        <label for="gcp-json-file" class="form-label-github">
+                            <i class="fas fa-file-code"></i> Service Account JSON Key
+                        </label>
+                        <input type="file" id="gcp-json-file" class="form-control-github" required accept=".json">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="uploadGCPAccount()" class="btn-github btn-github-primary">
+                    <i class="fas fa-upload"></i> Upload & Verify
+                </button>
+                <button type="button" onclick="closeAddGCPAccountModal()" class="btn-github">
                     <i class="fas fa-times"></i> Cancel
                 </button>
             </div>
@@ -11361,5 +11413,62 @@
             console.error('❌ Domain verification button NOT found in DOM');
         }
     }, 1000);
+
+    // --- GCP Account Management ---
+    function openAddGCPAccountModal() {
+        document.getElementById('addGCPAccountModal').style.display = 'block';
+    }
+
+    function closeAddGCPAccountModal() {
+        document.getElementById('addGCPAccountModal').style.display = 'none';
+        document.getElementById('addGCPAccountForm').reset();
+    }
+
+    function uploadGCPAccount() {
+        const name = document.getElementById('gcp-name').value;
+        const adminEmail = document.getElementById('gcp-admin-email').value;
+        const fileInput = document.getElementById('gcp-json-file');
+        const file = fileInput.files[0];
+
+        if (!name || !adminEmail || !file) {
+            alert('Please fill in all fields and select a JSON file.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('admin_email', adminEmail);
+        formData.append('file', file);
+
+        // Show loading state
+        const btn = document.querySelector('#addGCPAccountModal .btn-github-primary');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+
+        fetch('/api/service-accounts/upload', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Success: ' + data.message);
+                    closeAddGCPAccountModal();
+                    // Reload page to show new account in list (simplest way for now)
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while uploading the service account.');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+    }
 </script>
 {% endblock %}
