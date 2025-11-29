@@ -25,6 +25,24 @@ from services.google_service_account import GoogleServiceAccount
 
 # ... (existing imports)
 
+
+
+# Constants from aws.py
+LAMBDA_ROLE_NAME = "edu-gw-app-password-lambda-role"
+PRODUCTION_LAMBDA_NAME = "edu-gw-chromium"
+S3_BUCKET_NAME = "edu-gw-app-passwords"
+ECR_REPO_NAME = "edu-gw-app-password-worker-repo"
+ECR_IMAGE_TAG = "latest"
+EC2_INSTANCE_NAME = "edu-gw-ec2-build-box"
+EC2_ROLE_NAME = "edu-gw-ec2-build-role"
+EC2_INSTANCE_PROFILE_NAME = "edu-gw-ec2-build-instance-profile"
+EC2_SECURITY_GROUP_NAME = "edu-gw-ec2-build-sg"
+EC2_KEY_PAIR_NAME = "edu-gw-ec2-build-key"
+
+logger = logging.getLogger(__name__)
+
+aws_manager = Blueprint('aws_manager', __name__)
+
 @aws_manager.route('/api/service-accounts', methods=['GET'])
 def list_service_accounts():
     """List all configured service accounts"""
@@ -118,22 +136,6 @@ def delete_service_account(account_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
-
-# Constants from aws.py
-LAMBDA_ROLE_NAME = "edu-gw-app-password-lambda-role"
-PRODUCTION_LAMBDA_NAME = "edu-gw-chromium"
-S3_BUCKET_NAME = "edu-gw-app-passwords"
-ECR_REPO_NAME = "edu-gw-app-password-worker-repo"
-ECR_IMAGE_TAG = "latest"
-EC2_INSTANCE_NAME = "edu-gw-ec2-build-box"
-EC2_ROLE_NAME = "edu-gw-ec2-build-role"
-EC2_INSTANCE_PROFILE_NAME = "edu-gw-ec2-build-instance-profile"
-EC2_SECURITY_GROUP_NAME = "edu-gw-ec2-build-sg"
-EC2_KEY_PAIR_NAME = "edu-gw-ec2-build-key"
-
-logger = logging.getLogger(__name__)
-
-aws_manager = Blueprint('aws_manager', __name__)
 
 # Global executor for background tasks
 executor = ThreadPoolExecutor(max_workers=20)
