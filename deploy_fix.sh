@@ -12,7 +12,7 @@ echo "✅ Found app.py in current directory"
 
 # Test the app locally first
 echo "🧪 Testing app.py syntax..."
-python -c "import app; print('✅ App syntax is valid')" 2>&1
+python3 -c "import app; print('✅ App syntax is valid')" 2>&1
 if [ $? -eq 0 ]; then
     echo "✅ App.py syntax is valid - ready to deploy"
 else
