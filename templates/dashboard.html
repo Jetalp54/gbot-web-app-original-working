@@ -39,15 +39,9 @@
                 <select id="account-select" class="form-control-github">
                     <option value="">Choose an account...</option>
                     {% for account in accounts %}
-                    <option value="{{ account.account_name }}" data-account-id="{{ account.id }}"
-                        data-account-type="oauth">OAuth: {{ account.account_name }}</option>
+                    <option value="{{ account.account_name }}" data-account-id="{{ account.id }}">{{
+                        account.account_name }}</option>
                     {% endfor %}
-                    {% if service_accounts %}
-                    {% for sa in service_accounts %}
-                    <option value="{{ sa.name }}" data-account-id="{{ sa.id }}" data-account-type="service_account">
-                        Service Account: {{ sa.name }}</option>
-                    {% endfor %}
-                    {% endif %}
                 </select>
             </div>
             <button onclick="authenticateAccount()" class="btn-github btn-github-primary">
@@ -60,8 +54,8 @@
             <button onclick="openAddAccountModal()" class="btn-github">
                 <i class="fas fa-plus"></i> Add Manually
             </button>
-            <button onclick="openServiceAccountModal()" class="btn-github">
-                <i class="fas fa-robot"></i> Add Service Account
+            <button onclick="addFromServerJSON()" class="btn-github">
+                <i class="fas fa-folder-open"></i> Add from Server JSON
             </button>
             {% endif %}
             {% if session.role == 'admin' %}
@@ -1658,134 +1652,136 @@
                         " onmouseover="this.style.background='#0550ae'" onmouseout="this.style.background='#0969da'">
                             <i class="fas fa-copy"></i> Copy Text
                         </button>
-                        transition: all 0.2s ease;
-                        " onmouseover="this.style.background='#218838'" onmouseout="this.style.background='#28a745'">
-                        <i class="fas fa-file-export"></i> Export Users
-                        </button>
+                        <button onclick="exportAutomationUsers()" class="btn-github" style="
+                            padding: 8px 16px; 
+                            font-size: 13px; 
+                            font-weight: 500;
+                            background: #28a745;
+                            color: white;
+                            border: 1px solid #28a745;
+                            border-radius: 6px;
+                            <!-- Account Selection & Authentication -->
+            <div class=" col-md-6 mb-4">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-header bg-white py-3">
+                                    <h5 class="mb-0 text-primary"><i class="fas fa-key me-2"></i>Account Selection &
+                                        Authentication</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="account-select" class="form-label">Select Google Account</label>
+                                        <select class="form-select" id="account-select">
+                                            <option value="" selected disabled>Choose an account...</option>
+                                            {% for account in accounts %}
+                                            <option value="{{ account.id }}" data-account-type="oauth">{{
+                                                account.account_name }} (OAuth)</option>
+                                            {% endfor %}
+                                            {% for sa in service_accounts %}
+                                            <option value="{{ sa.id }}" data-account-type="service_account">{{ sa.name
+                                                }} (Service Account)</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="d-grid gap-2">
+                                        <button class="btn btn-primary" onclick="authenticateAccount()">
+                                            <i class="fas fa-sign-in-alt me-2"></i>Authenticate Selected Account
+                                        </button>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-secondary flex-grow-1" data-bs-toggle="modal"
+                                                data-bs-target="#addAccountModal">
+                                                <i class="fas fa-plus me-2"></i>Add OAuth Account
+                                            </button>
+                                            <button class="btn btn-outline-info flex-grow-1" data-bs-toggle="modal"
+                                                data-bs-target="#addServiceAccountModal">
+                                                <i class="fas fa-robot me-2"></i>Add Service Account
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="auth-status" class="mt-3"></div>
+                                </div>
+                            </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Account Selection & Authentication -->
-            <div class="col-md-6 mb-4">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-header bg-white py-3">
-                        <h5 class="mb-0 text-primary"><i class="fas fa-key me-2"></i>Account Selection &
-                            Authentication</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label for="account-select" class="form-label">Select Google Account</label>
-                            <select class="form-select" id="account-select">
-                                <option value="" selected disabled>Choose an account...</option>
-                                {% for account in accounts %}
-                                <option value="{{ account.id }}" data-account-type="oauth">{{
-                                    account.account_name }} (OAuth)</option>
-                                {% endfor %}
-                                {% for sa in service_accounts %}
-                                <option value="{{ sa.id }}" data-account-type="service_account">{{ sa.name
-                                    }} (Service Account)</option>
-                                {% endfor %}
-                            </select>
+                <!-- Add OAuth Account Modal -->
+                <div class="modal fade" id="addAccountModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Add Google Account (OAuth)</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="addAccountForm">
+                                    <div class="mb-3">
+                                        <label class="form-label">Account Email</label>
+                                        <input type="email" class="form-control" name="account_name" required
+                                            placeholder="admin@example.com">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Client ID</label>
+                                        <input type="text" class="form-control" name="client_id" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Client Secret</label>
+                                        <input type="text" class="form-control" name="client_secret" required>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-primary" onclick="addAccount()">Add
+                                    Account</button>
+                            </div>
                         </div>
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-primary" onclick="authenticateAccount()">
-                                <i class="fas fa-sign-in-alt me-2"></i>Authenticate Selected Account
-                            </button>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-outline-secondary flex-grow-1" onclick="openAddAccountModal()">
-                                    <i class="fas fa-plus me-2"></i>Add OAuth Account
-                                </button>
-                                <button class="btn btn-outline-info flex-grow-1" onclick="openServiceAccountModal()">
-                                    <i class="fas fa-robot me-2"></i>Add Service Account
-                                </button>
+                    </div>
+                </div>
+
+                <!-- Add Service Account Modal -->
+                <div class="modal fade" id="addServiceAccountModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Add Service Account</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="addServiceAccountForm">
+                                    <div class="mb-3">
+                                        <label class="form-label">Display Name</label>
+                                        <input type="text" class="form-control" id="sa_display_name" required
+                                            placeholder="e.g., My Service Account">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Admin Email (for Delegation)</label>
+                                        <input type="email" class="form-control" id="sa_admin_email" required
+                                            placeholder="admin@yourdomain.com">
+                                        <div class="form-text">The Google Workspace admin email this service account
+                                            will impersonate.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">JSON Key File</label>
+                                        <input type="file" class="form-control" id="sa_json_file" accept=".json"
+                                            required>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-primary" onclick="uploadServiceAccount()">Upload &
+                                    Verify</button>
                             </div>
                         </div>
-                        <div id="auth-status" class="mt-3"></div>
                     </div>
+                </div> style="margin-top: 12px; padding: 12px; background: #f6f8fa; border-radius: 6px; border-left: 4px
+                solid #0969da;">
+                <div style="display: flex; align-items: center; gap: 8px; color: #656d76; font-size: 12px;">
+                    <i class="fas fa-info-circle" style="color: #0969da;"></i>
+                    <span><strong>Format:</strong> email,app_password,smtp.gmail.com,587 (one per line)</span>
                 </div>
             </div>
-        </div>
-
-        <!-- Add OAuth Account Modal -->
-        <div class="modal fade" id="addAccountModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Add Google Account (OAuth)</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="addAccountForm">
-                            <div class="mb-3">
-                                <label class="form-label">Account Email</label>
-                                <input type="email" class="form-control" name="account_name" required
-                                    placeholder="admin@example.com">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Client ID</label>
-                                <input type="text" class="form-control" name="client_id" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Client Secret</label>
-                                <input type="text" class="form-control" name="client_secret" required>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary" onclick="addAccount()">Add
-                            Account</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Add Service Account Modal -->
-        <div class="modal fade" id="addServiceAccountModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Add Service Account</h5>
-                        <button type="button" class="btn-close" onclick="closeServiceAccountModal()"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="addServiceAccountForm">
-                            <div class="mb-3">
-                                <label class="form-label">Display Name</label>
-                                <input type="text" class="form-control" id="sa_display_name" required
-                                    placeholder="e.g., My Service Account">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Admin Email (for Delegation)</label>
-                                <input type="email" class="form-control" id="sa_admin_email" required
-                                    placeholder="admin@yourdomain.com">
-                                <div class="form-text">The Google Workspace admin email this service account
-                                    will impersonate.</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">JSON Key File</label>
-                                <input type="file" class="form-control" id="sa_json_file" accept=".json" required>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary"
-                            onclick="closeServiceAccountModal()">Close</button>
-                        <button type="button" class="btn btn-primary" onclick="uploadServiceAccount()">Upload &
-                            Verify</button>
-                    </div>
-                </div>
-            </div>
-        </div> style="margin-top: 12px; padding: 12px; background: #f6f8fa; border-radius: 6px; border-left: 4px
-        solid #0969da;">
-        <div style="display: flex; align-items: center; gap: 8px; color: #656d76; font-size: 12px;">
-            <i class="fas fa-info-circle" style="color: #0969da;"></i>
-            <span><strong>Format:</strong> email,app_password,smtp.gmail.com,587 (one per line)</span>
         </div>
     </div>
-</div>
-</div>
 </div>
 </div>
 </div>
@@ -4275,15 +4271,6 @@
         document.getElementById('addAccountForm').reset();
     }
 
-    function openServiceAccountModal() {
-        document.getElementById('addServiceAccountModal').style.display = 'block';
-    }
-
-    function closeServiceAccountModal() {
-        document.getElementById('addServiceAccountModal').style.display = 'none';
-        document.getElementById('addServiceAccountForm').reset();
-    }
-
     // Close modal when clicking outside
     window.onclick = function (event) {
         const modal = document.getElementById('addAccountModal');
@@ -4661,6 +4648,184 @@
         });
 
         updateAccountStats(totalAccounts, validAccounts, invalidAccounts, 'Updated');
+    }
+
+    function addFromServerJSON() {
+        // Create a modal dialog instead of simple prompt
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    `;
+
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        width: 600px;
+        max-width: 90vw;
+        max-height: 80vh;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        color: #333;
+    `;
+
+        dialog.innerHTML = `
+        <h3 style="margin-bottom: 20px; color: #007bff;">📁 Add Accounts from Server JSON</h3>
+        
+        <p style="margin-bottom: 15px; color: #666;">
+            Enter Google Workspace admin email addresses below (one per line).<br>
+            The system will search for corresponding JSON credential files on the server.
+        </p>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Addresses:</label>
+            <textarea id="emailInput" placeholder="admin@domain1.com&#10;admin@domain2.com&#10;admin@domain3.com&#10;..." 
+                style="width: 100%; height: 250px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; resize: vertical;"></textarea>
+        </div>
+        
+        <div style="margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px; border-left: 4px solid #007bff;">
+            <strong>💡 Tips:</strong>
+            <ul style="margin: 5px 0 0 20px; color: #666;">
+                <li>Enter one email address per line</li>
+                <li>You can paste multiple emails at once</li>
+                <li>Empty lines will be ignored</li>
+                <li>Files must be named exactly: <code>&lt;email&gt;.json</code></li>
+            </ul>
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button id="cancelBtn" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                ❌ Cancel
+            </button>
+            <button id="searchBtn" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;" disabled>
+                🔍 Search & Add Accounts
+            </button>
+        </div>
+    `;
+
+        modal.appendChild(dialog);
+        document.body.appendChild(modal);
+
+        // Get elements
+        const emailInput = dialog.querySelector('#emailInput');
+        const searchBtn = dialog.querySelector('#searchBtn');
+        const cancelBtn = dialog.querySelector('#cancelBtn');
+
+        // Update button state as user types
+        function updateButtonState() {
+            const text = emailInput.value.trim();
+            if (!text) {
+                searchBtn.disabled = true;
+                return;
+            }
+
+            const emails = text.split('\n')
+                .map(email => email.trim())
+                .filter(email => email && email.includes('@'));
+
+            searchBtn.disabled = emails.length === 0;
+        }
+
+        // Add event listeners
+        emailInput.addEventListener('input', updateButtonState);
+        emailInput.addEventListener('paste', () => setTimeout(updateButtonState, 10));
+
+        cancelBtn.addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+
+        searchBtn.addEventListener('click', () => {
+            const emails = emailInput.value.trim()
+                .split('\n')
+                .map(email => email.trim())
+                .filter(email => email && email.includes('@'));
+
+            if (emails.length === 0) {
+                alert('No valid email addresses found');
+                return;
+            }
+
+            // Close modal
+            document.body.removeChild(modal);
+
+            // Show confirmation
+            if (!confirm(`Search for JSON credential files for ${emails.length} email address(es)?`)) {
+                return;
+            }
+
+            // Process the search using server configuration
+            processServerJSONSearch(emails);
+        });
+
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                document.body.removeChild(modal);
+            }
+        });
+
+        // Focus on textarea
+        setTimeout(() => emailInput.focus(), 100);
+    }
+
+    // Separate function to handle the actual API call using server configuration
+    function processServerJSONSearch(emails) {
+        // Show loading in some button (you can modify this)
+        const button = document.querySelector('[onclick="addFromServerJSON()"]');
+        const originalText = button.textContent;
+        button.textContent = '🔍 Searching...';
+        button.disabled = true;
+
+        // Make API request using server configuration
+        fetch('/api/add-from-server-json', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emails: emails })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let message = data.message + '\n\n';
+
+                    if (data.added_accounts && data.added_accounts.length > 0) {
+                        message += `✅ Successfully added:\n${data.added_accounts.join('\n')}\n\n`;
+                    }
+
+                    if (data.failed_accounts && data.failed_accounts.length > 0) {
+                        message += `❌ Failed accounts:\n`;
+                        for (const failed of data.failed_accounts) {
+                            message += `${failed.email}: ${failed.error}\n`;
+                        }
+                    }
+
+                    alert(message);
+
+                    // Refresh the account list if any were added
+                    if (data.added_accounts && data.added_accounts.length > 0) {
+                        refreshAccountsDisplay();
+                    }
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Network error:', error);
+                alert('❌ Network error: ' + error.message);
+            })
+            .finally(() => {
+                // Restore button state
+                button.textContent = originalText;
+                button.disabled = false;
+            });
     }
 
     function debugSFTPFiles() {
