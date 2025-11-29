@@ -88,6 +88,8 @@ class WebGoogleAPI:
 
     def _get_current_service(self):
         current_account = session.get('current_account_name')
+        account_type = session.get('account_type', 'oauth')
+        
         if not current_account:
             logging.warning("No current account in session")
             return None
@@ -97,23 +99,44 @@ class WebGoogleAPI:
         
         if service is None:
             logging.info(f"No service found for account {current_account}, attempting to recreate...")
-            # Try to recreate the service if it doesn't exist
-            if self.is_token_valid(current_account):
-                success = self.authenticate_with_tokens(current_account)
-                if success:
-                    service = _session_services.get(service_key)
-                    logging.info(f"Successfully recreated service for account {current_account}")
+            
+            # Handle Service Account Recreation
+            if account_type == 'service_account':
+                service_account_id = session.get('service_account_id')
+                if service_account_id:
+                    try:
+                        from services.google_service_account import GoogleServiceAccount
+                        sa = GoogleServiceAccount(service_account_id)
+                        # We need the 'admin' service for most operations
+                        service = sa.build_service('admin', 'directory_v1')
+                        self._set_current_service(current_account, service)
+                        logging.info(f"Successfully recreated service for Service Account {current_account}")
+                    except Exception as e:
+                        logging.error(f"Failed to recreate service for Service Account {current_account}: {e}")
                 else:
-                    logging.error(f"Failed to recreate service for account {current_account}")
+                    logging.error(f"Service Account ID missing for {current_account}")
+            
+            # Handle OAuth Account Recreation
             else:
-                logging.error(f"No valid tokens for account {current_account}")
+                # Try to recreate the service if it doesn't exist
+                if self.is_token_valid(current_account):
+                    success = self.authenticate_with_tokens(current_account)
+                    if success:
+                        service = _session_services.get(service_key)
+                        logging.info(f"Successfully recreated service for account {current_account}")
+                    else:
+                        logging.error(f"Failed to recreate service for account {current_account}")
+                else:
+                    logging.error(f"No valid tokens for account {current_account}")
         
         return service
 
     def _set_current_service(self, account_name, service):
         service_key = self._get_session_key(account_name)
         _session_services[service_key] = service
-        session['current_account_name'] = account_name
+        # session['current_account_name'] is already set in api_authenticate, but good to ensure
+        if 'current_account_name' not in session:
+            session['current_account_name'] = account_name
         logging.info(f"Service set for account {account_name} with key {service_key}")
 
     @property
