@@ -11,9 +11,20 @@ echo "🚀 Starting Gbot Automation Installation..."
 echo "📦 Updating system and installing dependencies..."
 sudo apt-get update
 sudo apt-get upgrade -y
-sudo apt-get install -y python3-pip python3-venv nginx git libpq-dev build-essential curl
+# Added postgresql, postgresql-contrib, and ufw
+sudo apt-get install -y python3-pip python3-venv nginx git libpq-dev build-essential curl postgresql postgresql-contrib ufw
 
-# 2. Directory Setup
+# 2. Database Setup (PostgreSQL)
+echo "🐘 Configuring PostgreSQL..."
+# Check if database exists, if not create it
+sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'gbot_db'" | grep -q 1 || sudo -u postgres psql -c "CREATE DATABASE gbot_db;"
+# Check if user exists, if not create it (change password in production!)
+sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = 'gbot_user'" | grep -q 1 || sudo -u postgres psql -c "CREATE USER gbot_user WITH PASSWORD 'gbot_password';"
+# Grant privileges
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE gbot_db TO gbot_user;"
+echo "✅ Database 'gbot_db' and user 'gbot_user' configured."
+
+# 3. Directory Setup
 APP_DIR="/opt/gbot-web-app"
 echo "📂 Setting up application directory at $APP_DIR..."
 
@@ -29,7 +40,7 @@ if [ "$PWD" != "$APP_DIR" ]; then
     cd $APP_DIR
 fi
 
-# 3. Virtual Environment
+# 4. Virtual Environment
 echo "🐍 Setting up Python virtual environment..."
 if [ ! -d "venv" ]; then
     python3 -m venv venv
@@ -37,12 +48,12 @@ fi
 source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
-pip install gunicorn psutil
+pip install gunicorn psutil psycopg2-binary
 
-# 4. Create Logs Directory
+# 5. Create Logs Directory
 mkdir -p logs
 
-# 5. Nginx Configuration (Optimized)
+# 6. Nginx Configuration (Optimized)
 echo "🌐 Configuring Nginx..."
 # Remove default if exists
 if [ -f /etc/nginx/sites-enabled/default ]; then
@@ -57,7 +68,7 @@ sudo ln -sf /etc/nginx/sites-available/gbot /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 
-# 6. Systemd Service Configuration (Optimized)
+# 7. Systemd Service Configuration (Optimized)
 echo "⚙️ Configuring Systemd Services..."
 sudo cp gbot_optimized.service /etc/systemd/system/gbot.service
 sudo cp gbot-memory-monitor.service /etc/systemd/system/gbot-memory-monitor.service
@@ -66,17 +77,24 @@ sudo systemctl daemon-reload
 sudo systemctl enable gbot
 sudo systemctl enable gbot-memory-monitor
 
-# 7. Start Services
+# 8. Start Services
 echo "🔄 Starting Services..."
 sudo systemctl restart gbot
 sudo systemctl restart gbot-memory-monitor
 
-# 8. Firewall Setup
-echo "🛡️ Configuring Firewall..."
+# 9. Firewall Setup (Whitelist IP / Security)
+echo "🛡️ Configuring Firewall (UFW)..."
+# Enable UFW if not enabled
+sudo ufw --force enable
+# Allow SSH (Port 22) - CRITICAL to avoid lockout
+sudo ufw allow 22/tcp
+# Allow Nginx Full (Port 80/443)
 sudo ufw allow 'Nginx Full'
-# sudo ufw allow ssh # Ensure SSH is allowed if UFW is enabled
+# Example: Whitelist specific IP for admin access (Uncomment and replace IP to use)
+# sudo ufw allow from 1.2.3.4 to any port 22
+echo "✅ Firewall configured. SSH (22) and HTTP/HTTPS (80/443) allowed."
 
-# 9. Final Check
+# 10. Final Check
 echo "📊 Checking Service Status..."
 sudo systemctl status gbot --no-pager
 echo ""
