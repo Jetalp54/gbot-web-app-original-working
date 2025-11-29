@@ -20,7 +20,104 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
 from flask import Blueprint, request, jsonify, session, render_template, copy_current_request_context
 from functools import wraps
-from database import db, UserAppPassword, AwsGeneratedPassword, AwsConfig, ProxyConfig, TwoCaptchaConfig
+from database import db, UserAppPassword, AwsGeneratedPassword, AwsConfig, ProxyConfig, TwoCaptchaConfig, ServiceAccount
+from services.google_service_account import GoogleServiceAccount
+
+# ... (existing imports)
+
+@aws_manager.route('/api/service-accounts', methods=['GET'])
+def list_service_accounts():
+    """List all configured service accounts"""
+    try:
+        accounts = ServiceAccount.query.all()
+        return jsonify({
+            'success': True,
+            'accounts': [{
+                'id': acc.id,
+                'name': acc.name,
+                'client_email': acc.client_email,
+                'project_id': acc.project_id,
+                'admin_email': acc.admin_email,
+                'created_at': acc.created_at.isoformat() if acc.created_at else None
+            } for acc in accounts]
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@aws_manager.route('/api/service-accounts/upload', methods=['POST'])
+def upload_service_account():
+    """Upload and verify a new service account JSON key"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file part'}), 400
+        
+        file = request.files['file']
+        name = request.form.get('name')
+        admin_email = request.form.get('admin_email')
+
+        if not file or not name or not admin_email:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No selected file'}), 400
+
+        # Read and parse JSON
+        try:
+            json_content = file.read().decode('utf-8')
+            data = json.loads(json_content)
+        except Exception:
+            return jsonify({'success': False, 'error': 'Invalid JSON file'}), 400
+
+        # Validate JSON structure
+        required_fields = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email']
+        if not all(field in data for field in required_fields):
+             return jsonify({'success': False, 'error': 'Invalid Service Account JSON format'}), 400
+
+        if data['type'] != 'service_account':
+             return jsonify({'success': False, 'error': 'JSON is not a service account key'}), 400
+
+        # Create record temporarily to verify
+        new_account = ServiceAccount(
+            name=name,
+            admin_email=admin_email,
+            project_id=data['project_id'],
+            client_email=data['client_email'],
+            private_key_id=data['private_key_id'],
+            json_content=json_content
+        )
+        
+        db.session.add(new_account)
+        db.session.flush() # Get ID without committing
+
+        # Verify connection
+        service = GoogleServiceAccount(new_account.id)
+        success, message = service.verify_connection()
+
+        if success:
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Service Account added and verified successfully'})
+        else:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': f'Verification failed: {message}'}), 400
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@aws_manager.route('/api/service-accounts/<int:account_id>', methods=['DELETE'])
+def delete_service_account(account_id):
+    """Delete a service account"""
+    try:
+        account = ServiceAccount.query.get(account_id)
+        if not account:
+            return jsonify({'success': False, 'error': 'Account not found'}), 404
+        
+        db.session.delete(account)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Service Account deleted'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Constants from aws.py
 LAMBDA_ROLE_NAME = "edu-gw-app-password-lambda-role"

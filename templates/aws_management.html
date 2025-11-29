@@ -162,233 +162,295 @@
                     </div>
                 </div>
 
-                <!-- Lambda Tab -->
-                <div id="tab-lambda" class="tab-content" style="display: none;">
-                    <div class="section" style="margin-bottom: var(--spacing-lg);">
-                        <h4 style="margin-bottom: var(--spacing-md);">Production Lambda Management</h4>
-                        <div class="alert-github"
-                            style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-md);">
-                            <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
-                            <div>
-                                <strong>Production Workflow:</strong><br>
-                                1) Create Core Resources (IAM, ECR, S3) + DynamoDB Table<br>
-                                2) Use EC2 tab to build/push Docker image<br>
-                                3) Create/Update Production Lambda<br>
-                                4) Invoke Lambda → Wait → Fetch from DynamoDB
-                            </div>
-                        </div>
-                        <!-- Lambda Creation Options -->
-                        <div class="section" style="margin-bottom: var(--spacing-md);">
-                            <h5 style="margin-bottom: var(--spacing-sm);">Lambda Creation Options</h5>
-                            <div class="form-group-github">
-                                <label
-                                    style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer; margin-bottom: var(--spacing-sm);">
-                                    <input type="checkbox" id="createMultipleLambdas" onchange="toggleLambdaOptions()">
-                                    <span>Create multiple Lambda functions based on user count</span>
-                                </label>
-                            </div>
-                            <div id="lambdaOptions"
-                                style="display: none; margin-top: var(--spacing-md); padding: var(--spacing-md); background-color: var(--color-canvas-subtle); border-radius: var(--radius-md);">
-                                <div
-                                    style="margin-bottom: var(--spacing-md); padding: var(--spacing-sm); background-color: var(--color-success-subtle); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-success-fg);">
-                                    <strong>ℹ️ Auto-calculation:</strong> Users will be automatically counted from the
-                                    "Multiple Accounts" field above.
-                                </div>
-                                <div class="form-group-github">
-                                    <label class="form-label-github">Users per Function:</label>
-                                    <input type="number" id="usersPerFunction" class="form-control-github" min="1"
-                                        value="10" placeholder="10" readonly
-                                        style="background-color: var(--color-canvas-inset);">
-                                    <small style="color: var(--color-fg-muted); font-size: 12px;">Fixed at 10 users per
-                                        Lambda function (maximum)</small>
-                                </div>
-                                <div id="lambdaCalculation"
-                                    style="margin-top: var(--spacing-sm); padding: var(--spacing-sm); background-color: var(--color-canvas-inset); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-fg-muted);">
-                                    <strong>Calculation:</strong> <span id="lambdaCount">0</span> function(s) will be
-                                    created for <span id="detectedUserCount">0</span> user(s)
-                                </div>
-                            </div>
-                        </div>
-                        <button class="btn-github btn-github-primary" onclick="createLambdas()"
-                            style="width: 100%; margin-bottom: var(--spacing-sm);">
-                            <i class="fas fa-sync-alt"></i>
-                            Create / Update Production Lambda(s)
-                        </button>
-                        <button class="btn-github" onclick="checkAWSLimits()"
-                            style="width: 100%; margin-bottom: var(--spacing-sm); background-color: rgba(0, 123, 255, 0.1); border-color: #007bff;">
-                            <i class="fas fa-search"></i>
-                            🔍 Check AWS Limits (Diagnose 10 User Issue)
-                        </button>
-                        <button class="btn-github" onclick="fixLambdaConcurrency()"
-                            style="width: 100%; margin-bottom: var(--spacing-sm); background-color: rgba(255, 193, 7, 0.1); border-color: #ffc107;">
-                            <i class="fas fa-tachometer-alt"></i>
-                            🔧 Fix Concurrency Limit (Remove 10 User Limit)
-                        </button>
-                        <button class="btn-github" onclick="requestQuotaIncrease()"
-                            style="width: 100%; margin-bottom: var(--spacing-md); background-color: rgba(40, 167, 69, 0.1); border-color: #28a745;">
-                            <i class="fas fa-arrow-up"></i>
-                            🚀 Request Quota Increase (10 → 1000)
-                        </button>
-
-                        <!-- Execution Mode -->
-                        <div class="section" style="margin-bottom: var(--spacing-lg);">
-                            <h5 style="margin-bottom: var(--spacing-sm);">Execution Mode</h5>
-                            <div style="display: flex; gap: var(--spacing-lg); margin-bottom: var(--spacing-md);">
-                                <label
-                                    style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer;">
-                                    <input type="radio" name="executionMode" value="single" checked>
-                                    <span>Single Account</span>
-                                </label>
-                                <label
-                                    style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer;">
-                                    <input type="radio" name="executionMode" value="multiple">
-                                    <span>Multiple Accounts (Parallel)</span>
-                                </label>
-                            </div>
-
-                            <!-- Account Input -->
-                            <div class="form-group-github">
-                                <label class="form-label-github">Account Input (user:password, one per line):</label>
-                                <p
-                                    style="font-size: 12px; color: var(--color-fg-muted); margin-bottom: var(--spacing-sm);">
-                                    Single Account Mode: Enter one line (email:password)<br>
-                                    Multiple Accounts Mode: Enter multiple lines (one per line)
-                                </p>
-                                <textarea id="multipleUsers" class="form-control-github" rows="8"
-                                    placeholder="email1:password1&#10;email2:password2&#10;email3:password3"></textarea>
-                            </div>
-                            <div id="multiStatus"
-                                style="font-size: 13px; color: var(--color-fg-muted); margin-top: var(--spacing-sm);">
-                                Ready</div>
-                        </div>
-
-                        <button class="btn-github btn-github-primary" onclick="invokeProductionLambda()"
-                            style="width: 100%; margin-bottom: var(--spacing-md);">
-                            <i class="fas fa-play"></i>
-                            Invoke Production Lambda
-                        </button>
-                        <button class="btn-github" onclick="stopAllLambdas()"
-                            style="width: 100%; margin-bottom: var(--spacing-md); background-color: #ff6b35; border-color: #ff6b35; color: white;">
-                            <i class="fas fa-stop"></i>
-                            Stop All Running Lambdas
-                        </button>
-                        <button class="btn-github btn-github-danger" onclick="deleteAllLambdas()"
-                            style="width: 100%; margin-bottom: var(--spacing-md);">
-                            <i class="fas fa-trash"></i>
-                            Delete All Lambdas
-                        </button>
-
-                        <!-- Results Section -->
-                        <div class="section"
-                            style="margin-top: var(--spacing-lg); background-color: var(--color-canvas-subtle); border: 1px solid var(--color-border-default);">
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
-                                <h5 style="margin: 0;">Generated App Passwords</h5>
-                                <div>
-                                    <button class="btn-github btn-github-primary" onclick="fetchFromDynamoDB()"
-                                        style="margin-right: var(--spacing-sm);">
-                                        <i class="fas fa-database"></i> Fetch from DynamoDB
-                                    </button>
-                                    <button class="btn-github" onclick="fetchGeneratedPasswords()">
-                                        <i class="fas fa-sync"></i> Refresh (Local DB)
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="alert-github"
-                                style="background-color: rgba(16, 185, 129, 0.08); border-left: 3px solid #10b981; margin-bottom: var(--spacing-md);">
-                                <i class="fas fa-info-circle" style="color: #10b981;"></i>
-                                <div>
-                                    <strong>How to use:</strong><br>
-                                    1) Invoke Lambda → Old DynamoDB data auto-cleared<br>
-                                    2) Wait 2-3 minutes for processing<br>
-                                    3) Fetch from DynamoDB → Saved to local DB automatically<br>
-                                    4) Next batch will clear DynamoDB again (fresh start)
-                                </div>
-                            </div>
-                            <div class="form-group-github">
-                                <label class="form-label-github">Result List (email:app password):</label>
-                                <textarea id="resultsOutput" class="form-control-github" rows="10" readonly
-                                    style="font-family: monospace;"></textarea>
-                            </div>
-                        </div>
-
-                        <!-- Cleanup Operations -->
-                        <div
-                            style="border-top: 1px solid var(--color-border-default); padding-top: var(--spacing-md); margin-top: var(--spacing-md);">
-                            <h5 style="margin-bottom: var(--spacing-sm); font-weight: 600;">Cleanup Operations</h5>
-                            <button class="btn-github" onclick="deleteS3Content()"
-                                style="width: 100%; margin-bottom: var(--spacing-sm);">
-                                <i class="fas fa-trash-alt"></i>
-                                Delete S3 Bucket Content
-                            </button>
-                            <button class="btn-github" onclick="deleteECRRepo()"
-                                style="width: 100%; margin-bottom: var(--spacing-sm);">
-                                <i class="fas fa-trash-alt"></i>
-                                Delete ECR Repository
-                            </button>
-                            <button class="btn-github" onclick="deleteCloudWatchLogs()"
-                                style="width: 100%; margin-bottom: var(--spacing-sm);">
-                                <i class="fas fa-trash-alt"></i>
-                                Delete CloudWatch Logs
-                            </button>
-                            <button class="btn-github" onclick="deleteDynamoDBTable()" style="width: 100%;">
-                                <i class="fas fa-database"></i>
-                                Delete DynamoDB Table
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- EC2 Tab -->
-                <div id="tab-ec2" class="tab-content" style="display: none;">
-                    <div class="section">
-                        <h4 style="margin-bottom: var(--spacing-md);">EC2 Build Box (Free Tier t2.micro, Amazon Linux 2)
-                        </h4>
-                        <div class="alert-github"
-                            style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-md);">
-                            <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
-                            <div>
-                                This EC2 instance automatically:<br>
-                                - Installs Docker + AWS CLI + git<br>
-                                - Clones docker-selenium-lambda<br>
-                                - Builds image based on umihico/aws-lambda-selenium-python<br>
-                                - Pushes it to your ECR repo as :latest
-                            </div>
-                        </div>
-                        <button class="btn-github btn-github-primary" onclick="ec2CreateBuildBox()"
-                            style="width: 100%; margin-bottom: var(--spacing-sm);">
-                            <i class="fas fa-plus-circle"></i>
-                            Create / Prepare EC2 Build Box
-                        </button>
-                        <button class="btn-github" onclick="ec2ShowStatus()"
-                            style="width: 100%; margin-bottom: var(--spacing-sm);">
-                            <i class="fas fa-info-circle"></i>
-                            Show EC2 Build Box Status
-                        </button>
-                        <button class="btn-github btn-github-danger" onclick="ec2Terminate()" style="width: 100%;">
-                            <i class="fas fa-stop"></i>
-                            Terminate EC2 Build Box
+                <!-- Service Accounts Tab -->
+                <div id="tab-service-accounts" class="tab-content" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h3 class="h4 mb-0">Service Accounts</h3>
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal"
+                            data-bs-target="#addServiceAccountModal">
+                            <i class="fas fa-plus me-2"></i>Add Service Account
                         </button>
                     </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Log Output Section -->
-        <div class="github-card" style="margin-top: var(--spacing-lg);">
-            <div class="github-card-header">
-                <h3 class="github-card-title">
-                    <i class="fas fa-terminal"></i>
-                    Log Output
-                </h3>
-            </div>
-            <div class="github-card-body">
-                <div id="logOutput"
-                    style="background-color: var(--color-canvas-inset); border-radius: var(--radius-md); padding: var(--spacing-md); font-family: 'Courier New', monospace; font-size: 13px; max-height: 400px; overflow-y: auto; min-height: 200px; color: var(--color-fg-default); white-space: pre-wrap; word-wrap: break-word;">
+                    <div class="table-responsive">
+                        <table class="table github-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Client Email</th>
+                                    <th>Admin Email (Delegated)</th>
+                                    <th>Project ID</th>
+                                    <th>Created At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="serviceAccountsTableBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Add Service Account Modal -->
+    <div class="modal fade" id="addServiceAccountModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Add Service Account</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addServiceAccountForm">
+                        <div class="mb-3">
+                            <label class="form-label">Display Name</label>
+                            <input type="text" class="form-control bg-dark text-light border-secondary" name="name"
+                                required placeholder="e.g., Production Admin">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Admin Email (for Delegation)</label>
+                            <input type="email" class="form-control bg-dark text-light border-secondary"
+                                name="admin_email" required placeholder="admin@yourdomain.com">
+                            <div class="form-text text-muted">The Google Workspace admin user to impersonate.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Service Account JSON Key</label>
+                            <input type="file" class="form-control bg-dark text-light border-secondary" name="file"
+                                accept=".json" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="uploadServiceAccount()">Add Account</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Lambda Tab -->
+    <div id="tab-lambda" class="tab-content" style="display: none;">
+        <div class="section" style="margin-bottom: var(--spacing-lg);">
+            <h4 style="margin-bottom: var(--spacing-md);">Production Lambda Management</h4>
+            <div class="alert-github"
+                style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-md);">
+                <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
+                <div>
+                    <strong>Production Workflow:</strong><br>
+                    1) Create Core Resources (IAM, ECR, S3) + DynamoDB Table<br>
+                    2) Use EC2 tab to build/push Docker image<br>
+                    3) Create/Update Production Lambda<br>
+                    4) Invoke Lambda → Wait → Fetch from DynamoDB
+                </div>
+            </div>
+            <!-- Lambda Creation Options -->
+            <div class="section" style="margin-bottom: var(--spacing-md);">
+                <h5 style="margin-bottom: var(--spacing-sm);">Lambda Creation Options</h5>
+                <div class="form-group-github">
+                    <label
+                        style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer; margin-bottom: var(--spacing-sm);">
+                        <input type="checkbox" id="createMultipleLambdas" onchange="toggleLambdaOptions()">
+                        <span>Create multiple Lambda functions based on user count</span>
+                    </label>
+                </div>
+                <div id="lambdaOptions"
+                    style="display: none; margin-top: var(--spacing-md); padding: var(--spacing-md); background-color: var(--color-canvas-subtle); border-radius: var(--radius-md);">
+                    <div
+                        style="margin-bottom: var(--spacing-md); padding: var(--spacing-sm); background-color: var(--color-success-subtle); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-success-fg);">
+                        <strong>ℹ️ Auto-calculation:</strong> Users will be automatically counted from the
+                        "Multiple Accounts" field above.
+                    </div>
+                    <div class="form-group-github">
+                        <label class="form-label-github">Users per Function:</label>
+                        <input type="number" id="usersPerFunction" class="form-control-github" min="1" value="10"
+                            placeholder="10" readonly style="background-color: var(--color-canvas-inset);">
+                        <small style="color: var(--color-fg-muted); font-size: 12px;">Fixed at 10 users per
+                            Lambda function (maximum)</small>
+                    </div>
+                    <div id="lambdaCalculation"
+                        style="margin-top: var(--spacing-sm); padding: var(--spacing-sm); background-color: var(--color-canvas-inset); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-fg-muted);">
+                        <strong>Calculation:</strong> <span id="lambdaCount">0</span> function(s) will be
+                        created for <span id="detectedUserCount">0</span> user(s)
+                    </div>
+                </div>
+            </div>
+            <button class="btn-github btn-github-primary" onclick="createLambdas()"
+                style="width: 100%; margin-bottom: var(--spacing-sm);">
+                <i class="fas fa-sync-alt"></i>
+                Create / Update Production Lambda(s)
+            </button>
+            <button class="btn-github" onclick="checkAWSLimits()"
+                style="width: 100%; margin-bottom: var(--spacing-sm); background-color: rgba(0, 123, 255, 0.1); border-color: #007bff;">
+                <i class="fas fa-search"></i>
+                🔍 Check AWS Limits (Diagnose 10 User Issue)
+            </button>
+            <button class="btn-github" onclick="fixLambdaConcurrency()"
+                style="width: 100%; margin-bottom: var(--spacing-sm); background-color: rgba(255, 193, 7, 0.1); border-color: #ffc107;">
+                <i class="fas fa-tachometer-alt"></i>
+                🔧 Fix Concurrency Limit (Remove 10 User Limit)
+            </button>
+            <button class="btn-github" onclick="requestQuotaIncrease()"
+                style="width: 100%; margin-bottom: var(--spacing-md); background-color: rgba(40, 167, 69, 0.1); border-color: #28a745;">
+                <i class="fas fa-arrow-up"></i>
+                🚀 Request Quota Increase (10 → 1000)
+            </button>
+
+            <!-- Execution Mode -->
+            <div class="section" style="margin-bottom: var(--spacing-lg);">
+                <h5 style="margin-bottom: var(--spacing-sm);">Execution Mode</h5>
+                <div style="display: flex; gap: var(--spacing-lg); margin-bottom: var(--spacing-md);">
+                    <label style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer;">
+                        <input type="radio" name="executionMode" value="single" checked>
+                        <span>Single Account</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer;">
+                        <input type="radio" name="executionMode" value="multiple">
+                        <span>Multiple Accounts (Parallel)</span>
+                    </label>
+                </div>
+
+                <!-- Account Input -->
+                <div class="form-group-github">
+                    <label class="form-label-github">Account Input (user:password, one per line):</label>
+                    <p style="font-size: 12px; color: var(--color-fg-muted); margin-bottom: var(--spacing-sm);">
+                        Single Account Mode: Enter one line (email:password)<br>
+                        Multiple Accounts Mode: Enter multiple lines (one per line)
+                    </p>
+                    <textarea id="multipleUsers" class="form-control-github" rows="8"
+                        placeholder="email1:password1&#10;email2:password2&#10;email3:password3"></textarea>
+                </div>
+                <div id="multiStatus"
+                    style="font-size: 13px; color: var(--color-fg-muted); margin-top: var(--spacing-sm);">
+                    Ready</div>
+            </div>
+
+            <button class="btn-github btn-github-primary" onclick="invokeProductionLambda()"
+                style="width: 100%; margin-bottom: var(--spacing-md);">
+                <i class="fas fa-play"></i>
+                Invoke Production Lambda
+            </button>
+            <button class="btn-github" onclick="stopAllLambdas()"
+                style="width: 100%; margin-bottom: var(--spacing-md); background-color: #ff6b35; border-color: #ff6b35; color: white;">
+                <i class="fas fa-stop"></i>
+                Stop All Running Lambdas
+            </button>
+            <button class="btn-github btn-github-danger" onclick="deleteAllLambdas()"
+                style="width: 100%; margin-bottom: var(--spacing-md);">
+                <i class="fas fa-trash"></i>
+                Delete All Lambdas
+            </button>
+
+            <!-- Results Section -->
+            <div class="section"
+                style="margin-top: var(--spacing-lg); background-color: var(--color-canvas-subtle); border: 1px solid var(--color-border-default);">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
+                    <h5 style="margin: 0;">Generated App Passwords</h5>
+                    <div>
+                        <button class="btn-github btn-github-primary" onclick="fetchFromDynamoDB()"
+                            style="margin-right: var(--spacing-sm);">
+                            <i class="fas fa-database"></i> Fetch from DynamoDB
+                        </button>
+                        <button class="btn-github" onclick="fetchGeneratedPasswords()">
+                            <i class="fas fa-sync"></i> Refresh (Local DB)
+                        </button>
+                    </div>
+                </div>
+                <div class="alert-github"
+                    style="background-color: rgba(16, 185, 129, 0.08); border-left: 3px solid #10b981; margin-bottom: var(--spacing-md);">
+                    <i class="fas fa-info-circle" style="color: #10b981;"></i>
+                    <div>
+                        <strong>How to use:</strong><br>
+                        1) Invoke Lambda → Old DynamoDB data auto-cleared<br>
+                        2) Wait 2-3 minutes for processing<br>
+                        3) Fetch from DynamoDB → Saved to local DB automatically<br>
+                        4) Next batch will clear DynamoDB again (fresh start)
+                    </div>
+                </div>
+                <div class="form-group-github">
+                    <label class="form-label-github">Result List (email:app password):</label>
+                    <textarea id="resultsOutput" class="form-control-github" rows="10" readonly
+                        style="font-family: monospace;"></textarea>
+                </div>
+            </div>
+
+            <!-- Cleanup Operations -->
+            <div
+                style="border-top: 1px solid var(--color-border-default); padding-top: var(--spacing-md); margin-top: var(--spacing-md);">
+                <h5 style="margin-bottom: var(--spacing-sm); font-weight: 600;">Cleanup Operations</h5>
+                <button class="btn-github" onclick="deleteS3Content()"
+                    style="width: 100%; margin-bottom: var(--spacing-sm);">
+                    <i class="fas fa-trash-alt"></i>
+                    Delete S3 Bucket Content
+                </button>
+                <button class="btn-github" onclick="deleteECRRepo()"
+                    style="width: 100%; margin-bottom: var(--spacing-sm);">
+                    <i class="fas fa-trash-alt"></i>
+                    Delete ECR Repository
+                </button>
+                <button class="btn-github" onclick="deleteCloudWatchLogs()"
+                    style="width: 100%; margin-bottom: var(--spacing-sm);">
+                    <i class="fas fa-trash-alt"></i>
+                    Delete CloudWatch Logs
+                </button>
+                <button class="btn-github" onclick="deleteDynamoDBTable()" style="width: 100%;">
+                    <i class="fas fa-database"></i>
+                    Delete DynamoDB Table
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EC2 Tab -->
+    <div id="tab-ec2" class="tab-content" style="display: none;">
+        <div class="section">
+            <h4 style="margin-bottom: var(--spacing-md);">EC2 Build Box (Free Tier t2.micro, Amazon Linux 2)
+            </h4>
+            <div class="alert-github"
+                style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-md);">
+                <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
+                <div>
+                    This EC2 instance automatically:<br>
+                    - Installs Docker + AWS CLI + git<br>
+                    - Clones docker-selenium-lambda<br>
+                    - Builds image based on umihico/aws-lambda-selenium-python<br>
+                    - Pushes it to your ECR repo as :latest
+                </div>
+            </div>
+            <button class="btn-github btn-github-primary" onclick="ec2CreateBuildBox()"
+                style="width: 100%; margin-bottom: var(--spacing-sm);">
+                <i class="fas fa-plus-circle"></i>
+                Create / Prepare EC2 Build Box
+            </button>
+            <button class="btn-github" onclick="ec2ShowStatus()" style="width: 100%; margin-bottom: var(--spacing-sm);">
+                <i class="fas fa-info-circle"></i>
+                Show EC2 Build Box Status
+            </button>
+            <button class="btn-github btn-github-danger" onclick="ec2Terminate()" style="width: 100%;">
+                <i class="fas fa-stop"></i>
+                Terminate EC2 Build Box
+            </button>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Log Output Section -->
+<div class="github-card" style="margin-top: var(--spacing-lg);">
+    <div class="github-card-header">
+        <h3 class="github-card-title">
+            <i class="fas fa-terminal"></i>
+            Log Output
+        </h3>
+    </div>
+    <div class="github-card-body">
+        <div id="logOutput"
+            style="background-color: var(--color-canvas-inset); border-radius: var(--radius-md); padding: var(--spacing-md); font-family: 'Courier New', monospace; font-size: 13px; max-height: 400px; overflow-y: auto; min-height: 200px; color: var(--color-fg-default); white-space: pre-wrap; word-wrap: break-word;">
+        </div>
+    </div>
+</div>
+</div>
 </div>
 
 <style>
@@ -518,6 +580,109 @@
         logOutput.textContent += logLine;
         logOutput.scrollTop = logOutput.scrollHeight;
         console.log(logLine);
+    }
+
+    // Service Account Management
+    async function loadServiceAccounts() {
+        const tbody = document.getElementById('serviceAccountsTableBody');
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">Loading...</td></tr>';
+
+        try {
+            const response = await fetch('/api/service-accounts');
+            const data = await response.json();
+
+            if (data.success) {
+                tbody.innerHTML = '';
+                if (data.accounts.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No service accounts configured</td></tr>';
+                    return;
+                }
+
+                data.accounts.forEach(acc => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${acc.name}</td>
+                        <td><small>${acc.client_email}</small></td>
+                        <td>${acc.admin_email}</td>
+                        <td>${acc.project_id}</td>
+                        <td>${new Date(acc.created_at).toLocaleDateString()}</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" onclick="deleteServiceAccount(${acc.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Error: ${data.error}</td></tr>`;
+            }
+        } catch (error) {
+            console.error('Error loading service accounts:', error);
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Failed to load accounts</td></tr>`;
+        }
+    }
+
+    async function uploadServiceAccount() {
+        const form = document.getElementById('addServiceAccountForm');
+        const formData = new FormData(form);
+        const btn = document.querySelector('#addServiceAccountModal .btn-primary');
+
+        // Disable button and show loading
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verifying...';
+
+        try {
+            const response = await fetch('/api/service-accounts/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addServiceAccountModal'));
+                modal.hide();
+
+                // Reset form
+                form.reset();
+
+                // Reload list
+                loadServiceAccounts();
+
+                // Show success message
+                alert('Service Account added and verified successfully!');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error uploading service account:', error);
+            alert('Failed to upload service account');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    async function deleteServiceAccount(id) {
+        if (!confirm('Are you sure you want to delete this service account?')) return;
+
+        try {
+            const response = await fetch(`/api/service-accounts/${id}`, {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                loadServiceAccounts();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error deleting service account:', error);
+            alert('Failed to delete service account');
+        }
     }
 
     // Tab switching

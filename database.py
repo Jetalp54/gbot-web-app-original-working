@@ -154,3 +154,15 @@ class DomainOperation(db.Model):
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp(), index=True)
     
     __table_args__ = (db.Index('idx_domain_operation_job_id', 'job_id'),)
+
+class ServiceAccount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)  # Display name
+    admin_email = db.Column(db.String(255), nullable=False)  # Admin email to impersonate
+    project_id = db.Column(db.String(255), nullable=False)
+    client_email = db.Column(db.String(255), nullable=False)
+    private_key_id = db.Column(db.String(255))
+    json_content = db.Column(db.Text, nullable=False)  # Full JSON content
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
