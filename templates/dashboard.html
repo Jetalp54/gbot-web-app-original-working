@@ -60,7 +60,7 @@
             <button onclick="openAddAccountModal()" class="btn-github">
                 <i class="fas fa-plus"></i> Add Manually
             </button>
-            <button class="btn-github" data-bs-toggle="modal" data-bs-target="#addServiceAccountModal">
+            <button onclick="openServiceAccountModal()" class="btn-github">
                 <i class="fas fa-robot"></i> Add Service Account
             </button>
             {% endif %}
@@ -1693,12 +1693,10 @@
                                 <i class="fas fa-sign-in-alt me-2"></i>Authenticate Selected Account
                             </button>
                             <div class="d-flex gap-2">
-                                <button class="btn btn-outline-secondary flex-grow-1" data-bs-toggle="modal"
-                                    data-bs-target="#addAccountModal">
+                                <button class="btn btn-outline-secondary flex-grow-1" onclick="openAddAccountModal()">
                                     <i class="fas fa-plus me-2"></i>Add OAuth Account
                                 </button>
-                                <button class="btn btn-outline-info flex-grow-1" data-bs-toggle="modal"
-                                    data-bs-target="#addServiceAccountModal">
+                                <button class="btn btn-outline-info flex-grow-1" onclick="openServiceAccountModal()">
                                     <i class="fas fa-robot me-2"></i>Add Service Account
                                 </button>
                             </div>
@@ -1749,7 +1747,7 @@
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Add Service Account</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <button type="button" class="btn-close" onclick="closeServiceAccountModal()"></button>
                     </div>
                     <div class="modal-body">
                         <form id="addServiceAccountForm">
@@ -1772,7 +1770,8 @@
                         </form>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-secondary"
+                            onclick="closeServiceAccountModal()">Close</button>
                         <button type="button" class="btn btn-primary" onclick="uploadServiceAccount()">Upload &
                             Verify</button>
                     </div>
@@ -4274,6 +4273,15 @@
     function closeAddAccountModal() {
         document.getElementById('addAccountModal').style.display = 'none';
         document.getElementById('addAccountForm').reset();
+    }
+
+    function openServiceAccountModal() {
+        document.getElementById('addServiceAccountModal').style.display = 'block';
+    }
+
+    function closeServiceAccountModal() {
+        document.getElementById('addServiceAccountModal').style.display = 'none';
+        document.getElementById('addServiceAccountForm').reset();
     }
 
     // Close modal when clicking outside
