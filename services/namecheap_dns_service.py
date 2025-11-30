@@ -457,7 +457,14 @@ class NamecheapDNSService:
             
             # Get the public suffix (TLD)
             suffix = psl.get_public_suffix(domain)
+            
             if suffix:
+                # Fix for TLD TooLong: If suffix equals the domain and has dots, 
+                # it means PSL likely failed to identify the TLD and returned the whole domain.
+                # In this case, fallback to the last part (e.g. 'space' from 'example.space').
+                if suffix == domain and '.' in domain:
+                    logger.warning(f"PSL returned full domain as suffix for {domain}. Falling back to last part.")
+                    return domain.split('.')[-1]
                 return suffix
             
             # Fallback: simple extraction
