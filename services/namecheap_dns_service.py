@@ -317,7 +317,7 @@ class NamecheapDNSService:
             # Check API response status
             api_status = root.get('Status', '')
             if api_status and api_status.upper() != 'OK':
-                error_msg = f"Namecheap API returned status: {api_status}"
+                error_msg = f"Namecheap API returned status: {api_status}. Raw response: {raw_xml}"
                 logger.error(error_msg)
                 raise Exception(error_msg)
             

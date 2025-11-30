@@ -18,6 +18,7 @@ else
     
     # Copy specific files we fixed
     sudo cp services/google_service_account.py $TARGET_DIR/services/
+    sudo cp services/namecheap_dns_service.py $TARGET_DIR/services/
     sudo cp routes/aws_manager.py $TARGET_DIR/routes/
     sudo cp core_logic.py $TARGET_DIR/
     sudo cp app.py $TARGET_DIR/
