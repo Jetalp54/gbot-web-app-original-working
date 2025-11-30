@@ -51,12 +51,6 @@
 
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
             {% if session.role != 'mailer' %}
-            <button onclick="openAddAccountModal()" class="btn-github">
-                <i class="fas fa-plus"></i> Add Manually
-            </button>
-            <button onclick="addFromServerJSON()" class="btn-github">
-                <i class="fas fa-folder-open"></i> Add from Server JSON
-            </button>
             <button onclick="openAddGCPAccountModal()" class="btn-github">
                 <i class="fas fa-cloud"></i> Add GCP Accounts
             </button>
@@ -67,9 +61,6 @@
                 <i class="fas fa-search"></i> Check Token Status Now (Admin)
             </button>
             {% endif %}
-            <button onclick="enterAuthorizationCode()" class="btn-github">
-                <i class="fas fa-code"></i> Enter Authorization Code
-            </button>
         </div>
 
         <!-- Search and Account List Area -->
@@ -156,52 +147,7 @@
         </div>
     </div>
 
-    <!-- Add Account Modal -->
-    <div id="addAccountModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">
-                    <i class="fas fa-plus"></i> Add Account Manually
-                </h3>
-                <button type="button" class="btn-github" onclick="closeAddAccountModal()" style="margin-left: auto;">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="addAccountForm">
-                    <div class="form-group-github">
-                        <label for="new-account-email" class="form-label-github">
-                            <i class="fas fa-envelope"></i> Account Email
-                        </label>
-                        <input type="email" id="new-account-email" class="form-control-github" required
-                            placeholder="admin@yourdomain.com">
-                    </div>
-                    <div class="form-group-github">
-                        <label for="new-client-id" class="form-label-github">
-                            <i class="fas fa-key"></i> Client ID
-                        </label>
-                        <input type="text" id="new-client-id" class="form-control-github" required
-                            placeholder="123456789-abcdef.apps.googleusercontent.com">
-                    </div>
-                    <div class="form-group-github">
-                        <label for="new-client-secret" class="form-label-github">
-                            <i class="fas fa-lock"></i> Client Secret
-                        </label>
-                        <input type="password" id="new-client-secret" class="form-control-github" required
-                            placeholder="GOCSPX-your_client_secret">
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" onclick="saveNewAccount()" class="btn-github btn-github-primary">
-                    <i class="fas fa-save"></i> Save Account
-                </button>
-                <button type="button" onclick="closeAddAccountModal()" class="btn-github">
-                    <i class="fas fa-times"></i> Cancel
-                </button>
-            </div>
-        </div>
-    </div>
+
 
     <!-- Add GCP Account Modal -->
     <div id="addGCPAccountModal" class="modal" style="display: none;">

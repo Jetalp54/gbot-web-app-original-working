@@ -22,6 +22,7 @@ else
     sudo cp core_logic.py $TARGET_DIR/
     sudo cp app.py $TARGET_DIR/
     sudo cp debug_gcp.py $TARGET_DIR/
+    sudo cp templates/dashboard.html $TARGET_DIR/templates/
     
     # Ensure permissions
     sudo chown -R root:root $TARGET_DIR/services/google_service_account.py

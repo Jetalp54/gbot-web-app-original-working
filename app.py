@@ -1047,46 +1047,42 @@ def api_authenticate():
         if not account_name and not account_id:
             return jsonify({'success': False, 'error': 'No account specified'})
         
-        # Try to find account by ID first (more reliable), then by name
+        # 1. Check for Service Account (New Method - Priority)
+        service_account = None
+        if account_id:
+            service_account = ServiceAccount.query.get(account_id)
+        
+        if not service_account and account_name:
+             service_account = ServiceAccount.query.filter_by(name=account_name).first()
+
+        if service_account:
+            # Service Accounts don't need OAuth flow, just set in session
+            session['current_account_name'] = service_account.name
+            session['current_account_id'] = service_account.id
+            session['account_type'] = 'service_account'
+            
+            logging.info(f"Authenticated Service Account: {service_account.name}")
+            return jsonify({
+                'success': True, 
+                'message': f'Successfully authenticated Service Account: {service_account.name}',
+                'is_service_account': True
+            })
+
+        # 2. Check for Google Account (Old Method - Deprecated)
+        # We keep this check only to provide a helpful error message
         if account_id:
             account = GoogleAccount.query.get(account_id)
         else:
             account = GoogleAccount.query.filter_by(account_name=account_name).first()
             
-        if not account:
-            return jsonify({'success': False, 'error': 'Account not found in database'})
-        
-        # Use the account name from the database record
-        account_name = account.account_name
-        
-        service_key = google_api._get_session_key(account_name)
-        if service_key in session and session.get(service_key):
-            session['current_account_name'] = account_name
+        if account:
             return jsonify({
-                'success': True, 
-                'message': f'Already authenticated for {account_name} in this session'
+                'success': False, 
+                'error': 'OAuth authentication is deprecated. Please use Service Accounts.',
+                'deprecated': True
             })
-        
-        if google_api.is_token_valid(account_name):
-            success = google_api.authenticate_with_tokens(account_name)
-            if success:
-                # Set the current account in session for persistence
-                session['current_account_name'] = account_name
-                return jsonify({
-                    'success': True, 
-                    'message': f'Authenticated using cached tokens for {account_name}'
-                })
-        
-        oauth_url = google_api.get_oauth_url(account_name, {'client_id': account.client_id, 'client_secret': account.client_secret})
-        if oauth_url:
-            return jsonify({
-                'success': False,
-                'oauth_required': True,
-                'oauth_url': oauth_url,
-                'message': 'Please complete OAuth authentication'
-            })
-        else:
-            return jsonify({'success': False, 'error': 'Failed to generate OAuth URL'})
+            
+        return jsonify({'success': False, 'error': 'Account not found in database'})
             
     except Exception as e:
         logging.error(f"Authentication error: {e}")
@@ -1095,57 +1091,7 @@ def api_authenticate():
 @app.route('/api/add-account', methods=['POST'])
 @login_required
 def api_add_account():
-    # Check if user is mailer role (not allowed to add accounts)
-    if session.get('role') == 'mailer':
-        return jsonify({'success': False, 'error': 'Mailer users cannot add accounts'})
-    
-    try:
-        data = request.get_json()
-        account_name = data.get('account_name')
-        client_id = data.get('client_id')
-        client_secret = data.get('client_secret')
-        
-        if not all([account_name, client_id, client_secret]):
-            return jsonify({'success': False, 'error': 'All fields are required'})
-        
-        if '@' not in account_name:
-            return jsonify({'success': False, 'error': 'Invalid email format'})
-        
-        if GoogleAccount.query.filter_by(account_name=account_name).first():
-            return jsonify({'success': False, 'error': 'Account already exists'})
-
-        new_account = GoogleAccount(account_name=account_name, client_id=client_id, client_secret=client_secret)
-        db.session.add(new_account)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': f'Account {account_name} added successfully'})
-            
-    except Exception as e:
-        error_msg = str(e)
-        logging.error(f"Add account error: {error_msg}")
-        
-        # Handle specific database constraint violations
-        if "duplicate key value violates unique constraint" in error_msg:
-            if "google_account_pkey" in error_msg:
-                return jsonify({
-                    'success': False, 
-                    'error': 'Database sequence error. Please contact support or try again later.',
-                    'details': 'GoogleAccount sequence is out of sync. This is a known issue that can be fixed.'
-                })
-            elif "google_token_pkey" in error_msg:
-                return jsonify({
-                    'success': False, 
-                    'error': 'Database sequence error. Please contact support or try again later.',
-                    'details': 'GoogleToken sequence is out of sync. This is a known issue that can be fixed.'
-                })
-            elif "whitelisted_ip_pkey" in error_msg:
-                return jsonify({
-                    'success': False, 
-                    'error': 'IP address already exists in whitelist.',
-                    'details': 'This IP address is already whitelisted.'
-                })
-        
-        return jsonify({'success': False, 'error': error_msg})
+    return jsonify({'success': False, 'error': 'This authentication method is deprecated. Please use Service Accounts.'}), 410
 
 @app.route('/api/list-accounts', methods=['GET'])
 @login_required
@@ -1277,59 +1223,7 @@ def api_get_account_status():
 @app.route('/api/add-accounts-from-json', methods=['POST'])
 @login_required
 def api_add_accounts_from_json():
-    """Add multiple accounts from JSON data (for backward compatibility)"""
-    try:
-        data = request.get_json()
-        accounts_data = data.get('accounts', [])
-        
-        if not accounts_data:
-            return jsonify({'success': False, 'error': 'No accounts data provided'})
-        
-        added_count = 0
-        errors = []
-        
-        for account_data in accounts_data:
-            try:
-                account_name = account_data.get('account_name')
-                client_id = account_data.get('client_id')
-                client_secret = account_data.get('client_secret')
-                
-                if not all([account_name, client_id, client_secret]):
-                    errors.append(f"Missing data for account: {account_name}")
-                    continue
-                
-                # Check if account already exists
-                if GoogleAccount.query.filter_by(account_name=account_name).first():
-                    errors.append(f"Account {account_name} already exists")
-                    continue
-                
-                # Create new account
-                new_account = GoogleAccount(
-                    account_name=account_name,
-                    client_id=client_id,
-                    client_secret=client_secret
-                )
-                db.session.add(new_account)
-                added_count += 1
-                
-            except Exception as e:
-                errors.append(f"Error processing account {account_name}: {str(e)}")
-        
-        # Commit all changes
-        db.session.commit()
-        
-        result = {
-            'success': True,
-            'message': f'Added {added_count} accounts successfully',
-            'added_count': added_count,
-            'errors': errors
-        }
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        logging.error(f"Add accounts from JSON error: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+    return jsonify({'success': False, 'error': 'This authentication method is deprecated. Please use Service Accounts.'}), 410
 
 @app.route('/api/check-token-status', methods=['GET'])
 @login_required
@@ -1365,131 +1259,12 @@ def api_check_token_status():
 
 @app.route('/oauth-callback')
 def oauth_callback():
-    try:
-        code = request.args.get('code')
-        
-        if not code:
-            return "ERROR: No authorization code received", 400
-        
-        return f"""
-        <html>
-        <head><title>✅ Authentication Code Ready</title></head>
-        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5;">
-            <div style="background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                <h2 style="color: #28a745;">✅ Authentication Successful!</h2>
-                <p style="font-size: 18px; margin: 20px 0;">Copy this authorization code:</p>
-                
-                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 2px dashed #28a745; margin: 20px 0;">
-                    <input type="text" value="{code}" readonly onclick="this.select()" 
-                           style="width: 100%; padding: 10px; font-family: monospace; font-size: 14px; border: none; background: transparent; text-align: center;">
-                </div>
-                
-                <p style="color: #666; margin: 20px 0;"><strong>Next Steps:</strong></p>
-                <ol style="text-align: left; max-width: 400px; margin: 0 auto; color: #666;">
-                    <li>Click in the box above to select the code</li>
-                    <li>Copy it (Ctrl+C or Cmd+C)</li>
-                    <li>Return to your main app browser</li>
-                    <li>Paste the code to complete authentication</li>
-                </ol>
-                
-                <div style="margin-top: 30px;">
-                    <button onclick="copyCode()" style="background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 5px; font-size: 16px; cursor: pointer;">
-                        📋 Copy Code
-                    </button>
-                </div>
-            </div>
-            
-            <script>
-                function copyCode() {{
-                    const input = document.querySelector('input');
-                    input.select();
-                    document.execCommand('copy');
-                    alert('✅ Code copied to clipboard!');
-                }}
-            </script>
-        </body>
-        </html>
-        """
-        
-    except Exception as e:
-        return f"ERROR: {str(e)}", 500
+    return "This authentication method is deprecated. Please use Service Accounts.", 410
 
 @app.route('/api/complete-oauth', methods=['POST'])
 @login_required
 def api_complete_oauth():
-    try:
-        data = request.get_json()
-        auth_code = data.get('auth_code')
-        account_name = data.get('account_name')
-        
-        if not auth_code or not account_name:
-            return jsonify({'success': False, 'error': 'Code and account name required'})
-        
-        account = GoogleAccount.query.filter_by(account_name=account_name).first()
-        if not account:
-            return jsonify({'success': False, 'error': 'Account not found'})
-        
-        creds_data = {'client_id': account.client_id, 'client_secret': account.client_secret}
-        
-        flow_config = {
-            "installed": {
-                "client_id": creds_data['client_id'],
-                "project_id": "gbot-project",
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                "client_secret": creds_data['client_secret'],
-                "redirect_uris": ["https://ecochains.online/oauth-callback"]
-            }
-        }
-        
-        flow = InstalledAppFlow.from_client_config(flow_config, app.config['SCOPES'])
-        flow.redirect_uri = "https://ecochains.online/oauth-callback"
-        
-        flow.fetch_token(code=auth_code)
-        credentials = flow.credentials
-        
-        token = GoogleToken.query.filter_by(account_id=account.id).first()
-        if not token:
-            token = GoogleToken(account_id=account.id)
-            db.session.add(token)  # Only add if it's a new token
-
-        token.token = credentials.token
-        token.refresh_token = credentials.refresh_token
-        token.token_uri = credentials.token_uri
-        
-        # Clear existing scopes and add new ones
-        token.scopes.clear()
-        for scope_name in credentials.scopes:
-            scope = Scope.query.filter_by(name=scope_name).first()
-            if not scope:
-                scope = Scope(name=scope_name)
-                db.session.add(scope)
-            token.scopes.append(scope)
-
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': f'Authentication completed for {account_name}'})
-        
-    except Exception as e:
-        error_msg = str(e)
-        
-        # Handle specific database constraint violations
-        if "duplicate key value violates unique constraint" in error_msg:
-            if "google_token_pkey" in error_msg:
-                return jsonify({
-                    'success': False, 
-                    'error': 'Database sequence error. Please contact support or try again later.',
-                    'details': 'GoogleToken sequence is out of sync. This is a known issue that can be fixed.'
-                })
-            elif "whitelisted_ip_pkey" in error_msg:
-                return jsonify({
-                    'success': False, 
-                    'error': 'IP address already exists in whitelist.',
-                    'details': 'This IP address is already whitelisted.'
-                })
-        
-        return jsonify({'success': False, 'error': error_msg})
+    return jsonify({'success': False, 'error': 'This authentication method is deprecated. Please use Service Accounts.'}), 410
 
 @app.route('/api/create-gsuite-user', methods=['POST'])
 @login_required
