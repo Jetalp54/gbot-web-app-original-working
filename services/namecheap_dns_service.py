@@ -107,7 +107,7 @@ class NamecheapDNSService:
                 full_error = ', '.join(error_messages) if error_messages else 'Unknown error'
                 logger.error(f"Namecheap API returned errors: {full_error}")
                 logger.error(f"Full XML response: {response.text}")
-                raise Exception(f"Namecheap API error: {full_error}")
+                raise Exception(f"Namecheap API error: {full_error}. Raw response: {response.text}")
             
             # Check Status attribute
             status = root.get('Status', '').upper()

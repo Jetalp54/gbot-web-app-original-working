@@ -273,21 +273,29 @@ class GoogleDomainsService:
             service = self._get_site_verification_service()
             
             # Get admin email from account to set as owner for instant propagation
-            account = GoogleAccount.query.filter_by(account_name=self.account_name).first()
+            # Check for Service Account first
+            service_account = ServiceAccount.query.filter_by(name=self.account_name).first()
             admin_email = None
-            if account:
-                # Try to get the primary admin email
-                try:
-                    admin_service = self._get_admin_service()
-                    users = admin_service.users().list(customer='my_customer', maxResults=1, orderBy='email').execute()
-                    if users.get('users'):
-                        admin_email = users['users'][0].get('primaryEmail')
-                except Exception as e:
-                    logger.warning(f"Could not get admin email for owner: {e}")
-                    # Fallback: construct admin email from domain
-                    admin_email = f"admin@{apex}"
+            
+            if service_account:
+                admin_email = service_account.admin_email
+                logger.info(f"Using Service Account admin email for verification: {admin_email}")
             else:
-                admin_email = f"admin@{apex}"
+                # Fallback to Google Account (deprecated)
+                account = GoogleAccount.query.filter_by(account_name=self.account_name).first()
+                if account:
+                    # Try to get the primary admin email
+                    try:
+                        admin_service = self._get_admin_service()
+                        users = admin_service.users().list(customer='my_customer', maxResults=1, orderBy='email').execute()
+                        if users.get('users'):
+                            admin_email = users['users'][0].get('primaryEmail')
+                    except Exception as e:
+                        logger.warning(f"Could not get admin email for owner: {e}")
+                        # Fallback: construct admin email from domain
+                        admin_email = f"admin@{apex}"
+                else:
+                    admin_email = f"admin@{apex}"
             
             # Create verification resource with owner for instant propagation
             # According to Google docs, setting owners makes verification propagate instantly
