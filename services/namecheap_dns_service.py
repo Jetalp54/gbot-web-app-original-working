@@ -264,26 +264,27 @@ class NamecheapDNSService:
             import publicsuffix2
             psl = publicsuffix2.PublicSuffixList()
             
-            # Get the registrable domain (apex)
-            registrable = psl.get_public_suffix(domain)
-            if registrable:
-                # For 'example.co.uk', registrable is 'example.co.uk'
-                # We need to extract 'example' as SLD
-                # Split and get the first part before the public suffix
-                domain_parts = domain.split('.')
-                registrable_parts = registrable.split('.')
-                if len(domain_parts) > len(registrable_parts):
-                    # Domain has subdomain, get the part before registrable
-                    return domain_parts[-(len(registrable_parts) + 1)]
-                elif len(registrable_parts) >= 2:
-                    # Registrable itself, get first part
-                    return registrable_parts[0]
+            # Use publicsuffix2 to get the public suffix (TLD)
+            psl = publicsuffix2.PublicSuffixList()
+            suffix = psl.get_public_suffix(domain)
             
-            # Fallback: simple extraction
-            parts = domain.split('.')
-            if len(parts) >= 2:
-                return parts[-2]
-            return parts[0]
+            if not suffix:
+                # Fallback: simple extraction
+                parts = domain.split('.')
+                if len(parts) >= 2:
+                    return parts[-2]
+                return parts[0]
+            
+            # If domain IS the suffix, return first part (though invalid)
+            if domain == suffix:
+                return domain.split('.')[0]
+                
+            # Extract the part before the suffix
+            prefix = domain[:-len(suffix)].rstrip('.')
+            
+            # Get the last part of the prefix (the SLD)
+            prefix_parts = prefix.split('.')
+            return prefix_parts[-1]
         except Exception as e:
             logger.warning(f"Error extracting SLD for {domain}, using fallback: {e}")
             # Fallback
@@ -436,12 +437,9 @@ class NamecheapDNSService:
             psl = publicsuffix2.PublicSuffixList()
             
             # Get the public suffix (TLD)
-            public_suffix = psl.get_public_suffix(domain)
-            if public_suffix:
-                # Extract TLD from public suffix
-                # For 'example.co.uk', public_suffix is 'co.uk', so TLD is 'co.uk'
-                # For 'example.com', public_suffix is 'com', so TLD is 'com'
-                return public_suffix
+            suffix = psl.get_public_suffix(domain)
+            if suffix:
+                return suffix
             
             # Fallback: simple extraction
             parts = domain.split('.')

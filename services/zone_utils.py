@@ -26,19 +26,33 @@ def to_apex(domain: str) -> str:
         if not domain:
             raise ValueError("Empty domain string")
         
-        # Use publicsuffix2 to get the registrable domain
+        # Use publicsuffix2 to get the public suffix (TLD)
         psl = publicsuffix2.PublicSuffixList()
-        apex = psl.get_public_suffix(domain)
+        suffix = psl.get_public_suffix(domain)
         
-        if not apex:
-            # Fallback: if PSL doesn't work, try basic extraction
+        if not suffix:
+            # Fallback: basic extraction (last 2 parts)
             parts = domain.split('.')
             if len(parts) >= 2:
-                apex = '.'.join(parts[-2:])
-            else:
-                apex = domain
+                return '.'.join(parts[-2:])
+            return domain
+            
+        # If domain IS the suffix (e.g. "co.uk"), return it (though invalid for registration)
+        if domain == suffix:
+            return domain
+            
+        # Extract the part before the suffix
+        # domain = "sub.example.co.uk", suffix = "co.uk"
+        # suffix_len = 5
+        # prefix = "sub.example"
+        prefix = domain[:-len(suffix)].rstrip('.')
         
-        logger.info(f"Converted {domain} to apex: {apex}")
+        # Get the last part of the prefix (the SLD)
+        prefix_parts = prefix.split('.')
+        sld = prefix_parts[-1]
+        
+        apex = f"{sld}.{suffix}"
+        logger.info(f"Converted {domain} to apex: {apex} (suffix: {suffix})")
         return apex
     
     except Exception as e:
