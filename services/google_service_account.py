@@ -11,7 +11,7 @@ class GoogleServiceAccount:
         "https://www.googleapis.com/auth/admin.directory.user", 
         "https://www.googleapis.com/auth/admin.directory.user.security", 
         "https://www.googleapis.com/auth/admin.directory.orgunit", 
-        "https://www.googleapis.com/auth/admin.directory.domain.readonly",
+        "https://www.googleapis.com/auth/admin.directory.domain",
         "https://www.googleapis.com/auth/gmail.send",
         "https://www.googleapis.com/auth/siteverification"
     ]
