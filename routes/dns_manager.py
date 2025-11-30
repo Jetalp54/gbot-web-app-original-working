@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from flask import Blueprint, request, jsonify, session
 from functools import wraps
-from database import db, DomainOperation, GoogleAccount, NamecheapConfig
+from database import db, DomainOperation, GoogleAccount, NamecheapConfig, ServiceAccount
 from services.zone_utils import to_apex, matching_zone_in_namecheap
 from services.google_domains_service import GoogleDomainsService
 from services.namecheap_dns_service import NamecheapDNSService
