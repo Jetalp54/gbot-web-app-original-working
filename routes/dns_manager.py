@@ -172,7 +172,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                         logger.info(f"Domain {apex} - assuming exists and continuing despite 403")
                         db.session.commit()
                         # Continue to next step
-                elif 'already exists' in error_msg.lower() or 'duplicate' in error_msg.lower():
+                elif 'already exists' in error_msg.lower() or 'duplicate' in error_msg.lower() or 'conflict' in error_msg.lower() or '409' in error_msg.lower():
                     # Domain already exists, treat as success and CONTINUE
                     operation.workspace_status = 'success'
                     operation.raw_log.append(log_entry('workspace', 'success', f'Domain already exists: {error_msg} - continuing with verification'))

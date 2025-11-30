@@ -113,6 +113,7 @@ class NamecheapDNSService:
             status = root.get('Status', '').upper()
             if status and status != 'OK':
                 logger.warning(f"Namecheap API status is not OK: {status}")
+                logger.warning(f"Raw XML response for non-OK status: {response.text}")
                 # Don't fail if status is not OK, but log it
             
             # Log successful response (first 200 chars for debugging)
