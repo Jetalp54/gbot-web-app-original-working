@@ -29,7 +29,7 @@ from email.mime.multipart import MIMEMultipart
 import re
 
 from core_logic import google_api
-from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig
+from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig, ServiceAccount
 from routes.dns_manager import dns_manager
 from routes.aws_manager import aws_manager
 
@@ -367,8 +367,31 @@ def health_check():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    accounts = GoogleAccount.query.all()
-    return render_template('dashboard.html', accounts=accounts, user=session.get('user'), role=session.get('role'))
+    # Fetch OAuth accounts
+    oauth_accounts = GoogleAccount.query.all()
+    
+    # Fetch Service Accounts
+    service_accounts = ServiceAccount.query.filter_by(is_active=True).all()
+    
+    # Merge into a unified list for the template
+    # We use a wrapper class or dict to ensure consistent attribute access (account.account_name)
+    all_accounts = []
+    
+    for acc in oauth_accounts:
+        all_accounts.append(acc)
+        
+    for acc in service_accounts:
+        # Create a simple object-like structure for Service Accounts to match GoogleAccount interface
+        # using a dynamic class to allow dot notation access in Jinja2
+        class ServiceAccountWrapper:
+            def __init__(self, sa):
+                self.id = sa.id
+                self.account_name = sa.name
+                self.type = 'service_account'
+        
+        all_accounts.append(ServiceAccountWrapper(acc))
+        
+    return render_template('dashboard.html', accounts=all_accounts, user=session.get('user'), role=session.get('role'))
 
 @app.route('/users')
 @login_required
