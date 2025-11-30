@@ -1177,7 +1177,7 @@ def api_list_accounts():
 @app.route('/api/delete-account', methods=['POST'])
 @login_required
 def api_delete_account():
-    """Delete a Google account from database"""
+    """Delete a Google account or Service Account from database"""
     try:
         # Allow all user types (admin, mailer, support) to delete accounts
         user_role = session.get('role')
@@ -1190,38 +1190,55 @@ def api_delete_account():
         if not account_id:
             return jsonify({'success': False, 'error': 'Account ID required'})
         
+        # Try to find in GoogleAccount (OAuth) first
         account = GoogleAccount.query.get(account_id)
-        if not account:
-            return jsonify({'success': False, 'error': 'Account not found'})
         
-        account_name = account.account_name
+        if account:
+            account_name = account.account_name
+            # Properly delete all related records to avoid foreign key constraints
+            try:
+                # First, get all tokens for this account
+                tokens = GoogleToken.query.filter_by(account_id=account_id).all()
+                
+                for token in tokens:
+                    # Clear the many-to-many relationship with scopes first
+                    token.scopes.clear()
+                    db.session.flush()  # Flush to ensure the relationship is cleared
+                
+                # Now delete all tokens for this account
+                GoogleToken.query.filter_by(account_id=account_id).delete()
+                
+                # Finally delete the account (cascade will handle any remaining relationships)
+                db.session.delete(account)
+                
+                # Commit all changes
+                db.session.commit()
+                
+                logging.info(f"Successfully deleted OAuth account: {account_name} (ID: {account_id})")
+                return jsonify({'success': True, 'message': f'Account {account_name} deleted successfully'})
+                
+            except Exception as db_error:
+                db.session.rollback()
+                logging.error(f"Database error during OAuth account deletion: {db_error}")
+                return jsonify({'success': False, 'error': f'Database error: {str(db_error)}'})
+
+        # If not found in GoogleAccount, try ServiceAccount
+        service_account = ServiceAccount.query.get(account_id)
         
-        # Properly delete all related records to avoid foreign key constraints
-        try:
-            # First, get all tokens for this account
-            tokens = GoogleToken.query.filter_by(account_id=account_id).all()
-            
-            for token in tokens:
-                # Clear the many-to-many relationship with scopes first
-                token.scopes.clear()
-                db.session.flush()  # Flush to ensure the relationship is cleared
-            
-            # Now delete all tokens for this account
-            GoogleToken.query.filter_by(account_id=account_id).delete()
-            
-            # Finally delete the account (cascade will handle any remaining relationships)
-            db.session.delete(account)
-            
-            # Commit all changes
-            db.session.commit()
-            
-            logging.info(f"Successfully deleted account: {account_name} (ID: {account_id})")
-            return jsonify({'success': True, 'message': f'Account {account_name} deleted successfully'})
-            
-        except Exception as db_error:
-            db.session.rollback()
-            logging.error(f"Database error during account deletion: {db_error}")
-            return jsonify({'success': False, 'error': f'Database error: {str(db_error)}'})
+        if service_account:
+            account_name = service_account.name
+            try:
+                db.session.delete(service_account)
+                db.session.commit()
+                
+                logging.info(f"Successfully deleted Service Account: {account_name} (ID: {account_id})")
+                return jsonify({'success': True, 'message': f'Service Account {account_name} deleted successfully'})
+            except Exception as db_error:
+                db.session.rollback()
+                logging.error(f"Database error during Service Account deletion: {db_error}")
+                return jsonify({'success': False, 'error': f'Database error: {str(db_error)}'})
+                
+        return jsonify({'success': False, 'error': 'Account not found'})
         
     except Exception as e:
         db.session.rollback()
