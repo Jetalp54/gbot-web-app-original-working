@@ -84,6 +84,54 @@ class NamecheapDNSService:
             response.raise_for_status()
             
             # Parse XML response
+            # Remove namespaces to simplify parsing
+            response_text = response.text
+            import re
+            response_text = re.sub(r' xmlns="[^"]+"', '', response_text, count=1)
+            
+            import xml.etree.ElementTree as ET
+            try:
+                root = ET.fromstring(response_text)
+            except ET.ParseError as parse_error:
+                logger.error(f"Failed to parse XML response: {parse_error}")
+                logger.error(f"Response text (first 500 chars): {response.text[:500]}")
+                raise Exception(f"Invalid XML response from Namecheap API: {str(parse_error)}")
+            
+            # Check for errors in response
+            errors = root.findall('.//Error')
+            if errors:
+                error_messages = []
+                for error_elem in errors:
+                    error_text = error_elem.text or error_elem.get('Number', '') or 'Unknown error'
+                    error_num = error_elem.get('Number', '')
+                    if error_num:
+                        error_messages.append(f"[{error_num}] {error_text}")
+                    else:
+                        error_messages.append(error_text)
+                
+                full_error = ', '.join(error_messages) if error_messages else 'Unknown error'
+                logger.error(f"Namecheap API returned errors: {full_error}")
+                logger.error(f"Full XML response: {response.text}")
+                raise Exception(f"Namecheap API error: {full_error}. Raw response: {response.text}")
+            
+            # Check Status attribute
+            status = root.get('Status', '').upper()
+            if status and status != 'OK':
+                logger.warning(f"Namecheap API status is not OK: {status}")
+                logger.warning(f"Raw XML response for non-OK status: {response.text}")
+                # Don't fail if status is not OK, but log it
+            
+            # Check for empty CommandResponse (silent failure)
+            command_response = root.find(f'.//CommandResponse')
+            if command_response is not None and not list(command_response):
+                # It's empty. For setHosts, this might be OK, but for others it's suspicious.
+                pass
+
+            # Log successful response (first 200 chars for debugging)
+            logger.debug(f"Namecheap API response Status: {root.get('Status', 'N/A')}")
+            logger.debug(f"Response XML (first 200 chars): {response.text[:200]}")
+            
+            return {'success': True, 'xml': root, 'raw': response.text}
         
         except requests.RequestException as e:
             logger.error(f"Namecheap API request failed: {e}")
