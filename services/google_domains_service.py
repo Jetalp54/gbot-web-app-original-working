@@ -9,7 +9,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import google.auth.transport.requests
-from database import GoogleAccount, GoogleToken
+from database import GoogleAccount, GoogleToken, ServiceAccount
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,14 @@ class GoogleDomainsService:
     def _get_credentials(self) -> Optional[Credentials]:
         """Get and refresh Google credentials."""
         try:
+            # Try Service Account first
+            service_account = ServiceAccount.query.filter_by(name=self.account_name).first()
+            if service_account:
+                from services.google_service_account import GoogleServiceAccount
+                gsa = GoogleServiceAccount(service_account.id)
+                return gsa.get_credentials()
+
+            # Fallback to Google Account (deprecated)
             account = GoogleAccount.query.filter_by(account_name=self.account_name).first()
             if not account or not account.tokens:
                 logger.error(f"No tokens found for account: {self.account_name}")

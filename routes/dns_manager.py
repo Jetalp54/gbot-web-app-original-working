@@ -347,9 +347,15 @@ def add_and_verify_domains():
         if not account_name:
             return jsonify({'success': False, 'error': 'No authenticated account'}), 401
         
-        # Verify account exists
-        account = GoogleAccount.query.filter_by(account_name=account_name).first()
-        if not account:
+        # Verify account exists (Check Service Account first, then Google Account)
+        service_account = ServiceAccount.query.filter_by(name=account_name).first()
+        account = None
+        
+        if not service_account:
+            # Fallback to old Google Account (deprecated but kept for compatibility)
+            account = GoogleAccount.query.filter_by(account_name=account_name).first()
+            
+        if not service_account and not account:
             return jsonify({'success': False, 'error': 'Account not found'}), 404
         
         # Normalize domains: trim, lowercase, remove duplicates, ignore empty

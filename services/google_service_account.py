@@ -12,7 +12,8 @@ class GoogleServiceAccount:
         "https://www.googleapis.com/auth/admin.directory.user.security", 
         "https://www.googleapis.com/auth/admin.directory.orgunit", 
         "https://www.googleapis.com/auth/admin.directory.domain.readonly",
-        "https://www.googleapis.com/auth/gmail.send"
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/siteverification"
     ]
 
     def __init__(self, service_account_id):
