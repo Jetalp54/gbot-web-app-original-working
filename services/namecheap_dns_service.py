@@ -247,6 +247,9 @@ class NamecheapDNSService:
                 if record.mx_pref is not None:
                     params[f'MXPref{i}'] = str(record.mx_pref)
             
+            logger.info(f"Setting hosts for {apex} (SLD={sld}, TLD={tld})")
+            logger.info(f"Parameters sent to Namecheap: {params}")
+            
             result = self._make_request('namecheap.domains.dns.setHosts', params)
             
             logger.info(f"Successfully updated DNS records for {apex}, added TXT record @ {host}")
