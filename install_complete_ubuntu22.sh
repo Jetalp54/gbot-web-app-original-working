@@ -73,6 +73,50 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Function to wait for apt/dpkg lock to be released
+wait_for_apt_lock() {
+    local max_wait=300  # Maximum wait time in seconds (5 minutes)
+    local wait_time=0
+    local check_interval=5
+    
+    while [ $wait_time -lt $max_wait ]; do
+        # Check if apt or dpkg is running
+        if ! pgrep -x "apt-get|apt|dpkg|unattended-upgrades" > /dev/null; then
+            # Check if lock files exist
+            if [ ! -f /var/lib/dpkg/lock-frontend ] && [ ! -f /var/lib/dpkg/lock ] && [ ! -f /var/cache/apt/archives/lock ]; then
+                return 0  # Lock is free
+            fi
+        fi
+        
+        if [ $wait_time -eq 0 ]; then
+            print_warning "Another package manager process is running. Waiting for it to finish..."
+            print_info "If this takes too long, you can manually stop the process and run this script again."
+        fi
+        
+        sleep $check_interval
+        wait_time=$((wait_time + check_interval))
+        
+        # Show progress every 30 seconds
+        if [ $((wait_time % 30)) -eq 0 ]; then
+            print_info "Still waiting... ($wait_time seconds elapsed)"
+        fi
+    done
+    
+    print_error "Timeout waiting for package manager lock. Please try again later."
+    print_info "You can check running processes with: ps aux | grep -E 'apt|dpkg'"
+    exit 1
+}
+
+# Function to check and wait for apt lock before any apt operations
+check_apt_lock() {
+    if pgrep -x "apt-get|apt|dpkg|unattended-upgrades" > /dev/null || \
+       [ -f /var/lib/dpkg/lock-frontend ] || \
+       [ -f /var/lib/dpkg/lock ] || \
+       [ -f /var/cache/apt/archives/lock ]; then
+        wait_for_apt_lock
+    fi
+}
+
 print_section "🚀 GBot Complete Installation for Ubuntu 22.04"
 print_info "This script will install and configure GBot Web Application"
 print_info "Target directory: $APP_DIR"
@@ -85,6 +129,9 @@ echo ""
 # ============================================================================
 print_section "STEP 1: System Updates and Essential Packages"
 
+print_info "Checking for running package manager processes..."
+check_apt_lock
+
 print_info "Updating package lists..."
 apt-get update -qq
 
@@ -92,6 +139,8 @@ print_info "Upgrading system packages..."
 DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq
 
 print_info "Installing essential system packages..."
+# Check lock again before installing packages
+check_apt_lock
 apt-get install -y \
     software-properties-common \
     apt-transport-https \
@@ -135,8 +184,11 @@ print_info "Python version: $(python3 --version)"
 if [ "$(printf '%s\n' "3.10" "$PYTHON_VERSION" | sort -V | head -n1)" != "3.10" ]; then
     print_warning "Python 3.10+ recommended. Current: $PYTHON_VERSION"
     print_info "Installing Python 3.10 from deadsnakes PPA..."
+    check_apt_lock
     add-apt-repository -y ppa:deadsnakes/ppa
+    check_apt_lock
     apt-get update -qq
+    check_apt_lock
     apt-get install -y python3.10 python3.10-venv python3.10-dev python3.10-distutils
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
     print_success "Python 3.10 installed"
@@ -156,6 +208,7 @@ print_success "Python setup complete"
 print_section "STEP 3: PostgreSQL Database Installation"
 
 print_info "Installing PostgreSQL..."
+check_apt_lock
 apt-get install -y postgresql postgresql-contrib
 
 print_info "Starting PostgreSQL service..."
@@ -196,6 +249,7 @@ print_success "PostgreSQL configured successfully"
 print_section "STEP 4: Nginx Web Server Installation"
 
 print_info "Installing Nginx..."
+check_apt_lock
 apt-get install -y nginx
 
 print_info "Configuring Nginx..."
