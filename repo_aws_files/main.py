@@ -864,85 +864,167 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
 def inject_recaptcha_token(driver, token):
     """
     Inject the solved reCAPTCHA token into the page.
-    This executes the callback function that Google reCAPTCHA expects.
+    Google reCAPTCHA requires the token to be set in g-recaptcha-response textarea/input
+    and the callback function to be executed.
     """
     try:
         logger.info("[2CAPTCHA] Injecting reCAPTCHA token into page...")
         
-        # Method 1: Find and execute the callback function
-        callback_script = f"""
-        // Find the callback function name
-        var callbackName = null;
-        var scripts = document.getElementsByTagName('script');
-        for (var i = 0; i < scripts.length; i++) {{
-            var scriptText = scripts[i].innerHTML;
-            // Fixed invalid escape sequences by double escaping backslashes
-            var match = scriptText.match(/grecaptcha\\.execute\\([^,]+,\\s*{{[^}}]*callback:\\s*['"]([^'"]+)['"]/);
-            if (match) {{
-                callbackName = match[1];
-                break;
+        # Comprehensive token injection script for Google login pages
+        injection_script = f"""
+        (function() {{
+            var token = '{token}';
+            var injected = false;
+            
+            // Method 1: Set token in g-recaptcha-response textarea/input (most important for Google)
+            var recaptchaResponse = document.querySelector('textarea[name="g-recaptcha-response"]') || 
+                                    document.querySelector('input[name="g-recaptcha-response"]') ||
+                                    document.querySelector('textarea#g-recaptcha-response') ||
+                                    document.querySelector('input#g-recaptcha-response');
+            
+            if (recaptchaResponse) {{
+                recaptchaResponse.value = token;
+                recaptchaResponse.innerHTML = token; // For textarea
+                
+                // Trigger all necessary events
+                var events = ['input', 'change', 'keyup', 'blur'];
+                events.forEach(function(eventType) {{
+                    var event = new Event(eventType, {{ bubbles: true, cancelable: true }});
+                    recaptchaResponse.dispatchEvent(event);
+                }});
+                
+                injected = true;
+                console.log('[2CAPTCHA] Token set in g-recaptcha-response element');
             }}
-        }}
-        
-        // If callback not found, try common patterns
-        if (!callbackName) {{
-            // Try window callbacks
-            for (var key in window) {{
-                if (key.startsWith('___grecaptcha_cfg') || key.includes('recaptcha')) {{
-                    var cfg = window[key];
-                    if (cfg && cfg.callback) {{
-                        callbackName = cfg.callback;
-                        break;
-                    }}
+            
+            // Method 2: Find and execute callback function
+            var callbackName = null;
+            
+            // Search in scripts for callback
+            var scripts = document.getElementsByTagName('script');
+            for (var i = 0; i < scripts.length; i++) {{
+                var scriptText = scripts[i].innerHTML || scripts[i].textContent || '';
+                
+                // Pattern 1: grecaptcha.execute with callback
+                var match1 = scriptText.match(/grecaptcha\\.execute\\([^,]+,\\s*{{[^}}]*callback:\\s*['"]([^'"]+)['"]/);
+                if (match1) {{
+                    callbackName = match1[1];
+                    break;
+                }}
+                
+                // Pattern 2: callback in data attributes
+                var match2 = scriptText.match(/callback['"]?\\s*[:=]\\s*['"]([^'"]+)['"]/);
+                if (match2) {{
+                    callbackName = match2[1];
+                    break;
                 }}
             }}
-        }}
-        
-        // Execute callback with token
-        if (callbackName && window[callbackName]) {{
-            window[callbackName]('{token}');
-            return 'callback_executed';
-        }} else {{
-            // Fallback: Set token in common locations
-            window.grecaptchaToken = '{token}';
             
-            // Try to find and fill token input
-            var tokenInputs = document.querySelectorAll('input[name*="recaptcha"], textarea[name*="recaptcha"]');
-            for (var i = 0; i < tokenInputs.length; i++) {{
-                tokenInputs[i].value = '{token}';
+            // Method 3: Check window.grecaptcha configuration
+            if (!callbackName && window.grecaptcha) {{
+                try {{
+                    // Check grecaptcha configuration
+                    for (var key in window) {{
+                        if (key.startsWith('___grecaptcha_cfg')) {{
+                            var cfg = window[key];
+                            if (cfg && cfg.callback) {{
+                                callbackName = cfg.callback;
+                                break;
+                            }}
+                        }}
+                    }}
+                }} catch (e) {{
+                    console.log('[2CAPTCHA] Error checking grecaptcha config:', e);
+                }}
             }}
             
-            // Trigger change events
-            var event = new Event('change', {{ bubbles: true }});
-            for (var i = 0; i < tokenInputs.length; i++) {{
-                tokenInputs[i].dispatchEvent(event);
+            // Execute callback if found
+            if (callbackName && window[callbackName]) {{
+                try {{
+                    window[callbackName](token);
+                    console.log('[2CAPTCHA] Callback executed:', callbackName);
+                    injected = true;
+                }} catch (e) {{
+                    console.log('[2CAPTCHA] Error executing callback:', e);
+                }}
             }}
             
-            return 'token_injected';
-        }}
+            // Method 4: Set token in window object for Google's scripts to find
+            window.grecaptchaToken = token;
+            window.__grecaptchaToken = token;
+            
+            // Method 5: Find all recaptcha-related inputs and set token
+            var allRecaptchaInputs = document.querySelectorAll(
+                'textarea[name*="recaptcha"], input[name*="recaptcha"], ' +
+                'textarea[id*="recaptcha"], input[id*="recaptcha"], ' +
+                'textarea[class*="recaptcha"], input[class*="recaptcha"]'
+            );
+            
+            for (var i = 0; i < allRecaptchaInputs.length; i++) {{
+                var inp = allRecaptchaInputs[i];
+                inp.value = token;
+                if (inp.tagName === 'TEXTAREA') {{
+                    inp.innerHTML = token;
+                }}
+                
+                // Trigger events
+                ['input', 'change', 'keyup'].forEach(function(eventType) {{
+                    var evt = new Event(eventType, {{ bubbles: true }});
+                    inp.dispatchEvent(evt);
+                }});
+                
+                injected = true;
+            }}
+            
+            // Method 6: Try to find recaptcha widget and set response
+            if (window.grecaptcha && window.grecaptcha.getResponse) {{
+                try {{
+                    // Get widget ID (usually 0 for first widget)
+                    var widgetId = 0;
+                    var response = window.grecaptcha.getResponse(widgetId);
+                    if (!response) {{
+                        // Try to set response directly if possible
+                        console.log('[2CAPTCHA] Attempting to set grecaptcha response');
+                    }}
+                }} catch (e) {{
+                    console.log('[2CAPTCHA] Error accessing grecaptcha widget:', e);
+                }}
+            }}
+            
+            return injected ? 'token_injected' : 'no_target_found';
+        }})();
         """
         
-        result = driver.execute_script(callback_script)
+        result = driver.execute_script(injection_script)
         logger.info(f"[2CAPTCHA] Token injection result: {result}")
         
-        # Wait a moment for the page to process the token
-        time.sleep(2)
+        # Wait for page to process the token
+        time.sleep(3)
         
-        # Method 2: If callback method didn't work, try direct form submission
-        # Check if we need to submit a form with the token
+        # Verify token was set by checking the element
         try:
-            # Look for forms that might need the token
-            forms = driver.find_elements(By.TAG_NAME, "form")
-            for form in forms:
-                # Check if form has recaptcha-related inputs
-                recaptcha_inputs = form.find_elements(By.XPATH, ".//input[contains(@name, 'recaptcha')]")
-                if recaptcha_inputs:
-                    for inp in recaptcha_inputs:
-                        driver.execute_script("arguments[0].value = arguments[1];", inp, token)
-                        driver.execute_script("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", inp)
-                    logger.info("[2CAPTCHA] Token injected into form inputs")
-        except Exception as form_err:
-            logger.debug(f"[2CAPTCHA] Form injection attempt: {form_err}")
+            recaptcha_elements = driver.find_elements(By.XPATH, 
+                "//textarea[@name='g-recaptcha-response'] | //input[@name='g-recaptcha-response']")
+            if recaptcha_elements:
+                for elem in recaptcha_elements:
+                    current_value = elem.get_attribute('value') or driver.execute_script("return arguments[0].value || arguments[0].innerHTML;", elem)
+                    if current_value == token:
+                        logger.info("[2CAPTCHA] ✓ Verified token is set in g-recaptcha-response element")
+                    else:
+                        logger.warning(f"[2CAPTCHA] Token value mismatch. Expected: {token[:20]}..., Got: {str(current_value)[:20] if current_value else 'None'}...")
+        except Exception as verify_err:
+            logger.debug(f"[2CAPTCHA] Could not verify token: {verify_err}")
+        
+        # Additional method: Try to find and fill any hidden recaptcha inputs
+        try:
+            hidden_inputs = driver.find_elements(By.XPATH, 
+                "//input[@type='hidden' and contains(@name, 'recaptcha')] | " +
+                "//textarea[@style*='display: none' and contains(@name, 'recaptcha')]")
+            for inp in hidden_inputs:
+                driver.execute_script("arguments[0].value = arguments[1];", inp, token)
+                logger.info("[2CAPTCHA] Token set in hidden recaptcha input")
+        except Exception as hidden_err:
+            logger.debug(f"[2CAPTCHA] Hidden input injection: {hidden_err}")
         
         return True
     except Exception as e:
@@ -1459,19 +1541,56 @@ def login_google(driver, email, password, known_totp_secret=None):
             solved, solve_error = solve_captcha_with_2captcha(driver)
             
             if solved:
-                logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Continuing with login...")
-                # Wait a moment for page to process the solved CAPTCHA
-                time.sleep(3)
+                logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Waiting for page to process token...")
+                # Wait longer for Google to process the token (Google needs time to validate)
+                time.sleep(5)
+                
+                # After solving CAPTCHA, check if we need to retry email submission
+                # Google may have blocked the initial submission due to CAPTCHA
+                current_url_after = driver.current_url
+                if '/signin/identifier' in current_url_after or 'identifier' in current_url_after.lower():
+                    logger.info("[STEP] Still on identifier page after CAPTCHA solve. Retrying email submission with solved CAPTCHA...")
+                    try:
+                        # Wait for page to be ready
+                        time.sleep(2)
+                        
+                        # Find email input again
+                        email_input_retry = wait_for_xpath(driver, "//input[@id='identifierId']", timeout=10)
+                        if email_input_retry:
+                            # Clear and re-enter email
+                            email_input_retry.clear()
+                            time.sleep(0.5)
+                            simulate_human_typing(email_input_retry, email, driver)
+                            logger.info("[STEP] Re-entered email after CAPTCHA solve")
+                            time.sleep(1)
+                            
+                            # Click Next button again (CAPTCHA token should now be set)
+                            email_next_retry = find_element_with_fallback(driver, 
+                                ["//*[@id='identifierNext']", "//button[@id='identifierNext']"], 
+                                timeout=10, description="email next button for retry")
+                            if email_next_retry:
+                                click_xpath(driver, "//*[@id='identifierNext']", timeout=10)
+                                logger.info("[STEP] Retried email submission after CAPTCHA solve")
+                                time.sleep(4)  # Wait for page transition
+                            else:
+                                email_input_retry.send_keys(Keys.RETURN)
+                                time.sleep(4)
+                    except Exception as retry_err:
+                        logger.warning(f"[STEP] Could not retry email submission after CAPTCHA solve: {retry_err}")
+                        # Continue anyway - token might already be processed
                 
                 # Check if CAPTCHA is still present (should be gone if solved correctly)
                 if detect_captcha(driver):
-                    logger.warning("[STEP] ⚠️ CAPTCHA still present after solving attempt. Retrying...")
+                    logger.warning("[STEP] ⚠️ CAPTCHA still present after solving attempt. Retrying solve...")
                     # Try one more time
                     time.sleep(2)
-                    solved_retry, _ = solve_captcha_with_2captcha(driver)
+                    solved_retry, retry_error = solve_captcha_with_2captcha(driver)
                     if not solved_retry:
-                        logger.error("[STEP] ✗✗✗ CAPTCHA solving failed after retry")
-                        return False, "CAPTCHA_SOLVE_FAILED", "CAPTCHA detected and 2Captcha solving failed"
+                        logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed after retry: {retry_error}")
+                        return False, "CAPTCHA_SOLVE_FAILED", f"CAPTCHA detected and 2Captcha solving failed: {retry_error}"
+                    else:
+                        logger.info("[STEP] ✓ CAPTCHA solved on retry!")
+                        time.sleep(5)  # Wait after retry solve
                 else:
                     logger.info("[STEP] ✓ CAPTCHA cleared after solving! Proceeding...")
             else:
