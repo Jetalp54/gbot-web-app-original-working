@@ -73,47 +73,106 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Function to wait for apt/dpkg lock to be released
-wait_for_apt_lock() {
-    local max_wait=300  # Maximum wait time in seconds (5 minutes)
-    local wait_time=0
-    local check_interval=5
+# Function to check if lock files are actually in use
+is_lock_in_use() {
+    local lock_file="$1"
     
-    while [ $wait_time -lt $max_wait ]; do
-        # Check if apt or dpkg is running
-        if ! pgrep -x "apt-get|apt|dpkg|unattended-upgrades" > /dev/null; then
-            # Check if lock files exist
-            if [ ! -f /var/lib/dpkg/lock-frontend ] && [ ! -f /var/lib/dpkg/lock ] && [ ! -f /var/cache/apt/archives/lock ]; then
-                return 0  # Lock is free
+    # If lock file doesn't exist, it's not in use
+    [ ! -f "$lock_file" ] && return 1
+    
+    # Check if any process is using the lock file
+    if command -v lsof > /dev/null 2>&1; then
+        if lsof "$lock_file" > /dev/null 2>&1; then
+            return 0  # Lock is in use
+        fi
+    fi
+    
+    # Check if lock file has content (non-empty = might be in use)
+    if [ -s "$lock_file" ]; then
+        # Check if any apt/dpkg process is running
+        if pgrep -x "apt-get|apt|dpkg|unattended-upgrades" > /dev/null; then
+            return 0  # Lock might be in use
+        fi
+        # If file has content but no process, it's likely stale
+        return 1
+    fi
+    
+    # Empty lock file with no processes = stale lock
+    return 1
+}
+
+# Function to remove stale lock files
+remove_stale_locks() {
+    print_info "Checking for stale lock files..."
+    
+    local locks_removed=0
+    
+    # Check and remove stale locks
+    for lock_file in /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock; do
+        if [ -f "$lock_file" ]; then
+            if ! is_lock_in_use "$lock_file"; then
+                print_warning "Removing stale lock file: $lock_file"
+                rm -f "$lock_file"
+                locks_removed=$((locks_removed + 1))
+            else
+                print_info "Lock file in use: $lock_file (waiting...)"
             fi
-        fi
-        
-        if [ $wait_time -eq 0 ]; then
-            print_warning "Another package manager process is running. Waiting for it to finish..."
-            print_info "If this takes too long, you can manually stop the process and run this script again."
-        fi
-        
-        sleep $check_interval
-        wait_time=$((wait_time + check_interval))
-        
-        # Show progress every 30 seconds
-        if [ $((wait_time % 30)) -eq 0 ]; then
-            print_info "Still waiting... ($wait_time seconds elapsed)"
         fi
     done
     
-    print_error "Timeout waiting for package manager lock. Please try again later."
-    print_info "You can check running processes with: ps aux | grep -E 'apt|dpkg'"
-    exit 1
+    if [ $locks_removed -gt 0 ]; then
+        print_success "Removed $locks_removed stale lock file(s)"
+        # Reconfigure dpkg to ensure consistency
+        dpkg --configure -a 2>/dev/null || true
+    fi
+}
+
+# Function to wait for apt/dpkg lock to be released
+wait_for_apt_lock() {
+    local max_wait=60  # Reduced to 60 seconds since we check for stale locks
+    local wait_time=0
+    local check_interval=2
+    
+    # First, try to remove stale locks
+    remove_stale_locks
+    
+    # Check if any process is actually running
+    if pgrep -x "apt-get|apt|dpkg|unattended-upgrades" > /dev/null; then
+        print_warning "Package manager process detected. Waiting for it to finish..."
+        
+        while [ $wait_time -lt $max_wait ]; do
+            if ! pgrep -x "apt-get|apt|dpkg|unattended-upgrades" > /dev/null; then
+                # Process finished, remove any stale locks
+                remove_stale_locks
+                return 0
+            fi
+            
+            sleep $check_interval
+            wait_time=$((wait_time + check_interval))
+            
+            # Show progress every 10 seconds
+            if [ $((wait_time % 10)) -eq 0 ]; then
+                print_info "Still waiting... ($wait_time seconds elapsed)"
+            fi
+        done
+        
+        print_error "Timeout waiting for package manager process to finish."
+        print_info "You can check running processes with: ps aux | grep -E 'apt|dpkg'"
+        exit 1
+    fi
+    
+    # No process running, but lock files exist - remove stale locks
+    remove_stale_locks
 }
 
 # Function to check and wait for apt lock before any apt operations
 check_apt_lock() {
-    if pgrep -x "apt-get|apt|dpkg|unattended-upgrades" > /dev/null || \
-       [ -f /var/lib/dpkg/lock-frontend ] || \
-       [ -f /var/lib/dpkg/lock ] || \
-       [ -f /var/cache/apt/archives/lock ]; then
+    # Check if any apt/dpkg process is actually running
+    if pgrep -x "apt-get|apt|dpkg|unattended-upgrades" > /dev/null; then
         wait_for_apt_lock
+    else
+        # No process running, but check for stale locks
+        remove_stale_locks
     fi
 }
 
