@@ -1627,9 +1627,12 @@
             type === 'error' ? 'fas fa-exclamation-circle' :
                 type === 'warning' ? 'fas fa-exclamation-triangle' : 'fas fa-info-circle';
 
-        var statusHtml = '<div class="alert-github" style="background: ' + bgColor + '; border: 1px solid ' + borderColor + '; color: ' + textColor + '; display: flex; align-items: center; gap: 8px; padding: 16px; border-radius: 6px;">' +
-            '<i class="' + icon + '"></i>' +
-            '<span>' + message + '</span>' +
+        // Convert newlines to <br> tags for proper multi-line display
+        var formattedMessage = String(message).replace(/\n/g, '<br>');
+        
+        var statusHtml = '<div class="alert-github" style="background: ' + bgColor + '; border: 1px solid ' + borderColor + '; color: ' + textColor + '; display: flex; align-items: flex-start; gap: 8px; padding: 16px; border-radius: 6px;">' +
+            '<i class="' + icon + '" style="margin-top: 2px;"></i>' +
+            '<div style="flex: 1; line-height: 1.6;">' + formattedMessage + '</div>' +
             '<button type="button" onclick="this.parentElement.style.display=\'none\'" style="background: none; border: none; color: ' + textColor + '; cursor: pointer; margin-left: auto; padding: 4px; font-size: 16px;">×</button>' +
             '</div>';
 
