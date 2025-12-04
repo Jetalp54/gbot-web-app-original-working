@@ -708,30 +708,46 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                 # Try to find site key in page source
                 page_source = driver.page_source
                 
-                # Pattern 1: data-sitekey attribute
-                site_key_match = re.search(r'data-sitekey=["\']([^"\']+)["\']', page_source)
+                # Pattern 1: data-sitekey attribute (most common for reCAPTCHA v2)
+                site_key_match = re.search(r'data-sitekey=["\']([^"\']+)["\']', page_source, re.IGNORECASE)
                 if site_key_match:
-                    site_key = site_key_match.group(1)
-                    logger.info(f"[2CAPTCHA] Found site key in data-sitekey: {site_key[:20]}...")
+                    site_key = site_key_match.group(1).strip()
+                    logger.info(f"[2CAPTCHA] Found site key in data-sitekey: {site_key[:50]}... (length: {len(site_key)})")
                 else:
-                    # Pattern 2: recaptcha/api.js?render= or k= parameter
-                    site_key_match = re.search(r'(?:recaptcha/api\.js\?render=|k=)([a-zA-Z0-9_-]+)', page_source)
-                    if site_key_match:
-                        site_key = site_key_match.group(1)
-                        logger.info(f"[2CAPTCHA] Found site key in API URL: {site_key[:20]}...")
-                    else:
-                        # Pattern 3: Check iframe src
+                    # Pattern 2: recaptcha/api.js?render=SITE_KEY or k=SITE_KEY parameter
+                    # Try multiple patterns for different Google reCAPTCHA implementations
+                    patterns = [
+                        r'recaptcha/api\.js\?render=([a-zA-Z0-9_-]{20,})',  # reCAPTCHA v3 (site keys are usually 40+ chars)
+                        r'[?&]k=([a-zA-Z0-9_-]{20,})',  # k= parameter (site key is usually 40 chars)
+                        r'__recaptcha_api\.js\?k=([a-zA-Z0-9_-]{20,})',  # Legacy format
+                        r'recaptcha\.google\.com/recaptcha/api\.js\?render=([a-zA-Z0-9_-]{20,})',  # Full URL
+                    ]
+                    
+                    for pattern in patterns:
+                        site_key_match = re.search(pattern, page_source, re.IGNORECASE)
+                        if site_key_match:
+                            site_key = site_key_match.group(1).strip()
+                            logger.info(f"[2CAPTCHA] Found site key using pattern: {site_key[:50]}... (length: {len(site_key)})")
+                            break
+                    
+                    # Pattern 3: Check iframe src (fallback)
+                    if not site_key:
                         try:
                             iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha')]")
                             for iframe in iframes:
                                 iframe_src = iframe.get_attribute('src')
                                 if iframe_src:
-                                    site_key_match = re.search(r'k=([a-zA-Z0-9_-]+)', iframe_src)
-                                    if site_key_match:
-                                        site_key = site_key_match.group(1)
-                                        logger.info(f"[2CAPTCHA] Found site key in iframe src: {site_key[:20]}...")
+                                    # Try multiple patterns in iframe src
+                                    for pattern in [r'k=([a-zA-Z0-9_-]{20,})', r'render=([a-zA-Z0-9_-]{20,})']:
+                                        site_key_match = re.search(pattern, iframe_src, re.IGNORECASE)
+                                        if site_key_match:
+                                            site_key = site_key_match.group(1).strip()
+                                            logger.info(f"[2CAPTCHA] Found site key in iframe src: {site_key[:50]}... (length: {len(site_key)})")
+                                            break
+                                    if site_key:
                                         break
-                        except:
+                        except Exception as iframe_err:
+                            logger.debug(f"[2CAPTCHA] Error checking iframes: {iframe_err}")
                             pass
                 
                 if not site_key:
@@ -741,7 +757,17 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                 logger.error(f"[2CAPTCHA] Error extracting site key: {e}")
                 return False, None, f"Error extracting site key: {e}"
         
-        logger.info(f"[2CAPTCHA] Site key: {site_key[:20]}..., Page URL: {page_url[:80]}...")
+        # Validate site key before proceeding
+        if not site_key or len(site_key.strip()) == 0:
+            logger.error(f"[2CAPTCHA] Site key is empty or None! Cannot proceed.")
+            return False, None, "Site key is empty or None"
+        
+        # Clean and validate site key format (should be alphanumeric with dashes/underscores)
+        site_key = site_key.strip()
+        if not re.match(r'^[a-zA-Z0-9_-]+$', site_key):
+            logger.warning(f"[2CAPTCHA] Site key format may be invalid: {site_key[:50]}...")
+        
+        logger.info(f"[2CAPTCHA] Site key: {site_key[:50]}... (length: {len(site_key)}), Page URL: {page_url[:80]}...")
         
         # Step 1: Create task to solve CAPTCHA using 2Captcha API v2
         # Official 2Captcha API v2 Documentation:
@@ -750,18 +776,32 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
         logger.info("[2CAPTCHA] Creating task to solve reCAPTCHA v2 using 2Captcha API v2...")
         create_task_url = 'https://api.2captcha.com/createTask'
         
+        # Validate site key length (reCAPTCHA site keys are typically 40 characters)
+        if len(site_key) < 20:
+            logger.error(f"[2CAPTCHA] Site key is too short ({len(site_key)} chars). Expected 20+ characters. Value: {site_key}")
+            return False, None, f"Site key is too short ({len(site_key)} chars)"
+        
         # API v2 uses JSON format with task object
         task_data = {
             'clientKey': api_key,
             'task': {
                 'type': 'RecaptchaV2TaskProxyless',  # Use proxyless for most cases
                 'websiteURL': page_url,
-                'websiteKey': site_key
+                'websiteKey': site_key  # This is the correct field name for API v2
             }
         }
         
+        # Log the request payload (without exposing full API key)
+        logger.info(f"[2CAPTCHA] Request payload:")
+        logger.info(f"[2CAPTCHA]   clientKey: {api_key[:10]}...")
+        logger.info(f"[2CAPTCHA]   websiteURL: {page_url}")
+        logger.info(f"[2CAPTCHA]   websiteKey: {site_key} (length: {len(site_key)})")
+        logger.info(f"[2CAPTCHA]   task type: RecaptchaV2TaskProxyless")
+        
         # Create JSON request
         json_data = json.dumps(task_data).encode('utf-8')
+        logger.info(f"[2CAPTCHA] JSON payload (first 400 chars): {json_data.decode('utf-8')[:400]}")
+        
         request = urllib.request.Request(
             create_task_url,
             data=json_data,
@@ -770,8 +810,12 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
         )
         
         try:
+            logger.info(f"[2CAPTCHA] Sending POST request to {create_task_url}...")
             with urllib.request.urlopen(request, timeout=30) as response:
-                create_result = json.loads(response.read().decode('utf-8'))
+                response_body = response.read().decode('utf-8')
+                logger.info(f"[2CAPTCHA] API response status: {response.status}")
+                logger.info(f"[2CAPTCHA] Raw API response: {response_body}")
+                create_result = json.loads(response_body)
                 
                 # Check for errors (errorId 0 = success)
                 if create_result.get('errorId') != 0:
