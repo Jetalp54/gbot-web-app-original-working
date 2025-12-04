@@ -11036,20 +11036,41 @@ def api_test_twocaptcha():
                     'status_code': response.status_code,
                     'response_preview': response.text[:500]
                 })
-    except requests.exceptions.Timeout:
-        return jsonify({
-            'success': False,
-            'error': 'Connection timeout. Please check your internet connection and try again.'
-        })
-    except requests.exceptions.RequestException as e:
-        app.logger.error(f"Error testing 2Captcha (network): {e}")
-        return jsonify({
-            'success': False,
-            'error': f'Network error: {str(e)}'
-        })
+        except requests.exceptions.Timeout:
+            return jsonify({
+                'success': False,
+                'error': 'Connection timeout. Please check your internet connection and try again.',
+                'details': 'The request to 2Captcha API timed out after 10 seconds. This could indicate network issues or the API is temporarily unavailable.',
+                'suggestion': 'Please check your internet connection and try again. If the problem persists, 2Captcha API might be experiencing issues.'
+            })
+        except requests.exceptions.ConnectionError as conn_err:
+            app.logger.error(f"[2CAPTCHA TEST] Connection error: {conn_err}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to connect to 2Captcha API',
+                'details': f'Connection error: {str(conn_err)}',
+                'suggestion': 'Please check your internet connection and ensure 2captcha.com is accessible.'
+            })
+        except requests.exceptions.RequestException as e:
+            app.logger.error(f"[2CAPTCHA TEST] Network error: {e}")
+            import traceback
+            app.logger.error(traceback.format_exc())
+            return jsonify({
+                'success': False,
+                'error': f'Network error: {str(e)}',
+                'details': f'Request exception occurred: {type(e).__name__}: {str(e)}',
+                'suggestion': 'Please check your internet connection and try again.'
+            })
     except Exception as e:
-        app.logger.error(f"Error testing 2Captcha: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+        app.logger.error(f"[2CAPTCHA TEST] Unexpected error: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Unexpected error: {str(e)}',
+            'details': f'Error type: {type(e).__name__}, Error message: {str(e)}',
+            'traceback': traceback.format_exc()[:500]  # First 500 chars of traceback
+        })
 
 @app.route('/api/get-otp-ssh-config', methods=['GET'])
 @login_required
