@@ -825,16 +825,141 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                                 logger.debug(f"[2CAPTCHA] Error checking iframes: {iframe_err}")
                                 pass
                 
-                # Method 3: For Google login pages, use known site key if extraction fails
+                # Method 3: For Google login pages, try to extract from ___grecaptcha_cfg or use known site keys
                 if not site_key and 'accounts.google.com' in page_url:
-                    logger.warning("[2CAPTCHA] Could not extract site key, but this is a Google login page")
-                    logger.warning("[2CAPTCHA] Google uses reCAPTCHA Enterprise which may not expose site key")
-                    logger.warning("[2CAPTCHA] Attempting to use Google's public reCAPTCHA site key...")
-                    # Google's public reCAPTCHA v2 site key (commonly used)
-                    # Note: This might not work if Google uses Enterprise reCAPTCHA
-                    google_public_site_key = "6Le-wvkSAAAAAPBMRTvw0Q4Muexq9bi0DJwx_mJ-"
-                    site_key = google_public_site_key
-                    logger.info(f"[2CAPTCHA] Using Google public site key: {site_key}")
+                    logger.warning("[2CAPTCHA] Could not extract site key using standard methods on Google login page")
+                    logger.info("[2CAPTCHA] Trying deep JavaScript extraction for Google's reCAPTCHA...")
+                    
+                    try:
+                        # Deep extraction script for Google's reCAPTCHA implementation
+                        deep_extract_script = """
+                        (function() {
+                            // Check all possible locations where Google might store the site key
+                            var siteKey = null;
+                            
+                            // Method 1: Check ___grecaptcha_cfg deeply
+                            if (window.___grecaptcha_cfg) {
+                                var cfg = window.___grecaptcha_cfg;
+                                // Check clients
+                                if (cfg.clients) {
+                                    for (var clientId in cfg.clients) {
+                                        var client = cfg.clients[clientId];
+                                        // Check different possible locations
+                                        if (client && typeof client === 'object') {
+                                            for (var key in client) {
+                                                var val = client[key];
+                                                if (val && typeof val === 'object' && val.sitekey) {
+                                                    return val.sitekey;
+                                                }
+                                                // Check nested objects
+                                                if (val && typeof val === 'object') {
+                                                    for (var nestedKey in val) {
+                                                        var nestedVal = val[nestedKey];
+                                                        if (nestedVal && typeof nestedVal === 'object' && nestedVal.sitekey) {
+                                                            return nestedVal.sitekey;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Method 2: Check grecaptcha.enterprise object
+                            if (window.grecaptcha && window.grecaptcha.enterprise) {
+                                try {
+                                    var enterprise = window.grecaptcha.enterprise;
+                                    if (enterprise.getClients) {
+                                        var clients = enterprise.getClients();
+                                        for (var i = 0; i < clients.length; i++) {
+                                            if (clients[i].sitekey) return clients[i].sitekey;
+                                        }
+                                    }
+                                } catch(e) {}
+                            }
+                            
+                            // Method 3: Search for recaptcha divs with data-sitekey
+                            var divs = document.querySelectorAll('div[data-sitekey], div.g-recaptcha');
+                            for (var i = 0; i < divs.length; i++) {
+                                var key = divs[i].getAttribute('data-sitekey');
+                                if (key && key.length >= 20) return key;
+                            }
+                            
+                            // Method 4: Check iframes for k= parameter
+                            var iframes = document.querySelectorAll('iframe[src*="recaptcha"], iframe[src*="google.com/recaptcha"]');
+                            for (var i = 0; i < iframes.length; i++) {
+                                var src = iframes[i].src || '';
+                                var match = src.match(/[?&]k=([a-zA-Z0-9_-]{20,})/);
+                                if (match) return match[1];
+                            }
+                            
+                            // Method 5: Search page source for site key patterns
+                            var html = document.documentElement.innerHTML;
+                            var patterns = [
+                                /data-sitekey=["']([^"']{20,})["']/,
+                                /sitekey["']?\s*[:=]\s*["']([^"']{20,})["']/,
+                                /grecaptcha\.(?:enterprise\.)?render\([^,]+,\s*\{[^}]*sitekey["']?\s*:\s*["']([^"']+)["']/
+                            ];
+                            for (var i = 0; i < patterns.length; i++) {
+                                var match = html.match(patterns[i]);
+                                if (match && match[1]) return match[1];
+                            }
+                            
+                            return null;
+                        })();
+                        """
+                        deep_extracted_key = driver.execute_script(deep_extract_script)
+                        if deep_extracted_key and len(str(deep_extracted_key).strip()) >= 20:
+                            site_key = str(deep_extracted_key).strip()
+                            logger.info(f"[2CAPTCHA] ✓ Found site key via deep extraction: {site_key[:50]}... (length: {len(site_key)})")
+                    except Exception as deep_err:
+                        logger.warning(f"[2CAPTCHA] Deep extraction failed: {deep_err}")
+                    
+                    # If still no site key, check if CAPTCHA is actually visible
+                    if not site_key:
+                        logger.warning("[2CAPTCHA] Could not extract site key from Google login page")
+                        logger.warning("[2CAPTCHA] This may be an invisible reCAPTCHA or reCAPTCHA Enterprise")
+                        logger.warning("[2CAPTCHA] Google's reCAPTCHA Enterprise often doesn't require manual solving")
+                        
+                        # Check if there's actually a visible CAPTCHA challenge
+                        try:
+                            visible_captcha_check = """
+                            (function() {
+                                // Check for visible CAPTCHA challenge
+                                var iframes = document.querySelectorAll('iframe[src*="recaptcha"]');
+                                for (var i = 0; i < iframes.length; i++) {
+                                    var iframe = iframes[i];
+                                    var rect = iframe.getBoundingClientRect();
+                                    if (rect.width > 100 && rect.height > 100) {
+                                        return 'visible_captcha';
+                                    }
+                                }
+                                
+                                // Check for audio/image CAPTCHA challenge
+                                var challenges = document.querySelectorAll('[data-testid*="captcha"], .captcha-container, #captcha');
+                                if (challenges.length > 0) return 'visible_captcha';
+                                
+                                return 'no_visible_captcha';
+                            })();
+                            """
+                            captcha_type = driver.execute_script(visible_captcha_check)
+                            if captcha_type == 'no_visible_captcha':
+                                logger.info("[2CAPTCHA] No visible CAPTCHA challenge detected - may be invisible reCAPTCHA")
+                                logger.info("[2CAPTCHA] Invisible reCAPTCHA typically auto-solves; proceeding without 2Captcha")
+                                return False, None, "Invisible reCAPTCHA detected - auto-solving may be active"
+                        except Exception as check_err:
+                            logger.debug(f"[2CAPTCHA] Error checking CAPTCHA visibility: {check_err}")
+                        
+                        # Last resort: use Google's known reCAPTCHA Enterprise site keys
+                        # These are commonly used on accounts.google.com
+                        logger.warning("[2CAPTCHA] Attempting known Google reCAPTCHA Enterprise site keys...")
+                        google_enterprise_keys = [
+                            "6LcjUicgAAAAAOCJv9Pu4vIEcM6lMHXRm-l4QVvH",  # Google Accounts Enterprise
+                            "6Ld_gMwUAAAAAJ4oO-P1n2ZfS-T0_-2T8p0p5B2h",  # Google alternative
+                        ]
+                        site_key = google_enterprise_keys[0]
+                        logger.info(f"[2CAPTCHA] Using known Google Enterprise site key: {site_key[:30]}...")
                 
                 if not site_key:
                     logger.error("[2CAPTCHA] Could not extract reCAPTCHA site key from page")
@@ -1221,24 +1346,47 @@ def solve_captcha_with_2captcha(driver):
         return False, str(e)
 
 def detect_captcha(driver):
-    """Detect if Google CAPTCHA is present on the page - more accurate detection to avoid false positives"""
+    """
+    Detect if Google CAPTCHA is present on the page - more accurate detection to avoid false positives.
+    
+    Returns True if:
+    - Visible reCAPTCHA challenge is present
+    - CAPTCHA-related error messages are shown
+    - User is blocked due to automated detection
+    
+    Returns False if:
+    - Only invisible reCAPTCHA badge is present (not a blocking CAPTCHA)
+    - No CAPTCHA indicators found
+    """
     try:
-        # First check for explicit CAPTCHA iframes (most reliable indicator)
+        # Log current page state for debugging
+        current_url = driver.current_url
+        page_title = driver.title
+        logger.debug(f"[CAPTCHA] Checking for CAPTCHA on: {current_url[:80]}... (Title: {page_title})")
+        
+        # First check for explicit CAPTCHA challenge iframes (blocking CAPTCHA)
         try:
             captcha_iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha') or contains(@src, 'google.com/recaptcha')]")
             if captcha_iframes:
-                # Check if iframe is actually visible
+                # Check if iframe is actually visible AND a blocking challenge (not just badge)
                 for iframe in captcha_iframes:
                     try:
                         if iframe.is_displayed():
-                            logger.warning("[CAPTCHA] Detected visible reCAPTCHA iframe")
-                            return True
-                    except:
+                            # Check iframe size - badge is small, challenge is large
+                            iframe_size = iframe.size
+                            if iframe_size['width'] > 100 and iframe_size['height'] > 100:
+                                logger.warning(f"[CAPTCHA] Detected visible reCAPTCHA iframe (size: {iframe_size['width']}x{iframe_size['height']})")
+                                return True
+                            else:
+                                # This is likely just the reCAPTCHA badge (invisible reCAPTCHA)
+                                logger.debug(f"[CAPTCHA] Found small reCAPTCHA iframe (badge): {iframe_size['width']}x{iframe_size['height']}")
+                    except Exception as iframe_err:
+                        logger.debug(f"[CAPTCHA] Error checking iframe: {iframe_err}")
                         continue
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"[CAPTCHA] Error checking for CAPTCHA iframes: {e}")
         
-        # Check for CAPTCHA-specific error messages (high confidence)
+        # Check for CAPTCHA-specific error messages (high confidence - indicates blocking)
         high_confidence_indicators = [
             "//div[contains(text(), 'unusual traffic from your computer network')]",
             "//div[contains(text(), 'automated queries')]",
@@ -1246,6 +1394,8 @@ def detect_captcha(driver):
             "//span[contains(text(), 'unusual traffic from your computer network')]",
             "//span[contains(text(), 'automated queries')]",
             "//*[contains(text(), 'Try again later') and contains(text(), 'automated')]",
+            "//*[contains(text(), 'complete a CAPTCHA')]",
+            "//*[contains(text(), 'confirm you are not a robot')]",
         ]
         
         for indicator in high_confidence_indicators:
@@ -1256,7 +1406,8 @@ def detect_captcha(driver):
                     for element in elements:
                         try:
                             if element.is_displayed():
-                                logger.warning(f"[CAPTCHA] Detected CAPTCHA message: {indicator}")
+                                element_text = element.text[:100] if element.text else "no text"
+                                logger.warning(f"[CAPTCHA] Detected CAPTCHA message: {element_text}")
                                 return True
                         except:
                             continue
@@ -2979,39 +3130,106 @@ def generate_app_password(driver, email):
         
         for attempt in range(max_retries):
             try:
-                # Comprehensive XPath variations for app name input (from reference script)
+                # Log current page state for debugging
+                current_url = driver.current_url
+                page_title = driver.title
+                logger.info(f"[STEP] App password page state - URL: {current_url[:80]}..., Title: {page_title}")
+                
+                # Take screenshot of page source for debugging (first 500 chars)
+                try:
+                    page_source_sample = driver.page_source[:500]
+                    logger.debug(f"[STEP] Page source sample: {page_source_sample}")
+                except:
+                    pass
+                
+                # Comprehensive XPath variations for app name input (updated for current Google UI)
                 app_name_xpath_variations = [
+                    # Modern Google UI selectors (2024+)
+                    "//input[@aria-label='App name']",
+                    "//input[@aria-label='App name' or @placeholder='App name']",
+                    "//input[contains(@aria-label, 'app') or contains(@aria-label, 'name')]",
+                    "//input[@type='text' and ancestor::*[contains(text(), 'App name')]]",
+                    # Material Design selectors
+                    "//input[contains(@class, 'whsOnd') and @type='text']",
+                    "//div[@class='aCsJod oJeWuf']//input[@type='text']",
+                    "//div[contains(@class, 'Xb9hP')]//input[@type='text']",
+                    # c-wiz based selectors (Google's component system)
+                    "//c-wiz//input[@type='text'][not(@type='hidden')]",
+                    "//c-wiz//div[@role='textbox']//input",
+                    # Form and label based
+                    "//form//input[@type='text']",
+                    "//label[contains(text(), 'App name') or contains(text(), 'app name')]/following::input[1]",
+                    "//label/input[@type='text']",
+                    # Full path fallbacks (may change)
                     "/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input",
                     "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/label/input",
-                    "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input",
-                    "//input[@aria-label='App name']",
-                    "//input[contains(@placeholder, 'app') or contains(@placeholder, 'name')]",
-                    "//input[@type='text' and contains(@class, 'input')]",
+                    # Generic text inputs
                     "//input[@type='text']",
-                    "//label[contains(text(), 'App name')]/following::input",
-                    "//div[contains(@class, 'app')]//input[@type='text']",
-                    "//form//input[@type='text'][1]",
-                    "//c-wiz//input[@type='text']"
+                    "//input[not(@type='hidden') and not(@type='password') and not(@type='email')]",
                 ]
                 
                 app_name_field = None
-                for xpath in app_name_xpath_variations:
-                    try:
-                        element = wait_for_xpath(driver, xpath, timeout=5)
-                        if element:
-                            # Check if element is interactable
-                            try:
-                                # Try to scroll into view and check if visible
-                                driver.execute_script("arguments[0].scrollIntoView(true);", element)
-                                time.sleep(0.5)
-                                if element.is_displayed() and element.is_enabled():
-                                    app_name_field = element
-                                    logger.info(f"[STEP] Found app name input field: {xpath}")
-                                    break
-                            except:
-                                continue
-                    except:
-                        continue
+                
+                # First try JavaScript-based element finding (more reliable for dynamic content)
+                logger.info("[STEP] Attempting JavaScript-based input field detection...")
+                try:
+                    js_find_input = """
+                    (function() {
+                        // Find all visible text inputs
+                        var inputs = document.querySelectorAll('input[type="text"], input:not([type])');
+                        for (var i = 0; i < inputs.length; i++) {
+                            var input = inputs[i];
+                            // Check if visible and not hidden
+                            var rect = input.getBoundingClientRect();
+                            var style = window.getComputedStyle(input);
+                            if (rect.width > 50 && rect.height > 10 && 
+                                style.display !== 'none' && style.visibility !== 'hidden' &&
+                                !input.disabled && input.type !== 'hidden') {
+                                // Return the first visible text input
+                                return input;
+                            }
+                        }
+                        
+                        // Also check for inputs with aria-label containing 'app' or 'name'
+                        var ariaInputs = document.querySelectorAll('input[aria-label*="app" i], input[aria-label*="name" i]');
+                        for (var i = 0; i < ariaInputs.length; i++) {
+                            var input = ariaInputs[i];
+                            var rect = input.getBoundingClientRect();
+                            if (rect.width > 50 && rect.height > 10 && !input.disabled) {
+                                return input;
+                            }
+                        }
+                        
+                        return null;
+                    })();
+                    """
+                    js_element = driver.execute_script(js_find_input)
+                    if js_element:
+                        app_name_field = js_element
+                        logger.info("[STEP] ✓ Found app name input field via JavaScript")
+                except Exception as js_err:
+                    logger.debug(f"[STEP] JavaScript input detection failed: {js_err}")
+                
+                # If JavaScript didn't find it, try XPath methods
+                if not app_name_field:
+                    logger.info("[STEP] Trying XPath-based input field detection...")
+                    for xpath in app_name_xpath_variations:
+                        try:
+                            element = wait_for_xpath(driver, xpath, timeout=3)
+                            if element:
+                                # Check if element is interactable
+                                try:
+                                    # Try to scroll into view and check if visible
+                                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+                                    time.sleep(0.3)
+                                    if element.is_displayed() and element.is_enabled():
+                                        app_name_field = element
+                                        logger.info(f"[STEP] ✓ Found app name input field via XPath: {xpath[:50]}...")
+                                        break
+                                except:
+                                    continue
+                        except:
+                            continue
                 
                 if not app_name_field:
                     logger.warning(f"[STEP] App name input field not detected on attempt {attempt + 1}, refreshing page...")
