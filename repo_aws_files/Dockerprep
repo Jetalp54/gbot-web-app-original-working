@@ -1,0 +1,140 @@
+FROM public.ecr.aws/lambda/python:3.10
+
+# ------------------------
+# Set environment variables for Lambda compatibility
+# ------------------------
+ENV HOME=/tmp
+ENV XDG_CACHE_HOME=/tmp/.cache
+ENV TMPDIR=/tmp
+ENV TMP=/tmp
+ENV PYTHONUNBUFFERED=1
+
+# ------------------------
+# Install system libraries
+# ------------------------
+RUN yum update -y && \
+    yum install -y \
+        unzip \
+        zip \
+        tar \
+        wget \
+        curl \
+        which \
+        xz \
+        gtk3 \
+        atk \
+        at-spi2-atk \
+        cups-libs \
+        dbus-glib \
+        nss \
+        GConf2 \
+        alsa-lib \
+        libXcomposite \
+        libXcursor \
+        libXdamage \
+        libXext \
+        libXi \
+        libXrandr \
+        libXScrnSaver \
+        libXtst \
+        pango \
+        libcairo \
+        libX11 \
+        libXrender \
+        libXfixes \
+        libxshmfence \
+        mesa-libgbm \
+        mesa-libglu \
+        libdrm \
+        libuuid \
+        ipa-gothic-fonts \
+        less \
+        groff \
+        procps \
+        findutils
+
+# ------------------------
+# Create /tmp directories with proper permissions
+# ------------------------
+RUN mkdir -p /tmp/user-data /tmp/data-path /tmp/cache-dir /tmp/.cache && \
+    chmod -R 777 /tmp
+
+# ------------------------
+# Install Google Chrome (stable)
+# ------------------------
+RUN curl https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm -o /tmp/chrome.rpm && \
+    yum install -y /tmp/chrome.rpm && \
+    rm /tmp/chrome.rpm && \
+    google-chrome --version
+
+# ------------------------
+# Install ChromeDriver (matching version)
+# ------------------------
+RUN CHROME_VERSION=$(google-chrome --version | grep -oE "[0-9.]+" | head -1 | cut -d "." -f 1) && \
+    echo "Chrome major version: $CHROME_VERSION" && \
+    DRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION}" || echo "") && \
+    if [ -z "$DRIVER_VERSION" ]; then \
+        echo "Failed to get driver version, using latest"; \
+        DRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE" || echo "latest"); \
+    fi && \
+    echo "Using ChromeDriver version: $DRIVER_VERSION" && \
+    curl -L "https://storage.googleapis.com/chrome-for-testing-public/${DRIVER_VERSION}/linux64/chromedriver-linux64.zip" -o /tmp/chromedriver.zip && \
+    unzip /tmp/chromedriver.zip -d /tmp/ && \
+    mv /tmp/chromedriver-linux64/chromedriver /usr/bin/chromedriver && \
+    chmod +x /usr/bin/chromedriver && \
+    rm -rf /tmp/chromedriver.zip /tmp/chromedriver-linux64 && \
+    chromedriver --version
+
+# ------------------------
+# Install Google Cloud SDK
+# ------------------------
+RUN curl -o /tmp/gcloud.tar.gz https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz && \
+    tar -xf /tmp/gcloud.tar.gz -C /opt && \
+    /opt/google-cloud-sdk/install.sh --quiet --path-update=true --usage-reporting=false && \
+    ln -s /opt/google-cloud-sdk/bin/gcloud /usr/bin/gcloud && \
+    ln -s /opt/google-cloud-sdk/bin/gsutil /usr/bin/gsutil && \
+    rm /tmp/gcloud.tar.gz && \
+    gcloud --version
+
+# ------------------------
+# Install AWS CLI v2
+# ------------------------
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip" && \
+    unzip /tmp/awscliv2.zip -d /tmp && \
+    /tmp/aws/install && \
+    rm -rf /tmp/aws /tmp/awscliv2.zip && \
+    aws --version
+
+# ------------------------
+# Python dependencies
+# ------------------------
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+        boto3>=1.28.0 \
+        selenium>=4.15.0 \
+        undetected-chromedriver>=3.5.0 \
+        google-auth>=2.23.0 \
+        google-auth-oauthlib>=1.1.0 \
+        requests>=2.31.0
+
+# ------------------------
+# Verify installations
+# ------------------------
+RUN echo "=== Verification ===" && \
+    python3 --version && \
+    pip list | grep -E "(boto3|selenium|undetected)" && \
+    which google-chrome && \
+    which chromedriver && \
+    which gcloud && \
+    which aws && \
+    echo "=== End Verification ==="
+
+# ------------------------
+# Copy Lambda app
+# ------------------------
+COPY prep.py ${LAMBDA_TASK_ROOT}/prep.py
+
+# ------------------------
+# Set Lambda handler
+# ------------------------
+CMD ["prep.main"]
