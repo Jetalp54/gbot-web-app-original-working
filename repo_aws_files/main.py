@@ -705,56 +705,151 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
         if not site_key:
             logger.info("[2CAPTCHA] Extracting reCAPTCHA site key from page...")
             try:
-                # Try to find site key in page source
-                page_source = driver.page_source
+                # Method 1: Try JavaScript extraction first (most reliable for dynamic content)
+                try:
+                    logger.info("[2CAPTCHA] Attempting JavaScript-based site key extraction...")
+                    js_extraction_script = """
+                    (function() {
+                        var siteKey = null;
+                        
+                        // Check window.grecaptcha configuration
+                        if (window.grecaptcha && window.grecaptcha.ready) {
+                            try {
+                                window.grecaptcha.ready(function() {
+                                    if (window.grecaptcha.getResponse) {
+                                        // Try to get site key from grecaptcha instance
+                                        var widgets = document.querySelectorAll('[data-sitekey]');
+                                        if (widgets.length > 0) {
+                                            siteKey = widgets[0].getAttribute('data-sitekey');
+                                        }
+                                    }
+                                });
+                            } catch(e) {}
+                        }
+                        
+                        // Check ___grecaptcha_cfg (Google's internal config)
+                        if (!siteKey && window.___grecaptcha_cfg) {
+                            try {
+                                var cfg = window.___grecaptcha_cfg;
+                                if (cfg.clients && cfg.clients[0]) {
+                                    var client = cfg.clients[0];
+                                    if (client.sitekey) {
+                                        siteKey = client.sitekey;
+                                    }
+                                }
+                                // Also check for sitekey in config directly
+                                if (!siteKey && cfg.sitekey) {
+                                    siteKey = cfg.sitekey;
+                                }
+                            } catch(e) {}
+                        }
+                        
+                        // Check data-sitekey attributes
+                        if (!siteKey) {
+                            var elements = document.querySelectorAll('[data-sitekey]');
+                            if (elements.length > 0) {
+                                siteKey = elements[0].getAttribute('data-sitekey');
+                            }
+                        }
+                        
+                        // Check scripts for site key
+                        if (!siteKey) {
+                            var scripts = document.getElementsByTagName('script');
+                            for (var i = 0; i < scripts.length; i++) {
+                                var src = scripts[i].src || '';
+                                var content = scripts[i].innerHTML || '';
+                                var match = src.match(/[?&]k=([a-zA-Z0-9_-]{20,})/) || content.match(/sitekey['"]\s*[:=]\s*['"]([^'"]+)['"]/i);
+                                if (match && match[1]) {
+                                    siteKey = match[1];
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        return siteKey;
+                    })();
+                    """
+                    extracted_key = driver.execute_script(js_extraction_script)
+                    if extracted_key and len(extracted_key.strip()) >= 20:
+                        site_key = extracted_key.strip()
+                        logger.info(f"[2CAPTCHA] ✓ Found site key via JavaScript: {site_key[:50]}... (length: {len(site_key)})")
+                except Exception as js_err:
+                    logger.debug(f"[2CAPTCHA] JavaScript extraction failed: {js_err}")
                 
-                # Pattern 1: data-sitekey attribute (most common for reCAPTCHA v2)
-                site_key_match = re.search(r'data-sitekey=["\']([^"\']+)["\']', page_source, re.IGNORECASE)
-                if site_key_match:
-                    site_key = site_key_match.group(1).strip()
-                    logger.info(f"[2CAPTCHA] Found site key in data-sitekey: {site_key[:50]}... (length: {len(site_key)})")
-                else:
-                    # Pattern 2: recaptcha/api.js?render=SITE_KEY or k=SITE_KEY parameter
-                    # Try multiple patterns for different Google reCAPTCHA implementations
-                    patterns = [
-                        r'recaptcha/api\.js\?render=([a-zA-Z0-9_-]{20,})',  # reCAPTCHA v3 (site keys are usually 40+ chars)
-                        r'[?&]k=([a-zA-Z0-9_-]{20,})',  # k= parameter (site key is usually 40 chars)
-                        r'__recaptcha_api\.js\?k=([a-zA-Z0-9_-]{20,})',  # Legacy format
-                        r'recaptcha\.google\.com/recaptcha/api\.js\?render=([a-zA-Z0-9_-]{20,})',  # Full URL
-                    ]
+                # Method 2: Try to find site key in page source (static HTML)
+                if not site_key:
+                    logger.info("[2CAPTCHA] Attempting HTML-based site key extraction...")
+                    page_source = driver.page_source
                     
-                    for pattern in patterns:
-                        site_key_match = re.search(pattern, page_source, re.IGNORECASE)
-                        if site_key_match:
-                            site_key = site_key_match.group(1).strip()
-                            logger.info(f"[2CAPTCHA] Found site key using pattern: {site_key[:50]}... (length: {len(site_key)})")
-                            break
-                    
-                    # Pattern 3: Check iframe src (fallback)
-                    if not site_key:
-                        try:
-                            iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha')]")
-                            for iframe in iframes:
-                                iframe_src = iframe.get_attribute('src')
-                                if iframe_src:
-                                    # Try multiple patterns in iframe src
-                                    for pattern in [r'k=([a-zA-Z0-9_-]{20,})', r'render=([a-zA-Z0-9_-]{20,})']:
-                                        site_key_match = re.search(pattern, iframe_src, re.IGNORECASE)
-                                        if site_key_match:
-                                            site_key = site_key_match.group(1).strip()
-                                            logger.info(f"[2CAPTCHA] Found site key in iframe src: {site_key[:50]}... (length: {len(site_key)})")
+                    # Pattern 1: data-sitekey attribute (most common for reCAPTCHA v2)
+                    site_key_match = re.search(r'data-sitekey=["\']([^"\']{20,})["\']', page_source, re.IGNORECASE)
+                    if site_key_match:
+                        site_key = site_key_match.group(1).strip()
+                        logger.info(f"[2CAPTCHA] Found site key in data-sitekey: {site_key[:50]}... (length: {len(site_key)})")
+                    else:
+                        # Pattern 2: recaptcha/api.js?render=SITE_KEY or k=SITE_KEY parameter
+                        patterns = [
+                            r'recaptcha/api\.js[^"\'<>]*[?&]render=([a-zA-Z0-9_-]{20,})',  # reCAPTCHA v3
+                            r'[?&]k=([a-zA-Z0-9_-]{20,})',  # k= parameter
+                            r'__recaptcha_api\.js[^"\'<>]*[?&]k=([a-zA-Z0-9_-]{20,})',  # Legacy format
+                            r'recaptcha\.google\.com/recaptcha/api\.js[^"\'<>]*[?&]render=([a-zA-Z0-9_-]{20,})',  # Full URL
+                            r'sitekey["\']\s*[:=]\s*["\']([^"\']{20,})["\']',  # JSON-style sitekey
+                        ]
+                        
+                        for pattern in patterns:
+                            site_key_match = re.search(pattern, page_source, re.IGNORECASE)
+                            if site_key_match:
+                                site_key = site_key_match.group(1).strip()
+                                logger.info(f"[2CAPTCHA] Found site key using pattern: {site_key[:50]}... (length: {len(site_key)})")
+                                break
+                        
+                        # Pattern 3: Check iframe src (fallback)
+                        if not site_key:
+                            try:
+                                iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha') or contains(@src, 'google.com/recaptcha')]")
+                                logger.info(f"[2CAPTCHA] Found {len(iframes)} reCAPTCHA iframe(s)")
+                                for iframe in iframes:
+                                    iframe_src = iframe.get_attribute('src')
+                                    if iframe_src:
+                                        logger.debug(f"[2CAPTCHA] Checking iframe src: {iframe_src[:100]}...")
+                                        # Try multiple patterns in iframe src
+                                        for pattern in [r'[?&]k=([a-zA-Z0-9_-]{20,})', r'render=([a-zA-Z0-9_-]{20,})']:
+                                            site_key_match = re.search(pattern, iframe_src, re.IGNORECASE)
+                                            if site_key_match:
+                                                site_key = site_key_match.group(1).strip()
+                                                logger.info(f"[2CAPTCHA] Found site key in iframe src: {site_key[:50]}... (length: {len(site_key)})")
+                                                break
+                                        if site_key:
                                             break
-                                    if site_key:
-                                        break
-                        except Exception as iframe_err:
-                            logger.debug(f"[2CAPTCHA] Error checking iframes: {iframe_err}")
-                            pass
+                            except Exception as iframe_err:
+                                logger.debug(f"[2CAPTCHA] Error checking iframes: {iframe_err}")
+                                pass
+                
+                # Method 3: For Google login pages, use known site key if extraction fails
+                if not site_key and 'accounts.google.com' in page_url:
+                    logger.warning("[2CAPTCHA] Could not extract site key, but this is a Google login page")
+                    logger.warning("[2CAPTCHA] Google uses reCAPTCHA Enterprise which may not expose site key")
+                    logger.warning("[2CAPTCHA] Attempting to use Google's public reCAPTCHA site key...")
+                    # Google's public reCAPTCHA v2 site key (commonly used)
+                    # Note: This might not work if Google uses Enterprise reCAPTCHA
+                    google_public_site_key = "6Le-wvkSAAAAAPBMRTvw0Q4Muexq9bi0DJwx_mJ-"
+                    site_key = google_public_site_key
+                    logger.info(f"[2CAPTCHA] Using Google public site key: {site_key}")
                 
                 if not site_key:
                     logger.error("[2CAPTCHA] Could not extract reCAPTCHA site key from page")
+                    logger.error(f"[2CAPTCHA] Page URL: {page_url}")
+                    logger.error(f"[2CAPTCHA] Page title: {driver.title}")
+                    # Log a sample of page source for debugging
+                    try:
+                        page_source_sample = driver.page_source[:1000]
+                        logger.debug(f"[2CAPTCHA] Page source sample (first 1000 chars): {page_source_sample}")
+                    except:
+                        pass
                     return False, None, "Could not extract reCAPTCHA site key"
             except Exception as e:
                 logger.error(f"[2CAPTCHA] Error extracting site key: {e}")
+                logger.error(traceback.format_exc())
                 return False, None, f"Error extracting site key: {e}"
         
         # Validate site key before proceeding
