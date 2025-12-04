@@ -10917,21 +10917,63 @@ def api_test_twocaptcha():
                 try:
                     result = response.json()
                     
+                    # Log full response for debugging
+                    app.logger.info(f"[2CAPTCHA TEST] Full API response: {json.dumps(result, indent=2)}")
+                    
                     # Check for errors (errorId 0 = success)
                     if result.get('errorId') != 0:
                         error_code = result.get('errorCode', 'Unknown')
                         error_desc = result.get('errorDescription', 'Unknown error')
-                        app.logger.warning(f"[2CAPTCHA TEST] Error received: {error_code} - {error_desc}")
+                        error_id = result.get('errorId', 'Unknown')
                         
+                        app.logger.warning(f"[2CAPTCHA TEST] Error received - ErrorId: {error_id}, ErrorCode: {error_code}, ErrorDescription: {error_desc}")
+                        app.logger.warning(f"[2CAPTCHA TEST] Full error response: {json.dumps(result, indent=2)}")
+                        
+                        # Handle specific error codes
                         if error_code in ['ERROR_KEY_DOES_NOT_EXIST', 'ERROR_WRONG_USER_KEY']:
                             return jsonify({
                                 'success': False,
-                                'error': 'Invalid API key. Please check your 2Captcha API key.'
+                                'error': f'Invalid API key (Error: {error_code}). Please verify your 2Captcha API key is correct and active.',
+                                'details': f'Error ID: {error_id}, Code: {error_code}, Description: {error_desc}',
+                                'full_response': result
                             })
-                        else:
+                        elif error_code == 'ERROR_ZERO_CAPTCHA_FILESIZE':
+                            # This is a false positive - it means no CAPTCHA file to check, but API key might be valid
+                            # Try API v1 as fallback to verify the key
+                            app.logger.info("[2CAPTCHA TEST] ERROR_ZERO_CAPTCHA_FILESIZE detected - trying API v1 fallback...")
+                            v1_url = 'http://2captcha.com/res.php'
+                            v1_response = requests.get(v1_url, params={'key': api_key, 'action': 'getbalance'}, timeout=10)
+                            if v1_response.status_code == 200:
+                                v1_result = v1_response.text.strip()
+                                app.logger.info(f"[2CAPTCHA TEST] API v1 response: {v1_result}")
+                                if not v1_result.startswith('ERROR_'):
+                                    try:
+                                        balance = float(v1_result)
+                                        return jsonify({
+                                            'success': True,
+                                            'balance': str(balance),
+                                            'message': f'API key is valid. Balance: ${balance:.2f} (verified via API v1)',
+                                            'note': 'Note: API v2 returned ERROR_ZERO_CAPTCHA_FILESIZE, but API v1 confirmed the key is valid.'
+                                        })
+                                    except ValueError:
+                                        pass
+                            
+                            # If v1 also fails, return detailed error
                             return jsonify({
                                 'success': False,
-                                'error': f'2Captcha API error: {error_desc}'
+                                'error': f'API key validation issue (Error: {error_code})',
+                                'details': f'Error ID: {error_id}, Code: {error_code}, Description: {error_desc}. This error typically means the API key format is correct but there may be an issue with your account or the API endpoint.',
+                                'suggestion': 'Please verify: 1) Your API key is correct, 2) Your 2Captcha account has active balance, 3) Your account is not suspended.',
+                                'full_response': result
+                            })
+                        else:
+                            # Generic error with full details
+                            return jsonify({
+                                'success': False,
+                                'error': f'2Captcha API error: {error_desc}',
+                                'details': f'Error ID: {error_id}, Error Code: {error_code}, Description: {error_desc}',
+                                'full_response': result,
+                                'help': 'Check the 2Captcha API documentation for error code meanings: https://2captcha.com/api-docs'
                             })
                     
                     # Extract balance from response
@@ -10947,44 +10989,53 @@ def api_test_twocaptcha():
                         except (ValueError, TypeError):
                             return jsonify({
                                 'success': False,
-                                'error': f'Invalid balance format: {balance}'
+                                'error': f'Invalid balance format: {balance}',
+                                'details': f'Received balance value: {balance} (type: {type(balance).__name__})',
+                                'full_response': result
                             })
                     else:
                         return jsonify({
                             'success': False,
-                            'error': 'No balance in response from 2Captcha API'
+                            'error': 'No balance in response from 2Captcha API',
+                            'details': 'The API response did not contain a balance field.',
+                            'full_response': result
                         })
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as json_err:
+                    app.logger.error(f"[2CAPTCHA TEST] JSON decode error: {json_err}")
+                    app.logger.error(f"[2CAPTCHA TEST] Response text: {response.text[:500]}")
                     # Fallback: try API v1 format if v2 fails
-                    app.logger.warning("[2CAPTCHA TEST] API v2 failed, trying API v1 fallback...")
+                    app.logger.warning("[2CAPTCHA TEST] API v2 JSON parse failed, trying API v1 fallback...")
                     v1_url = 'http://2captcha.com/res.php'
                     v1_response = requests.get(v1_url, params={'key': api_key, 'action': 'getbalance'}, timeout=10)
                     if v1_response.status_code == 200:
                         v1_result = v1_response.text.strip()
+                        app.logger.info(f"[2CAPTCHA TEST] API v1 response: {v1_result}")
                         if not v1_result.startswith('ERROR_'):
                             try:
                                 balance = float(v1_result)
                                 return jsonify({
                                     'success': True,
                                     'balance': str(balance),
-                                    'message': f'API key is valid. Balance: ${balance:.2f}'
+                                    'message': f'API key is valid. Balance: ${balance:.2f} (verified via API v1)',
+                                    'note': 'Note: API v2 returned invalid JSON, but API v1 confirmed the key is valid.'
                                 })
                             except ValueError:
                                 pass
                     return jsonify({
                         'success': False,
-                        'error': 'Failed to parse response from 2Captcha API'
+                        'error': 'Failed to parse response from 2Captcha API',
+                        'details': f'JSON decode error: {str(json_err)}. Response text: {response.text[:200]}',
+                        'raw_response': response.text[:500]
                     })
             else:
+                app.logger.error(f"[2CAPTCHA TEST] HTTP error: Status {response.status_code}, Response: {response.text[:500]}")
                 return jsonify({
                     'success': False,
-                    'error': f'Failed to connect to 2Captcha API: HTTP {response.status_code}'
+                    'error': f'Failed to connect to 2Captcha API: HTTP {response.status_code}',
+                    'details': f'Server returned status code {response.status_code}. Response: {response.text[:200]}',
+                    'status_code': response.status_code,
+                    'response_preview': response.text[:500]
                 })
-        else:
-            return jsonify({
-                'success': False,
-                'error': f'Failed to connect to 2Captcha API: HTTP {response.status_code}'
-            })
     except requests.exceptions.Timeout:
         return jsonify({
             'success': False,

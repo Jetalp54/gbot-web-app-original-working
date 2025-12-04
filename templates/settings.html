@@ -1333,14 +1333,41 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showStatus(`✅ 2Captcha API key is valid. Balance: $${data.balance || 'N/A'}`, 'success');
+                    let message = `✅ 2Captcha API key is valid. Balance: $${data.balance || 'N/A'}`;
+                    if (data.note) {
+                        message += `\n\nℹ️ ${data.note}`;
+                    }
+                    showStatus(message, 'success');
                 } else {
-                    showStatus(`❌ Error: ${data.error || 'Invalid API key or connection failed'}`, 'error');
+                    // Build detailed error message
+                    let errorMsg = `❌ Error: ${data.error || 'Invalid API key or connection failed'}`;
+                    
+                    if (data.details) {
+                        errorMsg += `\n\n📋 Details: ${data.details}`;
+                    }
+                    
+                    if (data.suggestion) {
+                        errorMsg += `\n\n💡 Suggestion: ${data.suggestion}`;
+                    }
+                    
+                    if (data.help) {
+                        errorMsg += `\n\n🔗 ${data.help}`;
+                    }
+                    
+                    // Log full response to console for debugging
+                    console.error('2Captcha API Test Error:', {
+                        error: data.error,
+                        details: data.details,
+                        full_response: data.full_response,
+                        raw_response: data.raw_response
+                    });
+                    
+                    showStatus(errorMsg, 'error');
                 }
             })
             .catch(error => {
                 console.error('Error testing 2Captcha:', error);
-                showStatus('❌ Network error while testing 2Captcha API', 'error');
+                showStatus(`❌ Network error while testing 2Captcha API: ${error.message}`, 'error');
             });
     }
 
