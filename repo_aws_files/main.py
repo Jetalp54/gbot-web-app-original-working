@@ -731,71 +731,124 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
         
         logger.info(f"[2CAPTCHA] Site key: {site_key[:20]}..., Page URL: {page_url[:80]}...")
         
-        # Step 1: Submit CAPTCHA to 2Captcha
-        logger.info("[2CAPTCHA] Submitting CAPTCHA to 2Captcha API...")
-        submit_url = 'http://2captcha.com/in.php'
-        submit_params = {
-            'key': api_key,
-            'method': 'userrecaptcha',
-            'googlekey': site_key,
-            'pageurl': page_url,
-            'json': 1
+        # Step 1: Create task to solve CAPTCHA using 2Captcha API v2
+        # Official 2Captcha API v2 Documentation:
+        # POST https://api.2captcha.com/createTask
+        # Reference: https://2captcha.com/api-docs/recaptcha-v2
+        logger.info("[2CAPTCHA] Creating task to solve reCAPTCHA v2 using 2Captcha API v2...")
+        create_task_url = 'https://api.2captcha.com/createTask'
+        
+        # API v2 uses JSON format with task object
+        task_data = {
+            'clientKey': api_key,
+            'task': {
+                'type': 'RecaptchaV2TaskProxyless',  # Use proxyless for most cases
+                'websiteURL': page_url,
+                'websiteKey': site_key
+            }
         }
         
-        submit_data = urllib.parse.urlencode(submit_params).encode('utf-8')
-        submit_request = urllib.request.Request(submit_url, data=submit_data)
+        # Create JSON request
+        json_data = json.dumps(task_data).encode('utf-8')
+        request = urllib.request.Request(
+            create_task_url,
+            data=json_data,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
         
         try:
-            with urllib.request.urlopen(submit_request, timeout=30) as response:
-                submit_result = json.loads(response.read().decode('utf-8'))
+            with urllib.request.urlopen(request, timeout=30) as response:
+                create_result = json.loads(response.read().decode('utf-8'))
                 
-                if submit_result.get('status') != 1:
-                    error_msg = submit_result.get('request', 'Unknown error')
-                    logger.error(f"[2CAPTCHA] Failed to submit CAPTCHA: {error_msg}")
-                    return False, None, f"2Captcha submission failed: {error_msg}"
+                # Check for errors (errorId 0 = success)
+                if create_result.get('errorId') != 0:
+                    error_code = create_result.get('errorCode', 'Unknown')
+                    error_desc = create_result.get('errorDescription', 'Unknown error')
+                    logger.error(f"[2CAPTCHA] Failed to create task: {error_code} - {error_desc}")
+                    return False, None, f"2Captcha task creation failed: {error_desc}"
                 
-                task_id = submit_result.get('request')
-                logger.info(f"[2CAPTCHA] CAPTCHA submitted successfully. Task ID: {task_id}")
+                # Extract task ID from response
+                task_id = create_result.get('taskId')
+                if not task_id:
+                    logger.error("[2CAPTCHA] No task ID received from 2Captcha")
+                    return False, None, "No task ID received from 2Captcha"
+                
+                logger.info(f"[2CAPTCHA] Task created successfully. Task ID: {task_id}")
+        except urllib.error.HTTPError as e:
+            logger.error(f"[2CAPTCHA] HTTP error creating task: {e}")
+            return False, None, f"HTTP error creating task: {e}"
+        except json.JSONDecodeError as e:
+            logger.error(f"[2CAPTCHA] Invalid JSON response from 2Captcha: {e}")
+            return False, None, f"Invalid response from 2Captcha: {e}"
         except Exception as e:
-            logger.error(f"[2CAPTCHA] Error submitting CAPTCHA: {e}")
-            return False, None, f"Error submitting CAPTCHA: {e}"
+            logger.error(f"[2CAPTCHA] Error creating task: {e}")
+            return False, None, f"Error creating task: {e}"
         
-        # Step 2: Poll for solution (max 2 minutes, check every 5 seconds)
+        # Step 2: Poll for solution using 2Captcha API v2
+        # Official 2Captcha API v2 Documentation:
+        # POST https://api.2captcha.com/getTaskResult
+        # Reference: https://2captcha.com/api-docs/recaptcha-v2
         logger.info("[2CAPTCHA] Waiting for 2Captcha to solve CAPTCHA (this may take 10-120 seconds)...")
-        get_url = 'http://2captcha.com/res.php'
-        max_wait = 120  # 2 minutes
-        poll_interval = 5  # Check every 5 seconds
+        get_task_url = 'https://api.2captcha.com/getTaskResult'
+        max_wait = 120  # 2 minutes (2Captcha typically solves in 10-30 seconds)
+        poll_interval = 5  # Check every 5 seconds (2Captcha recommends 5-10 seconds)
         waited = 0
         
         while waited < max_wait:
             time.sleep(poll_interval)
             waited += poll_interval
             
-            get_params = {
-                'key': api_key,
-                'action': 'get',
-                'id': task_id,
-                'json': 1
+            # API v2 uses JSON format
+            request_data = {
+                'clientKey': api_key,
+                'taskId': task_id
             }
             
-            get_url_with_params = f"{get_url}?{urllib.parse.urlencode(get_params)}"
-            get_request = urllib.request.Request(get_url_with_params)
+            json_data = json.dumps(request_data).encode('utf-8')
+            request = urllib.request.Request(
+                get_task_url,
+                data=json_data,
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
             
             try:
-                with urllib.request.urlopen(get_request, timeout=10) as response:
+                with urllib.request.urlopen(request, timeout=10) as response:
                     get_result = json.loads(response.read().decode('utf-8'))
                     
-                    if get_result.get('status') == 1:
-                        token = get_result.get('request')
-                        logger.info(f"[2CAPTCHA] ✓✓✓ CAPTCHA solved successfully! Token received (waited {waited}s)")
-                        return True, token, None
-                    elif get_result.get('request') == 'CAPCHA_NOT_READY':
-                        if waited % 15 == 0:  # Log every 15 seconds
+                    # Check for errors
+                    if get_result.get('errorId') != 0:
+                        error_code = get_result.get('errorCode', 'Unknown')
+                        error_desc = get_result.get('errorDescription', 'Unknown error')
+                        logger.error(f"[2CAPTCHA] Error getting solution: {error_code} - {error_desc}")
+                        return False, None, f"2Captcha solution error: {error_desc}"
+                    
+                    # Check status (ready = solved, processing = still solving)
+                    status = get_result.get('status')
+                    if status == 'ready':
+                        # Solution is ready - extract token
+                        solution = get_result.get('solution', {})
+                        token = solution.get('gRecaptchaResponse') or solution.get('token')
+                        if token:
+                            logger.info(f"[2CAPTCHA] ✓✓✓ CAPTCHA solved successfully! Token received (waited {waited}s)")
+                            return True, token, None
+                        else:
+                            logger.error("[2CAPTCHA] Solution received but token is empty")
+                            return False, None, "Empty token received from 2Captcha"
+                    elif status == 'processing':
+                        # Still solving - continue polling
+                        if waited % 15 == 0:  # Log progress every 15 seconds
                             logger.info(f"[2CAPTCHA] Still solving... (waited {waited}s/{max_wait}s)")
                     else:
-                        error_msg = get_result.get('request', 'Unknown error')
-                        logger.error(f"[2CAPTCHA] Error getting solution: {error_msg}")
-                        return False, None, f"2Captcha solution error: {error_msg}"
+                        # Unknown status
+                        logger.warning(f"[2CAPTCHA] Unknown status: {status}")
+            except urllib.error.HTTPError as e:
+                logger.warning(f"[2CAPTCHA] HTTP error polling for solution: {e}")
+                # Continue polling - might be transient error
+            except json.JSONDecodeError as e:
+                logger.warning(f"[2CAPTCHA] Invalid JSON response while polling: {e}")
+                # Continue polling - might be transient error
             except Exception as e:
                 logger.warning(f"[2CAPTCHA] Error polling for solution: {e}")
                 # Continue polling - might be transient error
