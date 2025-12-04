@@ -466,6 +466,10 @@ print_success "Python dependencies installed"
 # ============================================================================
 print_section "STEP 7: Environment Configuration"
 
+# Ensure we're in the correct directory
+cd $APP_DIR
+print_info "Current directory: $(pwd)"
+
 print_info "Generating secure secrets..."
 
 # Generate secrets
@@ -473,17 +477,23 @@ SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 WHITELIST_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))")
 
 # Get server IP
-SERVER_IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
+SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}' || echo "127.0.0.1")
+
+# Define .env file path explicitly
+ENV_FILE="$APP_DIR/.env"
 
 # Create .env file
-if [ -f .env ]; then
-    print_warning ".env file already exists. Backing up to .env.backup..."
-    cp .env .env.backup
+if [ -f "$ENV_FILE" ]; then
+    print_warning ".env file already exists at $ENV_FILE. Backing up to .env.backup..."
+    cp "$ENV_FILE" "$APP_DIR/.env.backup"
     # Update DATABASE_URL if it exists
-    sed -i "s|DATABASE_URL=.*|DATABASE_URL=postgresql://$DB_USER:$DB_PASSWORD@127.0.0.1/$DB_NAME|g" .env
+    sed -i "s|DATABASE_URL=.*|DATABASE_URL=postgresql://$DB_USER:$DB_PASSWORD@127.0.0.1/$DB_NAME|g" "$ENV_FILE"
+    print_success "Updated existing .env file"
 else
-    print_info "Creating .env file..."
-    cat > .env <<EOF
+    print_info "Creating .env file at $ENV_FILE..."
+    
+    # Create .env file with explicit path
+    cat > "$ENV_FILE" <<EOF
 # GBot Web Application Environment Configuration
 # Generated automatically during installation on $(date)
 
@@ -516,11 +526,28 @@ PERMANENT_SESSION_LIFETIME=3600
 # Server Information
 SERVER_IP=$SERVER_IP
 EOF
-    chmod 600 .env
-    chown $APP_USER:$APP_USER .env
+    
+    # Verify file was created
+    if [ ! -f "$ENV_FILE" ]; then
+        print_error "Failed to create .env file!"
+        exit 1
+    fi
+    
+    # Set permissions
+    chmod 600 "$ENV_FILE"
+    chown $APP_USER:$APP_USER "$ENV_FILE"
+    
+    print_success ".env file created at $ENV_FILE"
+    print_info "File size: $(stat -c%s "$ENV_FILE" 2>/dev/null || echo "unknown") bytes"
 fi
 
-print_success "Environment configuration complete"
+# Verify .env file exists and is readable
+if [ -f "$ENV_FILE" ] && [ -r "$ENV_FILE" ]; then
+    print_success "Environment configuration complete - .env file verified at $ENV_FILE"
+else
+    print_error ".env file verification failed! File should be at $ENV_FILE"
+    exit 1
+fi
 
 # ============================================================================
 # STEP 8: Database Initialization
@@ -785,6 +812,7 @@ echo "📋 Installation Summary:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "  Application Directory: $APP_DIR"
+echo "  Environment File: $APP_DIR/.env"
 echo "  Database: $DB_NAME"
 echo "  Database User: $DB_USER"
 echo "  Service Name: $SERVICE_NAME"
@@ -833,6 +861,23 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 print_success "Installation completed successfully!"
+
+# Final verification - check .env file
+echo ""
+print_info "Verifying .env file..."
+if [ -f "$APP_DIR/.env" ]; then
+    print_success ".env file exists at: $APP_DIR/.env"
+    print_info "File permissions: $(stat -c '%a %U:%G' "$APP_DIR/.env" 2>/dev/null || echo 'unknown')"
+    print_info "File size: $(stat -c%s "$APP_DIR/.env" 2>/dev/null || echo 'unknown') bytes"
+    echo ""
+    print_info "To view .env file: cat $APP_DIR/.env"
+    print_info "To edit .env file: nano $APP_DIR/.env"
+else
+    print_error ".env file NOT FOUND at $APP_DIR/.env"
+    print_warning "You may need to create it manually or re-run the installation"
+fi
+
+echo ""
 print_info "Next steps:"
 echo "  1. Configure Google OAuth credentials in $APP_DIR/.env"
 echo "  2. Access the application at http://$SERVER_IP"
