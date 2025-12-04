@@ -733,9 +733,51 @@ class AwsEducationApp(tk.Tk):
 
         lam = session.client("lambda")
 
+        # Discover Lambda functions dynamically (they may have region suffixes)
+        try:
+            self.log("Discovering Lambda functions...")
+            all_functions = lam.list_functions()
+            all_function_names = [fn['FunctionName'] for fn in all_functions.get('Functions', [])]
+            self.log(f"Found {len(all_function_names)} total Lambda function(s) in region")
+            
+            matching_functions = [
+                fn['FunctionName'] for fn in all_functions.get('Functions', [])
+                if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME) or 'edu-gw-chromium' in fn['FunctionName']
+            ]
+            
+            self.log(f"Found {len(matching_functions)} matching function(s): {matching_functions}")
+            
+            if not matching_functions:
+                self.log(f"ERROR: No Lambda functions found matching '{PRODUCTION_LAMBDA_NAME}'")
+                self.log(f"Available functions: {', '.join(all_function_names[:10])}{'...' if len(all_function_names) > 10 else ''}")
+                messagebox.showerror(
+                    "Lambda Not Found",
+                    f"No Lambda functions found matching '{PRODUCTION_LAMBDA_NAME}'.\n\n"
+                    f"Found {len(all_function_names)} total function(s) in region.\n\n"
+                    "Please create Lambda functions first using 'Create / Update Production Lambda'."
+                )
+                return
+            
+            # Use first matching function (or distribute if multiple)
+            if len(matching_functions) > 1:
+                # Multiple functions - use hash to pick one consistently
+                import hashlib
+                user_hash = int(hashlib.md5(gw_username.encode()).hexdigest(), 16)
+                function_index = user_hash % len(matching_functions)
+                lambda_function_name = matching_functions[function_index]
+                self.log(f"Found {len(matching_functions)} Lambda functions. Using: {lambda_function_name} (distributed)")
+            else:
+                lambda_function_name = matching_functions[0]
+                self.log(f"Found Lambda function: {lambda_function_name}")
+            
+        except Exception as e:
+            self.log(f"ERROR discovering Lambda functions: {e}")
+            messagebox.showerror("Error", f"Failed to discover Lambda functions: {e}")
+            return
+
         # Invoke production Lambda for ONE real account
         try:
-            self.log("Invoking PRODUCTION Lambda for account processing...")
+            self.log(f"Invoking Lambda function: {lambda_function_name}...")
 
             # Send email/password in the event
             event = {
@@ -744,7 +786,7 @@ class AwsEducationApp(tk.Tk):
             }
 
             resp = lam.invoke(
-                FunctionName=PRODUCTION_LAMBDA_NAME,
+                FunctionName=lambda_function_name,
                 InvocationType="RequestResponse",
                 Payload=json.dumps(event).encode("utf-8"),
             )
@@ -772,10 +814,10 @@ class AwsEducationApp(tk.Tk):
             
             messagebox.showinfo("Lambda Invocation", f"Lambda execution completed.\n\nResponse logged above.")
         except lam.exceptions.ResourceNotFoundException:
-            self.log(f"Production Lambda {PRODUCTION_LAMBDA_NAME} not found.")
+            self.log(f"Lambda function {lambda_function_name} not found.")
             messagebox.showerror(
                 "Lambda Not Found",
-                f"Production Lambda {PRODUCTION_LAMBDA_NAME} not found. Create it first.",
+                f"Lambda function {lambda_function_name} not found. Create it first.",
             )
         except Exception as e:
             self.log(f"ERROR invoking Lambda: {e}")
@@ -825,6 +867,25 @@ class AwsEducationApp(tk.Tk):
         lam = session.client("lambda")
         
         try:
+            # Discover Lambda functions dynamically
+            all_functions = lam.list_functions()
+            matching_functions = [
+                fn['FunctionName'] for fn in all_functions.get('Functions', [])
+                if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME) or 'edu-gw-chromium' in fn['FunctionName']
+            ]
+            
+            if not matching_functions:
+                return (email, False, None, f"No Lambda functions found matching '{PRODUCTION_LAMBDA_NAME}'")
+            
+            # Use hash to distribute across multiple functions
+            if len(matching_functions) > 1:
+                import hashlib
+                user_hash = int(hashlib.md5(email.encode()).hexdigest(), 16)
+                function_index = user_hash % len(matching_functions)
+                lambda_function_name = matching_functions[function_index]
+            else:
+                lambda_function_name = matching_functions[0]
+            
             event = {
                 "email": email,
                 "password": password,
@@ -832,7 +893,7 @@ class AwsEducationApp(tk.Tk):
             
             # Use asynchronous invocation for better parallel execution
             resp = lam.invoke(
-                FunctionName=PRODUCTION_LAMBDA_NAME,
+                FunctionName=lambda_function_name,
                 InvocationType="Event",  # Asynchronous invocation
                 Payload=json.dumps(event).encode("utf-8"),
             )
