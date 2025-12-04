@@ -2157,6 +2157,17 @@ def create_lambdas():
             "APP_PASSWORDS_S3_BUCKET": s3_bucket,
             "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
         }
+        
+        # Add 2Captcha configuration if enabled
+        twocaptcha_config = get_twocaptcha_config()
+        if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
+            chromium_env['TWOCAPTCHA_ENABLED'] = 'true'
+            chromium_env['TWOCAPTCHA_API_KEY'] = twocaptcha_config.get('api_key', '')
+            logger.info(f"[2CAPTCHA] 2Captcha feature enabled for automatic CAPTCHA solving")
+        else:
+            chromium_env['TWOCAPTCHA_ENABLED'] = 'false'
+            chromium_env['TWOCAPTCHA_API_KEY'] = ''
+            logger.info(f"[2CAPTCHA] 2Captcha feature disabled or not configured")
 
         # Calculate number of Lambda functions to create
         import math
