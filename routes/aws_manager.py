@@ -3291,7 +3291,13 @@ def bulk_generate():
         logger.info(f"[BULK] Total users: {len(users)}")
         logger.info(f"[BULK] Region: {region}")
         logger.info(f"[BULK] Thread ID: {threading.current_thread().ident}")
+        logger.info(f"[BULK] Thread Name: {threading.current_thread().name}")
         logger.info("=" * 80)
+        
+        # Force flush logger
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
         
         # Ensure job exists before starting processing
         with jobs_lock:
@@ -3311,9 +3317,21 @@ def bulk_generate():
                 logger.info(f"[BULK] Job {job_id} found in active_jobs")
         
         try:
-            logger.info(f"[BULK] Entering app context...")
+            logger.info("=" * 80)
+            logger.info(f"[BULK] ===== ENTERING APP CONTEXT =====")
+            logger.info(f"[BULK] About to enter app context...")
+            logger.info("=" * 80)
+            print(f"[APP_CONTEXT] About to enter app context for job {job_id}", flush=True)
+            
             with app.app_context():
-                logger.info(f"[BULK] App context entered successfully")
+                logger.info("=" * 80)
+                logger.info(f"[BULK] ===== APP CONTEXT ENTERED SUCCESSFULLY =====")
+                logger.info(f"[BULK] App context is active")
+                logger.info("=" * 80)
+                print(f"[APP_CONTEXT] App context entered successfully for job {job_id}", flush=True)
+                import sys
+                sys.stdout.flush()
+                sys.stderr.flush()
                 # Pre-detect Lambda functions across ALL geos
                 # This is necessary because functions are distributed across multiple AWS regions
                 lambda_functions = []
@@ -4187,8 +4205,13 @@ def bulk_generate():
                     }
                     logger.warning(f"[BULK] Created fallback job entry for {job_id} with default values")
         except Exception as bg_error:
-            logger.error(f"[BULK] ❌ CRITICAL ERROR in background_process: {bg_error}")
+            print(f"[BACKGROUND_ERROR] CRITICAL ERROR in background_process: {bg_error}", flush=True)
+            print(traceback.format_exc(), flush=True)
+            logger.error("=" * 80)
+            logger.error(f"[BULK] ❌❌❌ CRITICAL ERROR in background_process: {bg_error}")
+            logger.error(f"[BULK] Error type: {type(bg_error).__name__}")
             logger.error(f"[BULK] Traceback: {traceback.format_exc()}")
+            logger.error("=" * 80)
             # Use lock to ensure thread-safe access
             with jobs_lock:
                 if job_id in active_jobs:
@@ -4197,8 +4220,47 @@ def bulk_generate():
                     active_jobs[job_id]['completed'] = active_jobs[job_id].get('completed', 0)
                 else:
                     logger.error(f"[BULK] ⚠️ Job {job_id} not found in active_jobs when trying to mark as failed!")
+            import sys
+            sys.stdout.flush()
+            sys.stderr.flush()
 
-    threading.Thread(target=background_process, args=(app, job_id, users, access_key, secret_key, region)).start()
+    # Start background thread with proper exception handling
+    def safe_background_wrapper():
+        """Wrapper to catch any exceptions during thread startup"""
+        try:
+            print(f"[THREAD_START] Starting background thread for job {job_id}", flush=True)
+            logger.info(f"[BULK] Thread wrapper: About to call background_process for job {job_id}")
+            background_process(app, job_id, users, access_key, secret_key, region)
+            logger.info(f"[BULK] Thread wrapper: background_process completed for job {job_id}")
+            print(f"[THREAD_START] Background thread completed for job {job_id}", flush=True)
+        except Exception as thread_start_err:
+            print(f"[THREAD_START] CRITICAL ERROR in thread wrapper: {thread_start_err}", flush=True)
+            print(traceback.format_exc(), flush=True)
+            logger.error(f"[BULK] ❌❌❌ CRITICAL ERROR in thread wrapper: {thread_start_err}")
+            logger.error(f"[BULK] Thread wrapper traceback: {traceback.format_exc()}")
+            # Mark job as failed
+            with jobs_lock:
+                if job_id in active_jobs:
+                    active_jobs[job_id]['status'] = 'failed'
+                    active_jobs[job_id]['error'] = f'Thread startup error: {str(thread_start_err)}'
+                else:
+                    logger.error(f"[BULK] Job {job_id} not found when trying to mark thread error!")
+    
+    try:
+        thread = threading.Thread(target=safe_background_wrapper, daemon=False, name=f"BulkProcess-{job_id}")
+        thread.start()
+        logger.info(f"[BULK] ✓ Background thread started: {thread.name} (ID: {thread.ident})")
+        print(f"[THREAD_START] Thread object created and started: {thread.name}", flush=True)
+    except Exception as thread_err:
+        logger.error(f"[BULK] ❌❌❌ FAILED to start background thread: {thread_err}")
+        logger.error(f"[BULK] Thread start traceback: {traceback.format_exc()}")
+        print(f"[THREAD_START] FAILED to start thread: {thread_err}", flush=True)
+        print(traceback.format_exc(), flush=True)
+        # Mark job as failed
+        with jobs_lock:
+            if job_id in active_jobs:
+                active_jobs[job_id]['status'] = 'failed'
+                active_jobs[job_id]['error'] = f'Failed to start thread: {str(thread_err)}'
 
     return jsonify({'success': True, 'job_id': job_id, 'message': f'Started processing {len(users)} users'})
 
