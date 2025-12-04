@@ -663,11 +663,23 @@ def wait_for_password_clickable(driver, by_method, selector, timeout=10):
 def get_twocaptcha_config():
     """Get 2Captcha configuration from environment variables"""
     api_key = os.environ.get('TWOCAPTCHA_API_KEY', '').strip()
-    enabled = os.environ.get('TWOCAPTCHA_ENABLED', 'false').lower() == 'true'
+    enabled_str = os.environ.get('TWOCAPTCHA_ENABLED', 'false').strip().lower()
+    enabled = enabled_str == 'true'
+    
+    # Debug logging to help diagnose issues
+    logger.info(f"[2CAPTCHA CONFIG] Reading environment variables:")
+    logger.info(f"[2CAPTCHA CONFIG]   TWOCAPTCHA_ENABLED = '{os.environ.get('TWOCAPTCHA_ENABLED', 'NOT_SET')}' (parsed as: {enabled})")
+    logger.info(f"[2CAPTCHA CONFIG]   TWOCAPTCHA_API_KEY = '{api_key[:10]}...' (length: {len(api_key)})" if api_key else "[2CAPTCHA CONFIG]   TWOCAPTCHA_API_KEY = NOT_SET")
     
     if enabled and api_key:
+        logger.info("[2CAPTCHA CONFIG] ✓ 2Captcha is ENABLED and API key is configured")
         return {'enabled': True, 'api_key': api_key}
-    return {'enabled': False, 'api_key': None}
+    else:
+        if not enabled:
+            logger.warning("[2CAPTCHA CONFIG] ✗ 2Captcha is DISABLED (TWOCAPTCHA_ENABLED is not 'true')")
+        if not api_key:
+            logger.warning("[2CAPTCHA CONFIG] ✗ 2Captcha API key is NOT SET (TWOCAPTCHA_API_KEY is empty)")
+        return {'enabled': False, 'api_key': None}
 
 def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
     """

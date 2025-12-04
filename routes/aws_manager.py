@@ -226,13 +226,18 @@ def get_twocaptcha_config():
         with app.app_context():
             config = TwoCaptchaConfig.query.first()
             if config:
-                return {
-                    'enabled': config.enabled,
+                result = {
+                    'enabled': bool(config.enabled),  # Ensure it's a boolean
                     'api_key': config.api_key if config.api_key else ''
                 }
-        return None
+                logger.info(f"[2CAPTCHA] Database config retrieved: enabled={result['enabled']}, api_key_length={len(result['api_key'])}")
+                return result
+            else:
+                logger.warning("[2CAPTCHA] No 2Captcha configuration found in database")
+                return None
     except Exception as e:
-        logger.warning(f"[2CAPTCHA] Error getting 2Captcha config: {e}")
+        logger.error(f"[2CAPTCHA] Error getting 2Captcha config from database: {e}")
+        logger.error(traceback.format_exc())
         return None
 
 def parse_proxy_list(proxy_text):
@@ -2160,14 +2165,23 @@ def create_lambdas():
         
         # Add 2Captcha configuration if enabled
         twocaptcha_config = get_twocaptcha_config()
+        logger.info(f"[2CAPTCHA] Retrieved config from database: enabled={twocaptcha_config.get('enabled') if twocaptcha_config else False}, has_api_key={bool(twocaptcha_config and twocaptcha_config.get('api_key'))}")
+        
         if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
             chromium_env['TWOCAPTCHA_ENABLED'] = 'true'
             chromium_env['TWOCAPTCHA_API_KEY'] = twocaptcha_config.get('api_key', '')
-            logger.info(f"[2CAPTCHA] 2Captcha feature enabled for automatic CAPTCHA solving")
+            logger.info(f"[2CAPTCHA] ✓ 2Captcha feature ENABLED for automatic CAPTCHA solving")
+            logger.info(f"[2CAPTCHA] API key length: {len(chromium_env['TWOCAPTCHA_API_KEY'])} characters")
         else:
             chromium_env['TWOCAPTCHA_ENABLED'] = 'false'
             chromium_env['TWOCAPTCHA_API_KEY'] = ''
-            logger.info(f"[2CAPTCHA] 2Captcha feature disabled or not configured")
+            if not twocaptcha_config:
+                logger.warning(f"[2CAPTCHA] ✗ 2Captcha config not found in database")
+            elif not twocaptcha_config.get('enabled'):
+                logger.warning(f"[2CAPTCHA] ✗ 2Captcha is disabled in database")
+            elif not twocaptcha_config.get('api_key'):
+                logger.warning(f"[2CAPTCHA] ✗ 2Captcha API key is empty in database")
+            logger.info(f"[2CAPTCHA] 2Captcha feature disabled or not configured - Lambda will not solve CAPTCHAs")
 
         # Calculate number of Lambda functions to create
         import math
@@ -3830,13 +3844,23 @@ def bulk_generate():
                                             
                                             # Add 2Captcha configuration if enabled
                                             twocaptcha_config = get_twocaptcha_config()
+                                            logger.info(f"[2CAPTCHA] [{geo}] Retrieved config: enabled={twocaptcha_config.get('enabled') if twocaptcha_config else False}, has_api_key={bool(twocaptcha_config and twocaptcha_config.get('api_key'))}")
+                                            
                                             if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
                                                 chromium_env['TWOCAPTCHA_ENABLED'] = 'true'
                                                 chromium_env['TWOCAPTCHA_API_KEY'] = twocaptcha_config.get('api_key', '')
-                                                logger.info(f"[2CAPTCHA] [{geo}] 2Captcha feature enabled for automatic CAPTCHA solving")
+                                                logger.info(f"[2CAPTCHA] [{geo}] ✓ 2Captcha feature ENABLED for automatic CAPTCHA solving")
+                                                logger.info(f"[2CAPTCHA] [{geo}] API key length: {len(chromium_env['TWOCAPTCHA_API_KEY'])} characters")
                                             else:
                                                 chromium_env['TWOCAPTCHA_ENABLED'] = 'false'
                                                 chromium_env['TWOCAPTCHA_API_KEY'] = ''
+                                                if not twocaptcha_config:
+                                                    logger.warning(f"[2CAPTCHA] [{geo}] ✗ 2Captcha config not found in database")
+                                                elif not twocaptcha_config.get('enabled'):
+                                                    logger.warning(f"[2CAPTCHA] [{geo}] ✗ 2Captcha is disabled in database")
+                                                elif not twocaptcha_config.get('api_key'):
+                                                    logger.warning(f"[2CAPTCHA] [{geo}] ✗ 2Captcha API key is empty in database")
+                                                logger.info(f"[2CAPTCHA] [{geo}] 2Captcha feature disabled - Lambda will not solve CAPTCHAs")
                                         
                                             # Extract ECR URI
                                             ecr_uri = None
@@ -5921,7 +5945,28 @@ def create_or_update_lambda(session, function_name, role_arn, timeout, env_vars,
             "Environment": {"Variables": env_vars},
             "EphemeralStorage": {"Size": 2048}
         }
+        
+        # Log environment variables being set (mask API key for security)
+        env_vars_log = {k: (v[:10] + '...' if 'KEY' in k or 'SECRET' in k else v) for k, v in env_vars.items()}
+        logger.info(f"[LAMBDA] Updating Lambda '{function_name}' configuration with environment variables: {env_vars_log}")
+        
         lam.update_function_configuration(**config_update_params)
+        
+        # Verify environment variables were set
+        try:
+            updated_func = lam.get_function_configuration(FunctionName=function_name)
+            updated_env = updated_func.get('Environment', {}).get('Variables', {})
+            logger.info(f"[LAMBDA] ✓ Lambda '{function_name}' configuration updated. Environment variables set: {list(updated_env.keys())}")
+            if 'TWOCAPTCHA_ENABLED' in updated_env:
+                logger.info(f"[LAMBDA] ✓ TWOCAPTCHA_ENABLED = {updated_env.get('TWOCAPTCHA_ENABLED')}")
+                if updated_env.get('TWOCAPTCHA_ENABLED') == 'true':
+                    logger.info(f"[LAMBDA] ✓✓✓ 2Captcha is ENABLED in Lambda '{function_name}' environment!")
+                else:
+                    logger.warning(f"[LAMBDA] ⚠️ TWOCAPTCHA_ENABLED is set to 'false' in Lambda '{function_name}'")
+            else:
+                logger.error(f"[LAMBDA] ✗✗✗ TWOCAPTCHA_ENABLED NOT FOUND in Lambda '{function_name}' environment variables!")
+        except Exception as verify_err:
+            logger.warning(f"[LAMBDA] Could not verify environment variables for '{function_name}': {verify_err}")
         
         # CRITICAL: Aggressively remove reserved concurrency limit
         # Try multiple times to ensure it's removed (sometimes AWS API is eventually consistent)
