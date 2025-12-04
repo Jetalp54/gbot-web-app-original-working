@@ -10884,24 +10884,66 @@ def api_test_twocaptcha():
         # 2Captcha API: http://2captcha.com/res.php?key=YOUR_API_KEY&action=getbalance
         # Returns: balance as number (e.g., "1.23") or ERROR_WRONG_USER_KEY if invalid
         import requests
+        from urllib.parse import quote
         
-        # Use plain text format (not JSON) for balance check
-        balance_url = f'http://2captcha.com/res.php?key={api_key}&action=getbalance'
+        # Validate API key format first (2Captcha keys are typically 32 characters alphanumeric)
+        if not api_key or len(api_key) < 20:
+            return jsonify({
+                'success': False,
+                'error': 'API key appears to be invalid (too short). Please check your 2Captcha API key.'
+            })
+        
+        # Use proper URL encoding for the API key
+        # Build URL with proper encoding
+        base_url = 'http://2captcha.com/res.php'
+        params = {
+            'key': api_key,
+            'action': 'getbalance'
+        }
         
         try:
-            response = requests.get(balance_url, timeout=10)
+            # Use requests params to properly encode the URL
+            response = requests.get(base_url, params=params, timeout=10)
+            
+            app.logger.info(f"[2CAPTCHA TEST] Response status: {response.status_code}")
+            app.logger.info(f"[2CAPTCHA TEST] Response text: {response.text[:200]}")
             
             if response.status_code == 200:
                 result = response.text.strip()
                 
+                app.logger.info(f"[2CAPTCHA TEST] Parsed result: {result}")
+                
                 # Check for error responses
                 if result.startswith('ERROR_'):
                     error_msg = result
+                    app.logger.warning(f"[2CAPTCHA TEST] Error received: {error_msg}")
+                    
                     # Common errors
                     if 'WRONG_USER_KEY' in error_msg or 'KEY_DOES_NOT_EXIST' in error_msg:
                         return jsonify({
                             'success': False,
                             'error': 'Invalid API key. Please check your 2Captcha API key.'
+                        })
+                    elif 'ZERO_CAPTCHA_FILESIZE' in error_msg:
+                        # This error suggests the request was misinterpreted
+                        # Try alternative method: use POST or different endpoint
+                        app.logger.warning("[2CAPTCHA TEST] Got FILESIZE error, trying alternative method...")
+                        # Try without action parameter (some APIs use different format)
+                        alt_response = requests.get(f'http://2captcha.com/res.php?key={quote(api_key)}&action=getbalance', timeout=10)
+                        alt_result = alt_response.text.strip()
+                        if not alt_result.startswith('ERROR_'):
+                            try:
+                                balance = float(alt_result)
+                                return jsonify({
+                                    'success': True,
+                                    'balance': str(balance),
+                                    'message': f'API key is valid. Balance: ${balance:.2f}'
+                                })
+                            except:
+                                pass
+                        return jsonify({
+                            'success': False,
+                            'error': 'API key validation failed. Please verify your 2Captcha API key is correct and try again.'
                         })
                     else:
                         return jsonify({
