@@ -3285,10 +3285,13 @@ def bulk_generate():
         print("!"*80 + "\n", flush=True)
         # -----------------------------
 
+        logger.info("=" * 80)
         logger.info(f"[BULK] ========== BACKGROUND PROCESS STARTED ==========")
         logger.info(f"[BULK] Job ID: {job_id}")
         logger.info(f"[BULK] Total users: {len(users)}")
         logger.info(f"[BULK] Region: {region}")
+        logger.info(f"[BULK] Thread ID: {threading.current_thread().ident}")
+        logger.info("=" * 80)
         
         # Ensure job exists before starting processing
         with jobs_lock:
@@ -3511,18 +3514,38 @@ def bulk_generate():
                         logger.info(f"[BULK] [{assigned_function_name}] Acquiring semaphore for Lambda invocation...")
                         lambda_invocation_semaphore.acquire()
                         logger.info(f"[BULK] [{assigned_function_name}] ✓ Semaphore acquired, invoking Lambda NOW (parallel execution enabled)")
+                        
+                        # CRITICAL: Log all invocation details before attempting
+                        logger.info("=" * 60)
+                        logger.info(f"[BULK] [{assigned_function_name}] ===== LAMBDA INVOCATION DETAILS =====")
+                        logger.info(f"[BULK] [{assigned_function_name}] Function Name: {assigned_function_name}")
+                        logger.info(f"[BULK] [{assigned_function_name}] Target Region: {target_region}")
+                        logger.info(f"[BULK] [{assigned_function_name}] Batch Size: {len(users_to_process)} user(s)")
+                        logger.info(f"[BULK] [{assigned_function_name}] Invocation Type: RequestResponse (SYNC)")
+                        logger.info(f"[BULK] [{assigned_function_name}] Payload Size: {len(json.dumps(batch_payload))} bytes")
+                        logger.info("=" * 60)
+                        
                         try:
                             # Retry logic for rate limiting
                             max_retries = 3
                             resp = None
                             for attempt in range(max_retries):
                                 try:
+                                    logger.info(f"[BULK] [{assigned_function_name}] Attempt {attempt + 1}/{max_retries}: Invoking Lambda...")
+                                    logger.info(f"[BULK] [{assigned_function_name}] FunctionName: {assigned_function_name}")
+                                    logger.info(f"[BULK] [{assigned_function_name}] Region: {target_region}")
+                                    
                                     # Use SYNC invocation to wait for completion (sequential processing)
                                     resp = lam_batch.invoke(
                                         FunctionName=assigned_function_name,
                                         InvocationType="RequestResponse",  # SYNC - wait for completion
                                         Payload=json.dumps(batch_payload).encode("utf-8"),
                                     )
+                                    
+                                    logger.info(f"[BULK] [{assigned_function_name}] ✓ Lambda invoke() call completed (no exception)")
+                                    logger.info(f"[BULK] [{assigned_function_name}] Response object received: {type(resp)}")
+                                    logger.info(f"[BULK] [{assigned_function_name}] StatusCode: {resp.get('StatusCode')}")
+                                    logger.info(f"[BULK] [{assigned_function_name}] FunctionError: {resp.get('FunctionError')}")
                                 
                                     # Parse Lambda response
                                     payload = resp.get("Payload")
@@ -3914,19 +3937,47 @@ def bulk_generate():
                                     logger.warning(f"[BULK] [{geo}] Could not verify function existence: {check_err}, proceeding anyway...")
                                 
                                 # Invoke Lambda function
-                                logger.info(f"[BULK] [{geo}] Invoking Lambda function: {func_name} in region: {geo}")
-                                batch_results = process_user_batch_sync(batch_users, func_name, lambda_region=geo)
-                                function_results.extend(batch_results)
-                                logger.info(f"[BULK] [{geo}] ✓ Function {func_num} completed: {sum(1 for r in batch_results if r['success'])}/{len(batch_results)} success")
+                                logger.info("=" * 60)
+                                logger.info(f"[BULK] [{geo}] ===== INVOKING LAMBDA FUNCTION =====")
+                                logger.info(f"[BULK] [{geo}] Function name: {func_name}")
+                                logger.info(f"[BULK] [{geo}] Region: {geo}")
+                                logger.info(f"[BULK] [{geo}] Batch size: {len(batch_users)} user(s)")
+                                logger.info(f"[BULK] [{geo}] User emails: {[u['email'] for u in batch_users]}")
+                                logger.info("=" * 60)
+                                
+                                try:
+                                    batch_results = process_user_batch_sync(batch_users, func_name, lambda_region=geo)
+                                    logger.info(f"[BULK] [{geo}] ✓ Function {func_num} invocation completed")
+                                    logger.info(f"[BULK] [{geo}] Results: {sum(1 for r in batch_results if r['success'])}/{len(batch_results)} success")
+                                    function_results.extend(batch_results)
+                                except Exception as invoke_exception:
+                                    logger.error("=" * 60)
+                                    logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR: Lambda invocation failed!")
+                                    logger.error(f"[BULK] [{geo}] Function: {func_name}")
+                                    logger.error(f"[BULK] [{geo}] Error: {invoke_exception}")
+                                    logger.error(f"[BULK] [{geo}] Error type: {type(invoke_exception).__name__}")
+                                    logger.error(traceback.format_exc())
+                                    logger.error("=" * 60)
+                                    # Mark all users as failed
+                                    for u in batch_users:
+                                        function_results.append({
+                                            'email': u['email'],
+                                            'success': False,
+                                            'error': f'Lambda invocation failed: {str(invoke_exception)}'
+                                        })
                                 
                             except Exception as func_err:
-                                logger.error(f"[BULK] [{geo}] ✗ Function {func_num} ({func_name}) failed: {func_err}")
+                                logger.error("=" * 60)
+                                logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR: Function {func_num} ({func_name}) failed!")
+                                logger.error(f"[BULK] [{geo}] Error: {func_err}")
+                                logger.error(f"[BULK] [{geo}] Error type: {type(func_err).__name__}")
                                 logger.error(traceback.format_exc())
+                                logger.error("=" * 60)
                                 for u in batch_users:
                                     function_results.append({
                                         'email': u['email'],
                                         'success': False,
-                                        'error': f'Function invocation failed: {str(func_err)}'
+                                        'error': f'Function processing failed: {str(func_err)}'
                                     })
                             
                             return function_results
@@ -4057,12 +4108,23 @@ def bulk_generate():
                     logger.info("=" * 60)
                 
                     # Wait for all geos to complete and collect results
+                    logger.info("=" * 60)
+                    logger.info(f"[BULK] ===== WAITING FOR GEO FUTURES TO COMPLETE =====")
+                    logger.info(f"[BULK] Total futures to wait for: {len(geo_futures)}")
+                    logger.info(f"[BULK] Using as_completed() to wait for results...")
+                    logger.info("=" * 60)
+                    
                     completed_geos = []
                     failed_geos = []
+                    future_count = 0
                     for future in as_completed(geo_futures):
+                        future_count += 1
                         geo = geo_futures[future]
+                        logger.info(f"[BULK] Future {future_count}/{len(geo_futures)} completed for geo: {geo}")
                         try:
+                            logger.info(f"[BULK] [{geo}] Getting result from future...")
                             geo_results = future.result(timeout=3600)  # 1 hour timeout per geo
+                            logger.info(f"[BULK] [{geo}] ✓ Got result from future: {len(geo_results)} results")
                             all_geo_results.extend(geo_results)
                             completed_geos.append(geo)
                             success_count = sum(1 for r in geo_results if r.get('success'))
