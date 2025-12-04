@@ -951,15 +951,16 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                         except Exception as check_err:
                             logger.debug(f"[2CAPTCHA] Error checking CAPTCHA visibility: {check_err}")
                         
-                        # Last resort: use Google's known reCAPTCHA Enterprise site keys
-                        # These are commonly used on accounts.google.com
-                        logger.warning("[2CAPTCHA] Attempting known Google reCAPTCHA Enterprise site keys...")
-                        google_enterprise_keys = [
-                            "6LcjUicgAAAAAOCJv9Pu4vIEcM6lMHXRm-l4QVvH",  # Google Accounts Enterprise
-                            "6Ld_gMwUAAAAAJ4oO-P1n2ZfS-T0_-2T8p0p5B2h",  # Google alternative
-                        ]
-                        site_key = google_enterprise_keys[0]
-                        logger.info(f"[2CAPTCHA] Using known Google Enterprise site key: {site_key[:30]}...")
+                        # NOTE: Removed hardcoded fallback site keys as they are likely outdated
+                        # Google frequently changes their reCAPTCHA Enterprise keys
+                        # Using an incorrect key causes ERROR_CAPTCHA_UNSOLVABLE (waste of API credits)
+                        # Instead, we'll report that we couldn't extract the site key
+                        logger.warning("[2CAPTCHA] Could not extract site key from Google login page")
+                        logger.warning("[2CAPTCHA] This may be an invisible reCAPTCHA or reCAPTCHA Enterprise")
+                        logger.warning("[2CAPTCHA] Google's reCAPTCHA Enterprise often doesn't require manual solving")
+                        logger.warning("[2CAPTCHA] The login may still proceed without CAPTCHA solving")
+                        # Don't set a fallback key - return failure instead of wasting API credits
+                        return False, None, "Could not extract reCAPTCHA site key from Google page. Login may still proceed."
                 
                 if not site_key:
                     logger.error("[2CAPTCHA] Could not extract reCAPTCHA site key from page")
@@ -993,7 +994,7 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
         # Official 2Captcha API v2 Documentation:
         # POST https://api.2captcha.com/createTask
         # Reference: https://2captcha.com/api-docs/recaptcha-v2
-        logger.info("[2CAPTCHA] Creating task to solve reCAPTCHA v2 using 2Captcha API v2...")
+        logger.info("[2CAPTCHA] Creating task to solve reCAPTCHA using 2Captcha API v2...")
         create_task_url = 'https://api.2captcha.com/createTask'
         
         # Validate site key length (reCAPTCHA site keys are typically 40 characters)
@@ -1001,22 +1002,37 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
             logger.error(f"[2CAPTCHA] Site key is too short ({len(site_key)} chars). Expected 20+ characters. Value: {site_key}")
             return False, None, f"Site key is too short ({len(site_key)} chars)"
         
+        # Determine task type based on the page
+        # Google uses reCAPTCHA Enterprise, so we need RecaptchaV2EnterpriseTaskProxyless
+        is_google_page = 'google.com' in page_url or 'google.' in page_url
+        
+        if is_google_page:
+            task_type = 'RecaptchaV2EnterpriseTaskProxyless'
+            logger.info("[2CAPTCHA] Detected Google page - using reCAPTCHA Enterprise task type")
+        else:
+            task_type = 'RecaptchaV2TaskProxyless'
+        
         # API v2 uses JSON format with task object
         task_data = {
             'clientKey': api_key,
             'task': {
-                'type': 'RecaptchaV2TaskProxyless',  # Use proxyless for most cases
+                'type': task_type,
                 'websiteURL': page_url,
                 'websiteKey': site_key  # This is the correct field name for API v2
             }
         }
+        
+        # For Enterprise, we may need to add additional parameters
+        if is_google_page:
+            # Add enterprise-specific options if needed
+            task_data['task']['isInvisible'] = False  # Visible CAPTCHA
         
         # Log the request payload (without exposing full API key)
         logger.info(f"[2CAPTCHA] Request payload:")
         logger.info(f"[2CAPTCHA]   clientKey: {api_key[:10]}...")
         logger.info(f"[2CAPTCHA]   websiteURL: {page_url}")
         logger.info(f"[2CAPTCHA]   websiteKey: {site_key} (length: {len(site_key)})")
-        logger.info(f"[2CAPTCHA]   task type: RecaptchaV2TaskProxyless")
+        logger.info(f"[2CAPTCHA]   task type: {task_type}")
         
         # Create JSON request
         json_data = json.dumps(task_data).encode('utf-8')
@@ -1921,80 +1937,11 @@ def login_google(driver, email, password, known_totp_secret=None):
             except:
                 pass
             
-            # Check if BLOCKING CAPTCHA is present (NOT invisible reCAPTCHA badge)
-            # Only trigger CAPTCHA solving if:
-            # 1. There's a visible CAPTCHA challenge iframe (large size)
-            # 2. There's actual blocking text like "verify you're not a robot"
-            try:
-                # Check for VISIBLE blocking CAPTCHA (not invisible badge)
-                blocking_captcha_found = False
-                
-                # Check for blocking CAPTCHA indicators (actual challenge text)
-                blocking_indicators = [
-                    "//*[contains(text(), 'Type the text you hear or see')]",
-                    "//*[contains(text(), 'verify you') and contains(text(), 'robot')]",
-                    "//*[contains(text(), 'unusual traffic')]",
-                    "//*[contains(text(), 'automated queries')]",
-                ]
-                
-                for indicator in blocking_indicators:
-                    try:
-                        elements = driver.find_elements(By.XPATH, indicator)
-                        for elem in elements:
-                            if elem.is_displayed():
-                                logger.warning(f"[STEP] Found blocking CAPTCHA indicator: {elem.text[:50] if elem.text else indicator}")
-                                blocking_captcha_found = True
-                                break
-                    except:
-                        continue
-                    if blocking_captcha_found:
-                        break
-                
-                # Also check for large visible CAPTCHA iframes (blocking challenges are >200px)
-                if not blocking_captcha_found:
-                    try:
-                        captcha_iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha')]")
-                        for iframe in captcha_iframes:
-                            if iframe.is_displayed():
-                                size = iframe.size
-                                if size.get('width', 0) > 200 and size.get('height', 0) > 200:
-                                    logger.warning(f"[STEP] Found large CAPTCHA iframe: {size['width']}x{size['height']}")
-                                    blocking_captcha_found = True
-                                    break
-                    except:
-                        pass
-                
-                if blocking_captcha_found:
-                    logger.warning("[STEP] ⚠️ BLOCKING CAPTCHA FOUND ON IDENTIFIER PAGE - Attempting to solve...")
-                    
-                    # Try to solve CAPTCHA using 2Captcha if enabled
-                    solved, solve_error = solve_captcha_with_2captcha(driver)
-                    
-                    if solved:
-                        logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Retrying email submission...")
-                        time.sleep(3)
-                        # Retry email submission after solving
-                        try:
-                            email_input = wait_for_xpath(driver, "//input[@id='identifierId']", timeout=10)
-                            if email_input:
-                                email_input.clear()
-                                simulate_human_typing(email_input, email, driver)
-                                email_input.send_keys(Keys.RETURN)
-                                logger.info("[STEP] Email resubmitted after CAPTCHA solving")
-                                time.sleep(3)
-                            else:
-                                logger.error("[STEP] Could not find email input after CAPTCHA solving")
-                                return False, "CAPTCHA_SOLVE_FAILED", "CAPTCHA solved but could not resubmit email"
-                        except Exception as retry_err:
-                            logger.error(f"[STEP] Error resubmitting email after CAPTCHA solving: {retry_err}")
-                            return False, "CAPTCHA_SOLVE_FAILED", f"CAPTCHA solved but email resubmission failed: {retry_err}"
-                    else:
-                        logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed: {solve_error}")
-                        return False, "CAPTCHA_DETECTED", f"CAPTCHA detected on identifier page. 2Captcha solving failed: {solve_error}"
-                else:
-                    logger.debug("[STEP] No blocking CAPTCHA detected - proceeding with login")
-            except Exception as captcha_check_err:
-                logger.debug(f"[STEP] CAPTCHA check error (non-critical): {captcha_check_err}")
+            # NOTE: We previously checked for blocking CAPTCHA here, but this often causes false positives
+            # The audio CAPTCHA text "Type the text you hear or see" can appear while login is still proceeding
+            # We now let the login flow continue naturally - if blocked, the password field check will fail
+            # The improved CAPTCHA detection happens ONLY if we're truly stuck (no password field after timeout)
+            logger.debug("[STEP] Skipping aggressive CAPTCHA check - will detect if truly blocked later")
         
         time.sleep(2)  # Additional wait for password field to appear
         
@@ -2303,12 +2250,45 @@ def login_google(driver, email, password, known_totp_secret=None):
                     logger.error(f"[DEBUG] Error during page state capture: {debug_err}")
                     logger.error(traceback.format_exc())
                 
-                error_msg = "Password field not found after email submission (checked main document and iframes)."
-                if screenshot_saved or page_source_saved:
-                    error_msg += f" Screenshot and page source saved to S3 for investigation."
-                else:
-                    error_msg += " See DEBUG logs above for page state."
-                return False, "LOGIN_PASSWORD_FIELD_NOT_FOUND", error_msg
+                # Before failing, check if this is due to a CAPTCHA we can solve
+                # Check for reCAPTCHA iframe (solvable) vs audio CAPTCHA (not solvable with reCAPTCHA API)
+                try:
+                    recaptcha_iframe = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha')]")
+                    has_recaptcha = len(recaptcha_iframe) > 0
+                    
+                    if has_recaptcha:
+                        logger.info("[STEP] reCAPTCHA iframe detected - attempting to solve...")
+                        solved, solve_error = solve_captcha_with_2captcha(driver)
+                        if solved:
+                            logger.info("[STEP] ✓ CAPTCHA solved! Retrying password field detection...")
+                            time.sleep(3)
+                            # Retry password field detection
+                            password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=10)
+                            if password_input:
+                                logger.info("[STEP] ✓ Password field found after CAPTCHA solving!")
+                                # Continue with password entry (fall through to next section)
+                            else:
+                                logger.error("[STEP] ✗ Password field still not found after CAPTCHA solving")
+                                return False, "LOGIN_PASSWORD_FIELD_NOT_FOUND", "Password field not found even after CAPTCHA solving"
+                        else:
+                            logger.warning(f"[STEP] CAPTCHA solving failed: {solve_error}")
+                    else:
+                        # Check if it's an audio CAPTCHA (not solvable via reCAPTCHA API)
+                        audio_captcha = driver.find_elements(By.XPATH, "//*[contains(text(), 'Type the text you hear or see')]")
+                        if audio_captcha:
+                            logger.warning("[STEP] Audio/Image CAPTCHA detected - this type cannot be solved with 2Captcha's reCAPTCHA API")
+                            logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
+                except Exception as captcha_retry_err:
+                    logger.warning(f"[STEP] Error during CAPTCHA check: {captcha_retry_err}")
+                
+                # If we still don't have password_input, fail
+                if not password_input:
+                    error_msg = "Password field not found after email submission (checked main document and iframes)."
+                    if screenshot_saved or page_source_saved:
+                        error_msg += f" Screenshot and page source saved to S3 for investigation."
+                    else:
+                        error_msg += " See DEBUG logs above for page state."
+                    return False, "LOGIN_PASSWORD_FIELD_NOT_FOUND", error_msg
         
         # Clear and enter password with multiple fallback methods
         try:
