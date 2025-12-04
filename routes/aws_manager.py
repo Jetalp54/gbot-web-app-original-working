@@ -3358,24 +3358,64 @@ def bulk_generate():
                 logger.info(f"[BULK] Total functions needed: {num_functions}")
                 logger.info("=" * 60)
                 
-                # Get all available AWS regions (geos)
-                # These are all AWS regions where Lambda can be deployed
-                # Use the global constant we defined earlier
-                # AVAILABLE_GEO_REGIONS is already defined in the module scope
+                # CRITICAL FIX: Discover which geos actually have Lambda functions
+                # Don't assume all geos have functions - only use geos that actually exist
+                logger.info("=" * 60)
+                logger.info(f"[BULK] Discovering geos with existing Lambda functions...")
+                logger.info("=" * 60)
                 
-                # Distribute functions evenly across all available geos
-                # Calculate how many functions each region should get for equal distribution
-                base_functions_per_region = num_functions // len(AVAILABLE_GEO_REGIONS)
-                remainder = num_functions % len(AVAILABLE_GEO_REGIONS)
+                geos_with_functions = {}  # {geo: [list of function_names]}
                 
-                logger.info(f"[BULK] Distribution calculation: {num_functions} functions across {len(AVAILABLE_GEO_REGIONS)} regions")
-                logger.info(f"[BULK] Base: {base_functions_per_region} per region, Remainder: {remainder} regions get +1")
+                # Check each geo to see if it has Lambda functions
+                for geo in AVAILABLE_GEO_REGIONS:
+                    try:
+                        logger.info(f"[BULK] Checking geo {geo} for Lambda functions...")
+                        geo_session = boto3.Session(
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
+                            region_name=geo
+                        )
+                        geo_lam = geo_session.client("lambda")
+                        geo_functions = geo_lam.list_functions()
+                        
+                        matching_functions = [
+                            fn['FunctionName'] for fn in geo_functions.get('Functions', [])
+                            if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME) or 'edu-gw-chromium' in fn['FunctionName']
+                        ]
+                        
+                        if matching_functions:
+                            geos_with_functions[geo] = matching_functions
+                            logger.info(f"[BULK] ✓ Geo {geo} has {len(matching_functions)} Lambda function(s): {matching_functions}")
+                        else:
+                            logger.info(f"[BULK] ✗ Geo {geo} has no matching Lambda functions")
+                    except Exception as geo_check_err:
+                        logger.warning(f"[BULK] Could not check geo {geo}: {geo_check_err}")
+                        continue
+                
+                if not geos_with_functions:
+                    error_msg = f"No Lambda functions found in any geo! Please create Lambda functions first."
+                    logger.error(f"[BULK] ❌❌❌ {error_msg}")
+                    raise Exception(error_msg)
+                
+                logger.info("=" * 60)
+                logger.info(f"[BULK] Found {len(geos_with_functions)} geo(s) with Lambda functions:")
+                for geo, funcs in geos_with_functions.items():
+                    logger.info(f"[BULK]   - {geo}: {len(funcs)} function(s)")
+                logger.info("=" * 60)
+                
+                # Distribute functions evenly across geos that ACTUALLY have Lambda functions
+                available_geos = list(geos_with_functions.keys())
+                base_functions_per_region = num_functions // len(available_geos)
+                remainder = num_functions % len(available_geos)
+                
+                logger.info(f"[BULK] Distribution calculation: {num_functions} functions across {len(available_geos)} geos with functions")
+                logger.info(f"[BULK] Base: {base_functions_per_region} per geo, Remainder: {remainder} geos get +1")
                 
                 functions_per_geo = {}  # {geo: [list of function_numbers]}
                 func_counter = 0
                 
-                for geo_index, geo in enumerate(AVAILABLE_GEO_REGIONS):
-                    # First 'remainder' regions get one extra function for equal distribution
+                for geo_index, geo in enumerate(available_geos):
+                    # First 'remainder' geos get one extra function for equal distribution
                     functions_in_this_geo = base_functions_per_region + (1 if geo_index < remainder else 0)
                     
                     if geo not in functions_per_geo:
@@ -3389,7 +3429,7 @@ def bulk_generate():
                 logger.info("=" * 60)
                 logger.info(f"[BULK] Function Distribution Across Geos")
                 logger.info(f"[BULK] Total functions: {num_functions}")
-                logger.info(f"[BULK] Available geos: {len(AVAILABLE_GEO_REGIONS)}")
+                logger.info(f"[BULK] Geos with functions: {len(available_geos)}")
                 logger.info(f"[BULK] Functions per geo:")
                 for geo, func_numbers in sorted(functions_per_geo.items()):
                     logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
@@ -3420,9 +3460,14 @@ def bulk_generate():
                         # Get the geo assigned to this function number
                         geo = func_to_geo.get(func_num)
                         if not geo:
-                            logger.error(f"[BULK] ⚠️ ERROR: Function {func_num} not found in geo mapping! Using round-robin fallback.")
-                            geo_index = (func_num - 1) % len(AVAILABLE_GEO_REGIONS)
-                            geo = AVAILABLE_GEO_REGIONS[geo_index]
+                            logger.error(f"[BULK] ⚠️ ERROR: Function {func_num} not found in geo mapping!")
+                            # Use first available geo as fallback
+                            if 'available_geos' in locals() and available_geos:
+                                geo = available_geos[0]
+                                logger.warning(f"[BULK] Using fallback geo: {geo}")
+                            else:
+                                logger.error(f"[BULK] No available geos! Skipping batch for function {func_num}")
+                                continue
                         
                         user_batches.append((func_num, geo, batch_users))
                         logger.info(f"[BULK] Function {func_num} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
