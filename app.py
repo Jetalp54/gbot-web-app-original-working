@@ -10881,36 +10881,74 @@ def api_test_twocaptcha():
             return jsonify({'success': False, 'error': 'API key is required'})
         
         # Test API key by getting balance
+        # Use res.php endpoint with action=getbalance (not in.php)
         import requests
         response = requests.get(
-            'http://2captcha.com/in.php',
+            'http://2captcha.com/res.php',
             params={
                 'key': api_key,
-                'method': 'user',
-                'action': 'getbalance'
+                'action': 'getbalance',
+                'json': 1  # Request JSON response for better error handling
             },
             timeout=10
         )
         
         if response.status_code == 200:
-            result = response.text
-            if result.startswith('OK|'):
-                balance = result.split('|')[1]
-                return jsonify({
-                    'success': True,
-                    'balance': balance,
-                    'message': f'API key is valid. Balance: ${balance}'
-                })
-            else:
-                return jsonify({
-                    'success': False,
-                    'error': f'Invalid API key: {result}'
-                })
+            try:
+                # Try to parse as JSON first
+                result_json = response.json()
+                if result_json.get('status') == 1:
+                    balance = result_json.get('request', '0')
+                    return jsonify({
+                        'success': True,
+                        'balance': balance,
+                        'message': f'API key is valid. Balance: ${balance}'
+                    })
+                else:
+                    error_msg = result_json.get('request', 'Unknown error')
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid API key: {error_msg}'
+                    })
+            except ValueError:
+                # Fallback to text parsing if JSON parsing fails
+                result = response.text.strip()
+                if result.startswith('OK|') or result.replace('.', '').replace('-', '').isdigit():
+                    # Balance returned as "OK|balance" or just the balance number
+                    balance = result.split('|')[1] if '|' in result else result
+                    try:
+                        float(balance)  # Validate it's a number
+                        return jsonify({
+                            'success': True,
+                            'balance': balance,
+                            'message': f'API key is valid. Balance: ${balance}'
+                        })
+                    except ValueError:
+                        return jsonify({
+                            'success': False,
+                            'error': f'Invalid response format: {result}'
+                        })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid API key: {result}'
+                    })
         else:
             return jsonify({
                 'success': False,
                 'error': f'Failed to connect to 2Captcha API: HTTP {response.status_code}'
             })
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'Connection timeout. Please check your internet connection and try again.'
+        })
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Error testing 2Captcha (network): {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Network error: {str(e)}'
+        })
     except Exception as e:
         app.logger.error(f"Error testing 2Captcha: {e}")
         return jsonify({'success': False, 'error': str(e)})
