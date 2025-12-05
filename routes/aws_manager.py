@@ -3406,15 +3406,21 @@ def bulk_generate():
                     for func_name in func_names:
                         all_lambdas_flat.append((geo, func_name))
                 
+                if not all_lambdas_flat:
+                    error_msg = f"No Lambda functions found to process users! Please create Lambda functions first."
+                    logger.error(f"[BULK] ❌❌❌ {error_msg}")
+                    raise Exception(error_msg)
+                
                 total_users = len(users)
                 USERS_PER_FUNCTION = 10  # Fixed: Each function handles exactly 10 users
                 
                 # Distribute users across ALL existing lambdas
                 # Each lambda gets up to 10 users, distributed round-robin
-                user_batches = []  # List of (geo, function_name, user_batch) tuples
+                user_batches = []  # List of [geo, function_name, user_batch] lists
                 
                 logger.info(f"[BULK] Distributing {total_users} users across {total_existing_lambdas} Lambda function(s)")
                 logger.info(f"[BULK] Each Lambda will process up to {USERS_PER_FUNCTION} user(s)")
+                logger.info(f"[BULK] All lambdas flat list: {all_lambdas_flat[:5]}... (showing first 5)")
                 
                 # Round-robin distribution: assign users to lambdas in order
                 for user_idx, user in enumerate(users):
@@ -3424,7 +3430,8 @@ def bulk_generate():
                     
                     # Find or create batch for this lambda
                     batch_found = False
-                    for batch_idx, (batch_geo, batch_func, batch_users) in enumerate(user_batches):
+                    for batch_idx, batch_data in enumerate(user_batches):
+                        batch_geo, batch_func, batch_users = batch_data
                         if batch_geo == geo and batch_func == function_name and len(batch_users) < USERS_PER_FUNCTION:
                             user_batches[batch_idx][2].append(user)
                             batch_found = True
@@ -3433,6 +3440,11 @@ def bulk_generate():
                     if not batch_found:
                         # Create new batch for this lambda
                         user_batches.append([geo, function_name, [user]])
+                
+                if not user_batches:
+                    error_msg = f"Failed to create user batches! No batches created for {total_users} users."
+                    logger.error(f"[BULK] ❌❌❌ {error_msg}")
+                    raise Exception(error_msg)
                 
                 logger.info("=" * 60)
                 logger.info(f"[BULK] Created {len(user_batches)} batch(es) across {len(geos_with_functions)} geo(s):")
@@ -3768,6 +3780,11 @@ def bulk_generate():
                 logger.info(f"[BULK] TOTAL GEOS TO PROCESS: {len(batches_by_geo)}")
                 logger.info(f"[BULK] Geo list: {list(batches_by_geo.keys())}")
                 logger.info("=" * 60)
+                
+                if not batches_by_geo:
+                    error_msg = f"No batches created for any geo! Cannot process users."
+                    logger.error(f"[BULK] ❌❌❌ {error_msg}")
+                    raise Exception(error_msg)
             
                 def process_geo_parallel(geo, geo_batches_list):
                     """
@@ -4050,7 +4067,7 @@ def bulk_generate():
                         # Return empty results with error info so other geos can continue
                         # But mark all users in this geo as failed
                         failed_results = []
-                        for func_num, batch_users in geo_batches_list:
+                        for func_name, batch_users in geo_batches_list:
                             for u in batch_users:
                                 failed_results.append({
                                     'email': u['email'],
@@ -4061,10 +4078,11 @@ def bulk_generate():
                         return failed_results
             
                 # Process ALL geos in parallel (each geo processes its functions in parallel internally)
+                total_batches = sum(len(batches) for batches in batches_by_geo.values())
                 logger.info("=" * 60)
                 logger.info(f"[BULK] ===== STARTING PARALLEL GEO PROCESSING =====")
                 logger.info(f"[BULK] Total users: {total_users}")
-                logger.info(f"[BULK] Total functions: {num_functions}")
+                logger.info(f"[BULK] Total batches: {total_batches}")
                 logger.info(f"[BULK] Number of geos: {len(batches_by_geo)}")
                 logger.info(f"[BULK] Users per function: {USERS_PER_FUNCTION}")
                 logger.info(f"[BULK] Geos to process: {list(batches_by_geo.keys())}")
@@ -4097,7 +4115,7 @@ def bulk_generate():
                             logger.error(f"[BULK] ✗✗✗ FAILED to submit geo {geo} to thread pool: {submit_err}")
                             logger.error(traceback.format_exc())
                             # Add failed results for this geo
-                            for func_num, batch_users in geo_batches_list:
+                            for func_name, batch_users in geo_batches_list:
                                 for u in batch_users:
                                     all_geo_results.append({
                                         'email': u['email'],
@@ -4156,7 +4174,7 @@ def bulk_generate():
                             
                             # Add failed results for all users in this geo
                             if geo in batches_by_geo:
-                                for func_num, batch_users in batches_by_geo[geo]:
+                                for func_name, batch_users in batches_by_geo[geo]:
                                     for u in batch_users:
                                         all_geo_results.append({
                                             'email': u['email'],
