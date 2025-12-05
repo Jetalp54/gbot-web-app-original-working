@@ -1902,7 +1902,7 @@ class AwsEducationApp(tk.Tk):
         s3_build_bucket = S3_BUCKET_NAME  # Use the same bucket we created
         s3_build_key_prefix = "ec2-build-files"
         
-        repo_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "repo folder")
+        repo_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "repo_aws_files")
         main_py_path = os.path.join(repo_folder, "main.py")
         dockerfile_path = os.path.join(repo_folder, "Dockerfile")
         

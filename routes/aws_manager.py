@@ -3422,7 +3422,10 @@ def bulk_generate():
                 logger.info(f"[BULK] Each Lambda will process up to {USERS_PER_FUNCTION} user(s)")
                 logger.info(f"[BULK] All lambdas flat list: {all_lambdas_flat[:5]}... (showing first 5)")
                 
-                # Round-robin distribution: assign users to lambdas in order
+                # IMPROVED Round-robin distribution: Ensure ALL lambdas get batches
+                # Track which lambdas have batches to ensure equal distribution
+                lambda_batch_counts = {lambda_name: 0 for _, lambda_name in all_lambdas_flat}
+                
                 for user_idx, user in enumerate(users):
                     # Determine which lambda should handle this user (round-robin)
                     lambda_idx = user_idx % len(all_lambdas_flat)
@@ -3435,11 +3438,24 @@ def bulk_generate():
                         if batch_geo == geo and batch_func == function_name and len(batch_users) < USERS_PER_FUNCTION:
                             user_batches[batch_idx][2].append(user)
                             batch_found = True
+                            lambda_batch_counts[function_name] += 1
                             break
                     
                     if not batch_found:
                         # Create new batch for this lambda
                         user_batches.append([geo, function_name, [user]])
+                        lambda_batch_counts[function_name] += 1
+                
+                # Verify ALL lambdas have at least one batch
+                lambdas_without_batches = [lambda_name for lambda_name, count in lambda_batch_counts.items() if count == 0]
+                if lambdas_without_batches:
+                    logger.warning(f"[BULK] ⚠️ Some lambdas have no batches: {lambdas_without_batches}")
+                    logger.warning(f"[BULK] This may indicate uneven distribution. Total users: {total_users}, Total lambdas: {total_existing_lambdas}")
+                
+                # Log distribution statistics
+                logger.info(f"[BULK] Lambda batch distribution:")
+                for lambda_name, count in sorted(lambda_batch_counts.items()):
+                    logger.info(f"[BULK]   - {lambda_name}: {count} batch(es)")
                 
                 if not user_batches:
                     error_msg = f"Failed to create user batches! No batches created for {total_users} users."
@@ -4009,12 +4025,36 @@ def bulk_generate():
                         # Process all functions in PARALLEL using ThreadPoolExecutor
                         geo_results = []
                         with ThreadPoolExecutor(max_workers=max_workers) as function_pool:
-                            # Submit all functions for parallel processing
+                            # Submit ALL functions for parallel processing - CRITICAL: Ensure every function is submitted
                             function_futures = {}
+                            submitted_function_names = []
                             for batch_idx, (func_name, batch_users) in enumerate(geo_batches_list):
-                                future = function_pool.submit(process_single_function, func_name, batch_users, batch_idx)
-                                function_futures[future] = (func_name, batch_idx)
-                                logger.info(f"[BULK] [{geo}] ✓ Submitted function {func_name} for parallel processing")
+                                try:
+                                    future = function_pool.submit(process_single_function, func_name, batch_users, batch_idx)
+                                    function_futures[future] = (func_name, batch_idx)
+                                    submitted_function_names.append(func_name)
+                                    logger.info(f"[BULK] [{geo}] ✓✓✓ Submitted function {func_name} (batch {batch_idx + 1}/{len(geo_batches_list)}) with {len(batch_users)} user(s) for parallel processing")
+                                except Exception as submit_func_err:
+                                    logger.error(f"[BULK] [{geo}] ✗✗✗ FAILED to submit function {func_name}: {submit_func_err}")
+                                    logger.error(traceback.format_exc())
+                                    # Add failed results for this batch
+                                    for u in batch_users:
+                                        geo_results.append({
+                                            'email': u.get('email', 'unknown'),
+                                            'success': False,
+                                            'error': f'Failed to submit function {func_name} to thread pool: {str(submit_func_err)}'
+                                        })
+                            
+                            # Verify ALL functions were submitted
+                            expected_functions = set(func_name for func_name, _ in geo_batches_list)
+                            submitted_functions = set(submitted_function_names)
+                            missing_functions = expected_functions - submitted_functions
+                            if missing_functions:
+                                logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL: {len(missing_functions)} function(s) were NOT submitted: {missing_functions}")
+                                logger.error(f"[BULK] [{geo}] Expected: {expected_functions}")
+                                logger.error(f"[BULK] [{geo}] Submitted: {submitted_functions}")
+                            else:
+                                logger.info(f"[BULK] [{geo}] ✓✓✓ All {len(expected_functions)} function(s) successfully submitted for parallel processing")
                             
                             # Wait for all functions to complete and collect results
                             for future in as_completed(function_futures):
@@ -4045,8 +4085,17 @@ def bulk_generate():
                                     
                                     logger.info(f"[BULK] [{geo}] ✓ Function {func_name} finished: {sum(1 for r in function_results if r.get('success'))}/{len(function_results)} success")
                                 except Exception as e:
-                                    logger.error(f"[BULK] [{geo}] ✗ Function {func_num} exception: {e}")
+                                    logger.error(f"[BULK] [{geo}] ✗ Function {func_name} exception: {e}")
                                     logger.error(traceback.format_exc())
+                                    # Add failed results for all users in this batch
+                                    if batch_idx < len(geo_batches_list):
+                                        failed_batch_users = geo_batches_list[batch_idx][1] if len(geo_batches_list[batch_idx]) > 1 else []
+                                        for u in failed_batch_users:
+                                            geo_results.append({
+                                                'email': u.get('email', 'unknown'),
+                                                'success': False,
+                                                'error': f'Function processing exception: {str(e)}'
+                                            })
                         
                         # Log completion summary
                         logger.info("=" * 60)
