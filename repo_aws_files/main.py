@@ -3591,47 +3591,32 @@ def enable_two_step_verification(driver, email):
             logger.info(f"[STEP] 2-Step Verification is already enabled for {email}")
             return True, None, None
 
-        # Try the original xpath first (from reference script)
+        # Try XPaths with priority on updated XPath
         turn_on_clicked = False
-        try:
-            turn_on_button = wait_for_clickable_xpath(driver, '/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]', timeout=5)
-            if turn_on_button:
-                driver.execute_script("arguments[0].click();", turn_on_button)
-                logger.info(f"[STEP] Clicked on 'Turn On 2-Step Verification' using original xpath for {email}")
-                turn_on_clicked = True
-                time.sleep(2)
-        except TimeoutException:
-            logger.info("[STEP] Original 2-step verification xpath not found, trying fallback xpath...")
-            
-            # Fallback to the new xpath for updated accounts (from reference script)
+        turn_on_xpaths = [
+            '/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button',  # Priority XPath
+            '/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button',
+            '/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]',
+            '/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]',
+            "//button[contains(., 'Turn on')]",
+            "//button[contains(., 'TURN ON')]",
+            "//span[contains(text(), 'Turn on')]/ancestor::button",
+        ]
+        
+        for xpath in turn_on_xpaths:
             try:
-                turn_on_button = wait_for_clickable_xpath(driver, '/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button', timeout=5)
+                turn_on_button = wait_for_clickable_xpath(driver, xpath, timeout=5)
                 if turn_on_button:
                     driver.execute_script("arguments[0].click();", turn_on_button)
-                    logger.info(f"[STEP] Clicked on 'Turn On 2-Step Verification' using fallback xpath for {email}")
+                    logger.info(f"[STEP] Clicked on 'Turn On 2-Step Verification' using xpath: {xpath}")
                     turn_on_clicked = True
                     time.sleep(2)
+                    break
             except TimeoutException:
-                logger.warning("[STEP] Both xpaths failed, trying generic patterns...")
-                
-                # Generic fallback patterns
-                generic_xpaths = [
-                    "//button[contains(., 'Turn on')]",
-                    "//button[contains(., 'TURN ON')]",
-                    "//span[contains(text(), 'Turn on')]/ancestor::button",
-                ]
-                
-                for xpath in generic_xpaths:
-                    if element_exists(driver, xpath, timeout=2):
-                        try:
-                            element = wait_for_clickable_xpath(driver, xpath, timeout=2)
-                            driver.execute_script("arguments[0].click();", element)
-                            logger.info(f"[STEP] Clicked 'Turn On' using generic xpath: {xpath}")
-                            turn_on_clicked = True
-                            time.sleep(2)
-                            break
-                        except:
-                            continue
+                continue
+            except Exception as e:
+                logger.debug(f"[STEP] Error trying xpath {xpath}: {e}")
+                continue
 
         # Handle skip phone number (from reference script handle_skip_phone_number)
         try:
