@@ -3712,11 +3712,12 @@ def generate_app_password(driver, email):
         
         for attempt in range(max_retries):
             try:
-                # Comprehensive XPath variations for app name input (from reference script)
+                # Comprehensive XPath variations for app name input (updated with priority XPath)
                 app_name_xpath_variations = [
-                    "/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input",
-                    "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/label/input",
+                    "/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input",  # Priority XPath
                     "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input",
+                    "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/label/input",
+                    "/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/label/input",
                     "//input[@aria-label='App name']",
                     "//input[contains(@placeholder, 'app') or contains(@placeholder, 'name')]",
                     "//input[@type='text' and contains(@class, 'input')]",
@@ -3880,10 +3881,14 @@ def generate_app_password(driver, email):
                     except:
                         continue
                 
-                # Fallback to dynamic XPath patterns if span extraction failed (from reference script)
+                # Fallback to dynamic XPath patterns if span extraction failed (updated with priority XPath)
                 if not app_password:
                     logger.info("[STEP] Span extraction failed, trying dynamic XPath patterns...")
                     priority_xpaths = [
+                        "/html/body/div[16]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div/strong",  # Priority XPath
+                        "/html/body/div[16]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div/strong/div",
+                        "/html/body/div[16]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div",
+                        "/html/body/div[16]//strong[contains(text(), '-')]",
                         "//strong[@class='v2CTKd KaSAf']//div[@dir='ltr']",
                         "//strong[@class='v2CTKd KaSAf']//div",
                         "//strong[@class='v2CTKd KaSAf']",
@@ -3893,8 +3898,9 @@ def generate_app_password(driver, email):
                         "//article//strong[@class='v2CTKd KaSAf']",
                     ]
                     
-                    # Add dynamic div patterns (from reference script)
-                    for div_num in range(14, 23):
+                    # Add dynamic div patterns with retries (focusing around div[16] first, then expanding)
+                    # Try div[16] variations first (priority)
+                    for div_num in [16, 15, 17, 14, 18, 19, 20, 21, 22]:
                         priority_xpaths.extend([
                             f"/html/body/div[{div_num}]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div/strong/div",
                             f"/html/body/div[{div_num}]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div/strong",
@@ -3902,18 +3908,27 @@ def generate_app_password(driver, email):
                             f"/html/body/div[{div_num}]//strong[contains(text(), '-')]",
                         ])
                     
-                    for i, xpath in enumerate(priority_xpaths):
-                        try:
-                            element = WebDriverWait(driver, 2).until(
-                                EC.presence_of_element_located((By.XPATH, xpath))
-                            )
-                            potential_password = element.text.strip().replace(" ", "")
-                            if len(potential_password) >= 16 and '-' in potential_password and potential_password.count('-') >= 3:
-                                app_password = potential_password
-                                logger.info(f"[STEP] App password found using XPath #{i+1}: {app_password[:4]}****{app_password[-4:]}")
-                                break
-                        except:
-                            continue
+                    # Retry with different XPaths
+                    for retry_attempt in range(3):
+                        for i, xpath in enumerate(priority_xpaths):
+                            try:
+                                element = WebDriverWait(driver, 2).until(
+                                    EC.presence_of_element_located((By.XPATH, xpath))
+                                )
+                                potential_password = element.text.strip().replace(" ", "")
+                                if len(potential_password) >= 16 and '-' in potential_password and potential_password.count('-') >= 3:
+                                    app_password = potential_password
+                                    logger.info(f"[STEP] App password found using XPath #{i+1} (retry {retry_attempt + 1}): {app_password[:4]}****{app_password[-4:]}")
+                                    break
+                            except:
+                                continue
+                        
+                        if app_password:
+                            break
+                        
+                        if retry_attempt < 2:
+                            logger.info(f"[STEP] Retry {retry_attempt + 1} failed, waiting before next attempt...")
+                            time.sleep(2)
                 
                 if not app_password or len(app_password) < 16:
                     raise TimeoutException("Failed to locate valid app password element")
