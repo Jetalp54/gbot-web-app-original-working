@@ -1801,6 +1801,8 @@ def capture_captcha_screenshot(driver, captcha_type="unknown", email=None):
     """
     Capture a screenshot when CAPTCHA is detected and upload it to S3.
     
+    DISABLED: Screenshot capture has been permanently disabled.
+    
     Args:
         driver: Selenium WebDriver instance
         captcha_type: Type of CAPTCHA detected (e.g., "recaptcha", "audio", "image")
@@ -1809,51 +1811,8 @@ def capture_captcha_screenshot(driver, captcha_type="unknown", email=None):
     Returns:
         (success: bool, s3_path: str|None)
     """
-    try:
-        bucket_name = "edu-gw-app-passwords-470147111686"
-        s3_region = os.environ.get("AWS_REGION", "us-east-1")
-        
-        # Ensure bucket exists
-        ensure_s3_bucket_exists(bucket_name, s3_region)
-        
-        # Generate screenshot filename
-        timestamp = int(time.time())
-        email_part = ""
-        if email:
-            email_safe = email.replace("@", "_at_").replace(".", "_")
-            email_part = f"{email_safe}_"
-        
-        screenshot_key = f"captcha-detection/{email_part}{captcha_type}_{timestamp}_screenshot.png"
-        screenshot_path = f"/tmp/captcha_{captcha_type}_{timestamp}.png"
-        
-        # Capture screenshot
-        driver.save_screenshot(screenshot_path)
-        logger.info(f"[CAPTCHA] Screenshot captured: {screenshot_path}")
-        
-        # Upload to S3
-        s3_client = get_s3_client()
-        s3_client.upload_file(
-            screenshot_path,
-            bucket_name,
-            screenshot_key,
-            ExtraArgs={'ContentType': 'image/png'}
-        )
-        
-        s3_url = f"s3://{bucket_name}/{screenshot_key}"
-        logger.info(f"[CAPTCHA] ✓ Screenshot uploaded to S3: {s3_url}")
-        
-        # Clean up local file
-        try:
-            os.remove(screenshot_path)
-        except:
-            pass
-        
-        return True, s3_url
-        
-    except Exception as e:
-        logger.error(f"[CAPTCHA] ✗ Failed to capture/upload CAPTCHA screenshot: {e}")
-        logger.error(traceback.format_exc())
-        return False, None
+    # Screenshot capture is permanently disabled
+    return False, None
 
 def detect_captcha(driver, email=None):
     """
@@ -2441,40 +2400,51 @@ def login_google(driver, email, password, known_totp_secret=None):
             except:
                 pass
             
-            # Check for audio CAPTCHA input field (Google's own CAPTCHA, not reCAPTCHA)
+            # Check for image CAPTCHA input field (Google's own CAPTCHA, not reCAPTCHA)
             # This appears as: <input type="text" name="ca" id="ca" aria-label="Type the text you hear or see">
             try:
-                audio_captcha_input = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
-                if audio_captcha_input:
-                    for inp in audio_captcha_input:
+                image_captcha_input = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
+                if image_captcha_input:
+                    for inp in image_captcha_input:
                         if inp.is_displayed():
                             aria_label = inp.get_attribute('aria-label') or ''
                             if 'hear or see' in aria_label.lower() or 'captcha' in aria_label.lower():
-                                logger.warning("[STEP] ⚠️ Audio/Image CAPTCHA detected (input field visible)")
-                                logger.warning("[STEP] This is Google's audio CAPTCHA - cannot be solved with 2Captcha's reCAPTCHA API")
+                                logger.warning("[STEP] ⚠️ Image CAPTCHA detected (input field visible)")
+                                logger.info("[STEP] Attempting to solve Google Image CAPTCHA using 2Captcha Image CAPTCHA solver...")
+                                
                                 # Capture screenshot for analysis
-                                capture_captcha_screenshot(driver, captcha_type="audio", email=email)
-                                logger.warning("[STEP] Waiting 5-10 seconds to see if Google auto-clears it...")
-                                # Wait longer - sometimes Google auto-clears audio CAPTCHA
-                                time.sleep(random.uniform(5, 10))
-                                # Check again if CAPTCHA is still there
-                                audio_captcha_still_there = False
-                                try:
-                                    still_visible = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
-                                    for inp2 in still_visible:
-                                        if inp2.is_displayed():
-                                            audio_captcha_still_there = True
-                                            break
-                                except:
-                                    pass
-                                if audio_captcha_still_there:
-                                    logger.warning("[STEP] Audio CAPTCHA still present - login will likely fail")
-                                    logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
+                                capture_captcha_screenshot(driver, captcha_type="image", email=email)
+                                
+                                # Solve the image CAPTCHA using 2Captcha
+                                solved, error = solve_captcha_with_2captcha(driver, email=email)
+                                
+                                if solved:
+                                    logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Proceeding with login...")
+                                    # Wait a moment for Google to process the solution
+                                    time.sleep(2)
                                 else:
-                                    logger.info("[STEP] Audio CAPTCHA cleared! Proceeding...")
+                                    logger.error(f"[STEP] ✗ Failed to solve Image CAPTCHA: {error}")
+                                    logger.warning("[STEP] Waiting 5-10 seconds to see if Google auto-clears it...")
+                                    # Wait longer - sometimes Google auto-clears CAPTCHA
+                                    time.sleep(random.uniform(5, 10))
+                                    # Check again if CAPTCHA is still there
+                                    captcha_still_there = False
+                                    try:
+                                        still_visible = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
+                                        for inp2 in still_visible:
+                                            if inp2.is_displayed():
+                                                captcha_still_there = True
+                                                break
+                                    except:
+                                        pass
+                                    if captcha_still_there:
+                                        logger.warning("[STEP] Image CAPTCHA still present - login may fail")
+                                        logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
+                                    else:
+                                        logger.info("[STEP] Image CAPTCHA cleared! Proceeding...")
                                 break
-            except Exception as audio_captcha_check:
-                logger.debug(f"[STEP] Audio CAPTCHA check error: {audio_captcha_check}")
+            except Exception as image_captcha_check:
+                logger.debug(f"[STEP] Image CAPTCHA check error: {image_captcha_check}")
         
         # Wait longer for password field to appear (Google may be processing CAPTCHA)
         wait_time = random.uniform(3, 5)
@@ -2869,11 +2839,20 @@ def login_google(driver, email, password, known_totp_secret=None):
                                 pass
                         
                         if has_audio_captcha or audio_captcha_text:
-                            logger.warning("[STEP] Audio/Image CAPTCHA detected - this type cannot be solved with 2Captcha's reCAPTCHA API")
+                            logger.warning("[STEP] Image CAPTCHA detected - attempting to solve using 2Captcha Image CAPTCHA solver...")
                             # Capture screenshot for analysis
-                            capture_captcha_screenshot(driver, captcha_type="audio", email=email)
-                            logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
-                            logger.warning("[STEP] This is likely due to IP-based rate limiting. Some accounts may still succeed.")
+                            capture_captcha_screenshot(driver, captcha_type="image", email=email)
+                            
+                            # Solve the image CAPTCHA using 2Captcha
+                            solved, error = solve_captcha_with_2captcha(driver, email=email)
+                            
+                            if solved:
+                                logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Waiting for page to process...")
+                                time.sleep(3)
+                            else:
+                                logger.error(f"[STEP] ✗ Failed to solve Image CAPTCHA: {error}")
+                                logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
+                                logger.warning("[STEP] This is likely due to IP-based rate limiting. Some accounts may still succeed.")
                 except Exception as captcha_retry_err:
                     logger.warning(f"[STEP] Error during CAPTCHA check: {captcha_retry_err}")
                 
