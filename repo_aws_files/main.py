@@ -891,66 +891,70 @@ def solve_google_image_captcha(driver, api_key, email=None):
         if not image_base64:
             return False, None, "Could not extract CAPTCHA image"
         
-        # Send to 2Captcha ImageToTextTask API
-        logger.info("[2CAPTCHA] Sending CAPTCHA image to 2Captcha ImageToTextTask...")
-        create_task_url = 'https://api.2captcha.com/createTask'
+        # Send to 2Captcha Image CAPTCHA API (traditional API as per documentation)
+        # Documentation: https://2captcha.com/p/image-picture-captcha-solver
+        logger.info("[2CAPTCHA] Sending CAPTCHA image to 2Captcha using traditional Image CAPTCHA API...")
+        submit_url = 'https://2captcha.com/in.php'
         
-        task_data = {
-            'clientKey': api_key,
-            'task': {
-                'type': 'ImageToTextTask',
-                'body': image_base64,
-                'case': True,  # Case sensitive
-                'numeric': 0,  # 0 = not numeric, 1 = numeric only, 2 = numbers and letters
-                'math': 0,  # 0 = not math, 1 = math
-                'minLength': 0,  # Minimum length (0 = no limit)
-                'maxLength': 0,  # Maximum length (0 = no limit)
-            }
+        # Prepare POST data with method=base64 as per documentation
+        post_data = {
+            'key': api_key,
+            'method': 'base64',
+            'body': image_base64,
+            'json': 1  # Request JSON response
         }
         
-        json_data = json.dumps(task_data).encode('utf-8')
-        logger.info(f"[2CAPTCHA] ImageToTextTask payload size: {len(image_base64)} bytes (base64)")
-        
-        request = urllib.request.Request(
-            create_task_url,
-            data=json_data,
-            headers={'Content-Type': 'application/json'},
-            method='POST'
-        )
+        # Encode as form data
+        post_data_encoded = urllib.parse.urlencode(post_data).encode('utf-8')
+        logger.info(f"[2CAPTCHA] Image CAPTCHA payload size: {len(image_base64)} bytes (base64)")
         
         try:
+            request = urllib.request.Request(
+                submit_url,
+                data=post_data_encoded,
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                method='POST'
+            )
+            
             with urllib.request.urlopen(request, timeout=30) as response:
                 response_body = response.read().decode('utf-8')
-                logger.info(f"[2CAPTCHA] ImageToTextTask API response status: {response.status}")
+                logger.info(f"[2CAPTCHA] Image CAPTCHA API response status: {response.status}")
                 logger.info(f"[2CAPTCHA] Raw API response: {response_body}")
-                create_result = json.loads(response_body)
                 
-                # Check for errors
-                if create_result.get('errorId') != 0:
-                    error_code = create_result.get('errorCode', 'Unknown')
-                    error_desc = create_result.get('errorDescription', 'Unknown error')
-                    logger.error(f"[2CAPTCHA] Failed to create ImageToTextTask: {error_code} - {error_desc}")
-                    return False, None, f"2Captcha task creation failed: {error_desc}"
-                
-                # Extract task ID
-                task_id = create_result.get('taskId')
-                if not task_id:
-                    logger.error("[2CAPTCHA] No task ID received from 2Captcha")
-                    return False, None, "No task ID received from 2Captcha"
-                
-                logger.info(f"[2CAPTCHA] ImageToTextTask created successfully. Task ID: {task_id}")
+                try:
+                    submit_result = json.loads(response_body)
+                    status = submit_result.get('status')
+                    request_id = submit_result.get('request')
+                    
+                    if status == 1 and request_id:
+                        task_id = request_id
+                        logger.info(f"[2CAPTCHA] Image CAPTCHA submitted successfully. Task ID: {task_id}")
+                    else:
+                        error_text = submit_result.get('request', 'Unknown error')
+                        logger.error(f"[2CAPTCHA] Failed to submit Image CAPTCHA: {error_text}")
+                        return False, None, f"2Captcha submission failed: {error_text}"
+                except json.JSONDecodeError:
+                    # Fallback: parse plain text response (OK|task_id or ERROR|error_message)
+                    if response_body.startswith('OK|'):
+                        task_id = response_body.split('|')[1].strip()
+                        logger.info(f"[2CAPTCHA] Image CAPTCHA submitted successfully. Task ID: {task_id}")
+                    else:
+                        error_msg = response_body.replace('ERROR|', '').strip()
+                        logger.error(f"[2CAPTCHA] Failed to submit Image CAPTCHA: {error_msg}")
+                        return False, None, f"2Captcha submission failed: {error_msg}"
+                        
         except urllib.error.HTTPError as e:
-            logger.error(f"[2CAPTCHA] HTTP error creating ImageToTextTask: {e}")
+            logger.error(f"[2CAPTCHA] HTTP error submitting Image CAPTCHA: {e}")
             error_body = e.read().decode('utf-8') if hasattr(e, 'read') else str(e)
             logger.error(f"[2CAPTCHA] Error response: {error_body}")
             return False, None, f"HTTP error: {e}"
         except Exception as e:
-            logger.error(f"[2CAPTCHA] Error creating ImageToTextTask: {e}")
+            logger.error(f"[2CAPTCHA] Error submitting Image CAPTCHA: {e}")
             logger.error(traceback.format_exc())
-            return False, None, f"Error creating task: {e}"
+            return False, None, f"Error submitting task: {e}"
         
-        # Poll for solution
-        get_result_url = 'https://api.2captcha.com/getTaskResult'
+        # Poll for solution using res.php endpoint
+        get_result_url = 'https://2captcha.com/res.php'
         max_wait_time = 120  # Maximum wait time in seconds
         poll_interval = 3  # Poll every 3 seconds
         start_time = time.time()
@@ -965,40 +969,53 @@ def solve_google_image_captcha(driver, api_key, email=None):
                 logger.info(f"[2CAPTCHA] Still solving... (waited {elapsed}s/{max_wait_time}s)")
             
             try:
-                result_data = {
-                    'clientKey': api_key,
-                    'taskId': task_id
+                # Build query parameters
+                params = {
+                    'key': api_key,
+                    'action': 'get',
+                    'id': task_id,
+                    'json': 1  # Request JSON response
                 }
                 
-                result_json = json.dumps(result_data).encode('utf-8')
-                result_request = urllib.request.Request(
-                    get_result_url,
-                    data=result_json,
-                    headers={'Content-Type': 'application/json'},
-                    method='POST'
-                )
+                query_string = urllib.parse.urlencode(params)
+                result_url = f"{get_result_url}?{query_string}"
+                
+                result_request = urllib.request.Request(result_url, method='GET')
                 
                 with urllib.request.urlopen(result_request, timeout=30) as response:
                     result_body = response.read().decode('utf-8')
-                    result = json.loads(result_body)
                     
-                    status = result.get('status')
-                    
-                    if status == 1:  # Ready
-                        solution = result.get('solution', {}).get('text')
-                        if solution:
+                    try:
+                        result = json.loads(result_body)
+                        status = result.get('status')
+                        
+                        if status == 1:  # Ready
+                            solution = result.get('request')
+                            if solution:
+                                logger.info(f"[2CAPTCHA] ✓ Image CAPTCHA solved! Solution: {solution}")
+                                return True, solution, None
+                            else:
+                                logger.error("[2CAPTCHA] Solution received but empty")
+                                return False, None, "Empty solution received"
+                        elif status == 0:  # Processing
+                            continue  # Keep polling
+                        else:
+                            error_text = result.get('request', 'Unknown error')
+                            logger.error(f"[2CAPTCHA] Error getting solution: {error_text}")
+                            return False, None, f"2Captcha solution error: {error_text}"
+                    except json.JSONDecodeError:
+                        # Fallback: parse plain text response
+                        # Format: OK|solution_text or CAPCHA_NOT_READY or ERROR|error_message
+                        if result_body.startswith('OK|'):
+                            solution = result_body.split('|')[1].strip()
                             logger.info(f"[2CAPTCHA] ✓ Image CAPTCHA solved! Solution: {solution}")
                             return True, solution, None
+                        elif result_body == 'CAPCHA_NOT_READY':
+                            continue  # Keep polling
                         else:
-                            logger.error("[2CAPTCHA] Solution received but no text in response")
-                            return False, None, "No solution text in response"
-                    elif status == 0:  # Processing
-                        continue  # Keep polling
-                    else:
-                        error_code = result.get('errorCode', 'Unknown')
-                        error_desc = result.get('errorDescription', 'Unknown error')
-                        logger.error(f"[2CAPTCHA] Error getting solution: {error_code} - {error_desc}")
-                        return False, None, f"2Captcha solution error: {error_desc}"
+                            error_msg = result_body.replace('ERROR|', '').strip()
+                            logger.error(f"[2CAPTCHA] Error getting solution: {error_msg}")
+                            return False, None, f"2Captcha solution error: {error_msg}"
                         
             except Exception as e:
                 logger.warning(f"[2CAPTCHA] Error polling for solution: {e}")
