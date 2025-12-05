@@ -1789,6 +1789,54 @@ def solve_captcha_with_2captcha(driver, email=None):
             logger.warning("[2CAPTCHA] Token injection may have failed, but token was received")
             # Continue anyway - sometimes the page processes it even if injection seems to fail
         
+        # CRITICAL: After injecting token, check if we're on "Verify it's you" page and submit
+        # Google's "Verify it's you" page requires clicking Next button after reCAPTCHA token is set
+        try:
+            current_url_after_token = driver.current_url.lower()
+            page_title_after_token = driver.title.lower()
+            page_source_after_token = driver.page_source.lower()
+            
+            # Check if we're on "Verify it's you" page
+            if ("verify it's you" in page_title_after_token or 
+                "verify it's you" in page_source_after_token or
+                "verify" in current_url_after_token):
+                
+                logger.info("[2CAPTCHA] On 'Verify it's you' page - attempting to submit after token injection...")
+                time.sleep(2)  # Wait for token to be processed
+                
+                # Try to find and click Next/Submit button
+                submit_button_found = False
+                submit_button_xpaths = [
+                    "//button[contains(., 'Next')]",
+                    "//span[contains(., 'Next')]/ancestor::button",
+                    "//div[@role='button' and contains(., 'Next')]",
+                    "//button[@type='submit']",
+                    "//button[contains(@class, 'VfPpkd') and contains(., 'Next')]",
+                    "//button[contains(@id, 'next')]",
+                ]
+                
+                for btn_xpath in submit_button_xpaths:
+                    try:
+                        buttons = driver.find_elements(By.XPATH, btn_xpath)
+                        for btn in buttons:
+                            if btn.is_displayed():
+                                logger.info(f"[2CAPTCHA] Clicking Next button on 'Verify it's you' page: {btn_xpath}")
+                                driver.execute_script("arguments[0].click();", btn)
+                                submit_button_found = True
+                                time.sleep(3)  # Wait for page to process
+                                break
+                        if submit_button_found:
+                            break
+                    except Exception as btn_err:
+                        logger.debug(f"[2CAPTCHA] Could not click button {btn_xpath}: {btn_err}")
+                        continue
+                
+                if not submit_button_found:
+                    logger.warning("[2CAPTCHA] Could not find Next button on 'Verify it's you' page - token may auto-submit")
+                    time.sleep(3)  # Wait for auto-submit
+        except Exception as verify_submit_err:
+            logger.debug(f"[2CAPTCHA] Error checking/submitting 'Verify it's you' page: {verify_submit_err}")
+        
         logger.info("[2CAPTCHA] ✓✓✓ CAPTCHA solved and token injected successfully!")
         return True, None
         
@@ -2419,16 +2467,94 @@ def login_google(driver, email, password, known_totp_secret=None):
                         
                         logger.warning("[STEP] ⚠️ Detected 'Verify it's you' page after CAPTCHA solving - checking for reCAPTCHA...")
                         
-                        # Check for reCAPTCHA checkbox/iframe
-                        recaptcha_detected = detect_captcha(driver, email=email)
+                        # Check for reCAPTCHA checkbox/iframe (enhanced detection for "Verify it's you" page)
+                        recaptcha_detected = False
+                        
+                        # Enhanced detection for "Verify it's you" page
+                        try:
+                            # Check for reCAPTCHA iframes
+                            recaptcha_iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha') or contains(@src, 'google.com/recaptcha')]")
+                            if recaptcha_iframes:
+                                for iframe in recaptcha_iframes:
+                                    try:
+                                        if iframe.is_displayed():
+                                            iframe_size = iframe.size
+                                            if iframe_size['width'] > 50 and iframe_size['height'] > 50:
+                                                recaptcha_detected = True
+                                                logger.info(f"[STEP] Found reCAPTCHA iframe on 'Verify it's you' page (size: {iframe_size['width']}x{iframe_size['height']})")
+                                                break
+                                    except:
+                                        continue
+                            
+                            # Also check using detect_captcha function
+                            if not recaptcha_detected:
+                                recaptcha_detected = detect_captcha(driver, email=email)
+                        except Exception as detect_err:
+                            logger.warning(f"[STEP] Error detecting reCAPTCHA: {detect_err}")
+                            recaptcha_detected = detect_captcha(driver, email=email)  # Fallback
+                        
                         if recaptcha_detected:
                             logger.info("[STEP] reCAPTCHA detected on 'Verify it's you' page - attempting to solve...")
-                            solved_recaptcha, recaptcha_error = solve_captcha_with_2captcha(driver, email=email)
-                            if solved_recaptcha:
-                                logger.info("[STEP] ✓ reCAPTCHA solved on 'Verify it's you' page! Waiting for redirect...")
-                                time.sleep(4)  # Wait for page redirect after reCAPTCHA
-                            else:
-                                logger.error(f"[STEP] ✗ Failed to solve reCAPTCHA on 'Verify it's you' page: {recaptcha_error}")
+                            
+                            # CRITICAL: Handle potential multiple reCAPTCHA challenges (double verification)
+                            max_recaptcha_attempts = 2
+                            recaptcha_solved = False
+                            
+                            for recaptcha_attempt in range(max_recaptcha_attempts):
+                                solved_recaptcha, recaptcha_error = solve_captcha_with_2captcha(driver, email=email)
+                                
+                                if solved_recaptcha:
+                                    logger.info(f"[STEP] ✓ reCAPTCHA solved on 'Verify it's you' page (attempt {recaptcha_attempt + 1})! Waiting for redirect...")
+                                    time.sleep(5)
+                                    
+                                    # Check if we're still on "Verify it's you" page
+                                    current_url_check = driver.current_url.lower()
+                                    page_title_check = driver.title.lower()
+                                    
+                                    if "verify" in current_url_check or "verify it's you" in page_title_check:
+                                        logger.info("[STEP] Still on verify page - checking for another reCAPTCHA...")
+                                        
+                                        # Check if another reCAPTCHA appeared (double verification scenario)
+                                        if detect_captcha(driver, email=email):
+                                            logger.warning(f"[STEP] ⚠️ Another reCAPTCHA detected (double verification) - attempt {recaptcha_attempt + 1}/{max_recaptcha_attempts}")
+                                            if recaptcha_attempt < max_recaptcha_attempts - 1:
+                                                time.sleep(2)
+                                                continue  # Retry solving
+                                            else:
+                                                logger.error("[STEP] ✗ Multiple reCAPTCHA challenges - max attempts reached")
+                                                break
+                                        
+                                        # Try to click Next button
+                                        try:
+                                            next_buttons = driver.find_elements(By.XPATH, 
+                                                "//button[contains(., 'Next')] | " +
+                                                "//span[contains(., 'Next')]/ancestor::button | " +
+                                                "//div[@role='button' and contains(., 'Next')] | " +
+                                                "//button[@type='submit']")
+                                            for btn in next_buttons:
+                                                if btn.is_displayed():
+                                                    logger.info("[STEP] Clicking Next button on 'Verify it's you' page...")
+                                                    driver.execute_script("arguments[0].click();", btn)
+                                                    time.sleep(4)
+                                                    break
+                                        except Exception as next_err:
+                                            logger.debug(f"[STEP] Could not click Next button: {next_err}")
+                                    else:
+                                        logger.info("[STEP] ✓ Redirected away from 'Verify it's you' page")
+                                    
+                                    recaptcha_solved = True
+                                    break
+                                else:
+                                    logger.warning(f"[STEP] reCAPTCHA solving failed (attempt {recaptcha_attempt + 1}/{max_recaptcha_attempts}): {recaptcha_error}")
+                                    if recaptcha_attempt < max_recaptcha_attempts - 1:
+                                        time.sleep(3)
+                                        if not detect_captcha(driver, email=email):
+                                            logger.info("[STEP] reCAPTCHA cleared - may have auto-resolved")
+                                            recaptcha_solved = True
+                                            break
+                            
+                            if not recaptcha_solved:
+                                logger.error(f"[STEP] ✗ Failed to solve reCAPTCHA on 'Verify it's you' page after {max_recaptcha_attempts} attempts")
                         else:
                             logger.info("[STEP] No reCAPTCHA detected on 'Verify it's you' page - may auto-resolve")
                             time.sleep(3)  # Wait for page to auto-resolve
@@ -2939,23 +3065,101 @@ def login_google(driver, email, password, known_totp_secret=None):
                                         
                                         logger.warning("[STEP] ⚠️ Detected 'Verify it's you' page after image CAPTCHA - checking for reCAPTCHA...")
                                         
-                                        # Check for reCAPTCHA checkbox/iframe
-                                        recaptcha_detected = detect_captcha(driver, email=email)
+                                        # Enhanced detection for reCAPTCHA on "Verify it's you" page
+                                        recaptcha_detected = False
+                                        
+                                        # Check for reCAPTCHA iframes first
+                                        try:
+                                            recaptcha_iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha') or contains(@src, 'google.com/recaptcha')]")
+                                            if recaptcha_iframes:
+                                                for iframe in recaptcha_iframes:
+                                                    try:
+                                                        if iframe.is_displayed():
+                                                            iframe_size = iframe.size
+                                                            if iframe_size['width'] > 50 and iframe_size['height'] > 50:
+                                                                recaptcha_detected = True
+                                                                logger.info(f"[STEP] Found reCAPTCHA iframe on 'Verify it's you' page (size: {iframe_size['width']}x{iframe_size['height']})")
+                                                                break
+                                                    except:
+                                                        continue
+                                        except Exception as iframe_check_err:
+                                            logger.debug(f"[STEP] Error checking reCAPTCHA iframes: {iframe_check_err}")
+                                        
+                                        # Also check using detect_captcha function
+                                        if not recaptcha_detected:
+                                            recaptcha_detected = detect_captcha(driver, email=email)
+                                        
                                         if recaptcha_detected:
                                             logger.info("[STEP] reCAPTCHA detected on 'Verify it's you' page - attempting to solve...")
-                                            solved_recaptcha, recaptcha_error = solve_captcha_with_2captcha(driver, email=email)
-                                            if solved_recaptcha:
-                                                logger.info("[STEP] ✓ reCAPTCHA solved on 'Verify it's you' page! Waiting for redirect...")
-                                                time.sleep(4)  # Wait for page redirect after reCAPTCHA
+                                            
+                                            # CRITICAL: Handle potential multiple reCAPTCHA challenges
+                                            max_recaptcha_attempts = 2  # Allow retry if first attempt fails
+                                            recaptcha_solved = False
+                                            
+                                            for recaptcha_attempt in range(max_recaptcha_attempts):
+                                                solved_recaptcha, recaptcha_error = solve_captcha_with_2captcha(driver, email=email)
                                                 
+                                                if solved_recaptcha:
+                                                    logger.info(f"[STEP] ✓ reCAPTCHA solved on 'Verify it's you' page (attempt {recaptcha_attempt + 1})! Waiting for redirect...")
+                                                    time.sleep(5)  # Wait for redirect
+                                                    
+                                                    # Check if we're still on "Verify it's you" page
+                                                    current_url_check = driver.current_url.lower()
+                                                    page_title_check = driver.title.lower()
+                                                    
+                                                    if "verify" in current_url_check or "verify it's you" in page_title_check:
+                                                        logger.info("[STEP] Still on verify page - checking for another reCAPTCHA or trying to submit...")
+                                                        
+                                                        # Check if another reCAPTCHA appeared (double verification)
+                                                        if detect_captcha(driver, email=email):
+                                                            logger.warning(f"[STEP] ⚠️ Another reCAPTCHA detected (double verification) - attempt {recaptcha_attempt + 1}/{max_recaptcha_attempts}")
+                                                            if recaptcha_attempt < max_recaptcha_attempts - 1:
+                                                                time.sleep(2)
+                                                                continue  # Retry solving
+                                                            else:
+                                                                logger.error("[STEP] ✗ Multiple reCAPTCHA challenges detected - max attempts reached")
+                                                                break
+                                                        
+                                                        # Try to click Next button if still on verify page
+                                                        try:
+                                                            next_buttons = driver.find_elements(By.XPATH, 
+                                                                "//button[contains(., 'Next')] | " +
+                                                                "//span[contains(., 'Next')]/ancestor::button | " +
+                                                                "//div[@role='button' and contains(., 'Next')] | " +
+                                                                "//button[@type='submit']")
+                                                            for btn in next_buttons:
+                                                                if btn.is_displayed():
+                                                                    logger.info("[STEP] Clicking Next button on 'Verify it's you' page...")
+                                                                    driver.execute_script("arguments[0].click();", btn)
+                                                                    time.sleep(4)  # Wait after clicking
+                                                                    break
+                                                        except Exception as next_err:
+                                                            logger.debug(f"[STEP] Could not click Next button: {next_err}")
+                                                    else:
+                                                        logger.info("[STEP] ✓ Redirected away from 'Verify it's you' page")
+                                                    
+                                                    recaptcha_solved = True
+                                                    break  # Success - exit retry loop
+                                                else:
+                                                    logger.warning(f"[STEP] reCAPTCHA solving failed (attempt {recaptcha_attempt + 1}/{max_recaptcha_attempts}): {recaptcha_error}")
+                                                    if recaptcha_attempt < max_recaptcha_attempts - 1:
+                                                        time.sleep(3)  # Wait before retry
+                                                        # Check if reCAPTCHA is still present
+                                                        if not detect_captcha(driver, email=email):
+                                                            logger.info("[STEP] reCAPTCHA cleared - may have auto-resolved")
+                                                            recaptcha_solved = True
+                                                            break
+                                            
+                                            if recaptcha_solved:
                                                 # Retry password field detection after reCAPTCHA solving
+                                                time.sleep(2)  # Additional wait
                                                 password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=10)
                                                 if password_input:
                                                     logger.info("[STEP] ✓ Password field found after reCAPTCHA solving!")
                                                 else:
-                                                    logger.warning("[STEP] Password field still not found after reCAPTCHA solving")
+                                                    logger.warning("[STEP] Password field still not found after reCAPTCHA solving - may need to retry email submission")
                                             else:
-                                                logger.error(f"[STEP] ✗ Failed to solve reCAPTCHA on 'Verify it's you' page: {recaptcha_error}")
+                                                logger.error(f"[STEP] ✗ Failed to solve reCAPTCHA on 'Verify it's you' page after {max_recaptcha_attempts} attempts")
                                         else:
                                             logger.info("[STEP] No reCAPTCHA detected on 'Verify it's you' page - may auto-resolve")
                                             time.sleep(3)  # Wait for page to auto-resolve
@@ -3075,30 +3279,95 @@ def login_google(driver, email, password, known_totp_secret=None):
                 return False, "driver_crashed", f"Driver crashed while checking URL: {e}"
             
             # Check for CAPTCHA after password submission (this is another common place for CAPTCHA)
-            if detect_captcha(driver, email=email):
-                logger.warning("[STEP] ⚠️ CAPTCHA detected after password submission!")
-                
-                # Try to solve CAPTCHA using 2Captcha if enabled
-                solved, solve_error = solve_captcha_with_2captcha(driver)
-                
-                if solved:
-                    logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Continuing with login...")
-                    # Wait a moment for page to process the solved CAPTCHA
-                    time.sleep(3)
-                    
-                    # Check if CAPTCHA is still present
-                    if detect_captcha(driver, email=email):
-                        logger.warning("[STEP] ⚠️ CAPTCHA still present after solving. Retrying...")
-                        time.sleep(2)
-                        solved_retry, _ = solve_captcha_with_2captcha(driver, email=email)
-                        if not solved_retry:
-                            logger.error("[STEP] ✗✗✗ CAPTCHA solving failed after retry")
-                            return False, "CAPTCHA_SOLVE_FAILED", "CAPTCHA detected after password submission and 2Captcha solving failed"
-                    else:
-                        logger.info("[STEP] ✓ CAPTCHA cleared after solving! Proceeding...")
+            # Also check for "Verify it's you" page with reCAPTCHA (double verification scenario)
+            page_title_check = driver.title.lower()
+            page_source_check = driver.page_source.lower()
+            is_verify_page = ("verify it's you" in page_title_check or 
+                            "verify it's you" in page_source_check or
+                            "verify" in current_url.lower())
+            
+            if detect_captcha(driver, email=email) or is_verify_page:
+                if is_verify_page:
+                    logger.warning("[STEP] ⚠️ 'Verify it's you' page detected after password submission!")
                 else:
-                    logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed: {solve_error}")
-                    return False, "CAPTCHA_DETECTED", f"CAPTCHA detected after password submission. 2Captcha solving failed: {solve_error}"
+                    logger.warning("[STEP] ⚠️ CAPTCHA detected after password submission!")
+                
+                # Enhanced solving with retry for double verification scenarios
+                max_captcha_attempts = 2
+                captcha_solved = False
+                
+                for captcha_attempt in range(max_captcha_attempts):
+                    # Try to solve CAPTCHA using 2Captcha if enabled
+                    solved, solve_error = solve_captcha_with_2captcha(driver, email=email)
+                    
+                    if solved:
+                        logger.info(f"[STEP] ✓✓✓ CAPTCHA solved using 2Captcha (attempt {captcha_attempt + 1})! Continuing with login...")
+                        # Wait a moment for page to process the solved CAPTCHA
+                        time.sleep(5)  # Increased wait time
+                        
+                        # Check if we're still on "Verify it's you" page
+                        current_url_after_solve = driver.current_url.lower()
+                        page_title_after_solve = driver.title.lower()
+                        
+                        if ("verify it's you" in page_title_after_solve or 
+                            "verify" in current_url_after_solve):
+                            logger.info("[STEP] Still on 'Verify it's you' page - checking for another reCAPTCHA...")
+                            
+                            # Check if another reCAPTCHA appeared (double verification)
+                            if detect_captcha(driver, email=email):
+                                logger.warning(f"[STEP] ⚠️ Another reCAPTCHA detected (double verification) - attempt {captcha_attempt + 1}/{max_captcha_attempts}")
+                                if captcha_attempt < max_captcha_attempts - 1:
+                                    time.sleep(3)
+                                    continue  # Retry solving
+                                else:
+                                    logger.error("[STEP] ✗ Multiple reCAPTCHA challenges after password submission - max attempts reached")
+                                    break
+                            
+                            # Try to click Next button if still on verify page
+                            try:
+                                next_buttons = driver.find_elements(By.XPATH, 
+                                    "//button[contains(., 'Next')] | " +
+                                    "//span[contains(., 'Next')]/ancestor::button | " +
+                                    "//div[@role='button' and contains(., 'Next')] | " +
+                                    "//button[@type='submit']")
+                                for btn in next_buttons:
+                                    if btn.is_displayed():
+                                        logger.info("[STEP] Clicking Next button on 'Verify it's you' page after password submission...")
+                                        driver.execute_script("arguments[0].click();", btn)
+                                        time.sleep(4)
+                                        break
+                            except Exception as next_err:
+                                logger.debug(f"[STEP] Could not click Next button: {next_err}")
+                        
+                        # Check if CAPTCHA is still present
+                        if detect_captcha(driver, email=email):
+                            logger.warning(f"[STEP] ⚠️ CAPTCHA still present after solving (attempt {captcha_attempt + 1}). Retrying...")
+                            if captcha_attempt < max_captcha_attempts - 1:
+                                time.sleep(3)
+                                continue  # Retry
+                            else:
+                                logger.error("[STEP] ✗✗✗ CAPTCHA solving failed after all retries")
+                                return False, "CAPTCHA_SOLVE_FAILED", "CAPTCHA detected after password submission and 2Captcha solving failed after retries"
+                        else:
+                            logger.info("[STEP] ✓ CAPTCHA cleared after solving! Proceeding...")
+                            captcha_solved = True
+                            break
+                    else:
+                        logger.warning(f"[STEP] CAPTCHA solving failed (attempt {captcha_attempt + 1}/{max_captcha_attempts}): {solve_error}")
+                        if captcha_attempt < max_captcha_attempts - 1:
+                            time.sleep(3)
+                            # Check if CAPTCHA cleared on its own
+                            if not detect_captcha(driver, email=email) and not is_verify_page:
+                                logger.info("[STEP] CAPTCHA cleared - may have auto-resolved")
+                                captcha_solved = True
+                                break
+                        else:
+                            logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed after {max_captcha_attempts} attempts: {solve_error}")
+                            return False, "CAPTCHA_DETECTED", f"CAPTCHA detected after password submission. 2Captcha solving failed: {solve_error}"
+                
+                if not captcha_solved:
+                    logger.error("[STEP] ✗ Failed to solve CAPTCHA after password submission")
+                    return False, "CAPTCHA_SOLVE_FAILED", "CAPTCHA detected after password submission and could not be solved"
             
             # Check for account verification/ID verification required
             if "speedbump/idvreenable" in current_url or "idvreenable" in current_url:
@@ -3260,10 +3529,25 @@ def login_google(driver, email, password, known_totp_secret=None):
                         for retry in range(3):
                             try:
                                 # Generate fresh TOTP code
-                                clean_secret = known_totp_secret.replace(" ", "").upper()
-                                totp = pyotp.TOTP(clean_secret)
-                                otp_code = totp.now()
-                                logger.info(f"[STEP] Generated TOTP code (attempt {retry + 1}): {otp_code}")
+                                # CRITICAL: Clean the secret key properly for TOTP generation
+                                # Remove spaces, convert to uppercase, and handle base32 encoding
+                                clean_secret = known_totp_secret.replace(" ", "").replace("-", "").upper().strip()
+                                
+                                # Validate secret key format (TOTP secrets are base32, typically 16-32 chars)
+                                if len(clean_secret) < 16:
+                                    logger.error(f"[STEP] Invalid TOTP secret key length: {len(clean_secret)} (minimum 16)")
+                                    return False, "INVALID_TOTP_SECRET", f"TOTP secret key too short: {len(clean_secret)} characters"
+                                
+                                try:
+                                    totp = pyotp.TOTP(clean_secret)
+                                    otp_code = totp.now()
+                                    logger.info(f"[STEP] Generated TOTP code (attempt {retry + 1}): {otp_code}")
+                                except Exception as totp_gen_err:
+                                    logger.error(f"[STEP] Failed to generate TOTP code: {totp_gen_err}")
+                                    logger.error(f"[STEP] Secret key (first 8 chars): {clean_secret[:8]}...")
+                                    if retry == 2:
+                                        return False, "TOTP_GENERATION_ERROR", f"Failed to generate TOTP code: {totp_gen_err}"
+                                    continue
                                 
                                 # Clear and enter OTP
                                 driver.execute_script("arguments[0].value = '';", otp_input)
@@ -4152,6 +4436,7 @@ def save_to_dynamodb(email, app_password, secret_key=None):
     Attributes: email, app_password, secret_key, created_at, updated_at
     
     Automatically creates the table if it doesn't exist.
+    Note: If secret_key is not provided but exists in DB (from retry), it will be preserved.
     """
     table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
     
@@ -4163,6 +4448,15 @@ def save_to_dynamodb(email, app_password, secret_key=None):
         # Use Unix timestamp (integer) for better DynamoDB performance and querying
         timestamp = int(time.time())
         
+        # Check if item already exists to preserve secret_key if not provided
+        existing_secret_key = None
+        try:
+            response = table.get_item(Key={"email": email})
+            if "Item" in response:
+                existing_secret_key = response["Item"].get("secret_key")
+        except Exception as get_err:
+            logger.debug(f"[DYNAMODB] Could not check existing item: {get_err}")
+        
         item = {
             "email": email,
             "app_password": app_password,
@@ -4170,9 +4464,13 @@ def save_to_dynamodb(email, app_password, secret_key=None):
             "updated_at": timestamp
         }
         
-        # Add secret_key if provided (masked for security)
+        # Add secret_key if provided, otherwise preserve existing one (for retry scenarios)
         if secret_key:
-            item["secret_key"] = secret_key[:4] + "****" + secret_key[-4:]
+            item["secret_key"] = secret_key  # Save full secret key (not masked) for TOTP generation
+        elif existing_secret_key:
+            # Preserve existing secret_key if not provided (retry scenario)
+            item["secret_key"] = existing_secret_key
+            logger.debug(f"[DYNAMODB] Preserved existing secret_key for {email}")
         
         # Put item (upsert - creates or updates)
         table.put_item(Item=item)
@@ -4213,6 +4511,148 @@ def save_to_dynamodb(email, app_password, secret_key=None):
     except Exception as e:
         logger.error(f"[DYNAMODB] Failed to save {email}: {e}")
         logger.error(f"[DYNAMODB] Traceback: {traceback.format_exc()}")
+        return False
+
+def save_secret_key_to_dynamodb(email, secret_key):
+    """
+    Save TOTP secret key to DynamoDB for future retries.
+    This allows the script to retrieve the secret key if a user retries after failure.
+    Table: gbot-app-passwords
+    Primary Key: email
+    """
+    table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
+    
+    try:
+        dynamodb = get_dynamodb_resource()
+        table = dynamodb.Table(table_name)
+        
+        timestamp = int(time.time())
+        
+        # Update existing item or create new one with just secret_key
+        try:
+            # Try to get existing item
+            response = table.get_item(Key={"email": email})
+            if "Item" in response:
+                # Update existing item with secret_key
+                table.update_item(
+                    Key={"email": email},
+                    UpdateExpression="SET secret_key = :sk, updated_at = :ts",
+                    ExpressionAttributeValues={
+                        ":sk": secret_key,  # Save FULL secret key
+                        ":ts": timestamp
+                    }
+                )
+                logger.info(f"[DYNAMODB] Updated secret_key for {email}")
+            else:
+                # Create new item with secret_key only
+                table.put_item(Item={
+                    "email": email,
+                    "secret_key": secret_key,  # Save FULL secret key
+                    "created_at": timestamp,
+                    "updated_at": timestamp
+                })
+                logger.info(f"[DYNAMODB] Saved secret_key for {email}")
+        except ClientError as e:
+            # If table doesn't exist, create it and retry
+            if e.response.get('Error', {}).get('Code') == 'ResourceNotFoundException':
+                logger.warning(f"[DYNAMODB] Table {table_name} not found. Creating...")
+                if ensure_dynamodb_table_exists(table_name):
+                    time.sleep(2)
+                    table.put_item(Item={
+                        "email": email,
+                        "secret_key": secret_key,
+                        "created_at": timestamp,
+                        "updated_at": timestamp
+                    })
+                    logger.info(f"[DYNAMODB] Saved secret_key for {email} after table creation")
+                else:
+                    logger.error(f"[DYNAMODB] Failed to create table {table_name}")
+                    return False
+            else:
+                raise
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"[DYNAMODB] Failed to save secret_key for {email}: {e}")
+        logger.error(f"[DYNAMODB] Traceback: {traceback.format_exc()}")
+        return False
+
+def get_secret_key_from_dynamodb(email):
+    """
+    Retrieve TOTP secret key from DynamoDB for retry attempts.
+    Returns the secret key if found, None otherwise.
+    """
+    table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
+    
+    try:
+        dynamodb = get_dynamodb_resource()
+        table = dynamodb.Table(table_name)
+        
+        response = table.get_item(Key={"email": email})
+        
+        if "Item" in response:
+            secret_key = response["Item"].get("secret_key")
+            if secret_key:
+                logger.info(f"[DYNAMODB] Retrieved secret_key for {email} (for retry)")
+                return secret_key
+            else:
+                logger.debug(f"[DYNAMODB] No secret_key found for {email}")
+                return None
+        else:
+            logger.debug(f"[DYNAMODB] No record found for {email}")
+            return None
+            
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'ResourceNotFoundException':
+            logger.debug(f"[DYNAMODB] Table {table_name} not found - no secret_key to retrieve")
+            return None
+        else:
+            logger.warning(f"[DYNAMODB] Error retrieving secret_key for {email}: {e}")
+            return None
+    except Exception as e:
+        logger.warning(f"[DYNAMODB] Exception retrieving secret_key for {email}: {e}")
+        return None
+
+def delete_secret_key_from_dynamodb(email):
+    """
+    Delete TOTP secret key from DynamoDB after successful completion.
+    This keeps the database clean and secure.
+    """
+    table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
+    
+    try:
+        dynamodb = get_dynamodb_resource()
+        table = dynamodb.Table(table_name)
+        
+        # Update item to remove secret_key (but keep app_password if it exists)
+        try:
+            response = table.get_item(Key={"email": email})
+            if "Item" in response:
+                # Remove secret_key attribute
+                table.update_item(
+                    Key={"email": email},
+                    UpdateExpression="REMOVE secret_key SET updated_at = :ts",
+                    ExpressionAttributeValues={
+                        ":ts": int(time.time())
+                    }
+                )
+                logger.info(f"[DYNAMODB] Deleted secret_key for {email}")
+                return True
+            else:
+                logger.debug(f"[DYNAMODB] No record found for {email} to delete secret_key")
+                return False
+        except ClientError as e:
+            if e.response.get('Error', {}).get('Code') == 'ResourceNotFoundException':
+                logger.debug(f"[DYNAMODB] Table {table_name} not found - nothing to delete")
+                return False
+            else:
+                logger.warning(f"[DYNAMODB] Error deleting secret_key for {email}: {e}")
+                return False
+                
+    except Exception as e:
+        logger.warning(f"[DYNAMODB] Exception deleting secret_key for {email}: {e}")
         return False
 
 # =====================================================================
@@ -4419,18 +4859,29 @@ def process_single_user(email, password, batch_start_time=None):
     step_completed = "init"
     error_code = None
     error_message = None
+    retrieved_secret_key = None  # Secret key retrieved from DynamoDB for retry
     
     try:
-        # Step 0: Initialize Chrome driver
+        # Step 0: Check for existing secret key in DynamoDB (for retry attempts)
+        step_start = time.time()
+        retrieved_secret_key = get_secret_key_from_dynamodb(email)
+        timings["secret_key_retrieval"] = round(time.time() - step_start, 2)
+        
+        if retrieved_secret_key:
+            logger.info(f"[DYNAMODB] ✓ Retrieved secret_key for {email} - will use for TOTP during login")
+        else:
+            logger.debug(f"[DYNAMODB] No existing secret_key found for {email} - proceeding with new setup")
+        
+        # Step 0.5: Initialize Chrome driver
         step_start = time.time()
         driver = get_chrome_driver()
         timings["driver_init"] = round(time.time() - step_start, 2)
         logger.info(f"[LAMBDA] Chrome driver started for {email}")
         
-        # Step 1: Login
+        # Step 1: Login (pass retrieved secret key if available for TOTP)
         step_completed = "login"
         step_start = time.time()
-        success, error_code, error_message = login_google(driver, email, password)
+        success, error_code, error_message = login_google(driver, email, password, known_totp_secret=retrieved_secret_key)
         timings["login"] = round(time.time() - step_start, 2)
         
         if not success:
@@ -4464,6 +4915,16 @@ def process_single_user(email, password, batch_start_time=None):
                 "secret_key": None,
                 "timings": timings
             }
+        
+        # Step 2.25: Save secret key to DynamoDB immediately (for retry if process fails)
+        step_start = time.time()
+        secret_save_success = save_secret_key_to_dynamodb(email, secret_key)
+        timings["secret_key_save"] = round(time.time() - step_start, 2)
+        
+        if secret_save_success:
+            logger.info(f"[DYNAMODB] ✓ Secret key saved for {email} (for future retries)")
+        else:
+            logger.warning(f"[DYNAMODB] ⚠️ Could not save secret key for {email}, continuing anyway...")
         
         # Step 2.5: Upload secret to SFTP
         step_start = time.time()
@@ -4613,6 +5074,16 @@ def process_single_user(email, password, batch_start_time=None):
             logger.info(f"[DYNAMODB] ✓ Password saved successfully for {email}")
         else:
             logger.warning(f"[DYNAMODB] ⚠️ Could not save to DynamoDB for {email}, continuing anyway...")
+        
+        # Step 4.6: Delete secret key from DynamoDB after successful completion (cleanup)
+        step_start = time.time()
+        secret_delete_success = delete_secret_key_from_dynamodb(email)
+        timings["secret_key_delete"] = round(time.time() - step_start, 2)
+        
+        if secret_delete_success:
+            logger.info(f"[DYNAMODB] ✓ Secret key deleted for {email} (cleanup after success)")
+        else:
+            logger.debug(f"[DYNAMODB] Secret key deletion skipped for {email} (may not exist)")
         
         # All steps completed successfully
         step_completed = "completed"
