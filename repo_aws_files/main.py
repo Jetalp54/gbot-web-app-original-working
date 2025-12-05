@@ -704,6 +704,314 @@ def get_twocaptcha_config():
             logger.warning("[2CAPTCHA CONFIG] ✗ 2Captcha API key is NOT SET (TWOCAPTCHA_API_KEY is empty)")
         return {'enabled': False, 'api_key': None}
 
+def solve_google_image_captcha(driver, api_key, email=None):
+    """
+    Solve Google's image-based CAPTCHA (not reCAPTCHA) using 2Captcha ImageToTextTask.
+    
+    This handles the CAPTCHA that shows "Type the text you hear or see" with a distorted text image.
+    
+    Args:
+        driver: Selenium WebDriver instance
+        api_key: 2Captcha API key
+        email: User email (optional, for logging)
+    
+    Returns:
+        (success: bool, solution: str|None, error: str|None)
+    """
+    try:
+        logger.info("[2CAPTCHA] Detected Google image CAPTCHA - using ImageToTextTask...")
+        
+        # Find the CAPTCHA input field (name="ca" or id="ca")
+        captcha_input = None
+        try:
+            captcha_input = driver.find_element(By.XPATH, "//input[@name='ca' or @id='ca']")
+            if not captcha_input.is_displayed():
+                logger.error("[2CAPTCHA] CAPTCHA input field found but not displayed")
+                return False, None, "CAPTCHA input field not visible"
+        except Exception as e:
+            logger.error(f"[2CAPTCHA] Could not find CAPTCHA input field: {e}")
+            return False, None, "CAPTCHA input field not found"
+        
+        # Find the CAPTCHA image element
+        # The image is usually near the input field, could be in various structures
+        captcha_image = None
+        image_element = None
+        
+        try:
+            # Try multiple strategies to find the CAPTCHA image
+            # Strategy 1: Look for img tag near the input field
+            parent = captcha_input.find_element(By.XPATH, "./ancestor::*[contains(@class, 'captcha') or contains(@id, 'captcha')][1]")
+            if parent:
+                images = parent.find_elements(By.TAG_NAME, "img")
+                for img in images:
+                    if img.is_displayed():
+                        img_src = img.get_attribute('src') or ''
+                        # Google CAPTCHA images are usually data URIs or from google.com
+                        if 'data:image' in img_src or 'google' in img_src.lower() or 'captcha' in img_src.lower():
+                            image_element = img
+                            logger.info("[2CAPTCHA] Found CAPTCHA image via parent container")
+                            break
+        except:
+            pass
+        
+        # Strategy 2: Look for img tags near the CAPTCHA input field
+        if not image_element:
+            try:
+                # Find images near the input field (CAPTCHA image is usually above or next to the input)
+                parent_container = captcha_input.find_element(By.XPATH, "./ancestor::form | ./ancestor::div[contains(@class, 'form')] | ./ancestor::div[contains(@role, 'form')] | ./ancestor::*[position()<=5]")
+                if parent_container:
+                    images = parent_container.find_elements(By.TAG_NAME, "img")
+                    for img in images:
+                        if img.is_displayed():
+                            img_src = img.get_attribute('src') or ''
+                            img_alt = img.get_attribute('alt') or ''
+                            # Check if it looks like a CAPTCHA image
+                            if ('captcha' in img_src.lower() or 'captcha' in img_alt.lower() or 
+                                'data:image' in img_src or img_src.startswith('http')):
+                                # Verify it's reasonably sized (CAPTCHA images are usually 200-400px wide)
+                                size = img.size
+                                if size['width'] > 150 and size['height'] > 30:
+                                    image_element = img
+                                    logger.info("[2CAPTCHA] Found CAPTCHA image near input field")
+                                    break
+            except:
+                pass
+        
+        # Strategy 2b: Look for img tags with specific attributes (broader search)
+        if not image_element:
+            try:
+                images = driver.find_elements(By.XPATH, "//img[contains(@src, 'captcha') or contains(@alt, 'captcha') or contains(@class, 'captcha')]")
+                for img in images:
+                    if img.is_displayed():
+                        size = img.size
+                        if size['width'] > 150 and size['height'] > 30:
+                            image_element = img
+                            logger.info("[2CAPTCHA] Found CAPTCHA image via img tag search")
+                            break
+            except:
+                pass
+        
+        # Strategy 3: Look for canvas element (Google sometimes uses canvas for CAPTCHA)
+        if not image_element:
+            try:
+                canvases = driver.find_elements(By.TAG_NAME, "canvas")
+                for canvas in canvases:
+                    if canvas.is_displayed():
+                        size = canvas.size
+                        # CAPTCHA canvas is usually reasonably sized (not tiny)
+                        if size['width'] > 100 and size['height'] > 50:
+                            image_element = canvas
+                            logger.info("[2CAPTCHA] Found CAPTCHA canvas element")
+                            break
+            except:
+                pass
+        
+        # Strategy 4: Screenshot the area around the input field (fallback)
+        if not image_element:
+            logger.warning("[2CAPTCHA] Could not find CAPTCHA image element, will screenshot area around input field")
+            # We'll use the input field's location to screenshot the area
+        
+        # Extract the image
+        image_base64 = None
+        
+        if image_element:
+            try:
+                # Try to get image from src attribute (if it's a data URI or URL)
+                img_src = image_element.get_attribute('src') or ''
+                if img_src.startswith('data:image'):
+                    # Extract base64 from data URI
+                    base64_data = img_src.split(',')[1] if ',' in img_src else img_src
+                    image_base64 = base64_data
+                    logger.info("[2CAPTCHA] Extracted CAPTCHA image from data URI")
+                elif img_src.startswith('http'):
+                    # Download the image
+                    with urllib.request.urlopen(img_src) as response:
+                        image_data = response.read()
+                        image_base64 = base64.b64encode(image_data).decode('utf-8')
+                    logger.info("[2CAPTCHA] Downloaded and encoded CAPTCHA image from URL")
+                else:
+                    # Screenshot the element
+                    screenshot_path = f"/tmp/captcha_image_{int(time.time())}.png"
+                    image_element.screenshot(screenshot_path)
+                    with open(screenshot_path, 'rb') as f:
+                        image_base64 = base64.b64encode(f.read()).decode('utf-8')
+                    os.remove(screenshot_path)
+                    logger.info("[2CAPTCHA] Screenshot CAPTCHA image element")
+            except Exception as e:
+                logger.warning(f"[2CAPTCHA] Error extracting image from element: {e}")
+                image_element = None
+        
+        # Fallback: Screenshot area around input field
+        if not image_base64 and captcha_input:
+            try:
+                logger.info("[2CAPTCHA] Using fallback: screenshot full page and extract CAPTCHA area")
+                # Screenshot the full page
+                full_screenshot_path = f"/tmp/captcha_full_{int(time.time())}.png"
+                driver.save_screenshot(full_screenshot_path)
+                
+                # Try to use PIL for cropping, fallback to full screenshot if not available
+                try:
+                    from PIL import Image
+                    full_img = Image.open(full_screenshot_path)
+                    
+                    # Get input field location
+                    location = captcha_input.location
+                    
+                    # Calculate crop area (CAPTCHA image is usually above the input field)
+                    x = max(0, location['x'] - 200)
+                    y = max(0, location['y'] - 150)
+                    width = min(full_img.width - x, 400)
+                    height = min(full_img.height - y, 200)
+                    
+                    cropped_img = full_img.crop((x, y, x + width, y + height))
+                    cropped_path = f"/tmp/captcha_cropped_{int(time.time())}.png"
+                    cropped_img.save(cropped_path)
+                    
+                    # Convert to base64
+                    with open(cropped_path, 'rb') as f:
+                        image_base64 = base64.b64encode(f.read()).decode('utf-8')
+                    
+                    # Clean up
+                    os.remove(cropped_path)
+                    logger.info("[2CAPTCHA] Cropped and encoded CAPTCHA area from screenshot")
+                except ImportError:
+                    # PIL not available, use full screenshot
+                    logger.warning("[2CAPTCHA] PIL not available, using full page screenshot")
+                    with open(full_screenshot_path, 'rb') as f:
+                        image_base64 = base64.b64encode(f.read()).decode('utf-8')
+                    logger.info("[2CAPTCHA] Encoded full page screenshot (PIL not available for cropping)")
+                
+                # Clean up
+                os.remove(full_screenshot_path)
+            except Exception as e:
+                logger.error(f"[2CAPTCHA] Error in fallback screenshot method: {e}")
+                logger.error(traceback.format_exc())
+                return False, None, f"Failed to extract CAPTCHA image: {e}"
+        
+        if not image_base64:
+            return False, None, "Could not extract CAPTCHA image"
+        
+        # Send to 2Captcha ImageToTextTask API
+        logger.info("[2CAPTCHA] Sending CAPTCHA image to 2Captcha ImageToTextTask...")
+        create_task_url = 'https://api.2captcha.com/createTask'
+        
+        task_data = {
+            'clientKey': api_key,
+            'task': {
+                'type': 'ImageToTextTask',
+                'body': image_base64,
+                'case': True,  # Case sensitive
+                'numeric': 0,  # 0 = not numeric, 1 = numeric only, 2 = numbers and letters
+                'math': 0,  # 0 = not math, 1 = math
+                'minLength': 0,  # Minimum length (0 = no limit)
+                'maxLength': 0,  # Maximum length (0 = no limit)
+            }
+        }
+        
+        json_data = json.dumps(task_data).encode('utf-8')
+        logger.info(f"[2CAPTCHA] ImageToTextTask payload size: {len(image_base64)} bytes (base64)")
+        
+        request = urllib.request.Request(
+            create_task_url,
+            data=json_data,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                response_body = response.read().decode('utf-8')
+                logger.info(f"[2CAPTCHA] ImageToTextTask API response status: {response.status}")
+                logger.info(f"[2CAPTCHA] Raw API response: {response_body}")
+                create_result = json.loads(response_body)
+                
+                # Check for errors
+                if create_result.get('errorId') != 0:
+                    error_code = create_result.get('errorCode', 'Unknown')
+                    error_desc = create_result.get('errorDescription', 'Unknown error')
+                    logger.error(f"[2CAPTCHA] Failed to create ImageToTextTask: {error_code} - {error_desc}")
+                    return False, None, f"2Captcha task creation failed: {error_desc}"
+                
+                # Extract task ID
+                task_id = create_result.get('taskId')
+                if not task_id:
+                    logger.error("[2CAPTCHA] No task ID received from 2Captcha")
+                    return False, None, "No task ID received from 2Captcha"
+                
+                logger.info(f"[2CAPTCHA] ImageToTextTask created successfully. Task ID: {task_id}")
+        except urllib.error.HTTPError as e:
+            logger.error(f"[2CAPTCHA] HTTP error creating ImageToTextTask: {e}")
+            error_body = e.read().decode('utf-8') if hasattr(e, 'read') else str(e)
+            logger.error(f"[2CAPTCHA] Error response: {error_body}")
+            return False, None, f"HTTP error: {e}"
+        except Exception as e:
+            logger.error(f"[2CAPTCHA] Error creating ImageToTextTask: {e}")
+            logger.error(traceback.format_exc())
+            return False, None, f"Error creating task: {e}"
+        
+        # Poll for solution
+        get_result_url = 'https://api.2captcha.com/getTaskResult'
+        max_wait_time = 120  # Maximum wait time in seconds
+        poll_interval = 3  # Poll every 3 seconds
+        start_time = time.time()
+        
+        logger.info(f"[2CAPTCHA] Waiting for 2Captcha to solve image CAPTCHA (this may take 10-120 seconds)...")
+        
+        while time.time() - start_time < max_wait_time:
+            time.sleep(poll_interval)
+            elapsed = int(time.time() - start_time)
+            
+            if elapsed % 15 == 0:  # Log every 15 seconds
+                logger.info(f"[2CAPTCHA] Still solving... (waited {elapsed}s/{max_wait_time}s)")
+            
+            try:
+                result_data = {
+                    'clientKey': api_key,
+                    'taskId': task_id
+                }
+                
+                result_json = json.dumps(result_data).encode('utf-8')
+                result_request = urllib.request.Request(
+                    get_result_url,
+                    data=result_json,
+                    headers={'Content-Type': 'application/json'},
+                    method='POST'
+                )
+                
+                with urllib.request.urlopen(result_request, timeout=30) as response:
+                    result_body = response.read().decode('utf-8')
+                    result = json.loads(result_body)
+                    
+                    status = result.get('status')
+                    
+                    if status == 1:  # Ready
+                        solution = result.get('solution', {}).get('text')
+                        if solution:
+                            logger.info(f"[2CAPTCHA] ✓ Image CAPTCHA solved! Solution: {solution}")
+                            return True, solution, None
+                        else:
+                            logger.error("[2CAPTCHA] Solution received but no text in response")
+                            return False, None, "No solution text in response"
+                    elif status == 0:  # Processing
+                        continue  # Keep polling
+                    else:
+                        error_code = result.get('errorCode', 'Unknown')
+                        error_desc = result.get('errorDescription', 'Unknown error')
+                        logger.error(f"[2CAPTCHA] Error getting solution: {error_code} - {error_desc}")
+                        return False, None, f"2Captcha solution error: {error_desc}"
+                        
+            except Exception as e:
+                logger.warning(f"[2CAPTCHA] Error polling for solution: {e}")
+                continue
+        
+        logger.error(f"[2CAPTCHA] Timeout waiting for solution (waited {max_wait_time}s)")
+        return False, None, "Timeout waiting for CAPTCHA solution"
+        
+    except Exception as e:
+        logger.error(f"[2CAPTCHA] Exception in solve_google_image_captcha: {e}")
+        logger.error(traceback.format_exc())
+        return False, None, str(e)
+
 def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
     """
     Solve reCAPTCHA v2 using 2Captcha API.
@@ -1350,6 +1658,7 @@ def inject_recaptcha_token(driver, token):
 def solve_captcha_with_2captcha(driver, email=None):
     """
     Detect and solve CAPTCHA using 2Captcha API if enabled.
+    Automatically detects whether it's reCAPTCHA or Google image CAPTCHA.
     Returns (solved: bool, error: str|None)
     
     Args:
@@ -1364,9 +1673,90 @@ def solve_captcha_with_2captcha(driver, email=None):
             return False, "2Captcha not enabled"
         
         api_key = twocaptcha_config['api_key']
-        logger.info("[2CAPTCHA] 2Captcha is enabled, attempting to solve CAPTCHA...")
+        logger.info("[2CAPTCHA] 2Captcha is enabled, detecting CAPTCHA type...")
         
-        # Solve the CAPTCHA
+        # First, check if it's Google's image CAPTCHA (not reCAPTCHA)
+        # Look for the input field with name="ca" and aria-label containing "hear or see"
+        is_image_captcha = False
+        captcha_input = None
+        
+        try:
+            captcha_inputs = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
+            for inp in captcha_inputs:
+                if inp.is_displayed():
+                    aria_label = inp.get_attribute('aria-label') or ''
+                    if 'hear or see' in aria_label.lower() or 'captcha' in aria_label.lower():
+                        is_image_captcha = True
+                        captcha_input = inp
+                        logger.info("[2CAPTCHA] Detected Google image CAPTCHA (not reCAPTCHA)")
+                        break
+        except Exception as e:
+            logger.debug(f"[2CAPTCHA] Error checking for image CAPTCHA: {e}")
+        
+        if is_image_captcha and captcha_input:
+            # Solve Google image CAPTCHA using ImageToTextTask
+            logger.info("[2CAPTCHA] Solving Google image CAPTCHA using ImageToTextTask...")
+            success, solution, error = solve_google_image_captcha(driver, api_key, email=email)
+            
+            if not success or not solution:
+                logger.error(f"[2CAPTCHA] Failed to solve image CAPTCHA: {error}")
+                capture_captcha_screenshot(driver, captcha_type="image_solve_failed", email=email)
+                return False, error or "Failed to solve image CAPTCHA"
+            
+            # Enter the solution into the input field
+            try:
+                logger.info(f"[2CAPTCHA] Entering solution into CAPTCHA input field: {solution}")
+                
+                # Clear the field first
+                captcha_input.clear()
+                time.sleep(0.2)
+                
+                # Enter the solution with human-like typing
+                simulate_human_typing(captcha_input, solution, driver)
+                
+                # Trigger input events to ensure Google's scripts detect it
+                driver.execute_script("""
+                    var input = arguments[0];
+                    var value = arguments[1];
+                    input.value = value;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    input.dispatchEvent(new Event('keyup', { bubbles: true }));
+                """, captcha_input, solution)
+                
+                logger.info("[2CAPTCHA] ✓ Solution entered into CAPTCHA input field")
+                
+                # Wait a moment for Google to process
+                time.sleep(2)
+                
+                # Try to submit by finding and clicking the "Next" button or form submit
+                try:
+                    # Look for Next button
+                    next_button = driver.find_elements(By.XPATH, 
+                        "//button[contains(., 'Next') or contains(., 'NEXT')] | " +
+                        "//span[contains(., 'Next')]/ancestor::button | " +
+                        "//div[@role='button' and contains(., 'Next')]")
+                    
+                    for btn in next_button:
+                        if btn.is_displayed():
+                            logger.info("[2CAPTCHA] Clicking Next button after entering CAPTCHA solution...")
+                            driver.execute_script("arguments[0].click();", btn)
+                            time.sleep(2)
+                            break
+                except Exception as submit_err:
+                    logger.debug(f"[2CAPTCHA] Could not auto-submit after CAPTCHA: {submit_err}")
+                    # Continue anyway - the solution is entered, user might need to click manually
+                
+                logger.info("[2CAPTCHA] ✓✓✓ Google image CAPTCHA solved and solution entered!")
+                return True, None
+                
+            except Exception as enter_err:
+                logger.error(f"[2CAPTCHA] Error entering solution into input field: {enter_err}")
+                logger.error(traceback.format_exc())
+                return False, f"Failed to enter solution: {enter_err}"
+        
+        # Otherwise, try to solve as reCAPTCHA
+        logger.info("[2CAPTCHA] Attempting to solve as reCAPTCHA...")
         success, token, error = solve_recaptcha_v2(driver, api_key)
         
         if not success or not token:
