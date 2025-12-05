@@ -859,32 +859,87 @@ class AwsEducationApp(tk.Tk):
         
         return users
     
-    def _invoke_single_lambda(self, session, email, password, index, total):
+    def _discover_all_lambdas(self, access_key, secret_key):
+        """
+        Discover ALL Lambda functions across ALL regions.
+        Returns: dict {region: [function_names]}
+        """
+        all_lambdas_by_region = {}
+        
+        # List of all AWS regions to search
+        all_regions = [
+            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-central-2', 'eu-north-1', 'eu-south-1', 'eu-south-2',
+            'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4', 'ap-southeast-5',
+            'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
+            'ap-south-1', 'ap-south-2', 'ap-east-1',
+            'ca-central-1', 'ca-west-1',
+            'af-south-1',
+            'cn-north-1', 'cn-northwest-1',
+            'ap-south-1',
+            'mx-central-1',
+            'me-south-1', 'me-central-1', 'il-central-1',
+            'sa-east-1',
+        ]
+        
+        for region in all_regions:
+            try:
+                region_session = boto3.Session(
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                    region_name=region
+                )
+                lam = region_session.client("lambda")
+                all_functions = lam.list_functions()
+                
+                matching_functions = [
+                    fn['FunctionName'] for fn in all_functions.get('Functions', [])
+                    if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME) or PRODUCTION_LAMBDA_NAME in fn['FunctionName']
+                ]
+                
+                if matching_functions:
+                    all_lambdas_by_region[region] = matching_functions
+            except Exception as e:
+                # Skip regions that fail (permissions, etc.)
+                continue
+        
+        return all_lambdas_by_region
+    
+    def _invoke_single_lambda(self, session, email, password, index, total, all_lambdas_by_region=None):
         """
         Invoke Lambda for a single user account.
+        Uses ALL discovered lambdas across ALL regions for distribution.
         Returns (email, success, response_data, error_message)
         """
-        lam = session.client("lambda")
-        
         try:
-            # Discover Lambda functions dynamically
-            all_functions = lam.list_functions()
-            matching_functions = [
-                fn['FunctionName'] for fn in all_functions.get('Functions', [])
-                if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME) or 'edu-gw-chromium' in fn['FunctionName']
-            ]
+            access_key = self.access_key_var.get().strip()
+            secret_key = self.secret_key_var.get().strip()
             
-            if not matching_functions:
-                return (email, False, None, f"No Lambda functions found matching '{PRODUCTION_LAMBDA_NAME}'")
+            # Discover all lambdas if not provided
+            if all_lambdas_by_region is None:
+                all_lambdas_by_region = self._discover_all_lambdas(access_key, secret_key)
             
-            # Use hash to distribute across multiple functions
-            if len(matching_functions) > 1:
-                import hashlib
-                user_hash = int(hashlib.md5(email.encode()).hexdigest(), 16)
-                function_index = user_hash % len(matching_functions)
-                lambda_function_name = matching_functions[function_index]
-            else:
-                lambda_function_name = matching_functions[0]
+            # Flatten all lambdas with their regions: [(region, function_name), ...]
+            all_lambdas_flat = []
+            for region, func_names in all_lambdas_by_region.items():
+                for func_name in func_names:
+                    all_lambdas_flat.append((region, func_name))
+            
+            if not all_lambdas_flat:
+                return (email, False, None, f"No Lambda functions found matching '{PRODUCTION_LAMBDA_NAME}' across any region")
+            
+            # Use hash to distribute across ALL functions in ALL regions
+            user_hash = int(hashlib.md5(email.encode()).hexdigest(), 16)
+            function_index = user_hash % len(all_lambdas_flat)
+            target_region, lambda_function_name = all_lambdas_flat[function_index]
+            
+            # Create session for the target region
+            target_session = boto3.Session(
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=target_region
+            )
+            lam = target_session.client("lambda")
             
             event = {
                 "email": email,
@@ -902,7 +957,7 @@ class AwsEducationApp(tk.Tk):
             status_code = resp.get("StatusCode", 0)
             
             if status_code == 202:
-                return (email, True, {"status": "invoked"}, None)
+                return (email, True, {"status": "invoked", "region": target_region, "function": lambda_function_name}, None)
             else:
                 # Try to read response if it's synchronous
                 payload = resp.get("Payload")
@@ -916,8 +971,6 @@ class AwsEducationApp(tk.Tk):
                 else:
                     return (email, False, None, f"Unexpected status code: {status_code}")
                     
-        except lam.exceptions.ResourceNotFoundException:
-            return (email, False, None, "Lambda not found")
         except Exception as e:
             return (email, False, None, str(e))
     
@@ -959,6 +1012,30 @@ class AwsEducationApp(tk.Tk):
         self.log(f"Starting parallel Lambda invocations for {total_users} accounts...")
         self.log("=" * 60)
         
+        # Discover ALL lambdas across ALL regions ONCE
+        self.log("[INVOKE] Discovering Lambda functions across all regions...")
+        try:
+            access_key = self.access_key_var.get().strip()
+            secret_key = self.secret_key_var.get().strip()
+            all_lambdas_by_region = self._discover_all_lambdas(access_key, secret_key)
+            
+            # Log discovered lambdas
+            total_lambdas = sum(len(funcs) for funcs in all_lambdas_by_region.values())
+            self.log(f"[INVOKE] Discovered {total_lambdas} Lambda function(s) across {len(all_lambdas_by_region)} region(s):")
+            for region, func_names in sorted(all_lambdas_by_region.items()):
+                self.log(f"[INVOKE]   - {region}: {len(func_names)} function(s) - {', '.join(func_names)}")
+            
+            if total_lambdas == 0:
+                self.log("ERROR: No Lambda functions found! Please create Lambda functions first.")
+                messagebox.showerror("No Lambdas", "No Lambda functions found across any region. Please create Lambda functions first.")
+                return
+        except Exception as e:
+            self.log(f"ERROR discovering lambdas: {e}")
+            messagebox.showerror("Error", f"Failed to discover Lambda functions: {e}")
+            return
+        
+        self.log("=" * 60)
+        
         # Update status
         self.multi_status_label.config(text=f"Processing: 0/{total_users} completed")
         
@@ -982,7 +1059,7 @@ class AwsEducationApp(tk.Tk):
         def process_user(user_data):
             email, password = user_data
             index = users.index((email, password)) + 1
-            return self._invoke_single_lambda(session, email, password, index, total_users)
+            return self._invoke_single_lambda(session, email, password, index, total_users, all_lambdas_by_region)
         
         # Execute in parallel
         with ThreadPoolExecutor(max_workers=max_workers) as executor:

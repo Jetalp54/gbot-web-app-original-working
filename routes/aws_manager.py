@@ -2656,23 +2656,36 @@ def create_lambdas():
                 for geo in skipped_geos_list:
                     orphaned_functions.extend(functions_by_geo_dict[geo])
                 
-                # 3. Redistribute orphaned functions to valid regions
+                # 3. Redistribute orphaned functions to valid regions EQUALLY
                 if orphaned_functions and valid_geos_list:
                     logger.info(f"[LAMBDA] [REDISTRIBUTE] Found {len(orphaned_functions)} functions from skipped regions to redistribute.")
                     
-                    for i, (func_num, old_name) in enumerate(orphaned_functions):
-                        # Round-robin assignment to valid regions
-                        target_geo = valid_geos_list[i % len(valid_geos_list)]
+                    # Calculate equal distribution for orphaned functions
+                    total_orphaned = len(orphaned_functions)
+                    base_orphaned_per_region = total_orphaned // len(valid_geos_list)
+                    orphaned_remainder = total_orphaned % len(valid_geos_list)
+                    
+                    logger.info(f"[LAMBDA] [REDISTRIBUTE] Distributing {total_orphaned} orphaned functions across {len(valid_geos_list)} valid regions")
+                    logger.info(f"[LAMBDA] [REDISTRIBUTE] Base: {base_orphaned_per_region} per region, Remainder: {orphaned_remainder} regions get +1")
+                    
+                    orphaned_index = 0
+                    for geo_index, geo in enumerate(valid_geos_list):
+                        # First 'orphaned_remainder' regions get one extra orphaned function
+                        orphaned_in_this_geo = base_orphaned_per_region + (1 if geo_index < orphaned_remainder else 0)
                         
-                        # Generate new name for the target region
-                        # Name format: edu-gw-chromium-{geo_code}-{func_num}
-                        geo_code = target_geo.replace('-', '')
-                        new_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
-                        
-                        # Add to the target region's list
-                        functions_by_geo_dict[target_geo].append((func_num, new_name))
-                        
-                        logger.info(f"[LAMBDA] [REDISTRIBUTE] Moved function #{func_num} from skipped region to {target_geo} (Renamed: {old_name} -> {new_name})")
+                        for _ in range(orphaned_in_this_geo):
+                            if orphaned_index < len(orphaned_functions):
+                                func_num, old_name = orphaned_functions[orphaned_index]
+                                
+                                # Generate new name for the target region
+                                geo_code = geo.replace('-', '')
+                                new_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
+                                
+                                # Add to the target region's list
+                                functions_by_geo_dict[geo].append((func_num, new_name))
+                                
+                                logger.info(f"[LAMBDA] [REDISTRIBUTE] Moved function #{func_num} from skipped region to {geo} (Renamed: {old_name} -> {new_name})")
+                                orphaned_index += 1
                 
                 # 4. Remove skipped regions from the dictionary
                 functions_by_geo_dict = {k: v for k, v in functions_by_geo_dict.items() if k in valid_geos}
@@ -3339,29 +3352,10 @@ def bulk_generate():
                 # Instead, we'll look for functions in their assigned regions during processing
                 logger.info(f"[BULK] Will process users using geo-distributed Lambda functions")
                 
-                # NEW LOGIC: Calculate total functions based on user count
-                # Distribute functions evenly across ALL available geos
-                # Process functions sequentially within each geo
-                
-                import math
-                
-                USERS_PER_FUNCTION = 10  # Fixed: Each function handles exactly 10 users
-                
-                # Calculate total number of functions needed
-                total_users = len(users)
-                num_functions = math.ceil(total_users / USERS_PER_FUNCTION)
-                
+                # CRITICAL FIX: Use ALL existing Lambda functions (not calculate based on user count)
+                # Discover which geos actually have Lambda functions
                 logger.info("=" * 60)
-                logger.info(f"[BULK] Function Calculation")
-                logger.info(f"[BULK] Total users: {total_users}")
-                logger.info(f"[BULK] Users per function: {USERS_PER_FUNCTION}")
-                logger.info(f"[BULK] Total functions needed: {num_functions}")
-                logger.info("=" * 60)
-                
-                # CRITICAL FIX: Discover which geos actually have Lambda functions
-                # Don't assume all geos have functions - only use geos that actually exist
-                logger.info("=" * 60)
-                logger.info(f"[BULK] Discovering geos with existing Lambda functions...")
+                logger.info(f"[BULK] Discovering ALL existing Lambda functions across all regions...")
                 logger.info("=" * 60)
                 
                 geos_with_functions = {}  # {geo: [list of function_names]}
@@ -3397,84 +3391,54 @@ def bulk_generate():
                     logger.error(f"[BULK] ❌❌❌ {error_msg}")
                     raise Exception(error_msg)
                 
+                # Count total existing lambdas
+                total_existing_lambdas = sum(len(funcs) for funcs in geos_with_functions.values())
+                
                 logger.info("=" * 60)
-                logger.info(f"[BULK] Found {len(geos_with_functions)} geo(s) with Lambda functions:")
+                logger.info(f"[BULK] Found {len(geos_with_functions)} geo(s) with {total_existing_lambdas} total Lambda function(s):")
                 for geo, funcs in geos_with_functions.items():
-                    logger.info(f"[BULK]   - {geo}: {len(funcs)} function(s)")
+                    logger.info(f"[BULK]   - {geo}: {len(funcs)} function(s) - {', '.join(funcs)}")
                 logger.info("=" * 60)
                 
-                # Distribute functions evenly across geos that ACTUALLY have Lambda functions
-                available_geos = list(geos_with_functions.keys())
-                base_functions_per_region = num_functions // len(available_geos)
-                remainder = num_functions % len(available_geos)
+                # Use ALL existing lambdas - create flat list of (geo, function_name) tuples
+                all_lambdas_flat = []
+                for geo, func_names in geos_with_functions.items():
+                    for func_name in func_names:
+                        all_lambdas_flat.append((geo, func_name))
                 
-                logger.info(f"[BULK] Distribution calculation: {num_functions} functions across {len(available_geos)} geos with functions")
-                logger.info(f"[BULK] Base: {base_functions_per_region} per geo, Remainder: {remainder} geos get +1")
+                total_users = len(users)
+                USERS_PER_FUNCTION = 10  # Fixed: Each function handles exactly 10 users
                 
-                functions_per_geo = {}  # {geo: [list of function_numbers]}
-                func_counter = 0
+                # Distribute users across ALL existing lambdas
+                # Each lambda gets up to 10 users, distributed round-robin
+                user_batches = []  # List of (geo, function_name, user_batch) tuples
                 
-                for geo_index, geo in enumerate(available_geos):
-                    # First 'remainder' geos get one extra function for equal distribution
-                    functions_in_this_geo = base_functions_per_region + (1 if geo_index < remainder else 0)
+                logger.info(f"[BULK] Distributing {total_users} users across {total_existing_lambdas} Lambda function(s)")
+                logger.info(f"[BULK] Each Lambda will process up to {USERS_PER_FUNCTION} user(s)")
+                
+                # Round-robin distribution: assign users to lambdas in order
+                for user_idx, user in enumerate(users):
+                    # Determine which lambda should handle this user (round-robin)
+                    lambda_idx = user_idx % len(all_lambdas_flat)
+                    geo, function_name = all_lambdas_flat[lambda_idx]
                     
-                    if geo not in functions_per_geo:
-                        functions_per_geo[geo] = []
+                    # Find or create batch for this lambda
+                    batch_found = False
+                    for batch_idx, (batch_geo, batch_func, batch_users) in enumerate(user_batches):
+                        if batch_geo == geo and batch_func == function_name and len(batch_users) < USERS_PER_FUNCTION:
+                            user_batches[batch_idx][2].append(user)
+                            batch_found = True
+                            break
                     
-                    for i in range(functions_in_this_geo):
-                        func_num = func_counter + 1  # Function numbers start at 1
-                        functions_per_geo[geo].append(func_num)
-                        func_counter += 1
+                    if not batch_found:
+                        # Create new batch for this lambda
+                        user_batches.append([geo, function_name, [user]])
                 
                 logger.info("=" * 60)
-                logger.info(f"[BULK] Function Distribution Across Geos")
-                logger.info(f"[BULK] Total functions: {num_functions}")
-                logger.info(f"[BULK] Geos with functions: {len(available_geos)}")
-                logger.info(f"[BULK] Functions per geo:")
-                for geo, func_numbers in sorted(functions_per_geo.items()):
-                    logger.info(f"[BULK]   - {geo}: {len(func_numbers)} function(s) {func_numbers}")
+                logger.info(f"[BULK] Created {len(user_batches)} batch(es) across {len(geos_with_functions)} geo(s):")
+                for geo, func_name, batch_users in user_batches:
+                    logger.info(f"[BULK]   - {geo}/{func_name}: {len(batch_users)} user(s)")
                 logger.info("=" * 60)
-                
-                # Split users into batches of 10, assigning each batch to a function
-                # Function 1 gets users 0-9, Function 2 gets users 10-19, etc.
-                # CRITICAL: Each batch MUST be exactly 10 users or less
-                # Map function numbers to their assigned geos based on equal distribution
-                func_to_geo = {}  # {func_num: geo}
-                for geo, func_numbers in functions_per_geo.items():
-                    for func_num in func_numbers:
-                        func_to_geo[func_num] = geo
-                
-                user_batches = []  # List of (function_number, geo, user_batch) tuples
-                logger.info(f"[BULK] Creating batches: total_users={total_users}, num_functions={num_functions}, USERS_PER_FUNCTION={USERS_PER_FUNCTION}")
-                for func_num in range(1, num_functions + 1):  # Function numbers start at 1
-                    start_idx = (func_num - 1) * USERS_PER_FUNCTION
-                    end_idx = min(start_idx + USERS_PER_FUNCTION, total_users)
-                    batch_users = users[start_idx:end_idx]
-                
-                    # ENFORCE: Ensure batch never exceeds 10 users
-                    if len(batch_users) > USERS_PER_FUNCTION:
-                        logger.error(f"[BULK] ⚠️ CRITICAL: Batch {func_num} has {len(batch_users)} users, exceeding limit of {USERS_PER_FUNCTION}! Truncating...")
-                        batch_users = batch_users[:USERS_PER_FUNCTION]
-                    
-                    if batch_users:
-                        # Get the geo assigned to this function number
-                        geo = func_to_geo.get(func_num)
-                        if not geo:
-                            logger.error(f"[BULK] ⚠️ ERROR: Function {func_num} not found in geo mapping!")
-                            # Use first available geo as fallback
-                            if 'available_geos' in locals() and available_geos:
-                                geo = available_geos[0]
-                                logger.warning(f"[BULK] Using fallback geo: {geo}")
-                            else:
-                                logger.error(f"[BULK] No available geos! Skipping batch for function {func_num}")
-                                continue
-                        
-                        user_batches.append((func_num, geo, batch_users))
-                        logger.info(f"[BULK] Function {func_num} ({geo}) will process {len(batch_users)} user(s) (MAX: {USERS_PER_FUNCTION}): {[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
-                        if len(batch_users) > USERS_PER_FUNCTION:
-                            logger.error(f"[BULK] ⚠️ ERROR: Function {func_num} batch size {len(batch_users)} exceeds limit {USERS_PER_FUNCTION}!")
-                    else:
-                        logger.warning(f"[BULK] Function {func_num} has empty batch (start_idx={start_idx}, end_idx={end_idx}, total_users={total_users})")
                 
                 # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
                 USERS_PER_BATCH = 10
@@ -3786,15 +3750,15 @@ def bulk_generate():
                     
                         return batch_results
                         
-                # Group batches by geo for sequential processing within each geo
-                batches_by_geo = {}  # {geo: [(function_number, user_batch), ...]}
+                # Group batches by geo for parallel processing within each geo
+                batches_by_geo = {}  # {geo: [(function_name, user_batch), ...]}
                 logger.info(f"[BULK] Grouping {len(user_batches)} batches by geo...")
-                for func_num, geo, batch_users in user_batches:
-                    logger.info(f"[BULK] Processing batch: func_num={func_num}, geo={geo}, batch_size={len(batch_users)}, users={[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
+                for geo, function_name, batch_users in user_batches:
+                    logger.info(f"[BULK] Processing batch: geo={geo}, function={function_name}, batch_size={len(batch_users)}, users={[u['email'] for u in batch_users[:3]]}{'...' if len(batch_users) > 3 else ''}")
                     if geo not in batches_by_geo:
                         batches_by_geo[geo] = []
-                    batches_by_geo[geo].append((func_num, batch_users))
-                    logger.info(f"[BULK] Added to geo {geo}: Function {func_num} with {len(batch_users)} user(s)")
+                    batches_by_geo[geo].append((function_name, batch_users))
+                    logger.info(f"[BULK] Added to geo {geo}: Function {function_name} with {len(batch_users)} user(s)")
             
                 logger.info("=" * 60)
                 logger.info(f"[BULK] Batches per geo:")
@@ -3808,7 +3772,7 @@ def bulk_generate():
                 def process_geo_parallel(geo, geo_batches_list):
                     """
                     Process all batches in a geo in PARALLEL (multiple functions at the same time).
-                    Creates Lambda functions as needed and processes them concurrently.
+                    Uses ALL existing Lambda functions in the geo.
                     Maximum 10 functions per geo at the same time (AWS Lambda concurrency limit).
                     Minimum 2 functions per geo at the same time (as requested).
                     """
@@ -3816,7 +3780,7 @@ def bulk_generate():
                         logger.info("=" * 60)
                         logger.info(f"[BULK] [{geo}] ===== STARTING PARALLEL PROCESSING =====")
                         logger.info(f"[BULK] [{geo}] Total functions to process: {len(geo_batches_list)}")
-                        logger.info(f"[BULK] [{geo}] Function numbers: {[func_num for func_num, _ in geo_batches_list]}")
+                        logger.info(f"[BULK] [{geo}] Function names: {[func_name for func_name, _ in geo_batches_list]}")
                         
                         # Calculate max workers: min(10, number of functions, but at least 2 if we have 2+ functions)
                         max_workers = min(10, len(geo_batches_list))
@@ -3860,24 +3824,18 @@ def bulk_generate():
                             raise Exception(f"Failed to initialize {geo}: {e}")
                         
                         # Helper function to process a single function
-                        def process_single_function(func_num, batch_users, batch_idx):
+                        def process_single_function(func_name, batch_users, batch_idx):
                             """Process a single Lambda function (thread-safe)"""
                             function_results = []
-                            func_name = None
                             
                             try:
                                 logger.info("=" * 60)
                                 logger.info(f"[BULK] [{geo}] ===== FUNCTION {batch_idx + 1}/{len(geo_batches_list)} (PARALLEL) =====")
-                                logger.info(f"[BULK] [{geo}] Function number: {func_num}")
+                                logger.info(f"[BULK] [{geo}] Function name: {func_name}")
                                 logger.info(f"[BULK] [{geo}] Users in batch: {len(batch_users)}")
                                 logger.info(f"[BULK] [{geo}] User emails: {[u['email'] for u in batch_users[:5]]}{'...' if len(batch_users) > 5 else ''}")
                                 logger.info("=" * 60)
                             
-                                # Generate function name: edu-gw-chromium-{geo_code}-{func_num}
-                                # IMPORTANT: func_num here is already 1-based (from the batch tuple)
-                                geo_code = geo.replace('-', '')  # Remove dashes: us-east-1 -> useast1
-                                func_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
-                                
                                 logger.info(f"[BULK] [{geo}] Looking for function: {func_name}")
                                 logger.info(f"[BULK] [{geo}] Available functions in {geo}: {existing_function_names}")
                             
@@ -3885,25 +3843,11 @@ def bulk_generate():
                                 with threading.Lock():
                                     if func_name not in existing_function_names:
                                         # Try to find any function matching the pattern for this geo
-                                        matching_functions = [fn for fn in existing_function_names if PRODUCTION_LAMBDA_NAME in fn and geo_code in fn]
-                                        if matching_functions:
-                                            logger.warning(f"[BULK] [{geo}] Function {func_name} not found, but found {len(matching_functions)} similar function(s): {matching_functions}")
-                                            # Try to find exact match by function number
-                                            func_num_str = str(func_num)
-                                            exact_match = [fn for fn in matching_functions if f"-{func_num}" in fn or f"-{func_num}-" in fn or fn.endswith(f"-{func_num}")]
-                                            if exact_match:
-                                                func_name = exact_match[0]
-                                                logger.info(f"[BULK] [{geo}] Using function with matching number: {func_name}")
-                                            else:
-                                                # No exact match - this is an error, function should exist
-                                                logger.error(f"[BULK] [{geo}] ✗ Function {func_name} not found and no exact match! Available: {matching_functions}")
-                                                logger.error(f"[BULK] [{geo}] This function should have been created during Lambda creation step.")
-                                                # Don't fall back to wrong function - fail explicitly
-                                                raise Exception(f"Function {func_name} not found in region {geo}. Please recreate Lambdas.")
-                                        else:
-                                            logger.error(f"[BULK] [{geo}] ✗ Function {func_name} not found and no matching functions in region {geo}!")
-                                            logger.error(f"[BULK] [{geo}] This function should have been created during Lambda creation step.")
-                                            raise Exception(f"Function {func_name} not found in region {geo}. Please recreate Lambdas.")
+                                        # Function not found - this is an error, function should exist
+                                        logger.error(f"[BULK] [{geo}] ✗ Function {func_name} not found in region {geo}!")
+                                        logger.error(f"[BULK] [{geo}] Available functions: {existing_function_names}")
+                                        logger.error(f"[BULK] [{geo}] This function should have been discovered during Lambda discovery step.")
+                                        raise Exception(f"Function {func_name} not found in region {geo}. Please recreate Lambdas.")
                                     else:
                                         logger.info(f"[BULK] [{geo}] ✓ Function {func_name} found in region {geo}")
                                         try:
@@ -4010,7 +3954,7 @@ def bulk_generate():
                                 
                                 try:
                                     batch_results = process_user_batch_sync(batch_users, func_name, lambda_region=geo)
-                                    logger.info(f"[BULK] [{geo}] ✓ Function {func_num} invocation completed")
+                                    logger.info(f"[BULK] [{geo}] ✓ Function {func_name} invocation completed")
                                     logger.info(f"[BULK] [{geo}] Results: {sum(1 for r in batch_results if r['success'])}/{len(batch_results)} success")
                                     function_results.extend(batch_results)
                                 except Exception as invoke_exception:
@@ -4031,7 +3975,7 @@ def bulk_generate():
                                 
                             except Exception as func_err:
                                 logger.error("=" * 60)
-                                logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR: Function {func_num} ({func_name}) failed!")
+                                logger.error(f"[BULK] [{geo}] ✗✗✗ CRITICAL ERROR: Function {func_name} failed!")
                                 logger.error(f"[BULK] [{geo}] Error: {func_err}")
                                 logger.error(f"[BULK] [{geo}] Error type: {type(func_err).__name__}")
                                 logger.error(traceback.format_exc())
@@ -4050,14 +3994,14 @@ def bulk_generate():
                         with ThreadPoolExecutor(max_workers=max_workers) as function_pool:
                             # Submit all functions for parallel processing
                             function_futures = {}
-                            for batch_idx, (func_num, batch_users) in enumerate(geo_batches_list):
-                                future = function_pool.submit(process_single_function, func_num, batch_users, batch_idx)
-                                function_futures[future] = (func_num, batch_idx)
-                                logger.info(f"[BULK] [{geo}] ✓ Submitted function {func_num} for parallel processing")
+                            for batch_idx, (func_name, batch_users) in enumerate(geo_batches_list):
+                                future = function_pool.submit(process_single_function, func_name, batch_users, batch_idx)
+                                function_futures[future] = (func_name, batch_idx)
+                                logger.info(f"[BULK] [{geo}] ✓ Submitted function {func_name} for parallel processing")
                             
                             # Wait for all functions to complete and collect results
                             for future in as_completed(function_futures):
-                                func_num, batch_idx = function_futures[future]
+                                func_name, batch_idx = function_futures[future]
                                 try:
                                     function_results = future.result()
                                     geo_results.extend(function_results)
@@ -4082,7 +4026,7 @@ def bulk_generate():
                                                         'success': False
                                                     })
                                     
-                                    logger.info(f"[BULK] [{geo}] ✓ Function {func_num} finished: {sum(1 for r in function_results if r.get('success'))}/{len(function_results)} success")
+                                    logger.info(f"[BULK] [{geo}] ✓ Function {func_name} finished: {sum(1 for r in function_results if r.get('success'))}/{len(function_results)} success")
                                 except Exception as e:
                                     logger.error(f"[BULK] [{geo}] ✗ Function {func_num} exception: {e}")
                                     logger.error(traceback.format_exc())
