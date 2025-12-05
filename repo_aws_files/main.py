@@ -1905,6 +1905,50 @@ def detect_captcha(driver, email=None):
         except:
             pass
         
+        # CRITICAL: Check for "Verify it's you" page with reCAPTCHA checkbox
+        # This page appears after solving image CAPTCHA and requires reCAPTCHA solving
+        try:
+            page_source = driver.page_source.lower()
+            page_title_lower = page_title.lower()
+            current_url_lower = current_url.lower()
+            
+            # Check for "Verify it's you" page indicators
+            verify_page_indicators = [
+                "verify it's you" in page_title_lower or "verify it's you" in page_source,
+                "verify it's you" in current_url_lower,
+                "confirm you're not a robot" in page_source,
+            ]
+            
+            # Check for reCAPTCHA checkbox on "Verify it's you" page
+            if any(verify_page_indicators):
+                # Look for reCAPTCHA checkbox - multiple possible selectors
+                recaptcha_checkbox_selectors = [
+                    "//div[@class='recaptcha-checkbox-border']",
+                    "//div[@id='recaptcha-anchor']",
+                    "//span[contains(text(), 'I'm not a robot')]",
+                    "//div[contains(@class, 'rc-anchor')]",
+                    "//iframe[contains(@title, 'reCAPTCHA')]",
+                ]
+                
+                for selector in recaptcha_checkbox_selectors:
+                    try:
+                        elements = driver.find_elements(By.XPATH, selector)
+                        if elements:
+                            for elem in elements:
+                                if elem.is_displayed():
+                                    logger.warning(f"[CAPTCHA] Detected 'Verify it's you' page with reCAPTCHA checkbox")
+                                    return True
+                    except:
+                        continue
+                
+                # Also check for reCAPTCHA iframes on this page
+                recaptcha_iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha')]")
+                if recaptcha_iframes:
+                    logger.warning(f"[CAPTCHA] Detected 'Verify it's you' page with reCAPTCHA iframe")
+                    return True
+        except Exception as verify_err:
+            logger.debug(f"[CAPTCHA] Error checking for 'Verify it's you' page: {verify_err}")
+        
         # Last resort: check page source for multiple CAPTCHA indicators together (reduces false positives)
         page_source = driver.page_source.lower()
         captcha_keywords_found = []
@@ -2360,6 +2404,36 @@ def login_google(driver, email, password, known_totp_secret=None):
                     except Exception as retry_err:
                         logger.warning(f"[STEP] Could not retry email submission after CAPTCHA solve: {retry_err}")
                         # Continue anyway - token might already be processed
+                
+                # CRITICAL: After solving CAPTCHA, Google may redirect to "Verify it's you" page with reCAPTCHA
+                # Check for this page and solve reCAPTCHA if present
+                try:
+                    current_url_after_captcha = driver.current_url
+                    page_title_after_captcha = driver.title.lower()
+                    page_source_after_captcha = driver.page_source.lower()
+                    
+                    # Check if we're on "Verify it's you" page
+                    if ("verify it's you" in page_title_after_captcha or 
+                        "verify it's you" in page_source_after_captcha or
+                        "verify" in current_url_after_captcha.lower()):
+                        
+                        logger.warning("[STEP] ⚠️ Detected 'Verify it's you' page after CAPTCHA solving - checking for reCAPTCHA...")
+                        
+                        # Check for reCAPTCHA checkbox/iframe
+                        recaptcha_detected = detect_captcha(driver, email=email)
+                        if recaptcha_detected:
+                            logger.info("[STEP] reCAPTCHA detected on 'Verify it's you' page - attempting to solve...")
+                            solved_recaptcha, recaptcha_error = solve_captcha_with_2captcha(driver, email=email)
+                            if solved_recaptcha:
+                                logger.info("[STEP] ✓ reCAPTCHA solved on 'Verify it's you' page! Waiting for redirect...")
+                                time.sleep(4)  # Wait for page redirect after reCAPTCHA
+                            else:
+                                logger.error(f"[STEP] ✗ Failed to solve reCAPTCHA on 'Verify it's you' page: {recaptcha_error}")
+                        else:
+                            logger.info("[STEP] No reCAPTCHA detected on 'Verify it's you' page - may auto-resolve")
+                            time.sleep(3)  # Wait for page to auto-resolve
+                except Exception as verify_page_err:
+                    logger.warning(f"[STEP] Error checking for 'Verify it's you' page: {verify_page_err}")
                 
                 # Check if CAPTCHA is still present (should be gone if solved correctly)
                 if detect_captcha(driver, email=email):
@@ -2850,6 +2924,44 @@ def login_google(driver, email, password, known_totp_secret=None):
                             if solved:
                                 logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Waiting for page to process...")
                                 time.sleep(3)
+                                
+                                # CRITICAL: After solving image CAPTCHA, Google may redirect to "Verify it's you" page with reCAPTCHA
+                                # Check for this page and solve reCAPTCHA if present
+                                try:
+                                    current_url_after_image = driver.current_url
+                                    page_title_after_image = driver.title.lower()
+                                    page_source_after_image = driver.page_source.lower()
+                                    
+                                    # Check if we're on "Verify it's you" page
+                                    if ("verify it's you" in page_title_after_image or 
+                                        "verify it's you" in page_source_after_image or
+                                        "verify" in current_url_after_image.lower()):
+                                        
+                                        logger.warning("[STEP] ⚠️ Detected 'Verify it's you' page after image CAPTCHA - checking for reCAPTCHA...")
+                                        
+                                        # Check for reCAPTCHA checkbox/iframe
+                                        recaptcha_detected = detect_captcha(driver, email=email)
+                                        if recaptcha_detected:
+                                            logger.info("[STEP] reCAPTCHA detected on 'Verify it's you' page - attempting to solve...")
+                                            solved_recaptcha, recaptcha_error = solve_captcha_with_2captcha(driver, email=email)
+                                            if solved_recaptcha:
+                                                logger.info("[STEP] ✓ reCAPTCHA solved on 'Verify it's you' page! Waiting for redirect...")
+                                                time.sleep(4)  # Wait for page redirect after reCAPTCHA
+                                                
+                                                # Retry password field detection after reCAPTCHA solving
+                                                password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=10)
+                                                if password_input:
+                                                    logger.info("[STEP] ✓ Password field found after reCAPTCHA solving!")
+                                                else:
+                                                    logger.warning("[STEP] Password field still not found after reCAPTCHA solving")
+                                            else:
+                                                logger.error(f"[STEP] ✗ Failed to solve reCAPTCHA on 'Verify it's you' page: {recaptcha_error}")
+                                        else:
+                                            logger.info("[STEP] No reCAPTCHA detected on 'Verify it's you' page - may auto-resolve")
+                                            time.sleep(3)  # Wait for page to auto-resolve
+                                            password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=10)
+                                except Exception as verify_page_err:
+                                    logger.warning(f"[STEP] Error checking for 'Verify it's you' page: {verify_page_err}")
                             else:
                                 logger.error(f"[STEP] ✗ Failed to solve Image CAPTCHA: {error}")
                                 logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
@@ -3137,8 +3249,12 @@ def login_google(driver, email, password, known_totp_secret=None):
                     
                     if otp_input:
                         if not known_totp_secret:
+                            # CRITICAL: Account already has 2FA enabled - we cannot proceed with login
+                            # This is a known limitation - accounts with existing 2FA cannot be processed
                             logger.error("[STEP] 2FA is required but no TOTP secret is available")
-                            return False, "2FA_REQUIRED", "2FA required but secret is unknown"
+                            logger.error("[STEP] This account already has 2FA enabled. Cannot proceed without TOTP secret.")
+                            logger.error("[STEP] To process this account, you need to provide the TOTP secret or disable 2FA manually.")
+                            return False, "2FA_REQUIRED", "2FA required but secret is unknown - account already has 2FA enabled"
                         
                         # Generate and submit TOTP code with retries
                         for retry in range(3):
