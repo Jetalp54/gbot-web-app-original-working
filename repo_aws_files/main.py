@@ -647,9 +647,32 @@ def wait_for_visible_and_interactable(driver, xpath, timeout=30):
 def wait_for_password_clickable(driver, by_method, selector, timeout=10):
     """Wait for password field to be clickable using By.NAME or By.XPATH (like reference function)"""
     try:
+        # Wait for element to be present
+        element = WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((by_method, selector))
+        )
+        
+        # Skip hiddenPassword fields (Google's hidden security field)
+        element_name = element.get_attribute('name') or ''
+        if 'hiddenPassword' in element_name.lower() or 'hidden' in element_name.lower():
+            logger.debug(f"[SELENIUM] Skipping hidden password field: {element_name}")
+            return None
+        
+        # Ensure element is actually visible and interactable
+        if not element.is_displayed():
+            logger.debug(f"[SELENIUM] Password field found but not displayed: {element_name}")
+            return None
+        
+        # Wait for it to be clickable
         element = WebDriverWait(driver, timeout).until(
             EC.element_to_be_clickable((by_method, selector))
         )
+        
+        # Double-check it's not hiddenPassword
+        element_name = element.get_attribute('name') or ''
+        if 'hiddenPassword' in element_name.lower():
+            return None
+        
         # Focus the element
         element.click()  # Click to focus
         time.sleep(0.1)
@@ -657,7 +680,7 @@ def wait_for_password_clickable(driver, by_method, selector, timeout=10):
     except TimeoutException:
         return None
     except Exception as e:
-        logger.warning(f"[SELENIUM] Error waiting for password field: {e}")
+        logger.debug(f"[SELENIUM] Error waiting for password field: {e}")
         return None
 
 def get_twocaptcha_config():
@@ -1324,10 +1347,14 @@ def inject_recaptcha_token(driver, token):
         logger.error(traceback.format_exc())
         return False
 
-def solve_captcha_with_2captcha(driver):
+def solve_captcha_with_2captcha(driver, email=None):
     """
     Detect and solve CAPTCHA using 2Captcha API if enabled.
     Returns (solved: bool, error: str|None)
+    
+    Args:
+        driver: Selenium WebDriver instance
+        email: User email (optional, for screenshot naming)
     """
     try:
         # Check if 2Captcha is enabled
@@ -1344,6 +1371,8 @@ def solve_captcha_with_2captcha(driver):
         
         if not success or not token:
             logger.error(f"[2CAPTCHA] Failed to solve CAPTCHA: {error}")
+            # Capture screenshot of the CAPTCHA that couldn't be solved
+            capture_captcha_screenshot(driver, captcha_type="solve_failed", email=email)
             return False, error or "Failed to solve CAPTCHA"
         
         # Inject the token into the page
@@ -1361,9 +1390,71 @@ def solve_captcha_with_2captcha(driver):
         logger.error(traceback.format_exc())
         return False, str(e)
 
-def detect_captcha(driver):
+def capture_captcha_screenshot(driver, captcha_type="unknown", email=None):
+    """
+    Capture a screenshot when CAPTCHA is detected and upload it to S3.
+    
+    Args:
+        driver: Selenium WebDriver instance
+        captcha_type: Type of CAPTCHA detected (e.g., "recaptcha", "audio", "image")
+        email: User email (optional, for naming the screenshot)
+    
+    Returns:
+        (success: bool, s3_path: str|None)
+    """
+    try:
+        bucket_name = "edu-gw-app-passwords-470147111686"
+        s3_region = os.environ.get("AWS_REGION", "us-east-1")
+        
+        # Ensure bucket exists
+        ensure_s3_bucket_exists(bucket_name, s3_region)
+        
+        # Generate screenshot filename
+        timestamp = int(time.time())
+        email_part = ""
+        if email:
+            email_safe = email.replace("@", "_at_").replace(".", "_")
+            email_part = f"{email_safe}_"
+        
+        screenshot_key = f"captcha-detection/{email_part}{captcha_type}_{timestamp}_screenshot.png"
+        screenshot_path = f"/tmp/captcha_{captcha_type}_{timestamp}.png"
+        
+        # Capture screenshot
+        driver.save_screenshot(screenshot_path)
+        logger.info(f"[CAPTCHA] Screenshot captured: {screenshot_path}")
+        
+        # Upload to S3
+        s3_client = get_s3_client()
+        s3_client.upload_file(
+            screenshot_path,
+            bucket_name,
+            screenshot_key,
+            ExtraArgs={'ContentType': 'image/png'}
+        )
+        
+        s3_url = f"s3://{bucket_name}/{screenshot_key}"
+        logger.info(f"[CAPTCHA] ✓ Screenshot uploaded to S3: {s3_url}")
+        
+        # Clean up local file
+        try:
+            os.remove(screenshot_path)
+        except:
+            pass
+        
+        return True, s3_url
+        
+    except Exception as e:
+        logger.error(f"[CAPTCHA] ✗ Failed to capture/upload CAPTCHA screenshot: {e}")
+        logger.error(traceback.format_exc())
+        return False, None
+
+def detect_captcha(driver, email=None):
     """
     Detect if Google CAPTCHA is present on the page - more accurate detection to avoid false positives.
+    
+    Args:
+        driver: Selenium WebDriver instance
+        email: User email (optional, for screenshot naming)
     
     Returns True if:
     - Visible reCAPTCHA challenge is present
@@ -1392,6 +1483,8 @@ def detect_captcha(driver):
                             iframe_size = iframe.size
                             if iframe_size['width'] > 100 and iframe_size['height'] > 100:
                                 logger.warning(f"[CAPTCHA] Detected visible reCAPTCHA iframe (size: {iframe_size['width']}x{iframe_size['height']})")
+                                # Capture screenshot for analysis
+                                capture_captcha_screenshot(driver, captcha_type="recaptcha", email=email)
                                 return True
                             else:
                                 # This is likely just the reCAPTCHA badge (invisible reCAPTCHA)
@@ -1424,6 +1517,8 @@ def detect_captcha(driver):
                             if element.is_displayed():
                                 element_text = element.text[:100] if element.text else "no text"
                                 logger.warning(f"[CAPTCHA] Detected CAPTCHA message: {element_text}")
+                                # Capture screenshot for analysis
+                                capture_captcha_screenshot(driver, captcha_type="message", email=email)
                                 return True
                         except:
                             continue
@@ -1438,6 +1533,8 @@ def detect_captcha(driver):
                 page_text = driver.page_source.lower()
                 if any(keyword in page_text for keyword in ['verify', 'robot', 'unusual traffic', 'automated']):
                     logger.warning("[CAPTCHA] Detected reCAPTCHA container with related text")
+                    # Capture screenshot for analysis
+                    capture_captcha_screenshot(driver, captcha_type="recaptcha_container", email=email)
                     return True
         except:
             pass
@@ -1852,11 +1949,11 @@ def login_google(driver, email, password, known_totp_secret=None):
         logger.info(f"[STEP] After email submission - URL: {current_url[:100]}..., Title: {page_title}")
         
         # Check for CAPTCHA after email submission (this is when it typically appears)
-        if detect_captcha(driver):
+        if detect_captcha(driver, email=email):
             logger.warning("[STEP] ⚠️ CAPTCHA detected after email submission!")
             
             # Try to solve CAPTCHA using 2Captcha if enabled
-            solved, solve_error = solve_captcha_with_2captcha(driver)
+            solved, solve_error = solve_captcha_with_2captcha(driver, email=email)
             
             if solved:
                 logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Waiting for page to process token...")
@@ -1898,11 +1995,11 @@ def login_google(driver, email, password, known_totp_secret=None):
                         # Continue anyway - token might already be processed
                 
                 # Check if CAPTCHA is still present (should be gone if solved correctly)
-                if detect_captcha(driver):
+                if detect_captcha(driver, email=email):
                     logger.warning("[STEP] ⚠️ CAPTCHA still present after solving attempt. Retrying solve...")
                     # Try one more time
                     time.sleep(2)
-                    solved_retry, retry_error = solve_captcha_with_2captcha(driver)
+                    solved_retry, retry_error = solve_captcha_with_2captcha(driver, email=email)
                     if not solved_retry:
                         logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed after retry: {retry_error}")
                         return False, "CAPTCHA_SOLVE_FAILED", f"CAPTCHA detected and 2Captcha solving failed: {retry_error}"
@@ -1937,13 +2034,45 @@ def login_google(driver, email, password, known_totp_secret=None):
             except:
                 pass
             
-            # NOTE: We previously checked for blocking CAPTCHA here, but this often causes false positives
-            # The audio CAPTCHA text "Type the text you hear or see" can appear while login is still proceeding
-            # We now let the login flow continue naturally - if blocked, the password field check will fail
-            # The improved CAPTCHA detection happens ONLY if we're truly stuck (no password field after timeout)
-            logger.debug("[STEP] Skipping aggressive CAPTCHA check - will detect if truly blocked later")
+            # Check for audio CAPTCHA input field (Google's own CAPTCHA, not reCAPTCHA)
+            # This appears as: <input type="text" name="ca" id="ca" aria-label="Type the text you hear or see">
+            try:
+                audio_captcha_input = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
+                if audio_captcha_input:
+                    for inp in audio_captcha_input:
+                        if inp.is_displayed():
+                            aria_label = inp.get_attribute('aria-label') or ''
+                            if 'hear or see' in aria_label.lower() or 'captcha' in aria_label.lower():
+                                logger.warning("[STEP] ⚠️ Audio/Image CAPTCHA detected (input field visible)")
+                                logger.warning("[STEP] This is Google's audio CAPTCHA - cannot be solved with 2Captcha's reCAPTCHA API")
+                                # Capture screenshot for analysis
+                                capture_captcha_screenshot(driver, captcha_type="audio", email=email)
+                                logger.warning("[STEP] Waiting 5-10 seconds to see if Google auto-clears it...")
+                                # Wait longer - sometimes Google auto-clears audio CAPTCHA
+                                time.sleep(random.uniform(5, 10))
+                                # Check again if CAPTCHA is still there
+                                audio_captcha_still_there = False
+                                try:
+                                    still_visible = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
+                                    for inp2 in still_visible:
+                                        if inp2.is_displayed():
+                                            audio_captcha_still_there = True
+                                            break
+                                except:
+                                    pass
+                                if audio_captcha_still_there:
+                                    logger.warning("[STEP] Audio CAPTCHA still present - login will likely fail")
+                                    logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
+                                else:
+                                    logger.info("[STEP] Audio CAPTCHA cleared! Proceeding...")
+                                break
+            except Exception as audio_captcha_check:
+                logger.debug(f"[STEP] Audio CAPTCHA check error: {audio_captcha_check}")
         
-        time.sleep(2)  # Additional wait for password field to appear
+        # Wait longer for password field to appear (Google may be processing CAPTCHA)
+        wait_time = random.uniform(3, 5)
+        logger.info(f"[STEP] Waiting {wait_time:.1f}s for password field to appear...")
+        time.sleep(wait_time)
         
         # Check for iframes first (Google sometimes uses iframes for password field)
         password_input = None
@@ -1980,18 +2109,61 @@ def login_google(driver, email, password, known_totp_secret=None):
                     logger.warning(f"[STEP] Failed to find password with {xpath}: {e}")
                     continue
         
-        # If not found in main document, check iframes
+        # If not found in main document, check iframes (prioritize Google's bscframe)
         if not password_input:
-                logger.info("[STEP] Password field not found in main document, checking iframes...")
-                iframes = driver.find_elements(By.TAG_NAME, "iframe")
+            logger.info("[STEP] Password field not found in main document, checking iframes...")
+            iframes = driver.find_elements(By.TAG_NAME, "iframe")
+            
+            # First, try the bscframe iframe (Google's security frame where password field often appears)
+            bscframe_found = False
+            for iframe in iframes:
+                try:
+                    iframe_src = iframe.get_attribute('src') or ''
+                    if '_/bscframe' in iframe_src:
+                        logger.info(f"[STEP] Found bscframe iframe, checking for password field...")
+                        driver.switch_to.frame(iframe)
+                        # Try By.NAME first (most reliable)
+                        try:
+                            password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=5)
+                            if password_input:
+                                logger.info("[STEP] ✓ Found password input in bscframe iframe!")
+                                bscframe_found = True
+                                break
+                        except:
+                            pass
+                        # Fallback to XPath
+                        if not password_input:
+                            for xpath in password_input_xpaths:
+                                try:
+                                    password_input = wait_for_visible_and_interactable(driver, xpath, timeout=3)
+                                    if password_input:
+                                        logger.info(f"[STEP] ✓ Found password input in bscframe iframe using: {xpath[:50]}...")
+                                        bscframe_found = True
+                                        break
+                                except:
+                                    continue
+                        driver.switch_to.default_content()
+                        if bscframe_found:
+                            break
+                except Exception as bsc_err:
+                    logger.debug(f"[STEP] Error checking bscframe: {bsc_err}")
+                    driver.switch_to.default_content()
+                    continue
+            
+            # If still not found, check all other iframes
+            if not password_input:
                 for iframe in iframes:
                     try:
+                        iframe_src = iframe.get_attribute('src') or ''
+                        # Skip bscframe (already checked) and YouTube check connection iframes
+                        if '_/bscframe' in iframe_src or 'youtube.com' in iframe_src:
+                            continue
                         driver.switch_to.frame(iframe)
                         for xpath in password_input_xpaths:
                             try:
-                                password_input = wait_for_visible_and_interactable(driver, xpath, timeout=5)
+                                password_input = wait_for_visible_and_interactable(driver, xpath, timeout=3)
                                 if password_input:
-                                    logger.info(f"[STEP] Found password input in iframe using xpath: {xpath}")
+                                    logger.info(f"[STEP] Found password input in iframe using xpath: {xpath[:50]}...")
                                     break
                             except:
                                 continue
@@ -1999,7 +2171,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                             break
                         driver.switch_to.default_content()
                     except Exception as iframe_err:
-                        logger.warning(f"[STEP] Error checking iframe: {iframe_err}")
+                        logger.debug(f"[STEP] Error checking iframe: {iframe_err}")
                         driver.switch_to.default_content()
                         continue
             
@@ -2274,10 +2446,27 @@ def login_google(driver, email, password, known_totp_secret=None):
                             logger.warning(f"[STEP] CAPTCHA solving failed: {solve_error}")
                     else:
                         # Check if it's an audio CAPTCHA (not solvable via reCAPTCHA API)
-                        audio_captcha = driver.find_elements(By.XPATH, "//*[contains(text(), 'Type the text you hear or see')]")
-                        if audio_captcha:
+                        # Check for the actual input field: <input type="text" name="ca" id="ca" aria-label="Type the text you hear or see">
+                        audio_captcha_input = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
+                        audio_captcha_text = driver.find_elements(By.XPATH, "//*[contains(text(), 'Type the text you hear or see')]")
+                        
+                        has_audio_captcha = False
+                        for inp in audio_captcha_input:
+                            try:
+                                if inp.is_displayed():
+                                    aria_label = inp.get_attribute('aria-label') or ''
+                                    if 'hear or see' in aria_label.lower() or 'captcha' in aria_label.lower():
+                                        has_audio_captcha = True
+                                        break
+                            except:
+                                pass
+                        
+                        if has_audio_captcha or audio_captcha_text:
                             logger.warning("[STEP] Audio/Image CAPTCHA detected - this type cannot be solved with 2Captcha's reCAPTCHA API")
+                            # Capture screenshot for analysis
+                            capture_captcha_screenshot(driver, captcha_type="audio", email=email)
                             logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
+                            logger.warning("[STEP] This is likely due to IP-based rate limiting. Some accounts may still succeed.")
                 except Exception as captcha_retry_err:
                     logger.warning(f"[STEP] Error during CAPTCHA check: {captcha_retry_err}")
                 
@@ -2387,7 +2576,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                 return False, "driver_crashed", f"Driver crashed while checking URL: {e}"
             
             # Check for CAPTCHA after password submission (this is another common place for CAPTCHA)
-            if detect_captcha(driver):
+            if detect_captcha(driver, email=email):
                 logger.warning("[STEP] ⚠️ CAPTCHA detected after password submission!")
                 
                 # Try to solve CAPTCHA using 2Captcha if enabled
@@ -2399,10 +2588,10 @@ def login_google(driver, email, password, known_totp_secret=None):
                     time.sleep(3)
                     
                     # Check if CAPTCHA is still present
-                    if detect_captcha(driver):
+                    if detect_captcha(driver, email=email):
                         logger.warning("[STEP] ⚠️ CAPTCHA still present after solving. Retrying...")
                         time.sleep(2)
-                        solved_retry, _ = solve_captcha_with_2captcha(driver)
+                        solved_retry, _ = solve_captcha_with_2captcha(driver, email=email)
                         if not solved_retry:
                             logger.error("[STEP] ✗✗✗ CAPTCHA solving failed after retry")
                             return False, "CAPTCHA_SOLVE_FAILED", "CAPTCHA detected after password submission and 2Captcha solving failed"
@@ -2472,7 +2661,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                 try:
                     driver.get("https://myaccount.google.com/two-step-verification/authenticator?hl=en")
                     # Check for captcha
-                    if detect_captcha(driver):
+                    if detect_captcha(driver, email=email):
                         logger.warning("[STEP] ⚠️ CAPTCHA detected on 2SV authenticator page!")
                         
                         # Try to solve CAPTCHA using 2Captcha if enabled
@@ -3103,11 +3292,11 @@ def enable_two_step_verification(driver, email):
         driver.get("https://myaccount.google.com/signinoptions/twosv?hl=en")
         
         # Check for captcha
-        if detect_captcha(driver):
+        if detect_captcha(driver, email=email):
             logger.warning("[STEP] ⚠️ CAPTCHA detected on 2SV page!")
             
             # Try to solve CAPTCHA using 2Captcha if enabled
-            solved, solve_error = solve_captcha_with_2captcha(driver)
+            solved, solve_error = solve_captcha_with_2captcha(driver, email=email)
             
             if solved:
                 logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Continuing...")
@@ -3215,11 +3404,11 @@ def generate_app_password(driver, email):
         inject_randomized_javascript(driver)
         
         # Check for captcha
-        if detect_captcha(driver):
+        if detect_captcha(driver, email=email):
             logger.warning("[STEP] ⚠️ CAPTCHA detected on app passwords page!")
             
             # Try to solve CAPTCHA using 2Captcha if enabled
-            solved, solve_error = solve_captcha_with_2captcha(driver)
+            solved, solve_error = solve_captcha_with_2captcha(driver, email=email)
             
             if solved:
                 logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Continuing...")
