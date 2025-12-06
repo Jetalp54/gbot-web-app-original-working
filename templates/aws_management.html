@@ -201,11 +201,9 @@
                         "Multiple Accounts" field above.
                     </div>
                     <div class="form-group-github">
-                        <label class="form-label-github">Users per Function:</label>
-                        <input type="number" id="usersPerFunction" class="form-control-github" min="1" value="10"
-                            placeholder="10" readonly style="background-color: var(--color-canvas-inset);">
-                        <small style="color: var(--color-fg-muted); font-size: 12px;">Fixed at 10 users per
-                            Lambda function (maximum)</small>
+                        <label class="form-label-github">Users per Function (lower = less CAPTCHA, default: 10):</label>
+                        <input type="number" id="usersPerFunction" class="form-control-github" value="10" min="1" max="20" style="width: 100px;">
+                        <small style="color: var(--color-fg-muted); font-size: 12px;">Number of users to process per Lambda function. Lower values reduce CAPTCHA frequency (default: 10, recommended: 5-8 for fewer CAPTCHAs)</small>
                     </div>
                     <div id="lambdaCalculation"
                         style="margin-top: var(--spacing-sm); padding: var(--spacing-sm); background-color: var(--color-canvas-inset); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-fg-muted);">
@@ -1036,7 +1034,7 @@
         // Get Lambda creation options
         const createMultiple = document.getElementById('createMultipleLambdas').checked;
         let userCount = 0;
-        const usersPerFunction = 10; // Fixed at 10 users per function as requested
+        const usersPerFunction = parseInt(document.getElementById('usersPerFunction')?.value || '10', 10) || 10; // Configurable: Users per function (default: 10)
 
         // If createMultiple is checked, automatically count users from the input field
         if (createMultiple) {
@@ -1076,7 +1074,7 @@
                 ecr_uri: ecrUri,
                 s3_bucket: s3Bucket,
                 user_count: userCount,
-                users_per_function: 10,  // Fixed at 10 as requested
+                users_per_function: parseInt(document.getElementById('usersPerFunction')?.value || '10', 10) || 10,  // Configurable: Users per function
                 create_multiple: createMultiple
             })
         })
@@ -1420,7 +1418,8 @@
                 access_key: accessKey,
                 secret_key: secretKey,
                 region: region,
-                users: users
+                users: users,
+                users_per_function: parseInt(document.getElementById('usersPerFunction')?.value || '10', 10) || 10
             })
         })
             .then(response => {

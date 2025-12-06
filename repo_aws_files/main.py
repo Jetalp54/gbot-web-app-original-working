@@ -2352,14 +2352,22 @@ def login_google(driver, email, password, known_totp_secret=None):
             captcha_solved = True  # Mark as solved to prevent retry
             
             if solved:
-                logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Waiting for page to process token...")
-                # Wait longer for Google to process the token (Google needs time to validate)
+                logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Waiting for page to process and redirect...")
+                # Wait longer for Google to process the token and potentially redirect
                 time.sleep(5)
                 
-                # After solving CAPTCHA, check if we need to retry email submission
-                # Google may have blocked the initial submission due to CAPTCHA
+                # Check current URL to see if page redirected after CAPTCHA solve
                 current_url_after = driver.current_url
-                if '/signin/identifier' in current_url_after or 'identifier' in current_url_after.lower():
+                logger.info(f"[STEP] URL after CAPTCHA solve: {current_url_after[:100]}...")
+                
+                # If redirected to password page, we're good - skip email retry
+                if "challenge/pwd" in current_url_after or "signin/challenge/pwd" in current_url_after:
+                    logger.info("[STEP] ✓ Page redirected to password page after CAPTCHA solve! Proceeding to password entry...")
+                    # Skip email retry - we're already on password page
+                elif "myaccount.google.com" in current_url_after:
+                    logger.info("[STEP] ✓ Already logged in after CAPTCHA solve!")
+                    return True, None, None
+                elif '/signin/identifier' in current_url_after or 'identifier' in current_url_after.lower():
                     logger.info("[STEP] Still on identifier page after CAPTCHA solve. Retrying email submission with solved CAPTCHA...")
                     try:
                         # Wait for page to be ready
@@ -2378,7 +2386,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                             # Submit email using Enter key (CAPTCHA token should now be set)
                             email_input_retry.send_keys(Keys.RETURN)
                             logger.info("[STEP] Retried email submission after CAPTCHA solve using Enter key")
-                            time.sleep(3)  # Reduced wait time
+                            time.sleep(5)  # Increased wait time for redirect after CAPTCHA solve
                     except Exception as retry_err:
                         logger.warning(f"[STEP] Could not retry email submission after CAPTCHA solve: {retry_err}")
                         # Continue anyway - token might already be processed
@@ -2444,9 +2452,20 @@ def login_google(driver, email, password, known_totp_secret=None):
                                     error = None
                                 
                                 if solved:
-                                    logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Proceeding with login...")
-                                    # Wait a moment for Google to process the solution
-                                    time.sleep(2)
+                                    logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Waiting for page redirect...")
+                                    # Wait longer for Google to process the solution and potentially redirect
+                                    time.sleep(5)
+                                    
+                                    # Check if page redirected after CAPTCHA solve
+                                    current_url_after_captcha = driver.current_url
+                                    logger.info(f"[STEP] URL after image CAPTCHA solve: {current_url_after_captcha[:100]}...")
+                                    
+                                    # If redirected to password page, we're good
+                                    if "challenge/pwd" in current_url_after_captcha or "signin/challenge/pwd" in current_url_after_captcha:
+                                        logger.info("[STEP] ✓ Page redirected to password page after image CAPTCHA solve!")
+                                    elif "myaccount.google.com" in current_url_after_captcha:
+                                        logger.info("[STEP] ✓ Already logged in after image CAPTCHA solve!")
+                                        return True, None, None
                                 else:
                                     logger.error(f"[STEP] ✗ Failed to solve Image CAPTCHA: {error}")
                                     logger.warning("[STEP] Waiting 5-10 seconds to see if Google auto-clears it...")
@@ -2471,17 +2490,28 @@ def login_google(driver, email, password, known_totp_secret=None):
             except Exception as image_captcha_check:
                 logger.debug(f"[STEP] Image CAPTCHA check error: {image_captcha_check}")
         
-        # Wait longer for password field to appear (Google may be processing CAPTCHA)
-        wait_time = random.uniform(3, 5)
-        logger.info(f"[STEP] Waiting {wait_time:.1f}s for password field to appear...")
+        # Wait longer for password field to appear (Google may be processing CAPTCHA or redirecting)
+        # After CAPTCHA solve, page might redirect - wait longer and check for redirects
+        wait_time = random.uniform(5, 8)  # Increased wait time after CAPTCHA
+        logger.info(f"[STEP] Waiting {wait_time:.1f}s for password field to appear (after CAPTCHA solve)...")
         time.sleep(wait_time)
+        
+        # Check if page redirected to password page or account page
+        current_url = driver.current_url
+        if "challenge/pwd" in current_url or "signin/challenge/pwd" in current_url:
+            logger.info("[STEP] ✓ Page redirected to password challenge page after CAPTCHA!")
+        elif "myaccount.google.com" in current_url:
+            logger.info("[STEP] ✓ Already logged in - no password needed!")
+            return True, None, None
+        elif "challenge/totp" in current_url:
+            logger.info("[STEP] Page redirected to TOTP challenge - will handle in post-login")
         
         # Check for iframes first (Google sometimes uses iframes for password field)
         password_input = None
         try:
             # Primary method: Use By.NAME like reference function (most reliable)
             logger.info("[STEP] Trying to find password input using By.NAME='Passwd' (primary method)")
-            password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=10)
+            password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=15)  # Increased timeout
             if password_input:
                 logger.info("[STEP] Found password input using By.NAME='Passwd'")
         except Exception as primary_err:
@@ -2514,7 +2544,12 @@ def login_google(driver, email, password, known_totp_secret=None):
         # If not found in main document, check iframes (prioritize Google's bscframe)
         if not password_input:
             logger.info("[STEP] Password field not found in main document, checking iframes...")
+            
+            # Wait a bit more for iframes to load after CAPTCHA solve/redirect
+            time.sleep(2)
+            
             iframes = driver.find_elements(By.TAG_NAME, "iframe")
+            logger.info(f"[STEP] Found {len(iframes)} iframe(s) to check")
             
             # First, try the bscframe iframe (Google's security frame where password field often appears)
             bscframe_found = False
@@ -2526,7 +2561,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                         driver.switch_to.frame(iframe)
                         # Try By.NAME first (most reliable)
                         try:
-                            password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=5)
+                            password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=8)  # Increased timeout after CAPTCHA
                             if password_input:
                                 logger.info("[STEP] ✓ Found password input in bscframe iframe!")
                                 bscframe_found = True
@@ -2537,7 +2572,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                         if not password_input:
                             for xpath in password_input_xpaths:
                                 try:
-                                    password_input = wait_for_visible_and_interactable(driver, xpath, timeout=3)
+                                    password_input = wait_for_visible_and_interactable(driver, xpath, timeout=5)  # Increased timeout
                                     if password_input:
                                         logger.info(f"[STEP] ✓ Found password input in bscframe iframe using: {xpath[:50]}...")
                                         bscframe_found = True
@@ -2842,8 +2877,26 @@ def login_google(driver, email, password, known_totp_secret=None):
                                 logger.info("[STEP] ✓ Password field found after CAPTCHA solving!")
                                 # Continue with password entry (fall through to next section)
                             else:
-                                logger.error("[STEP] ✗ Password field still not found after CAPTCHA solving")
-                                return False, "LOGIN_PASSWORD_FIELD_NOT_FOUND", "Password field not found even after CAPTCHA solving"
+                                # Retry password field detection after CAPTCHA solve with longer wait
+                                logger.warning("[STEP] Password field not found immediately after CAPTCHA solve, retrying with longer wait...")
+                                time.sleep(5)  # Wait longer for page redirect/load
+                                
+                                # Check URL again - might have redirected
+                                current_url_retry = driver.current_url
+                                logger.info(f"[STEP] URL after retry wait: {current_url_retry[:100]}...")
+                                
+                                # Try finding password field again with longer timeout
+                                try:
+                                    password_input_retry = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=15)
+                                    if password_input_retry:
+                                        logger.info("[STEP] ✓ Found password field on retry after CAPTCHA solve!")
+                                        password_input = password_input_retry
+                                    else:
+                                        logger.error("[STEP] ✗ Password field still not found after CAPTCHA solving and retry")
+                                        return False, "LOGIN_PASSWORD_FIELD_NOT_FOUND", "Password field not found even after CAPTCHA solving and retry"
+                                except Exception as retry_err:
+                                    logger.error(f"[STEP] ✗ Password field retry failed: {retry_err}")
+                                    return False, "LOGIN_PASSWORD_FIELD_NOT_FOUND", f"Password field not found after CAPTCHA solving: {retry_err}"
                         else:
                             logger.warning(f"[STEP] CAPTCHA solving failed: {solve_error}")
                     else:

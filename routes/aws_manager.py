@@ -3230,6 +3230,19 @@ def bulk_generate():
     secret_key = data.get('secret_key', '').strip()
     region = data.get('region', '').strip()
     users_raw = data.get('users', [])
+    users_per_function = data.get('users_per_function', 10)  # Default to 10 if not provided
+    
+    # Validate users_per_function
+    try:
+        users_per_function = int(users_per_function)
+        if users_per_function < 1 or users_per_function > 20:
+            users_per_function = 10  # Reset to default if invalid
+            logger.warning(f"[BULK] Invalid users_per_function value, using default: 10")
+    except (ValueError, TypeError):
+        users_per_function = 10
+        logger.warning(f"[BULK] Invalid users_per_function type, using default: 10")
+    
+    logger.info(f"[BULK] Users per function setting: {users_per_function}")
     
     if not users_raw:
         return jsonify({'success': False, 'error': 'No users provided'}), 400
@@ -3412,7 +3425,7 @@ def bulk_generate():
                     raise Exception(error_msg)
                 
                 total_users = len(users)
-                USERS_PER_FUNCTION = 10  # Fixed: Each function handles exactly 10 users
+                USERS_PER_FUNCTION = users_per_function  # Configurable: Users per function (default: 10)
                 
                 # Distribute users across ALL existing lambdas
                 # Each lambda gets up to 10 users, distributed round-robin
