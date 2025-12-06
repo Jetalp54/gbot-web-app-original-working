@@ -1062,6 +1062,16 @@
             log(`Will create ${numFunctions} Lambda function(s) for ${userCount} users (${usersPerFunction} users per function)`);
         }
 
+        // Get users_per_function value from input field
+        const usersPerFunctionInput = document.getElementById('usersPerFunction');
+        const usersPerFunctionValue = usersPerFunctionInput ? parseInt(usersPerFunctionInput.value || '10', 10) : 10;
+        
+        // DEBUG: Log the value being sent
+        console.log('[DEBUG] users_per_function value being sent:', usersPerFunctionValue);
+        console.log('[DEBUG] Input field value:', usersPerFunctionInput ? usersPerFunctionInput.value : 'NOT FOUND');
+        console.log('[DEBUG] user_count:', userCount);
+        console.log('[DEBUG] create_multiple:', createMultiple);
+        
         fetch('/api/aws/create-lambdas', {
             method: 'POST',
             headers: {
@@ -1074,7 +1084,7 @@
                 ecr_uri: ecrUri,
                 s3_bucket: s3Bucket,
                 user_count: userCount,
-                users_per_function: parseInt(document.getElementById('usersPerFunction')?.value || '10', 10) || 10,  // Configurable: Users per function
+                users_per_function: usersPerFunctionValue,  // Use the value from input field
                 create_multiple: createMultiple
             })
         })

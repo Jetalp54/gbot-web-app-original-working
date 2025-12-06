@@ -2124,7 +2124,28 @@ def create_lambdas():
         ecr_uri = data.get('ecr_uri', '').strip()
         s3_bucket = data.get('s3_bucket', '').strip()
         user_count = data.get('user_count', 0)  # Number of users (auto-calculated from input field)
-        users_per_function = 10  # Fixed at 10 users per function as requested
+        users_per_function_raw = data.get('users_per_function', 10)  # Read from request, default to 10
+        
+        # DEBUG: Log the raw value received
+        logger.info(f"[LAMBDA] ========== DEBUG: users_per_function from request ==========")
+        logger.info(f"[LAMBDA] Raw value received: {users_per_function_raw} (type: {type(users_per_function_raw)})")
+        logger.info(f"[LAMBDA] Full request data keys: {list(data.keys())}")
+        logger.info(f"[LAMBDA] =============================================================")
+        
+        # Validate users_per_function
+        try:
+            users_per_function = int(users_per_function_raw)
+            if users_per_function < 1 or users_per_function > 20:
+                users_per_function = 10  # Reset to default if invalid
+                logger.warning(f"[LAMBDA] ⚠️ Invalid users_per_function value ({users_per_function_raw}), using default: 10")
+            else:
+                logger.info(f"[LAMBDA] ✓ Valid users_per_function value: {users_per_function}")
+        except (ValueError, TypeError) as e:
+            users_per_function = 10
+            logger.warning(f"[LAMBDA] ⚠️ Invalid users_per_function type ({type(users_per_function_raw)}): {e}, using default: 10")
+        
+        logger.info(f"[LAMBDA] Final users_per_function value: {users_per_function}")
+        
         create_multiple = data.get('create_multiple', False)  # Whether to create multiple functions
 
         if not access_key or not secret_key or not region:
@@ -2188,7 +2209,13 @@ def create_lambdas():
         if create_multiple and user_count > 0 and users_per_function > 0:
             num_functions = math.ceil(user_count / users_per_function)  # Ceiling division
             num_functions = max(1, num_functions)  # At least 1 function
+            logger.info(f"[LAMBDA] ========== LAMBDA CREATION CALCULATION ==========")
+            logger.info(f"[LAMBDA] User count: {user_count}")
+            logger.info(f"[LAMBDA] Users per function: {users_per_function}")
+            logger.info(f"[LAMBDA] Calculation: {user_count} / {users_per_function} = {user_count / users_per_function}")
+            logger.info(f"[LAMBDA] Ceiling result: {num_functions} function(s)")
             logger.info(f"[LAMBDA] Creating {num_functions} Lambda function(s) for {user_count} users ({users_per_function} users per function)")
+            logger.info(f"[LAMBDA] =================================================")
         else:
             num_functions = 1
             logger.info(f"[LAMBDA] Creating single Lambda function")
