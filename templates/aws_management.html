@@ -1066,27 +1066,42 @@
         const usersPerFunctionInput = document.getElementById('usersPerFunction');
         const usersPerFunctionValue = usersPerFunctionInput ? parseInt(usersPerFunctionInput.value || '10', 10) : 10;
         
+        // Validate the value
+        if (isNaN(usersPerFunctionValue) || usersPerFunctionValue < 1 || usersPerFunctionValue > 20) {
+            alert(`Invalid "Users per Function" value: ${usersPerFunctionInput ? usersPerFunctionInput.value : 'N/A'}. Must be between 1 and 20.`);
+            return;
+        }
+        
         // DEBUG: Log the value being sent
-        console.log('[DEBUG] users_per_function value being sent:', usersPerFunctionValue);
-        console.log('[DEBUG] Input field value:', usersPerFunctionInput ? usersPerFunctionInput.value : 'NOT FOUND');
-        console.log('[DEBUG] user_count:', userCount);
-        console.log('[DEBUG] create_multiple:', createMultiple);
+        log(`[DEBUG] users_per_function value being sent: ${usersPerFunctionValue}`);
+        log(`[DEBUG] Input field value: ${usersPerFunctionInput ? usersPerFunctionInput.value : 'NOT FOUND'}`);
+        log(`[DEBUG] user_count: ${userCount}`);
+        log(`[DEBUG] create_multiple: ${createMultiple}`);
+        console.log('[DEBUG] Full request payload:', {
+            user_count: userCount,
+            users_per_function: usersPerFunctionValue,
+            create_multiple: createMultiple
+        });
+        
+        const requestPayload = {
+            access_key: accessKey,
+            secret_key: secretKey,
+            region: region,
+            ecr_uri: ecrUri,
+            s3_bucket: s3Bucket,
+            user_count: userCount,
+            users_per_function: usersPerFunctionValue,  // Use the value from input field
+            create_multiple: createMultiple
+        };
+        
+        log(`[DEBUG] Request payload users_per_function: ${requestPayload.users_per_function}`);
         
         fetch('/api/aws/create-lambdas', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                access_key: accessKey,
-                secret_key: secretKey,
-                region: region,
-                ecr_uri: ecrUri,
-                s3_bucket: s3Bucket,
-                user_count: userCount,
-                users_per_function: usersPerFunctionValue,  // Use the value from input field
-                create_multiple: createMultiple
-            })
+            body: JSON.stringify(requestPayload)
         })
             .then(response => response.json())
             .then(data => {
@@ -1094,6 +1109,15 @@
                     log('PRODUCTION Lambda(s) created/updated successfully.');
                     log(`Created ${data.num_functions} function(s): ${data.functions_created.join(', ')}`);
                     log(`Lambda configured using ECR image URI: ${ecrUri}`);
+                    
+                    // Show warning if expected vs actual don't match
+                    const expectedFunctions = Math.ceil(userCount / usersPerFunctionValue);
+                    if (data.num_functions !== expectedFunctions) {
+                        log(`⚠️ WARNING: Expected ${expectedFunctions} function(s) but only ${data.num_functions} were created!`);
+                        log(`⚠️ This might indicate the backend is using a different users_per_function value.`);
+                        log(`⚠️ Check server logs for the actual users_per_function value received.`);
+                    }
+                    
                     alert(`Production Lambda(s) created/updated successfully.\n\nCreated ${data.num_functions} function(s): ${data.functions_created.join(', ')}`);
                 } else {
                     log(`ERROR creating production Lambda(s): ${data.error}`);
