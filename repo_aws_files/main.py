@@ -52,6 +52,15 @@ logger.setLevel(logging.INFO)
 _dynamodb_resource = None
 _s3_client = None
 
+# Global cache for Chrome paths (to avoid repetitive logging)
+_chrome_paths_logged = False
+_chrome_binary_cache = None
+_chromedriver_path_cache = None
+
+# Global cache for 2Captcha config (to avoid repetitive logging)
+_twocaptcha_config_cache = None
+_twocaptcha_config_logged = False
+
 def get_dynamodb_resource():
     """Get or create DynamoDB resource (reused across invocations)
     Uses a fixed region (eu-west-1) so all Lambda functions save to the same table
@@ -230,72 +239,76 @@ def get_chrome_driver():
     # Ensure /tmp directories exist
     os.makedirs('/tmp/.cache/selenium', exist_ok=True)
     
-    # Locate Chrome binary and ChromeDriver
-    logger.info("[LAMBDA] Checking /opt directory contents...")
-    chrome_binary = None
-    chromedriver_path = None
+    # Use cached paths if available (avoids repetitive logging for parallel users)
+    global _chrome_paths_logged, _chrome_binary_cache, _chromedriver_path_cache
     
-    # Log /opt contents for debugging
-    if os.path.exists('/opt'):
-        logger.info(f"[LAMBDA] Contents of /opt: {os.listdir('/opt')}")
-        if os.path.exists('/opt/chrome'):
-            logger.info(f"[LAMBDA] Contents of /opt/chrome: {os.listdir('/opt/chrome')}")
+    chrome_binary = _chrome_binary_cache
+    chromedriver_path = _chromedriver_path_cache
     
-    # Common paths for Chrome binary
-    chrome_paths = [
-        '/opt/chrome/chrome',
-        '/opt/chrome/headless-chromium',
-        '/opt/chrome/chrome-wrapper',
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser',
-        '/usr/bin/google-chrome',
-    ]
-    
-    for path in chrome_paths:
-        if os.path.isfile(path) and os.access(path, os.X_OK):
-            chrome_binary = path
-            logger.info(f"[LAMBDA] Found Chrome binary at: {chrome_binary}")
-            break
-    
-    # If not found by direct paths, try using 'which'
-    if not chrome_binary:
-        try:
-            result = subprocess.run(['which', 'chrome'], capture_output=True, text=True)
-            if result.returncode == 0:
-                chrome_binary = result.stdout.strip()
-                logger.info(f"[LAMBDA] Found Chrome via which: {chrome_binary}")
-        except Exception as e:
-            logger.debug(f"[LAMBDA] 'which chrome' failed: {e}")
-    
-    if not chrome_binary:
-        logger.error("[LAMBDA] Chrome binary not found! Cannot proceed without Chrome binary path.")
-        raise Exception("Chrome binary not found in Lambda environment")
-    
-    # Common paths for ChromeDriver
-    chromedriver_paths = [
-        '/opt/chromedriver',
-        '/usr/bin/chromedriver',
-        '/usr/local/bin/chromedriver',
-    ]
-    
-    for path in chromedriver_paths:
-        if os.path.isfile(path) and os.access(path, os.X_OK):
-            chromedriver_path = path
-            logger.info(f"[LAMBDA] Found ChromeDriver at: {chromedriver_path}")
-            break
-    
-    if not chromedriver_path:
-        try:
-            result = subprocess.run(['which', 'chromedriver'], capture_output=True, text=True)
-            if result.returncode == 0:
-                chromedriver_path = result.stdout.strip()
-                logger.info(f"[LAMBDA] Found ChromeDriver via which: {chromedriver_path}")
-        except Exception as e:
-            logger.debug(f"[LAMBDA] 'which chromedriver' failed: {e}")
-    
-    if not chromedriver_path:
-        logger.error("[LAMBDA] ChromeDriver not found! This should not happen with umihico base image.")
-        raise Exception("ChromeDriver not found in Lambda environment")
+    # Only locate and log paths once
+    if not chrome_binary or not chromedriver_path:
+        if not _chrome_paths_logged:
+            logger.info("[LAMBDA] Locating Chrome and ChromeDriver...")
+        
+        # Common paths for Chrome binary
+        chrome_paths = [
+            '/opt/chrome/chrome',
+            '/opt/chrome/headless-chromium',
+            '/opt/chrome/chrome-wrapper',
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/google-chrome',
+        ]
+        
+        for path in chrome_paths:
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                chrome_binary = path
+                break
+        
+        # If not found by direct paths, try using 'which'
+        if not chrome_binary:
+            try:
+                result = subprocess.run(['which', 'chrome'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    chrome_binary = result.stdout.strip()
+            except Exception:
+                pass
+        
+        if not chrome_binary:
+            logger.error("[LAMBDA] Chrome binary not found!")
+            raise Exception("Chrome binary not found in Lambda environment")
+        
+        # Common paths for ChromeDriver
+        chromedriver_paths = [
+            '/opt/chromedriver',
+            '/usr/bin/chromedriver',
+            '/usr/local/bin/chromedriver',
+        ]
+        
+        for path in chromedriver_paths:
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                chromedriver_path = path
+                break
+        
+        if not chromedriver_path:
+            try:
+                result = subprocess.run(['which', 'chromedriver'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    chromedriver_path = result.stdout.strip()
+            except Exception:
+                pass
+        
+        if not chromedriver_path:
+            logger.error("[LAMBDA] ChromeDriver not found!")
+            raise Exception("ChromeDriver not found in Lambda environment")
+        
+        # Cache the paths and log only once
+        _chrome_binary_cache = chrome_binary
+        _chromedriver_path_cache = chromedriver_path
+        
+        if not _chrome_paths_logged:
+            logger.info(f"[LAMBDA] Chrome: {chrome_binary}, ChromeDriver: {chromedriver_path}")
+            _chrome_paths_logged = True
 
     # Use Selenium Chrome options with anti-detection
     chrome_options = Options()
@@ -994,25 +1007,37 @@ def wait_for_password_clickable(driver, by_method, selector, timeout=10):
         return None
 
 def get_twocaptcha_config():
-    """Get 2Captcha configuration from environment variables"""
+    """Get 2Captcha configuration from environment variables (cached to avoid repetitive logging)"""
+    global _twocaptcha_config_cache, _twocaptcha_config_logged
+    
+    # Return cached config if available
+    if _twocaptcha_config_cache is not None:
+        return _twocaptcha_config_cache
+    
     api_key = os.environ.get('TWOCAPTCHA_API_KEY', '').strip()
     enabled_str = os.environ.get('TWOCAPTCHA_ENABLED', 'false').strip().lower()
     enabled = enabled_str == 'true'
     
-    # Debug logging to help diagnose issues
-    logger.info(f"[2CAPTCHA CONFIG] Reading environment variables:")
-    logger.info(f"[2CAPTCHA CONFIG]   TWOCAPTCHA_ENABLED = '{os.environ.get('TWOCAPTCHA_ENABLED', 'NOT_SET')}' (parsed as: {enabled})")
-    logger.info(f"[2CAPTCHA CONFIG]   TWOCAPTCHA_API_KEY = '{api_key[:10]}...' (length: {len(api_key)})" if api_key else "[2CAPTCHA CONFIG]   TWOCAPTCHA_API_KEY = NOT_SET")
-    
-    if enabled and api_key:
-        logger.info("[2CAPTCHA CONFIG] ✓ 2Captcha is ENABLED and API key is configured")
-        return {'enabled': True, 'api_key': api_key}
+    # Only log configuration once
+    if not _twocaptcha_config_logged:
+        if enabled and api_key:
+            logger.info(f"[2CAPTCHA] ✓ Enabled with API key: {api_key[:10]}...")
+            _twocaptcha_config_cache = {'enabled': True, 'api_key': api_key}
+        else:
+            if not enabled:
+                logger.warning("[2CAPTCHA] ✗ Disabled (TWOCAPTCHA_ENABLED != 'true')")
+            if not api_key:
+                logger.warning("[2CAPTCHA] ✗ API key not set")
+            _twocaptcha_config_cache = {'enabled': False, 'api_key': None}
+        _twocaptcha_config_logged = True
     else:
-        if not enabled:
-            logger.warning("[2CAPTCHA CONFIG] ✗ 2Captcha is DISABLED (TWOCAPTCHA_ENABLED is not 'true')")
-        if not api_key:
-            logger.warning("[2CAPTCHA CONFIG] ✗ 2Captcha API key is NOT SET (TWOCAPTCHA_API_KEY is empty)")
-        return {'enabled': False, 'api_key': None}
+        # Return cached result without logging
+        if enabled and api_key:
+            _twocaptcha_config_cache = {'enabled': True, 'api_key': api_key}
+        else:
+            _twocaptcha_config_cache = {'enabled': False, 'api_key': None}
+    
+    return _twocaptcha_config_cache
 
 def solve_google_image_captcha(driver, api_key, email=None):
     """
@@ -2622,7 +2647,7 @@ def handle_post_login_pages(driver, max_attempts=20):
             if attempt >= max_attempts - 3:  # Last 3 attempts
                 logger.warning(f"[STEP] Stuck on intermediate page, attempting direct navigation (attempt {attempt + 1})")
                 try:
-                    driver.get("https://myaccount.google.com/")
+                    driver.get("https://myaccount.google.com/?hl=en")
                     time.sleep(3)
                 except Exception as e:
                     logger.error(f"[STEP] Direct navigation failed: {e}")
@@ -2651,21 +2676,12 @@ def login_google(driver, email, password, known_totp_secret=None):
     
     # Navigate with timeout and error handling
     try:
-        logger.info("[STEP] Navigating to Google login page (English)...")
+        logger.info("[STEP] Navigating to Google login page...")
         driver.get("https://accounts.google.com/signin/v2/identifier?hl=en&flowName=GlifWebSignIn")
-        logger.info("[STEP] Navigation to Google login page completed")
         
-        # Add random delay to simulate human behavior
-        add_random_delays()
-        
-        # Inject additional anti-detection scripts after page load
+        # Wait for page to load and inject anti-detection
+        time.sleep(random.uniform(1, 2))
         inject_randomized_javascript(driver)
-        
-        # Perform random scroll and mouse movements
-        random_scroll_and_mouse_move(driver)
-        
-        time.sleep(1)  # Additional wait for page to stabilize
-        logger.info("[STEP] Page stabilized, proceeding with login")
         
         # NOTE: CAPTCHA check removed from here - CAPTCHA rarely appears before email entry
         # CAPTCHA typically appears after email submission, so we'll check after that
@@ -2675,47 +2691,24 @@ def login_google(driver, email, password, known_totp_secret=None):
         return False, "navigation_failed", str(nav_error)
 
     try:
-        # Enter email with human-like behavior
+        # Enter email
         email_input = wait_for_xpath(driver, "//input[@id='identifierId']", timeout=30)
-        
-        # Random scroll before interaction
-        random_scroll_and_mouse_move(driver)
-        
         email_input.clear()
-        add_random_delays()
         
         # Simulate human typing for email
         simulate_human_typing(email_input, email, driver)
-        logger.info("[STEP] Email entered with human-like typing")
         
-        add_random_delays()
-        
-        # Click Next button
-        email_next_xpaths = [
-            "//*[@id='identifierNext']",
-            "//button[@id='identifierNext']",
-            "//span[contains(text(), 'Next')]/ancestor::button",
-        ]
-        email_next = find_element_with_fallback(driver, email_next_xpaths, timeout=20, description="email next button")
-        if email_next:
-            click_xpath(driver, "//*[@id='identifierNext']", timeout=10)
-        else:
-            # Try Enter key
-            email_input.send_keys(Keys.RETURN)
+        # Submit with Enter key (more human-like)
+        time.sleep(random.uniform(0.3, 0.6))
+        email_input.send_keys(Keys.RETURN)
         logger.info("[STEP] Email submitted")
 
-        # Wait for page to transition after email submission (optimized)
-        time.sleep(2)  # Reduced from 3 to 2 seconds
+        # Wait for page to transition after email submission
+        time.sleep(random.uniform(1.5, 2.5))
         
-        # Add human-like behavior after email submission (optimized - less frequent)
-        if random.random() > 0.5:  # Only 50% of the time to reduce overhead
-            add_random_delays()
-            random_scroll_and_mouse_move(driver)
-        
-        # Check if we're still on the identifier page (email submission failed or CAPTCHA appeared)
+        # Check page state
         current_url = driver.current_url
-        page_title = driver.title
-        logger.info(f"[STEP] After email submission - URL: {current_url[:100]}..., Title: {page_title}")
+        logger.debug(f"[STEP] Post-email URL: {current_url[:80]}...")
         
         # Check for CAPTCHA after email submission (this is when it typically appears)
         if detect_captcha(driver, email=email):
@@ -2957,93 +2950,77 @@ def login_google(driver, email, password, known_totp_secret=None):
             except Exception as image_captcha_check:
                 logger.debug(f"[STEP] Image CAPTCHA check error: {image_captcha_check}")
         
-        # Wait longer for password field to appear (Google may be processing CAPTCHA)
-        wait_time = random.uniform(3, 5)
-        logger.info(f"[STEP] Waiting {wait_time:.1f}s for password field to appear...")
-        time.sleep(wait_time)
+        # Wait for password field to appear (Google may be processing CAPTCHA)
+        time.sleep(random.uniform(2, 3))  # Reduced wait time
         
-        # Check for iframes first (Google sometimes uses iframes for password field)
+        # Find password input field (simplified - most reliable methods first)
         password_input = None
-        try:
-            # Primary method: Use By.NAME like reference function (most reliable)
-            logger.info("[STEP] Trying to find password input using By.NAME='Passwd' (primary method)")
-            password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=10)
-            if password_input:
-                logger.info("[STEP] Found password input using By.NAME='Passwd'")
-        except Exception as primary_err:
-            logger.warning(f"[STEP] Primary method failed: {primary_err}")
         
+        # Primary method: By.NAME='Passwd' (most reliable)
+        try:
+            password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=10)
+        except Exception:
+            pass
+        
+        # Fallback: Try XPath methods (silently, without logging each attempt)
         if not password_input:
-            # Fallback: Try XPath methods (fixed invalid XPath syntax)
             password_input_xpaths = [
                 "//input[@name='Passwd']",
                 "//input[@type='password']",
-                "/html/body/div[2]/div[1]/div[1]/div[2]/c-wiz/main/div[2]/div/div/div/form/span/section[2]/div/div/div[1]/div[1]/div/div/div/div/div[1]/div/div[1]/input",  # User-provided working XPath
+                "/html/body/div[2]/div[1]/div[1]/div[2]/c-wiz/main/div[2]/div/div/div/form/span/section[2]/div/div/div[1]/div[1]/div/div/div/div/div[1]/div/div[1]/input",
                 "//input[@id='password']",
                 "//input[@name='password']",
-                "//input[contains(@aria-label, 'password')]",
-                "//input[contains(@aria-label, 'Password')]",
             ]
             
-            # Try to find visible and interactable password field
             for xpath in password_input_xpaths:
                 try:
-                    logger.info(f"[STEP] Trying to find password input with XPath: {xpath}")
-                    password_input = wait_for_visible_and_interactable(driver, xpath, timeout=8)
+                    password_input = wait_for_visible_and_interactable(driver, xpath, timeout=5)
                     if password_input:
-                        logger.info(f"[STEP] Found password input using xpath: {xpath}")
                         break
-                except Exception as e:
-                    logger.warning(f"[STEP] Failed to find password with {xpath}: {e}")
+                except Exception:
                     continue
         
-        # If not found in main document, check iframes (prioritize Google's bscframe)
+        if password_input:
+            logger.info("[STEP] Found password field")
+        
+        # If not found in main document, check iframes
         if not password_input:
-            logger.info("[STEP] Password field not found in main document, checking iframes...")
             iframes = driver.find_elements(By.TAG_NAME, "iframe")
             
-            # First, try the bscframe iframe (Google's security frame where password field often appears)
-            bscframe_found = False
+            # Check bscframe iframe first (Google's security frame)
             for iframe in iframes:
                 try:
                     iframe_src = iframe.get_attribute('src') or ''
                     if '_/bscframe' in iframe_src:
-                        logger.info(f"[STEP] Found bscframe iframe, checking for password field...")
                         driver.switch_to.frame(iframe)
-                        # Try By.NAME first (most reliable)
                         try:
                             password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=5)
                             if password_input:
-                                logger.info("[STEP] ✓ Found password input in bscframe iframe!")
-                                bscframe_found = True
+                                logger.info("[STEP] Found password field in bscframe")
                                 break
                         except:
                             pass
-                        # Fallback to XPath
                         if not password_input:
                             for xpath in password_input_xpaths:
                                 try:
                                     password_input = wait_for_visible_and_interactable(driver, xpath, timeout=3)
                                     if password_input:
-                                        logger.info(f"[STEP] ✓ Found password input in bscframe iframe using: {xpath[:50]}...")
-                                        bscframe_found = True
+                                        logger.info("[STEP] Found password field in bscframe")
                                         break
                                 except:
                                     continue
                         driver.switch_to.default_content()
-                        if bscframe_found:
+                        if password_input:
                             break
-                except Exception as bsc_err:
-                    logger.debug(f"[STEP] Error checking bscframe: {bsc_err}")
+                except Exception:
                     driver.switch_to.default_content()
                     continue
             
-            # If still not found, check all other iframes
+            # Check other iframes if not found
             if not password_input:
                 for iframe in iframes:
                     try:
                         iframe_src = iframe.get_attribute('src') or ''
-                        # Skip bscframe (already checked) and YouTube check connection iframes
                         if '_/bscframe' in iframe_src or 'youtube.com' in iframe_src:
                             continue
                         driver.switch_to.frame(iframe)
@@ -3051,21 +3028,19 @@ def login_google(driver, email, password, known_totp_secret=None):
                             try:
                                 password_input = wait_for_visible_and_interactable(driver, xpath, timeout=3)
                                 if password_input:
-                                    logger.info(f"[STEP] Found password input in iframe using xpath: {xpath[:50]}...")
+                                    logger.info("[STEP] Found password field in iframe")
                                     break
                             except:
                                 continue
                         if password_input:
                             break
                         driver.switch_to.default_content()
-                    except Exception as iframe_err:
-                        logger.debug(f"[STEP] Error checking iframe: {iframe_err}")
+                    except Exception:
                         driver.switch_to.default_content()
                         continue
             
         if not password_input:
-            # Last resort: try JavaScript to find and interact with password field
-            logger.info("[STEP] Trying JavaScript method to find password field...")
+            # Last resort: JavaScript method
             try:
                 password_input = driver.execute_script("""
                     var inputs = document.querySelectorAll('input[type="password"], input[name="Passwd"], input[name="password"]');
@@ -3588,53 +3563,41 @@ def login_google(driver, email, password, known_totp_secret=None):
             logger.warning(f"[STEP] Could not verify password entry: {verify_err}")
         
         logger.info("[STEP] Password entered successfully")
-        time.sleep(1)
         
-        # Click Next button
-        pw_next_xpaths = [
-            "//*[@id='passwordNext']",
-            "//button[@id='passwordNext']",
-            "//span[contains(text(), 'Next')]/ancestor::button",
-        ]
-        pw_next = find_element_with_fallback(driver, pw_next_xpaths, timeout=20, description="password next button")
-        if pw_next:
-            click_xpath(driver, "//*[@id='passwordNext']", timeout=10)
-        else:
-            password_input.send_keys(Keys.RETURN)
+        # Use Enter key to submit password (more human-like than clicking button)
+        # This is faster, more reliable, and appears more natural to Google's bot detection
+        time.sleep(random.uniform(0.3, 0.8))  # Short random delay before submitting
+        password_input.send_keys(Keys.RETURN)
         logger.info("[STEP] Password submitted")
 
-        # Add human-like behavior after password submission
-        add_random_delays()
-        random_scroll_and_mouse_move(driver)
-
-        # Wait for potential challenge pages, intermediate pages, or account home
-        # Google may show: speedbump, verification, phone prompt, TOTP, recovery email, etc.
-        # We'll wait longer and handle what we can, skip what we can't
-        max_wait_attempts = 30  # Increased from 15 to 30 (90 seconds total)
+        # Wait for login response
+        max_wait_attempts = 30  # 90 seconds total
         wait_interval = 3
         current_url = None
         
+        last_logged_url = None
         for attempt in range(max_wait_attempts):
             time.sleep(wait_interval)
             
-            # Add occasional random behavior during wait
-            if attempt % 3 == 0:
+            # Occasional mouse movement (less frequent)
+            if attempt % 5 == 0:
                 random_scroll_and_mouse_move(driver)
             
             try:
                 current_url = driver.current_url
-                logger.info(f"[STEP] Post-login check {attempt + 1}/{max_wait_attempts}: URL = {current_url}")
+                # Only log when URL changes or every 5th attempt (to reduce log verbosity)
+                if current_url != last_logged_url or attempt % 5 == 0:
+                    logger.info(f"[STEP] Post-login check {attempt + 1}/{max_wait_attempts}: URL = {current_url[:80]}...")
+                    last_logged_url = current_url
             except Exception as e:
                 logger.error(f"[STEP] Failed to get current URL: {e}")
                 return False, "driver_crashed", f"Driver crashed while checking URL: {e}"
             
-            # Check for CAPTCHA after password submission (this is another common place for CAPTCHA)
-            # Also check for "Verify it's you" page with reCAPTCHA (double verification scenario)
+            # Check for CAPTCHA or "Verify it's you" page (use URL/title first, avoid expensive page_source check)
             page_title_check = driver.title.lower()
-            page_source_check = driver.page_source.lower()
             is_verify_page = ("verify it's you" in page_title_check or 
-                            "verify it's you" in page_source_check or
-                            "verify" in current_url.lower())
+                            "verify" in current_url.lower() or
+                            "challenge" in current_url.lower())
             
             if detect_captcha(driver, email=email) or is_verify_page:
                 if is_verify_page:
@@ -3839,7 +3802,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                         # No button found - try to navigate directly to myaccount
                         logger.info("[STEP] No actionable button found on challenge/pwd, attempting direct navigation...")
                         try:
-                            driver.get("https://myaccount.google.com/")
+                            driver.get("https://myaccount.google.com/?hl=en")
                             time.sleep(3)
                             continue
                         except Exception as e:
