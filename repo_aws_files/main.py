@@ -1018,7 +1018,7 @@ def get_twocaptcha_config():
     
     # Only log configuration once
     if not _twocaptcha_config_logged:
-    if enabled and api_key:
+        if enabled and api_key:
             logger.info(f"[2CAPTCHA] ✓ Enabled with API key: {api_key[:10]}...")
             _twocaptcha_config_cache = {'enabled': True, 'api_key': api_key}
         else:
@@ -1460,14 +1460,14 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                 # Method 2: Try to find site key in page source (static HTML)
                 if not site_key:
                     logger.info("[2CAPTCHA] Attempting HTML-based site key extraction...")
-                page_source = driver.page_source
-                
+                    page_source = driver.page_source
+                    
                     # Pattern 1: data-sitekey attribute (most common for reCAPTCHA v2)
                     site_key_match = re.search(r'data-sitekey=["\']([^"\']{20,})["\']', page_source, re.IGNORECASE)
-                if site_key_match:
+                    if site_key_match:
                         site_key = site_key_match.group(1).strip()
                         logger.info(f"[2CAPTCHA] Found site key in data-sitekey: {site_key[:50]}... (length: {len(site_key)})")
-                else:
+                    else:
                         # Pattern 2: recaptcha/api.js?render=SITE_KEY or k=SITE_KEY parameter
                         patterns = [
                             r'recaptcha/api\.js[^"\'<>]*[?&]render=([a-zA-Z0-9_-]{20,})',  # reCAPTCHA v3
@@ -1479,7 +1479,7 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                         
                         for pattern in patterns:
                             site_key_match = re.search(pattern, page_source, re.IGNORECASE)
-                    if site_key_match:
+                            if site_key_match:
                                 site_key = site_key_match.group(1).strip()
                                 logger.info(f"[2CAPTCHA] Found site key using pattern: {site_key[:50]}... (length: {len(site_key)})")
                                 break
@@ -1489,17 +1489,18 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                             try:
                                 iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha') or contains(@src, 'google.com/recaptcha')]")
                                 logger.info(f"[2CAPTCHA] Found {len(iframes)} reCAPTCHA iframe(s)")
-                            for iframe in iframes:
-                                iframe_src = iframe.get_attribute('src')
-                                if iframe_src:
+                                
+                                for iframe in iframes:
+                                    iframe_src = iframe.get_attribute('src')
+                                    if iframe_src:
                                         logger.debug(f"[2CAPTCHA] Checking iframe src: {iframe_src[:100]}...")
                                         # Try multiple patterns in iframe src
                                         for pattern in [r'[?&]k=([a-zA-Z0-9_-]{20,})', r'render=([a-zA-Z0-9_-]{20,})']:
                                             site_key_match = re.search(pattern, iframe_src, re.IGNORECASE)
-                                    if site_key_match:
+                                            if site_key_match:
                                                 site_key = site_key_match.group(1).strip()
                                                 logger.info(f"[2CAPTCHA] Found site key in iframe src: {site_key[:50]}... (length: {len(site_key)})")
-                                        break
+                                                break
                                         if site_key:
                                             break
                             except Exception as iframe_err:
