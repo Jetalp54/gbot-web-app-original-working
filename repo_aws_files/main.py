@@ -1106,7 +1106,7 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                             for (var i = 0; i < scripts.length; i++) {
                                 var src = scripts[i].src || '';
                                 var content = scripts[i].innerHTML || '';
-                                var match = src.match(/[?&]k=([a-zA-Z0-9_-]{20,})/) || content.match(/sitekey['"]\s*[:=]\s*['"]([^'"]+)['"]/i);
+                                var match = src.match(/[?&]k=([a-zA-Z0-9_-]{20,})/) || content.match(/sitekey['"]\\s*[:=]\\s*['"]([^'"]+)['"]/i);
                                 if (match && match[1]) {
                                     siteKey = match[1];
                                     break;
@@ -1246,8 +1246,8 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                             var html = document.documentElement.innerHTML;
                             var patterns = [
                                 /data-sitekey=["']([^"']{20,})["']/,
-                                /sitekey["']?\s*[:=]\s*["']([^"']{20,})["']/,
-                                /grecaptcha\.(?:enterprise\.)?render\([^,]+,\s*\{[^}]*sitekey["']?\s*:\s*["']([^"']+)["']/
+                                /sitekey["']?\\s*[:=]\\s*["']([^"']{20,})["']/,
+                                /grecaptcha\.(?:enterprise\.)?render\([^,]+,\\s*\{[^}]*sitekey["']?\\s*:\\s*["']([^"']+)["']/
                             ];
                             for (var i = 0; i < patterns.length; i++) {
                                 var match = html.match(patterns[i]);
