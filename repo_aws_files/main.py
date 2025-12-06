@@ -1743,26 +1743,58 @@ def solve_captcha_with_2captcha(driver, email=None):
                 
                 logger.info("[2CAPTCHA] ✓ Solution entered into CAPTCHA input field")
                 
-                # Wait a moment for Google to process
-                time.sleep(2)
+                # Wait briefly for Google to process
+                time.sleep(0.5)
                 
-                # Try to submit by finding and clicking the "Next" button or form submit
+                # First, try Enter key to submit (faster and more natural)
                 try:
-                    # Look for Next button
-                    next_button = driver.find_elements(By.XPATH, 
-                        "//button[contains(., 'Next') or contains(., 'NEXT')] | " +
-                        "//span[contains(., 'Next')]/ancestor::button | " +
-                        "//div[@role='button' and contains(., 'Next')]")
+                    captcha_input.send_keys(Keys.RETURN)
+                    logger.info("[2CAPTCHA] Pressed Enter key to submit CAPTCHA solution")
+                    time.sleep(2)  # Wait for page to process
                     
-                    for btn in next_button:
-                        if btn.is_displayed():
-                            logger.info("[2CAPTCHA] Clicking Next button after entering CAPTCHA solution...")
-                            driver.execute_script("arguments[0].click();", btn)
-                            time.sleep(2)
-                            break
+                    # Check if page changed (CAPTCHA was submitted successfully)
+                    current_url = driver.current_url
+                    if "challenge/pwd" in current_url or "myaccount.google.com" in current_url:
+                        logger.info("[2CAPTCHA] ✓✓✓ CAPTCHA submitted successfully with Enter key!")
+                        return True, None
+                except Exception as enter_err:
+                    logger.debug(f"[2CAPTCHA] Enter key submission failed: {enter_err}")
+                
+                # If Enter didn't work, try finding and clicking Next/Continue button
+                try:
+                    # Look for Next/Continue button
+                    next_button_xpaths = [
+                        "//button[contains(., 'Next') or contains(., 'NEXT')]",
+                        "//span[contains(., 'Next')]/ancestor::button",
+                        "//div[@role='button' and contains(., 'Next')]",
+                        "//button[contains(., 'Continue')]",
+                        "//span[contains(., 'Continue')]/ancestor::button",
+                        "//*[@id='identifierNext']",
+                        "//*[@id='passwordNext']"
+                    ]
+                    
+                    next_button = None
+                    for xpath in next_button_xpaths:
+                        try:
+                            buttons = driver.find_elements(By.XPATH, xpath)
+                            for btn in buttons:
+                                if btn.is_displayed() and btn.is_enabled():
+                                    next_button = btn
+                                    break
+                            if next_button:
+                                break
+                        except:
+                            continue
+                    
+                    if next_button:
+                        logger.info("[2CAPTCHA] Clicking Next/Continue button after entering CAPTCHA solution...")
+                        driver.execute_script("arguments[0].click();", next_button)
+                        time.sleep(2)
+                    else:
+                        logger.debug("[2CAPTCHA] No Next/Continue button found, solution already entered")
                 except Exception as submit_err:
-                    logger.debug(f"[2CAPTCHA] Could not auto-submit after CAPTCHA: {submit_err}")
-                    # Continue anyway - the solution is entered, user might need to click manually
+                    logger.debug(f"[2CAPTCHA] Could not find/click Next button: {submit_err}")
+                    # Continue anyway - the solution is entered
                 
                 logger.info("[2CAPTCHA] ✓✓✓ Google image CAPTCHA solved and solution entered!")
                 return True, None
@@ -2241,8 +2273,13 @@ def login_google(driver, email, password, known_totp_secret=None):
     we will try to solve it; otherwise we fail with an explicit error.
     
     Enhanced to handle challenge/pwd and other intermediate pages.
+    
+    CAPTCHA solving happens only once per user - tracked via flag.
     """
     logger.info(f"[STEP] Login started for {email}")
+    
+    # Flag to ensure CAPTCHA solving happens only once per user
+    captcha_solved = False
     
     # Don't check driver health before navigation - it can cause crashes in Lambda
     # Just proceed directly to navigation
@@ -2250,7 +2287,9 @@ def login_google(driver, email, password, known_totp_secret=None):
     # Navigate with timeout and error handling
     try:
         logger.info("[STEP] Navigating to Google login page (English)...")
-        driver.get("https://accounts.google.com/signin/v2/identifier?hl=en&flowName=GlifWebSignIn")
+        # Ensure hl=en is always present in URL
+        login_url = "https://accounts.google.com/signin/v2/identifier?hl=en&flowName=GlifWebSignIn"
+        driver.get(login_url)
         logger.info("[STEP] Navigation to Google login page completed")
         
         # Add random delay to simulate human behavior
@@ -2286,27 +2325,16 @@ def login_google(driver, email, password, known_totp_secret=None):
         simulate_human_typing(email_input, email, driver)
         logger.info("[STEP] Email entered with human-like typing")
         
-        add_random_delays()
+        time.sleep(random.uniform(0.3, 0.6))  # Reduced wait time
         
-        # Click Next button
-        email_next_xpaths = [
-            "//*[@id='identifierNext']",
-            "//button[@id='identifierNext']",
-            "//span[contains(text(), 'Next')]/ancestor::button",
-        ]
-        email_next = find_element_with_fallback(driver, email_next_xpaths, timeout=20, description="email next button")
-        if email_next:
-            click_xpath(driver, "//*[@id='identifierNext']", timeout=10)
-        else:
-            # Try Enter key
-            email_input.send_keys(Keys.RETURN)
-        logger.info("[STEP] Email submitted")
+        # Submit email using Enter key (faster and more natural)
+        email_input.send_keys(Keys.RETURN)
+        logger.info("[STEP] Email submitted using Enter key")
 
-        # Wait for page to transition after email submission
-        time.sleep(3)  # Increased wait to allow page transition
+        # Wait for page to transition after email submission (optimized)
+        time.sleep(2)  # Reduced from 3 to 2 seconds
         
-        # Add human-like behavior after email submission
-        add_random_delays()
+        # Add minimal human-like behavior after email submission (optimized)
         random_scroll_and_mouse_move(driver)
         
         # Check if we're still on the identifier page (email submission failed or CAPTCHA appeared)
@@ -2315,11 +2343,13 @@ def login_google(driver, email, password, known_totp_secret=None):
         logger.info(f"[STEP] After email submission - URL: {current_url[:100]}..., Title: {page_title}")
         
         # Check for CAPTCHA after email submission (this is when it typically appears)
-        if detect_captcha(driver, email=email):
+        # Only solve CAPTCHA once per user
+        if not captcha_solved and detect_captcha(driver, email=email):
             logger.warning("[STEP] ⚠️ CAPTCHA detected after email submission!")
             
-            # Try to solve CAPTCHA using 2Captcha if enabled
+            # Try to solve CAPTCHA using 2Captcha if enabled (only once)
             solved, solve_error = solve_captcha_with_2captcha(driver, email=email)
+            captcha_solved = True  # Mark as solved to prevent retry
             
             if solved:
                 logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Waiting for page to process token...")
@@ -2345,33 +2375,20 @@ def login_google(driver, email, password, known_totp_secret=None):
                             logger.info("[STEP] Re-entered email after CAPTCHA solve")
                             time.sleep(1)
                             
-                            # Click Next button again (CAPTCHA token should now be set)
-                            email_next_retry = find_element_with_fallback(driver, 
-                                ["//*[@id='identifierNext']", "//button[@id='identifierNext']"], 
-                                timeout=10, description="email next button for retry")
-                            if email_next_retry:
-                                click_xpath(driver, "//*[@id='identifierNext']", timeout=10)
-                                logger.info("[STEP] Retried email submission after CAPTCHA solve")
-                                time.sleep(4)  # Wait for page transition
-                            else:
-                                email_input_retry.send_keys(Keys.RETURN)
-                                time.sleep(4)
+                            # Submit email using Enter key (CAPTCHA token should now be set)
+                            email_input_retry.send_keys(Keys.RETURN)
+                            logger.info("[STEP] Retried email submission after CAPTCHA solve using Enter key")
+                            time.sleep(3)  # Reduced wait time
                     except Exception as retry_err:
                         logger.warning(f"[STEP] Could not retry email submission after CAPTCHA solve: {retry_err}")
                         # Continue anyway - token might already be processed
                 
                 # Check if CAPTCHA is still present (should be gone if solved correctly)
+                # Note: We don't retry CAPTCHA solving - it's already been solved once
                 if detect_captcha(driver, email=email):
-                    logger.warning("[STEP] ⚠️ CAPTCHA still present after solving attempt. Retrying solve...")
-                    # Try one more time
-                    time.sleep(2)
-                    solved_retry, retry_error = solve_captcha_with_2captcha(driver, email=email)
-                    if not solved_retry:
-                        logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed after retry: {retry_error}")
-                        return False, "CAPTCHA_SOLVE_FAILED", f"CAPTCHA detected and 2Captcha solving failed: {retry_error}"
-                    else:
-                        logger.info("[STEP] ✓ CAPTCHA solved on retry!")
-                        time.sleep(5)  # Wait after retry solve
+                    logger.warning("[STEP] ⚠️ CAPTCHA still present after solving attempt. This may be a different CAPTCHA or page issue.")
+                    # Don't retry - CAPTCHA solving happens only once per user
+                    time.sleep(2)  # Wait briefly
                 else:
                     logger.info("[STEP] ✓ CAPTCHA cleared after solving! Proceeding...")
             else:
@@ -2410,13 +2427,21 @@ def login_google(driver, email, password, known_totp_secret=None):
                             aria_label = inp.get_attribute('aria-label') or ''
                             if 'hear or see' in aria_label.lower() or 'captcha' in aria_label.lower():
                                 logger.warning("[STEP] ⚠️ Image CAPTCHA detected (input field visible)")
-                                logger.info("[STEP] Attempting to solve Google Image CAPTCHA using 2Captcha Image CAPTCHA solver...")
                                 
-                                # Capture screenshot for analysis
-                                capture_captcha_screenshot(driver, captcha_type="image", email=email)
-                                
-                                # Solve the image CAPTCHA using 2Captcha
-                                solved, error = solve_captcha_with_2captcha(driver, email=email)
+                                # Only solve CAPTCHA once per user
+                                if not captcha_solved:
+                                    logger.info("[STEP] Attempting to solve Google Image CAPTCHA using 2Captcha Image CAPTCHA solver...")
+                                    
+                                    # Capture screenshot for analysis
+                                    capture_captcha_screenshot(driver, captcha_type="image", email=email)
+                                    
+                                    # Solve the image CAPTCHA using 2Captcha
+                                    solved, error = solve_captcha_with_2captcha(driver, email=email)
+                                    captcha_solved = True  # Mark as solved
+                                else:
+                                    logger.info("[STEP] CAPTCHA already solved once for this user, skipping...")
+                                    solved = True
+                                    error = None
                                 
                                 if solved:
                                     logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Proceeding with login...")
@@ -3024,20 +3049,11 @@ def login_google(driver, email, password, known_totp_secret=None):
             logger.warning(f"[STEP] Could not verify password entry: {verify_err}")
         
         logger.info("[STEP] Password entered successfully")
-        time.sleep(1)
+        time.sleep(random.uniform(0.3, 0.6))  # Reduced wait time
         
-        # Click Next button
-        pw_next_xpaths = [
-            "//*[@id='passwordNext']",
-            "//button[@id='passwordNext']",
-            "//span[contains(text(), 'Next')]/ancestor::button",
-        ]
-        pw_next = find_element_with_fallback(driver, pw_next_xpaths, timeout=20, description="password next button")
-        if pw_next:
-            click_xpath(driver, "//*[@id='passwordNext']", timeout=10)
-        else:
-            password_input.send_keys(Keys.RETURN)
-        logger.info("[STEP] Password submitted")
+        # Submit password using Enter key (faster and more natural)
+        password_input.send_keys(Keys.RETURN)
+        logger.info("[STEP] Password submitted using Enter key")
 
         # Add human-like behavior after password submission
         add_random_delays()
@@ -3065,30 +3081,30 @@ def login_google(driver, email, password, known_totp_secret=None):
                 return False, "driver_crashed", f"Driver crashed while checking URL: {e}"
             
             # Check for CAPTCHA after password submission (this is another common place for CAPTCHA)
-            if detect_captcha(driver, email=email):
+            # Only solve CAPTCHA once per user
+            if not captcha_solved and detect_captcha(driver, email=email):
                 logger.warning("[STEP] ⚠️ CAPTCHA detected after password submission!")
                 
-                # Try to solve CAPTCHA using 2Captcha if enabled
-                solved, solve_error = solve_captcha_with_2captcha(driver)
+                # Try to solve CAPTCHA using 2Captcha if enabled (only once)
+                solved, solve_error = solve_captcha_with_2captcha(driver, email=email)
+                captcha_solved = True  # Mark as solved
                 
                 if solved:
                     logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Continuing with login...")
                     # Wait a moment for page to process the solved CAPTCHA
-                    time.sleep(3)
+                    time.sleep(2)  # Reduced wait time
                     
-                    # Check if CAPTCHA is still present
+                    # Check if CAPTCHA is still present (but don't retry - already solved once)
                     if detect_captcha(driver, email=email):
-                        logger.warning("[STEP] ⚠️ CAPTCHA still present after solving. Retrying...")
-                        time.sleep(2)
-                        solved_retry, _ = solve_captcha_with_2captcha(driver, email=email)
-                        if not solved_retry:
-                            logger.error("[STEP] ✗✗✗ CAPTCHA solving failed after retry")
-                            return False, "CAPTCHA_SOLVE_FAILED", "CAPTCHA detected after password submission and 2Captcha solving failed"
+                        logger.warning("[STEP] ⚠️ CAPTCHA still present after solving. This may be a different CAPTCHA.")
+                        time.sleep(1)  # Brief wait
                     else:
                         logger.info("[STEP] ✓ CAPTCHA cleared after solving! Proceeding...")
                 else:
                     logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed: {solve_error}")
                     return False, "CAPTCHA_DETECTED", f"CAPTCHA detected after password submission. 2Captcha solving failed: {solve_error}"
+            elif captcha_solved and detect_captcha(driver, email=email):
+                logger.info("[STEP] CAPTCHA already solved once for this user, skipping additional solve attempts...")
             
             # Check for account verification/ID verification required
             if "speedbump/idvreenable" in current_url or "idvreenable" in current_url:
@@ -3449,54 +3465,79 @@ def setup_authenticator(driver, email):
         # Step 2: Click "Can't scan it?" link to show text version
         logger.info("[STEP] Looking for 'Can't scan it?' link...")
         
-        # Build comprehensive list of XPath patterns
-        cant_scan_xpaths = [
-            "//span[contains(text(), 'Can't scan it?')]",
-            "//a[contains(text(), 'Can't scan it?')]",
-            "//button[contains(text(), 'Can't scan it?')]",
-            "//*[contains(text(), 'Can't scan it?')]",
-            "//span[contains(text(), 'Can\\'t scan it?')]",
-            "//*[contains(text(), 'Can\\'t scan it?')]",
-            "//span[contains(text(), 'cant scan')]",
-            "//*[contains(text(), 'cant scan')]",
-        ]
-        
-        # Add dynamic div paths
-        for div_index in range(9, 14):
-            cant_scan_xpaths.extend([
-                f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]",
-                f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[4]",
-                f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[3]",
-                f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button",
-            ])
-        
-        # Add class-based patterns
-        cant_scan_xpaths.extend([
-            "//button[contains(@class, 'VfPpkd-LgbsSe')]//span[contains(text(), 'Can')]",
-            "//button[contains(@class, 'VfPpkd-LgbsSe')]//span[contains(text(), 'scan')]",
-        ])
-        
+        # First try: Use JavaScript with div[11] as specified (priority)
         cant_scan_clicked = False
-        for xpath in cant_scan_xpaths:
-            try:
-                element = wait_for_xpath(driver, xpath, timeout=2)
-                if element:
-                    # Try JavaScript click first
-                    try:
-                        driver.execute_script("arguments[0].click();", element)
-                        logger.info(f"[STEP] Clicked 'Can't scan it?' link using JavaScript: {xpath}")
-                        time.sleep(2)
-                        cant_scan_clicked = True
-                        break
-                    except:
-                        # Fallback to regular click
-                        element.click()
-                        logger.info(f"[STEP] Clicked 'Can't scan it?' link using regular click: {xpath}")
-                        time.sleep(2)
-                        cant_scan_clicked = True
-                        break
-            except:
-                continue
+        try:
+            # Try div[11] first using JavaScript (as specified by user)
+            cant_scan_element = driver.execute_script("""
+                var element = document.evaluate(
+                    '/html/body/div[11]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]',
+                    document,
+                    null,
+                    XPathResult.FIRST_ORDERED_NODE_TYPE,
+                    null
+                ).singleNodeValue;
+                if (element) {
+                    element.click();
+                    return true;
+                }
+                return false;
+            """)
+            if cant_scan_element:
+                logger.info("[STEP] Clicked 'Can't scan it?' link using JavaScript with div[11]")
+                time.sleep(1)  # Reduced wait time
+                cant_scan_clicked = True
+        except Exception as js_err:
+            logger.debug(f"[STEP] JavaScript click with div[11] failed: {js_err}")
+        
+        # If JavaScript didn't work, try XPath patterns (with div[11] as first priority)
+        if not cant_scan_clicked:
+            cant_scan_xpaths = [
+                "/html/body/div[11]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]",  # Priority: div[11]
+                "/html/body/div[11]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[4]",
+                "/html/body/div[11]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[3]",
+                "/html/body/div[11]/div/div[2]/span/div/div/div/div[2]/center/div/div/button",
+                "//span[contains(text(), 'Can't scan it?')]",
+                "//a[contains(text(), 'Can't scan it?')]",
+                "//button[contains(text(), 'Can't scan it?')]",
+                "//*[contains(text(), 'Can't scan it?')]",
+            ]
+            
+            # Add other div indices (9-14, excluding 11 which is already first)
+            for div_index in [9, 10, 12, 13, 14]:
+                cant_scan_xpaths.extend([
+                    f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]",
+                    f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[4]",
+                    f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[3]",
+                    f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button",
+                ])
+            
+            # Add class-based patterns
+            cant_scan_xpaths.extend([
+                "//button[contains(@class, 'VfPpkd-LgbsSe')]//span[contains(text(), 'Can')]",
+                "//button[contains(@class, 'VfPpkd-LgbsSe')]//span[contains(text(), 'scan')]",
+            ])
+            
+            for xpath in cant_scan_xpaths:
+                try:
+                    element = wait_for_xpath(driver, xpath, timeout=2)
+                    if element:
+                        # Try JavaScript click first
+                        try:
+                            driver.execute_script("arguments[0].click();", element)
+                            logger.info(f"[STEP] Clicked 'Can't scan it?' link using JavaScript: {xpath}")
+                            time.sleep(1)  # Reduced wait time
+                            cant_scan_clicked = True
+                            break
+                        except:
+                            # Fallback to regular click
+                            element.click()
+                            logger.info(f"[STEP] Clicked 'Can't scan it?' link using regular click: {xpath}")
+                            time.sleep(1)  # Reduced wait time
+                            cant_scan_clicked = True
+                            break
+                except:
+                    continue
         
         if not cant_scan_clicked:
             logger.warning("[STEP] Could not find 'Can't scan it?' link")
