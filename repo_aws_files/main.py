@@ -241,15 +241,14 @@ def get_chrome_driver():
     
     # Use cached paths if available (avoids repetitive logging for parallel users)
     global _chrome_paths_logged, _chrome_binary_cache, _chromedriver_path_cache
-    
     chrome_binary = _chrome_binary_cache
     chromedriver_path = _chromedriver_path_cache
-    
-    # Only locate and log paths once
+
+    # Locate binaries once per cold start
     if not chrome_binary or not chromedriver_path:
         if not _chrome_paths_logged:
             logger.info("[LAMBDA] Locating Chrome and ChromeDriver...")
-        
+
         # Common paths for Chrome binary
         chrome_paths = [
             '/opt/chrome/chrome',
@@ -259,12 +258,12 @@ def get_chrome_driver():
             '/usr/bin/chromium-browser',
             '/usr/bin/google-chrome',
         ]
-        
+
         for path in chrome_paths:
             if os.path.isfile(path) and os.access(path, os.X_OK):
                 chrome_binary = path
                 break
-        
+
         # If not found by direct paths, try using 'which'
         if not chrome_binary:
             try:
@@ -273,23 +272,23 @@ def get_chrome_driver():
                     chrome_binary = result.stdout.strip()
             except Exception:
                 pass
-        
+
         if not chrome_binary:
             logger.error("[LAMBDA] Chrome binary not found!")
             raise Exception("Chrome binary not found in Lambda environment")
-        
+
         # Common paths for ChromeDriver
         chromedriver_paths = [
             '/opt/chromedriver',
             '/usr/bin/chromedriver',
             '/usr/local/bin/chromedriver',
         ]
-        
+
         for path in chromedriver_paths:
             if os.path.isfile(path) and os.access(path, os.X_OK):
                 chromedriver_path = path
                 break
-        
+
         if not chromedriver_path:
             try:
                 result = subprocess.run(['which', 'chromedriver'], capture_output=True, text=True)
@@ -297,15 +296,14 @@ def get_chrome_driver():
                     chromedriver_path = result.stdout.strip()
             except Exception:
                 pass
-        
+
         if not chromedriver_path:
             logger.error("[LAMBDA] ChromeDriver not found!")
             raise Exception("ChromeDriver not found in Lambda environment")
-        
+
         # Cache the paths and log only once
         _chrome_binary_cache = chrome_binary
         _chromedriver_path_cache = chromedriver_path
-        
         if not _chrome_paths_logged:
             logger.info(f"[LAMBDA] Chrome: {chrome_binary}, ChromeDriver: {chromedriver_path}")
             _chrome_paths_logged = True
@@ -420,7 +418,7 @@ def get_chrome_driver():
                     
                     // 3. Spoof plugins with realistic enumeration
                     const realPlugins = Array.from(navigator.plugins || []);
-                    Object.defineProperty(navigator, 'plugins', {
+                Object.defineProperty(navigator, 'plugins', {
                         get: () => {
                             // Return realistic plugin array
                             const plugins = [];
@@ -434,24 +432,24 @@ def get_chrome_driver():
                                 {name: 'Native Client', filename: 'internal-nacl-plugin'}
                             ];
                         },
-                        configurable: true
-                    });
-                    
+                    configurable: true
+                });
+                
                     // 4. Spoof languages (randomize for better fingerprint diversity)
                     const languages = ['en-US', 'en'];
-                    Object.defineProperty(navigator, 'languages', {
+                Object.defineProperty(navigator, 'languages', {
                         get: () => languages,
-                        configurable: true
-                    });
-                    
+                    configurable: true
+                });
+                
                     // 5. Spoof platform (randomize between common platforms)
                     const platforms = ['Win32', 'MacIntel', 'Linux x86_64'];
                     const platform = platforms[Math.floor(Math.random() * platforms.length)];
-                    Object.defineProperty(navigator, 'platform', {
+                Object.defineProperty(navigator, 'platform', {
                         get: () => platform,
-                        configurable: true
-                    });
-                    
+                    configurable: true
+                });
+                
                     // 6. Enhanced Chrome runtime spoofing
                     window.chrome = {
                         runtime: {},
@@ -461,7 +459,7 @@ def get_chrome_driver():
                     };
                     
                     // 7. Spoof permissions API
-                    const originalQuery = window.navigator.permissions.query;
+                const originalQuery = window.navigator.permissions.query;
                     window.navigator.permissions.query = function(parameters) {
                         if (parameters.name === 'notifications') {
                             return Promise.resolve({ state: Notification.permission });
@@ -473,8 +471,8 @@ def get_chrome_driver():
                     };
                     
                     // 8. Advanced WebGL fingerprinting evasion
-                    const getParameter = WebGLRenderingContext.prototype.getParameter;
-                    WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                const getParameter = WebGLRenderingContext.prototype.getParameter;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
                         // Spoof WebGL vendor/renderer (randomize between common GPUs)
                         const vendors = [
                             {vendor: 'Intel Inc.', renderer: 'Intel Iris OpenGL Engine'},
@@ -488,30 +486,30 @@ def get_chrome_driver():
                         }
                         if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
                             return gpu.renderer;
-                        }
-                        return getParameter.call(this, parameter);
-                    };
-                    
+                    }
+                    return getParameter.call(this, parameter);
+                };
+                
                     // 9. Enhanced Canvas fingerprinting evasion (more sophisticated noise)
-                    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+                const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
                     const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
                     
                     HTMLCanvasElement.prototype.toDataURL = function(type) {
-                        const context = this.getContext('2d');
-                        if (context) {
-                            const imageData = context.getImageData(0, 0, this.width, this.height);
+                    const context = this.getContext('2d');
+                    if (context) {
+                        const imageData = context.getImageData(0, 0, this.width, this.height);
                             // Add subtle noise (1-2 pixels) to prevent fingerprinting
-                            for (let i = 0; i < imageData.data.length; i += 4) {
+                        for (let i = 0; i < imageData.data.length; i += 4) {
                                 const noise = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
                                 imageData.data[i] = Math.max(0, Math.min(255, imageData.data[i] + noise));
                                 imageData.data[i + 1] = Math.max(0, Math.min(255, imageData.data[i + 1] + noise));
                                 imageData.data[i + 2] = Math.max(0, Math.min(255, imageData.data[i + 2] + noise));
-                            }
-                            context.putImageData(imageData, 0, 0);
                         }
-                        return originalToDataURL.apply(this, arguments);
-                    };
-                    
+                        context.putImageData(imageData, 0, 0);
+                    }
+                    return originalToDataURL.apply(this, arguments);
+                };
+                
                     // 10. Spoof AudioContext fingerprinting
                     if (window.AudioContext || window.webkitAudioContext) {
                         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -531,13 +529,13 @@ def get_chrome_driver():
                     }
                     
                     // 11. Spoof mediaDevices with realistic device enumeration
-                    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-                        const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
-                        navigator.mediaDevices.enumerateDevices = function() {
-                            return Promise.resolve([
-                                {
-                                    deviceId: "default",
-                                    kind: "audioinput",
+                if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+                    const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
+                    navigator.mediaDevices.enumerateDevices = function() {
+                        return Promise.resolve([
+                            {
+                                deviceId: "default",
+                                kind: "audioinput",
                                     label: "Default - Microphone",
                                     groupId: "group1"
                                 },
@@ -545,24 +543,24 @@ def get_chrome_driver():
                                     deviceId: "communications",
                                     kind: "audioinput",
                                     label: "Default - Communication Microphone",
-                                    groupId: "group1"
-                                },
-                                {
-                                    deviceId: "default",
-                                    kind: "videoinput",
+                                groupId: "group1"
+                            },
+                            {
+                                deviceId: "default",
+                                kind: "videoinput",
                                     label: "Default - Camera",
                                     groupId: "group2"
-                                },
-                                {
-                                    deviceId: "default",
-                                    kind: "audiooutput",
+                            },
+                            {
+                                deviceId: "default",
+                                kind: "audiooutput",
                                     label: "Default - Speakers",
                                     groupId: "group3"
-                                }
-                            ]);
-                        };
-                    }
-                    
+                            }
+                        ]);
+                    };
+                }
+                
                     // 12. Spoof Hardware Concurrency and Device Memory (randomize for diversity)
                     const hardwareConcurrency = [4, 8, 12, 16][Math.floor(Math.random() * 4)];
                     const deviceMemory = [4, 8, 16][Math.floor(Math.random() * 3)];
@@ -642,7 +640,7 @@ def get_chrome_driver():
                     // Note: Can't fully override timezone in JS, but Chrome args handle it
                     
                     // 17. Enhanced mouse movement simulation (more realistic)
-                    let mouseMoveCount = 0;
+                let mouseMoveCount = 0;
                     let lastMouseX = window.innerWidth / 2;
                     let lastMouseY = window.innerHeight / 2;
                     
@@ -827,16 +825,16 @@ def random_scroll_and_mouse_move(driver):
                     const y = startY + (endY - startY) * eased;
                     
                     setTimeout(() => {
-                        const event = new MouseEvent('mousemove', {
-                            view: window,
-                            bubbles: true,
-                            cancelable: true,
+            const event = new MouseEvent('mousemove', {
+                view: window,
+                bubbles: true,
+                cancelable: true,
                             clientX: x,
                             clientY: y,
                             movementX: i === 0 ? 0 : x - (startX + (endX - startX) * ((i-1)/steps)),
                             movementY: i === 0 ? 0 : y - (startY + (endY - startY) * ((i-1)/steps))
-                        });
-                        document.dispatchEvent(event);
+            });
+            document.dispatchEvent(event);
                     }, i * 15); // 15ms between steps for smooth movement
                 }
             })();
@@ -1020,7 +1018,7 @@ def get_twocaptcha_config():
     
     # Only log configuration once
     if not _twocaptcha_config_logged:
-        if enabled and api_key:
+    if enabled and api_key:
             logger.info(f"[2CAPTCHA] ✓ Enabled with API key: {api_key[:10]}...")
             _twocaptcha_config_cache = {'enabled': True, 'api_key': api_key}
         else:
@@ -1462,14 +1460,14 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                 # Method 2: Try to find site key in page source (static HTML)
                 if not site_key:
                     logger.info("[2CAPTCHA] Attempting HTML-based site key extraction...")
-                    page_source = driver.page_source
-                    
+                page_source = driver.page_source
+                
                     # Pattern 1: data-sitekey attribute (most common for reCAPTCHA v2)
                     site_key_match = re.search(r'data-sitekey=["\']([^"\']{20,})["\']', page_source, re.IGNORECASE)
-                    if site_key_match:
+                if site_key_match:
                         site_key = site_key_match.group(1).strip()
                         logger.info(f"[2CAPTCHA] Found site key in data-sitekey: {site_key[:50]}... (length: {len(site_key)})")
-                    else:
+                else:
                         # Pattern 2: recaptcha/api.js?render=SITE_KEY or k=SITE_KEY parameter
                         patterns = [
                             r'recaptcha/api\.js[^"\'<>]*[?&]render=([a-zA-Z0-9_-]{20,})',  # reCAPTCHA v3
@@ -1481,7 +1479,7 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                         
                         for pattern in patterns:
                             site_key_match = re.search(pattern, page_source, re.IGNORECASE)
-                            if site_key_match:
+                    if site_key_match:
                                 site_key = site_key_match.group(1).strip()
                                 logger.info(f"[2CAPTCHA] Found site key using pattern: {site_key[:50]}... (length: {len(site_key)})")
                                 break
@@ -1491,17 +1489,17 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                             try:
                                 iframes = driver.find_elements(By.XPATH, "//iframe[contains(@src, 'recaptcha') or contains(@src, 'google.com/recaptcha')]")
                                 logger.info(f"[2CAPTCHA] Found {len(iframes)} reCAPTCHA iframe(s)")
-                                for iframe in iframes:
-                                    iframe_src = iframe.get_attribute('src')
-                                    if iframe_src:
+                            for iframe in iframes:
+                                iframe_src = iframe.get_attribute('src')
+                                if iframe_src:
                                         logger.debug(f"[2CAPTCHA] Checking iframe src: {iframe_src[:100]}...")
                                         # Try multiple patterns in iframe src
                                         for pattern in [r'[?&]k=([a-zA-Z0-9_-]{20,})', r'render=([a-zA-Z0-9_-]{20,})']:
                                             site_key_match = re.search(pattern, iframe_src, re.IGNORECASE)
-                                            if site_key_match:
+                                    if site_key_match:
                                                 site_key = site_key_match.group(1).strip()
                                                 logger.info(f"[2CAPTCHA] Found site key in iframe src: {site_key[:50]}... (length: {len(site_key)})")
-                                                break
+                                        break
                                         if site_key:
                                             break
                             except Exception as iframe_err:
@@ -1806,8 +1804,8 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                         solution = get_result.get('solution', {})
                         token = solution.get('gRecaptchaResponse') or solution.get('token')
                         if token:
-                            logger.info(f"[2CAPTCHA] ✓✓✓ CAPTCHA solved successfully! Token received (waited {waited}s)")
-                            return True, token, None
+                        logger.info(f"[2CAPTCHA] ✓✓✓ CAPTCHA solved successfully! Token received (waited {waited}s)")
+                        return True, token, None
                         else:
                             logger.error("[2CAPTCHA] Solution received but token is empty")
                             return False, None, "Empty token received from 2Captcha"
@@ -1873,11 +1871,11 @@ def inject_recaptcha_token(driver, token):
             }}
             
             // Method 2: Find and execute callback function
-            var callbackName = null;
+        var callbackName = null;
             
             // Search in scripts for callback
-            var scripts = document.getElementsByTagName('script');
-            for (var i = 0; i < scripts.length; i++) {{
+        var scripts = document.getElementsByTagName('script');
+        for (var i = 0; i < scripts.length; i++) {{
                 var scriptText = scripts[i].innerHTML || scripts[i].textContent || '';
                 
                 // Pattern 1: grecaptcha.execute with callback
@@ -1891,30 +1889,30 @@ def inject_recaptcha_token(driver, token):
                 var match2 = scriptText.match(/callback['"]?\\s*[:=]\\s*['"]([^'"]+)['"]/);
                 if (match2) {{
                     callbackName = match2[1];
-                    break;
-                }}
+                break;
             }}
-            
+        }}
+        
             // Method 3: Check window.grecaptcha configuration
             if (!callbackName && window.grecaptcha) {{
                 try {{
                     // Check grecaptcha configuration
-                    for (var key in window) {{
+            for (var key in window) {{
                         if (key.startsWith('___grecaptcha_cfg')) {{
-                            var cfg = window[key];
-                            if (cfg && cfg.callback) {{
-                                callbackName = cfg.callback;
-                                break;
-                            }}
-                        }}
+                    var cfg = window[key];
+                    if (cfg && cfg.callback) {{
+                        callbackName = cfg.callback;
+                        break;
+                    }}
+                }}
                     }}
                 }} catch (e) {{
                     console.log('[2CAPTCHA] Error checking grecaptcha config:', e);
-                }}
             }}
-            
+        }}
+        
             // Execute callback if found
-            if (callbackName && window[callbackName]) {{
+        if (callbackName && window[callbackName]) {{
                 try {{
                     window[callbackName](token);
                     console.log('[2CAPTCHA] Callback executed:', callbackName);
@@ -1996,7 +1994,7 @@ def inject_recaptcha_token(driver, token):
                 "//input[@type='hidden' and contains(@name, 'recaptcha')] | " +
                 "//textarea[@style*='display: none' and contains(@name, 'recaptcha')]")
             for inp in hidden_inputs:
-                driver.execute_script("arguments[0].value = arguments[1];", inp, token)
+                        driver.execute_script("arguments[0].value = arguments[1];", inp, token)
                 logger.info("[2CAPTCHA] Token set in hidden recaptcha input")
         except Exception as hidden_err:
             logger.debug(f"[2CAPTCHA] Hidden input injection: {hidden_err}")
@@ -2234,7 +2232,7 @@ def detect_captcha(driver, email=None):
                                 logger.warning(f"[CAPTCHA] Detected visible reCAPTCHA iframe (size: {iframe_size['width']}x{iframe_size['height']})")
                                 # Capture screenshot for analysis
                                 capture_captcha_screenshot(driver, captcha_type="recaptcha", email=email)
-                                return True
+                            return True
                             else:
                                 # This is likely just the reCAPTCHA badge (invisible reCAPTCHA)
                                 logger.debug(f"[CAPTCHA] Found small reCAPTCHA iframe (badge): {iframe_size['width']}x{iframe_size['height']}")
@@ -2700,7 +2698,7 @@ def login_google(driver, email, password, known_totp_secret=None):
         
         # Submit with Enter key (more human-like)
         time.sleep(random.uniform(0.3, 0.6))
-        email_input.send_keys(Keys.RETURN)
+            email_input.send_keys(Keys.RETURN)
         logger.info("[STEP] Email submitted")
 
         # Wait for page to transition after email submission
@@ -2850,7 +2848,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                                 else:
                                     logger.warning(f"[STEP] reCAPTCHA solving failed (attempt {recaptcha_attempt + 1}/{max_recaptcha_attempts}): {recaptcha_error}")
                                     if recaptcha_attempt < max_recaptcha_attempts - 1:
-                                        time.sleep(3)
+                time.sleep(3)
                                         if not detect_captcha(driver, email=email):
                                             logger.info("[STEP] reCAPTCHA cleared - may have auto-resolved")
                                             recaptcha_solved = True
@@ -2921,12 +2919,12 @@ def login_google(driver, email, password, known_totp_secret=None):
                                 
                                 # Solve the image CAPTCHA using 2Captcha
                                 solved, error = solve_captcha_with_2captcha(driver, email=email)
-                                
-                                if solved:
+                    
+                    if solved:
                                     logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Proceeding with login...")
                                     # Wait a moment for Google to process the solution
                                     time.sleep(2)
-                                else:
+                            else:
                                     logger.error(f"[STEP] ✗ Failed to solve Image CAPTCHA: {error}")
                                     logger.warning("[STEP] Waiting 5-10 seconds to see if Google auto-clears it...")
                                     # Wait longer - sometimes Google auto-clears CAPTCHA
@@ -2939,8 +2937,8 @@ def login_google(driver, email, password, known_totp_secret=None):
                                             if inp2.is_displayed():
                                                 captcha_still_there = True
                                                 break
-                                    except:
-                                        pass
+            except:
+                pass
                                     if captcha_still_there:
                                         logger.warning("[STEP] Image CAPTCHA still present - login may fail")
                                         logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
@@ -2985,11 +2983,11 @@ def login_google(driver, email, password, known_totp_secret=None):
         
         # If not found in main document, check iframes
         if not password_input:
-            iframes = driver.find_elements(By.TAG_NAME, "iframe")
+                iframes = driver.find_elements(By.TAG_NAME, "iframe")
             
             # Check bscframe iframe first (Google's security frame)
-            for iframe in iframes:
-                try:
+                for iframe in iframes:
+                    try:
                     iframe_src = iframe.get_attribute('src') or ''
                     if '_/bscframe' in iframe_src:
                         driver.switch_to.frame(iframe)
@@ -3001,19 +2999,19 @@ def login_google(driver, email, password, known_totp_secret=None):
                         except:
                             pass
                         if not password_input:
-                            for xpath in password_input_xpaths:
-                                try:
+                        for xpath in password_input_xpaths:
+                            try:
                                     password_input = wait_for_visible_and_interactable(driver, xpath, timeout=3)
-                                    if password_input:
+                                if password_input:
                                         logger.info("[STEP] Found password field in bscframe")
-                                        break
-                                except:
-                                    continue
+                                    break
+                            except:
+                                continue
                         driver.switch_to.default_content()
                         if password_input:
                             break
                 except Exception:
-                    driver.switch_to.default_content()
+                        driver.switch_to.default_content()
                     continue
             
             # Check other iframes if not found
@@ -3500,12 +3498,12 @@ def login_google(driver, email, password, known_totp_secret=None):
                 
                 # If we still don't have password_input, fail
                 if not password_input:
-                    error_msg = "Password field not found after email submission (checked main document and iframes)."
-                    if screenshot_saved or page_source_saved:
-                        error_msg += f" Screenshot and page source saved to S3 for investigation."
-                    else:
-                        error_msg += " See DEBUG logs above for page state."
-                    return False, "LOGIN_PASSWORD_FIELD_NOT_FOUND", error_msg
+                error_msg = "Password field not found after email submission (checked main document and iframes)."
+                if screenshot_saved or page_source_saved:
+                    error_msg += f" Screenshot and page source saved to S3 for investigation."
+                else:
+                    error_msg += " See DEBUG logs above for page state."
+                return False, "LOGIN_PASSWORD_FIELD_NOT_FOUND", error_msg
         
         # Clear and enter password with multiple fallback methods
         try:
@@ -3567,20 +3565,20 @@ def login_google(driver, email, password, known_totp_secret=None):
         # Use Enter key to submit password (more human-like than clicking button)
         # This is faster, more reliable, and appears more natural to Google's bot detection
         time.sleep(random.uniform(0.3, 0.8))  # Short random delay before submitting
-        password_input.send_keys(Keys.RETURN)
+            password_input.send_keys(Keys.RETURN)
         logger.info("[STEP] Password submitted")
 
-        # Wait for login response (optimized - faster checks, early exit)
-        max_wait_attempts = 15  # 30 seconds total (reduced from 90s)
-        wait_interval = 2  # Reduced from 3s
+        # Wait for login response
+        max_wait_attempts = 30  # 90 seconds total
+        wait_interval = 3
         current_url = None
         
         last_logged_url = None
         for attempt in range(max_wait_attempts):
             time.sleep(wait_interval)
             
-            # Mouse movement only every 10th attempt
-            if attempt % 10 == 0 and attempt > 0:
+            # Occasional mouse movement (less frequent)
+            if attempt % 5 == 0:
                 random_scroll_and_mouse_move(driver)
             
             try:
@@ -3603,20 +3601,20 @@ def login_google(driver, email, password, known_totp_secret=None):
                 if is_verify_page:
                     logger.warning("[STEP] ⚠️ 'Verify it's you' page detected after password submission!")
                 else:
-                    logger.warning("[STEP] ⚠️ CAPTCHA detected after password submission!")
+                logger.warning("[STEP] ⚠️ CAPTCHA detected after password submission!")
                 
                 # Enhanced solving with retry for double verification scenarios
                 max_captcha_attempts = 2
                 captcha_solved = False
                 
                 for captcha_attempt in range(max_captcha_attempts):
-                    # Try to solve CAPTCHA using 2Captcha if enabled
+                # Try to solve CAPTCHA using 2Captcha if enabled
                     solved, solve_error = solve_captcha_with_2captcha(driver, email=email)
-                    
-                    if solved:
-                        logger.info(f"[STEP] ✓ CAPTCHA solved (attempt {captcha_attempt + 1})")
-                        # Wait for page to process
-                        time.sleep(2)
+                
+                if solved:
+                        logger.info(f"[STEP] ✓✓✓ CAPTCHA solved using 2Captcha (attempt {captcha_attempt + 1})! Continuing with login...")
+                    # Wait a moment for page to process the solved CAPTCHA
+                        time.sleep(5)  # Increased wait time
                         
                         # Check if we're still on "Verify it's you" page
                         current_url_after_solve = driver.current_url.lower()
@@ -3630,7 +3628,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                             if detect_captcha(driver, email=email):
                                 logger.warning(f"[STEP] ⚠️ Another reCAPTCHA detected (double verification) - attempt {captcha_attempt + 1}/{max_captcha_attempts}")
                                 if captcha_attempt < max_captcha_attempts - 1:
-                                    time.sleep(3)
+                    time.sleep(3)
                                     continue  # Retry solving
                                 else:
                                     logger.error("[STEP] ✗ Multiple reCAPTCHA challenges after password submission - max attempts reached")
@@ -3651,8 +3649,8 @@ def login_google(driver, email, password, known_totp_secret=None):
                                         break
                             except Exception as next_err:
                                 logger.debug(f"[STEP] Could not click Next button: {next_err}")
-                        
-                        # Check if CAPTCHA is still present
+                    
+                    # Check if CAPTCHA is still present
                         if detect_captcha(driver, email=email):
                             logger.warning(f"[STEP] ⚠️ CAPTCHA still present after solving (attempt {captcha_attempt + 1}). Retrying...")
                             if captcha_attempt < max_captcha_attempts - 1:
@@ -3661,11 +3659,11 @@ def login_google(driver, email, password, known_totp_secret=None):
                             else:
                                 logger.error("[STEP] ✗✗✗ CAPTCHA solving failed after all retries")
                                 return False, "CAPTCHA_SOLVE_FAILED", "CAPTCHA detected after password submission and 2Captcha solving failed after retries"
-                        else:
-                            logger.info("[STEP] ✓ CAPTCHA cleared after solving! Proceeding...")
+                    else:
+                        logger.info("[STEP] ✓ CAPTCHA cleared after solving! Proceeding...")
                             captcha_solved = True
                             break
-                    else:
+                else:
                         logger.warning(f"[STEP] CAPTCHA solving failed (attempt {captcha_attempt + 1}/{max_captcha_attempts}): {solve_error}")
                         if captcha_attempt < max_captcha_attempts - 1:
                             time.sleep(3)
@@ -3676,7 +3674,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                                 break
                         else:
                             logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed after {max_captcha_attempts} attempts: {solve_error}")
-                            return False, "CAPTCHA_DETECTED", f"CAPTCHA detected after password submission. 2Captcha solving failed: {solve_error}"
+                    return False, "CAPTCHA_DETECTED", f"CAPTCHA detected after password submission. 2Captcha solving failed: {solve_error}"
                 
                 if not captcha_solved:
                     logger.error("[STEP] ✗ Failed to solve CAPTCHA after password submission")
@@ -3852,9 +3850,9 @@ def login_google(driver, email, password, known_totp_secret=None):
                                     return False, "INVALID_TOTP_SECRET", f"TOTP secret key too short: {len(clean_secret)} characters"
                                 
                                 try:
-                                    totp = pyotp.TOTP(clean_secret)
-                                    otp_code = totp.now()
-                                    logger.info(f"[STEP] Generated TOTP code (attempt {retry + 1}): {otp_code}")
+                                totp = pyotp.TOTP(clean_secret)
+                                otp_code = totp.now()
+                                logger.info(f"[STEP] Generated TOTP code (attempt {retry + 1}): {otp_code}")
                                 except Exception as totp_gen_err:
                                     logger.error(f"[STEP] Failed to generate TOTP code: {totp_gen_err}")
                                     logger.error(f"[STEP] Secret key (first 8 chars): {clean_secret[:8]}...")
@@ -3939,61 +3937,103 @@ def login_google(driver, email, password, known_totp_secret=None):
 def setup_authenticator(driver, email):
     """
     Navigate to the authenticator setup page and extract the secret key.
+    Based on reference script G_Ussers_No_Timing.py
     Returns (success: bool, secret_key: str|None, error_code: str|None, error_message: str|None)
     """
+    # Add human-like behavior before navigating
+    add_random_delays()
+    random_scroll_and_mouse_move(driver)
     logger.info(f"[STEP] Setting up Authenticator for {email}")
     
     try:
         # Navigate to authenticator setup page
+        logger.info("[STEP] Navigating to Authenticator setup page...")
         driver.get("https://myaccount.google.com/two-step-verification/authenticator?hl=en")
-        time.sleep(1.5)  # Brief wait for page load
         
-        # Step 1: Click "Set up authenticator" button (working XPaths first)
+        # Add human-like behavior after page load
+        add_random_delays()
+        random_scroll_and_mouse_move(driver)
+        inject_randomized_javascript(driver)
+        
+        time.sleep(2)  # Reduced from 3 to 2
+        
+        # Step 1: Click "Set up authenticator" button
+        # Try multiple XPath patterns for the setup button
+        logger.info("[STEP] Looking for 'Set up authenticator' button...")
         setup_button_xpaths = [
-            "//button[contains(., 'Set up') or contains(., 'SET UP')]",  # Most reliable
-            "//span[contains(text(), 'Set up')]/ancestor::button",
-            "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div/div[3]/div[2]/div/div/div/button",
+            "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div/div[3]/div[2]/div/div/div/button/span[5]",
             "/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button",
+            "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div/div[3]/div[2]/div/div/div/button",
+            "//button[contains(., 'Set up') or contains(., 'SET UP')]",
+            "//span[contains(text(), 'Set up')]/ancestor::button",
             "//button[contains(., 'Get started') or contains(., 'GET STARTED')]",
         ]
         
         setup_clicked = False
         for xpath in setup_button_xpaths:
             try:
-                element = wait_for_xpath(driver, xpath, timeout=2)
-                if element:
-                    driver.execute_script("arguments[0].click();", element)
-                    logger.info("[STEP] Clicked 'Set up authenticator' button")
-                    time.sleep(1)
-                    setup_clicked = True
-                    break
-            except Exception:
+                if element_exists(driver, xpath, timeout=3):
+                    # Use JavaScript click for better reliability
+                    element = wait_for_xpath(driver, xpath, timeout=3)
+                    if element:
+                        driver.execute_script("arguments[0].click();", element)
+                        logger.info(f"[STEP] Clicked 'Set up authenticator' button using: {xpath}")
+                        time.sleep(2)
+                        setup_clicked = True
+                        break
+            except Exception as e:
+                logger.debug(f"[STEP] Could not click setup button with xpath {xpath}: {e}")
                 continue
         
         if not setup_clicked:
-            logger.warning("[STEP] Setup button not found, continuing...")
+            logger.warning("[STEP] Could not find 'Set up authenticator' button, continuing anyway...")
         
-        # Step 2: Click "Can't scan it?" link (prioritized XPaths)
+        # Step 2: Click "Can't scan it?" link to show text version
+        logger.info("[STEP] Looking for 'Can't scan it?' link...")
+        
+        # Build comprehensive list of XPath patterns
         cant_scan_xpaths = [
-            "//*[contains(text(), \"Can't scan it\")]",  # Most reliable
-            "//span[contains(text(), 'Can')]//ancestor::button",
-            "//button[contains(@class, 'VfPpkd-LgbsSe')]//span[contains(text(), 'Can')]",
+            "//span[contains(text(), 'Can't scan it?')]",
+            "//a[contains(text(), 'Can't scan it?')]",
+            "//button[contains(text(), 'Can't scan it?')]",
+            "//*[contains(text(), 'Can't scan it?')]",
+            "//span[contains(text(), 'Can\\'t scan it?')]",
+            "//*[contains(text(), 'Can\\'t scan it?')]",
+            "//span[contains(text(), 'cant scan')]",
+            "//*[contains(text(), 'cant scan')]",
         ]
-        # Add dynamic div paths as fallback
+        
+        # Add dynamic div paths
         for div_index in range(9, 14):
-            cant_scan_xpaths.append(f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button")
+            cant_scan_xpaths.extend([
+                f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]",
+                f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[4]",
+                f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[3]",
+                f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button",
+            ])
+        
+        # Add class-based patterns
+        cant_scan_xpaths.extend([
+            "//button[contains(@class, 'VfPpkd-LgbsSe')]//span[contains(text(), 'Can')]",
+            "//button[contains(@class, 'VfPpkd-LgbsSe')]//span[contains(text(), 'scan')]",
+        ])
         
         cant_scan_clicked = False
         for xpath in cant_scan_xpaths:
             try:
-                element = wait_for_xpath(driver, xpath, timeout=1)
+                element = wait_for_xpath(driver, xpath, timeout=2)
                 if element:
-                    driver.execute_script("arguments[0].click();", element)
-                    logger.info("[STEP] Clicked 'Can't scan it?' link")
-                    time.sleep(1)
-                    cant_scan_clicked = True
-                    break
-            except Exception:
+                    # Try JavaScript click first
+                    try:
+                        driver.execute_script("arguments[0].click();", element)
+                        logger.info(f"[STEP] Clicked 'Can't scan it?' link using JavaScript: {xpath}")
+                        time.sleep(2)
+                        cant_scan_clicked = True
+                        break
+                    except:
+                        # Fallback to regular click
+                        element.click()
+                        logger.info(f"[STEP] Clicked 'Can't scan it?' link using regular click: {xpath}")
                         time.sleep(2)
                         cant_scan_clicked = True
                         break
@@ -4231,49 +4271,76 @@ def verify_authenticator_setup(driver, email, secret_key):
 def enable_two_step_verification(driver, email):
     """
     Enable Two-Step Verification for the given account.
+    Based on reference script G_Ussers_No_Timing.py enable_two_step_verification function.
     Navigates to 2SV page, clicks Turn On, and skips phone number.
     """
-    logger.info(f"[STEP] Enabling 2-Step Verification for {email}")
+    logger.info(f"[STEP] Navigating to 2-Step Verification page for {email}...")
     
     try:
+        # Navigate to 2-Step Verification page (with hl=en for English)
         driver.get("https://myaccount.google.com/signinoptions/twosv?hl=en")
-        time.sleep(1.5)
         
-        # Check if already enabled (fast check first)
-        if element_exists(driver, "//button[contains(., 'Turn off')]", timeout=2):
-            logger.info("[STEP] 2SV is already enabled")
+        # Check for captcha
+        if detect_captcha(driver, email=email):
+            logger.warning("[STEP] ⚠️ CAPTCHA detected on 2SV page!")
+            
+            # Try to solve CAPTCHA using 2Captcha if enabled
+            solved, solve_error = solve_captcha_with_2captcha(driver, email=email)
+            
+            if solved:
+                logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Continuing...")
+                time.sleep(3)
+                # Refresh page to ensure CAPTCHA is cleared
+                driver.refresh()
+                time.sleep(2)
+            else:
+                logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed: {solve_error}")
+                return False, None, "CAPTCHA_DETECTED", f"CAPTCHA detected on 2SV page. 2Captcha solving failed: {solve_error}"
+        time.sleep(3)
+        
+        # Check if 2-step verification is already enabled
+        if element_exists(driver, "//button[contains(., 'Turn off')]", timeout=3):
+            logger.info(f"[STEP] 2-Step Verification is already enabled for {email}")
             return True, None, None
 
-        # Try Turn On button (priority XPaths first)
+        # Try XPaths with priority on updated XPath
+        turn_on_clicked = False
         turn_on_xpaths = [
-            '/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button',  # User-provided XPath
+            '/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button',  # Priority XPath
             '/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button',
-            "//button[contains(., 'Turn on')]",
-            "//span[contains(text(), 'Turn on')]/ancestor::button",
-        ]
-        
+            '/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]',
+            '/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]',
+                    "//button[contains(., 'Turn on')]",
+                    "//button[contains(., 'TURN ON')]",
+                    "//span[contains(text(), 'Turn on')]/ancestor::button",
+                ]
+                
         for xpath in turn_on_xpaths:
             try:
-                turn_on_button = wait_for_clickable_xpath(driver, xpath, timeout=2)
+                turn_on_button = wait_for_clickable_xpath(driver, xpath, timeout=5)
                 if turn_on_button:
                     driver.execute_script("arguments[0].click();", turn_on_button)
-                    logger.info("[STEP] Clicked 'Turn On' button")
-                    time.sleep(1)
-                    break
-            except Exception:
+                    logger.info(f"[STEP] Clicked on 'Turn On 2-Step Verification' using xpath: {xpath}")
+                            turn_on_clicked = True
+                            time.sleep(2)
+                            break
+            except TimeoutException:
                 continue
+            except Exception as e:
+                logger.debug(f"[STEP] Error trying xpath {xpath}: {e}")
+                            continue
 
-        # Handle skip phone number
+        # Handle skip phone number (from reference script handle_skip_phone_number)
         try:
-            skip_link = wait_for_clickable_xpath(driver, '//button//span[contains(text(), "Skip")]', timeout=2)
+            skip_link = wait_for_clickable_xpath(driver, '//button//span[contains(text(), "Skip")]', timeout=5)
             if skip_link:
                 driver.execute_script("arguments[0].click();", skip_link)
-                logger.info("[STEP] Clicked 'Skip' for phone number")
-                time.sleep(1)
-        except Exception:
-            pass
+                logger.info("[STEP] Clicked 'Skip' to bypass phone number setup.")
+                time.sleep(2)
+        except TimeoutException:
+            logger.info("[STEP] No 'Skip' link found for phone number setup.")
 
-        logger.info("[STEP] 2SV enabled successfully")
+        logger.info(f"[STEP] 2-Step Verification enabled successfully for {email}")
         return True, None, None
 
     except TimeoutException as e:
@@ -4293,153 +4360,325 @@ def enable_two_step_verification(driver, email):
 def generate_app_password(driver, email):
     """
     Navigate to App Passwords page and generate a new app password.
+    Based on reference script G_Ussers_No_Timing.py generate_app_password function.
     Returns (success: bool, app_password: str|None, error_code: str|None, error_message: str|None)
     """
     logger.info(f"[STEP] Generating App Password for {email}")
     
     try:
-        # Navigate to app passwords page
-        driver.get("https://myaccount.google.com/apppasswords?hl=en")
-        time.sleep(1.5)  # Brief wait for page load
+        # Wait up to 30 seconds after enabling 2SV for app password page to be ready
+        logger.info("[STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...")
         
-        # Wait for page ready
+        # Navigate to app passwords page with hl=en for English
+        driver.get("https://myaccount.google.com/apppasswords?hl=en")
+        
+        # Add human-like behavior after page load
+        add_random_delays()
+        random_scroll_and_mouse_move(driver)
+        inject_randomized_javascript(driver)
+        
+        # Check for captcha
+        if detect_captcha(driver, email=email):
+            logger.warning("[STEP] ⚠️ CAPTCHA detected on app passwords page!")
+            
+            # Try to solve CAPTCHA using 2Captcha if enabled
+            solved, solve_error = solve_captcha_with_2captcha(driver, email=email)
+            
+            if solved:
+                logger.info("[STEP] ✓✓✓ CAPTCHA solved using 2Captcha! Continuing...")
+                time.sleep(3)
+                # Refresh page to ensure CAPTCHA is cleared
+                driver.refresh()
+                time.sleep(2)
+            else:
+                logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed: {solve_error}")
+                return False, None, "CAPTCHA_DETECTED", f"CAPTCHA detected on app passwords page. 2Captcha solving failed: {solve_error}"
+        
+        # Wait for page to be ready (optimized)
         try:
-            WebDriverWait(driver, 5).until(
+            WebDriverWait(driver, 8).until(  # Reduced from 10 to 8
                 lambda d: d.execute_script("return document.readyState") == "complete"
             )
-        except Exception:
-            pass
+            time.sleep(1.5)  # Reduced from 2 to 1.5 seconds
+            logger.info("[STEP] App passwords page loaded")
+        except TimeoutException:
+            logger.warning("[STEP] App passwords page load timeout, proceeding anyway...")
         
-        # Find app name input field (priority XPaths first)
-        app_name_xpath_variations = [
-            "/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input",  # User-provided XPath
-            "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input",
-            "//input[@aria-label='App name']",
-            "//input[@type='text']",
-            "//c-wiz//input[@type='text']"
-        ]
+        # Optimized: Reduced retries - if input not found, it's likely 2SV issue
+        max_retries = 2  # Reduced from 3 to avoid unnecessary retries
+        initial_timeout = 30
         
-        app_name_field = None
-        for xpath in app_name_xpath_variations:
+        for attempt in range(max_retries):
             try:
-                element = wait_for_xpath(driver, xpath, timeout=3)
-                if element and element.is_displayed() and element.is_enabled():
-                    app_name_field = element
-                    logger.info("[STEP] Found app name input field")
-                    break
-            except Exception:
-                continue
-        
-        if not app_name_field:
-            logger.error("[STEP] App name input not found - 2SV may not be enabled")
-            return False, None, "RETRY_2SV_REQUIRED", "App password input field not found"
-        
-        # Generate random app name
-        app_name = f"App-{int(time.time())}"
-        logger.info(f"[STEP] Using app name: {app_name}")
-        
-        # Enter app name
-        try:
-            app_name_field.clear()
-            app_name_field.send_keys(app_name)
-        except Exception:
-            # Fallback to JavaScript
-            driver.execute_script("arguments[0].value = arguments[1];", app_name_field, app_name)
-            driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", app_name_field)
-        
-        time.sleep(0.5)
-        
-        # Click Generate button (priority XPaths first)
-        generate_button_xpaths = [
-            "//button[contains(., 'Generate')]",  # Most reliable
-            "/html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button",
-            "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button",
-            "//span[contains(text(), 'Generate')]/parent::button",
-        ]
-        
-        generate_clicked = False
-        for xpath in generate_button_xpaths:
-            try:
-                element = wait_for_clickable_xpath(driver, xpath, timeout=2)
-                if element:
-                    driver.execute_script("arguments[0].click();", element)
-                    logger.info("[STEP] Clicked Generate button")
-                    generate_clicked = True
-                    time.sleep(1)
-                    break
-            except Exception:
-                continue
-        
-        if not generate_clicked:
-            return False, None, "GENERATE_BUTTON_NOT_FOUND", "Failed to click Generate button"
-        
-        # Wait for app password dialog
-        time.sleep(1.5)
-        
-        # Extract app password (priority XPaths first)
-        app_password = None
-        
-        # Try span extraction first
-        span_xpaths = [
-            "//strong[@class='v2CTKd KaSAf']//div[@dir='ltr']",
-            "//strong[@class='v2CTKd KaSAf']//div",
-            "//article//strong//div[@dir='ltr']"
-        ]
-        
-        for xpath in span_xpaths:
-            try:
-                container = WebDriverWait(driver, 3).until(
-                    EC.presence_of_element_located((By.XPATH, xpath))
-                )
-                spans = container.find_elements(By.TAG_NAME, "span")
-                if spans:
-                    password_chars = [span.text.strip() for span in spans if span.text.strip()]
-                    if password_chars:
-                        clean_password = ''.join(password_chars).replace(' ', '')
-                        if len(clean_password) >= 16:
-                            if '-' not in clean_password and len(clean_password) == 16:
-                                clean_password = f"{clean_password[:4]}-{clean_password[4:8]}-{clean_password[8:12]}-{clean_password[12:16]}"
-                            if len(clean_password) >= 16:
-                                app_password = clean_password
-                                logger.info(f"[STEP] App password extracted: {app_password[:4]}****")
-                                break
-            except Exception:
-                continue
-        
-        # Fallback: Try direct XPath patterns (priority XPath from user)
-        if not app_password:
-            password_xpaths = [
-                "/html/body/div[16]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div/strong",  # User-provided XPath
-                "/html/body/div[16]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div/strong/div",
-                "//strong[@class='v2CTKd KaSAf']",
-                "//h2[@class='XfTrZ']//strong",
-            ]
-            
-            # Add dynamic div patterns
-            for div_num in [16, 15, 17, 14, 18]:
-                password_xpaths.append(f"/html/body/div[{div_num}]//strong[contains(text(), '-')]")
-            
-            for xpath in password_xpaths:
+                # Comprehensive XPath variations for app name input (updated with priority XPath)
+                app_name_xpath_variations = [
+                    "/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input",  # Priority XPath
+                    "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input",
+                    "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/label/input",
+                    "/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/label/input",
+                    "//input[@aria-label='App name']",
+                    "//input[contains(@placeholder, 'app') or contains(@placeholder, 'name')]",
+                    "//input[@type='text' and contains(@class, 'input')]",
+                    "//input[@type='text']",
+                    "//label[contains(text(), 'App name')]/following::input",
+                    "//div[contains(@class, 'app')]//input[@type='text']",
+                    "//form//input[@type='text'][1]",
+                    "//c-wiz//input[@type='text']"
+                ]
+                
+                app_name_field = None
+                for xpath in app_name_xpath_variations:
+                    try:
+                        element = wait_for_xpath(driver, xpath, timeout=5)
+                        if element:
+                            # Check if element is interactable
+                            try:
+                                # Try to scroll into view and check if visible (optimized)
+                                driver.execute_script("arguments[0].scrollIntoView(true);", element)
+                                time.sleep(0.3)  # Reduced from 0.5 to 0.3
+                                if element.is_displayed() and element.is_enabled():
+                                    app_name_field = element
+                                    logger.info(f"[STEP] Found app name input field: {xpath}")
+                                    break
+                            except:
+                                continue
+                    except:
+                        continue
+                
+                if not app_name_field:
+                    logger.warning(f"[STEP] App name input field not detected on attempt {attempt + 1}/{max_retries}")
+                    # Check if 2SV might not be enabled - this is a critical indicator
+                    current_url = driver.current_url
+                    page_text = driver.find_element(By.TAG_NAME, "body").text.lower() if driver.find_elements(By.TAG_NAME, "body") else ""
+                    
+                    # Check for indicators that 2SV is not enabled
+                    if 'two-step verification' in page_text or '2-step verification' in page_text or 'enable two-step' in page_text:
+                        logger.error("[STEP] ⚠️ CRITICAL: App password page indicates 2SV is not enabled!")
+                        if attempt < max_retries - 1:
+                            driver.refresh()
+                            time.sleep(3)
+                            continue
+                        else:
+                            # Return special error code to trigger 2SV retry
+                            return False, None, "RETRY_2SV_REQUIRED", "App password input field not found - 2SV may not be enabled"
+                    
+                    # Try refreshing page
+                    driver.refresh()
+                    time.sleep(3)
+                    if attempt < max_retries - 1:
+                        continue
+                    else:
+                        # Final attempt failed - return error to trigger 2SV retry
+                        logger.error("[STEP] ⚠️ CRITICAL: Failed to locate app name input field after all retries - 2SV may not be enabled")
+                        return False, None, "RETRY_2SV_REQUIRED", "App password input field not found after retries - 2SV may not be enabled"
+                
+                # Generate random app name (matching reference script format)
+                app_name = f"App-{int(time.time())}"
+                logger.info(f"[STEP] Generated app name: {app_name}")
+                
+                # Clear and enter app name using JavaScript if regular methods fail
                 try:
-                    element = WebDriverWait(driver, 2).until(
-                        EC.presence_of_element_located((By.XPATH, xpath))
-                    )
-                    potential_password = element.text.strip().replace(" ", "")
-                    if len(potential_password) >= 16 and '-' in potential_password:
-                        app_password = potential_password
-                        logger.info(f"[STEP] App password found: {app_password[:4]}****")
+                    app_name_field.clear()
+                    app_name_field.send_keys(app_name)
+                    logger.info(f"[STEP] Entered app name using regular method")
+                except Exception as clear_err:
+                    # Fallback to JavaScript if element not interactable
+                    logger.warning(f"[STEP] Regular input failed, using JavaScript: {clear_err}")
+                    driver.execute_script("arguments[0].value = '';", app_name_field)
+                    driver.execute_script("arguments[0].value = arguments[1];", app_name_field, app_name)
+                    # Trigger input event
+                    driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", app_name_field)
+                    logger.info(f"[STEP] Entered app name using JavaScript")
+                
+                time.sleep(1)
+                
+                # Click Generate button with comprehensive XPaths (from reference script)
+                generate_button_xpath_variations = [
+                    "/html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button",
+                    "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button/span[5]",
+                    "/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button/span[2]",
+                    "//button[contains(., 'Generate')]",
+                    "//button[contains(@aria-label, 'Generate')]",
+                    "//button[@type='button' and contains(text(), 'Generate')]",
+                    "//span[contains(text(), 'Generate')]/parent::button",
+                    "//div[contains(@class, 'generate')]//button",
+                    "//button[contains(@class, 'generate')]",
+                    "//form//button[@type='button']",
+                    "//c-wiz//button[not(contains(@aria-label, 'Close'))]"
+                ]
+                
+                generate_clicked = False
+                for xpath in generate_button_xpath_variations:
+                    try:
+                        if element_exists(driver, xpath, timeout=3):
+                            element = wait_for_clickable_xpath(driver, xpath, timeout=5)
+                            if element:
+                                driver.execute_script("arguments[0].scrollIntoView(true);", element)
+                                driver.execute_script("arguments[0].click();", element)
+                                logger.info(f"[STEP] Clicked Generate button: {xpath}")
+                                generate_clicked = True
+                                time.sleep(2)
+                                break
+                    except:
+                        continue
+                
+                if not generate_clicked:
+                    raise TimeoutException("Failed to click Generate button")
+                
+                # Wait for app password dialog to appear (from reference script)
+                logger.info("[STEP] Waiting for app password dialog to appear...")
+                dialog_appeared = False
+                dialog_selectors = [
+                    "//div[@aria-modal='true']",
+                    "//div[@role='dialog']",
+                    "//div[@class='uW2Fw-P5QLlc']",
+                    "//span[contains(text(), 'Generated app password')]",
+                    "//h2[contains(., 'Generated app password')]"
+                ]
+                
+                for selector in dialog_selectors:
+                    try:
+                        WebDriverWait(driver, 15).until(
+                            EC.presence_of_element_located((By.XPATH, selector))
+                        )
+                        logger.info(f"[STEP] App password dialog detected: {selector}")
+                        dialog_appeared = True
                         break
-                except Exception:
-                    continue
+                    except TimeoutException:
+                        continue
+                
+                if not dialog_appeared:
+                    logger.error("[STEP] App password dialog did not appear after clicking Generate")
+                    if attempt < max_retries - 1:
+                        driver.refresh()
+                        time.sleep(3)
+                        continue
+                    else:
+                        raise TimeoutException("App password dialog did not appear")
+                
+                # Extract app password from spans first (from reference script extract_app_password_from_spans)
+                logger.info("[STEP] Attempting to extract password from span elements...")
+                app_password = None
+                
+                span_container_xpaths = [
+                    "//strong[@class='v2CTKd KaSAf']//div[@dir='ltr']",
+                    "//strong[@class='v2CTKd KaSAf']//div",
+                    "//div[@class='lY6Rwe riHXqb']//strong//div",
+                    "//h2[@class='XfTrZ']//strong//div",
+                    "//article//strong//div[@dir='ltr']"
+                ]
+                
+                for xpath in span_container_xpaths:
+                    try:
+                        container = WebDriverWait(driver, 5).until(
+                            EC.presence_of_element_located((By.XPATH, xpath))
+                        )
+                        spans = container.find_elements(By.TAG_NAME, "span")
+                        if spans:
+                            password_chars = []
+                            for span in spans:
+                                char = span.text.strip()
+                                if char:
+                                    password_chars.append(char)
+                            
+                            if password_chars:
+                                full_password = ''.join(password_chars)
+                                clean_password = full_password.replace(' ', '')
+                                
+                                # Reconstruct dashes if needed
+                                if len(clean_password) >= 16 and '-' not in clean_password:
+                                    if len(clean_password) == 16:
+                                        clean_password = f"{clean_password[:4]}-{clean_password[4:8]}-{clean_password[8:12]}-{clean_password[12:16]}"
+                                
+                                if len(clean_password) >= 16 and (clean_password.count('-') >= 3 or len(clean_password) == 19):
+                                    app_password = clean_password
+                                    logger.info(f"[STEP] Extracted app password from spans: {app_password[:4]}****{app_password[-4:]}")
+                                    break
+                    except:
+                        continue
+                
+                # Fallback to dynamic XPath patterns if span extraction failed (updated with priority XPath)
+                if not app_password:
+                    logger.info("[STEP] Span extraction failed, trying dynamic XPath patterns...")
+                    priority_xpaths = [
+                        "/html/body/div[16]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div/strong",  # Priority XPath
+                        "/html/body/div[16]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div/strong/div",
+                        "/html/body/div[16]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div",
+                        "/html/body/div[16]//strong[contains(text(), '-')]",
+                        "//strong[@class='v2CTKd KaSAf']//div[@dir='ltr']",
+                        "//strong[@class='v2CTKd KaSAf']//div",
+                        "//strong[@class='v2CTKd KaSAf']",
+                        "//div[@class='lY6Rwe riHXqb']//strong",
+                        "//h2[@class='XfTrZ']//strong",
+                        "//header[@class='VuF2Pd lY6Rwe']//strong",
+                        "//article//strong[@class='v2CTKd KaSAf']",
+                    ]
+                    
+                    # Add dynamic div patterns with retries (focusing around div[16] first, then expanding)
+                    # Try div[16] variations first (priority)
+                    for div_num in [16, 15, 17, 14, 18, 19, 20, 21, 22]:
+                        priority_xpaths.extend([
+                            f"/html/body/div[{div_num}]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div/strong/div",
+                            f"/html/body/div[{div_num}]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div/strong",
+                            f"/html/body/div[{div_num}]/div[2]/div/div[1]/div/div[1]/article/header/div/h2/div",
+                            f"/html/body/div[{div_num}]//strong[contains(text(), '-')]",
+                        ])
+                    
+                    # Optimized: Retry with different XPaths (reduced retries for efficiency)
+                    for retry_attempt in range(2):  # Reduced from 3 to 2 retries
+                    for i, xpath in enumerate(priority_xpaths):
+                        try:
+                            element = WebDriverWait(driver, 2).until(
+                                EC.presence_of_element_located((By.XPATH, xpath))
+                            )
+                            potential_password = element.text.strip().replace(" ", "")
+                            if len(potential_password) >= 16 and '-' in potential_password and potential_password.count('-') >= 3:
+                                app_password = potential_password
+                                    logger.info(f"[STEP] App password found using XPath #{i+1} (retry {retry_attempt + 1}): {app_password[:4]}****{app_password[-4:]}")
+                                break
+                        except:
+                            continue
+                        
+                        if app_password:
+                            break
+                        
+                        if retry_attempt < 1:  # Only wait if not last attempt
+                            logger.info(f"[STEP] Retry {retry_attempt + 1} failed, waiting before next attempt...")
+                            time.sleep(1.5)  # Reduced from 2 to 1.5 seconds
+                
+                if not app_password or len(app_password) < 16:
+                    raise TimeoutException("Failed to locate valid app password element")
+                
+                logger.info("[STEP] App Password generated successfully")
+                return True, app_password, None, None
+                
+            except TimeoutException as e:
+                error_msg = str(e)
+                logger.warning(f"[STEP] Attempt {attempt + 1}/{max_retries} failed to generate app password: {error_msg}")
+                
+                # Check if this is an input field detection failure (should trigger 2SV retry)
+                if "app name input field" in error_msg.lower() or "input field" in error_msg.lower() or "failed to locate" in error_msg.lower():
+                    logger.error("[STEP] ⚠️ CRITICAL: App password input field detection failed - 2SV may not be enabled")
+                if attempt < max_retries - 1:
+                    driver.refresh()
+                        time.sleep(2)
+                        continue
+                else:
+                        return False, None, "RETRY_2SV_REQUIRED", f"App password input field not found after retries: {error_msg}"
+                
+                if attempt < max_retries - 1:
+                    driver.refresh()
+                    time.sleep(2)  # Reduced from 3 to 2 seconds
+                else:
+                    # Final attempt failed
+                    return False, None, "APP_PASSWORD_GENERATION_FAILED", error_msg
         
-        if app_password and len(app_password) >= 16:
-            logger.info("[STEP] App Password generated successfully")
-            return True, app_password, None, None
-        else:
-            return False, None, "APP_PASSWORD_NOT_FOUND", "Failed to extract app password"
+        logger.error("[STEP] App Password generation failed after all retries")
+        return False, None, "APP_PASSWORD_GENERATION_FAILED", "Failed to generate app password after retries"
     
     except Exception as e:
         logger.error(f"[STEP] App Password generation exception: {e}")
+        logger.error(traceback.format_exc())
         return False, None, "APP_PASSWORD_EXCEPTION", str(e)
 
 
@@ -5055,8 +5294,8 @@ def process_single_user(email, password, batch_start_time=None):
         app_password_retry_count = 0
         
         while app_password_retry_count <= max_app_password_retries:
-            step_start = time.time()
-            success, app_password, error_code, error_message = generate_app_password(driver, email)
+        step_start = time.time()
+        success, app_password, error_code, error_message = generate_app_password(driver, email)
             timings[f"app_password_attempt_{app_password_retry_count + 1}"] = round(time.time() - step_start, 2)
             
             if success:
