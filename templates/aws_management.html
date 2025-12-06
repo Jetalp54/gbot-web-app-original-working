@@ -1110,12 +1110,24 @@
                     log(`Created ${data.num_functions} function(s): ${data.functions_created.join(', ')}`);
                     log(`Lambda configured using ECR image URI: ${ecrUri}`);
                     
+                    // Show debug info if available
+                    if (data.debug_info) {
+                        log(`[DEBUG] Backend received users_per_function: ${data.debug_info.users_per_function_received}`);
+                        log(`[DEBUG] Backend calculated expected functions: ${data.debug_info.expected_functions}`);
+                        log(`[DEBUG] Backend actual functions planned: ${data.debug_info.actual_functions_planned}`);
+                    }
+                    
                     // Show warning if expected vs actual don't match
                     const expectedFunctions = Math.ceil(userCount / usersPerFunctionValue);
                     if (data.num_functions !== expectedFunctions) {
-                        log(`⚠️ WARNING: Expected ${expectedFunctions} function(s) but only ${data.num_functions} were created!`);
-                        log(`⚠️ This might indicate the backend is using a different users_per_function value.`);
-                        log(`⚠️ Check server logs for the actual users_per_function value received.`);
+                        log(`⚠️ WARNING: Frontend expected ${expectedFunctions} function(s) but backend planned ${data.num_functions}!`);
+                        if (data.debug_info) {
+                            log(`⚠️ Backend received users_per_function: ${data.debug_info.users_per_function_received} (Frontend sent: ${usersPerFunctionValue})`);
+                            if (data.debug_info.users_per_function_received !== usersPerFunctionValue) {
+                                log(`⚠️ MISMATCH DETECTED! Backend is using ${data.debug_info.users_per_function_received} instead of ${usersPerFunctionValue}`);
+                                log(`⚠️ SOLUTION: Restart your Flask server to pick up the code changes!`);
+                            }
+                        }
                     }
                     
                     alert(`Production Lambda(s) created/updated successfully.\n\nCreated ${data.num_functions} function(s): ${data.functions_created.join(', ')}`);

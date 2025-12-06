@@ -2912,6 +2912,12 @@ def create_lambdas():
             'num_functions': len(created_functions),
             'functions_by_geo': {geo: [name for _, name in func_list] for geo, func_list in functions_by_geo.items()},
             'creation_job_id': creation_job_id,
+            'debug_info': {
+                'users_per_function_received': users_per_function,
+                'user_count': user_count,
+                'expected_functions': math.ceil(user_count / users_per_function) if user_count > 0 and users_per_function > 0 else 1,
+                'actual_functions_planned': len(created_functions)
+            },
             'note': 'Lambda functions are being created/updated in the background across multiple AWS regions. This may take a few minutes. Check creation status using the job ID.'
         })
     except Exception as e:
