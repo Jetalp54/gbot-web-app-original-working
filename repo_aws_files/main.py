@@ -1106,7 +1106,7 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                             for (var i = 0; i < scripts.length; i++) {
                                 var src = scripts[i].src || '';
                                 var content = scripts[i].innerHTML || '';
-                                var match = src.match(/[?&]k=([a-zA-Z0-9_-]{20,})/) || content.match(/sitekey['"]\\s*[:=]\\s*['"]([^'"]+)['"]/i);
+                                var match = src.match(/[?&]k=([a-zA-Z0-9_-]{20,})/) || content.match(/sitekey['"]\s*[:=]\s*['"]([^'"]+)['"]/i);
                                 if (match && match[1]) {
                                     siteKey = match[1];
                                     break;
@@ -1246,8 +1246,8 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                             var html = document.documentElement.innerHTML;
                             var patterns = [
                                 /data-sitekey=["']([^"']{20,})["']/,
-                                /sitekey["']?\\s*[:=]\\s*["']([^"']{20,})["']/,
-                                /grecaptcha\.(?:enterprise\.)?render\([^,]+,\\s*\{[^}]*sitekey["']?\\s*:\\s*["']([^"']+)["']/
+                                /sitekey["']?\s*[:=]\s*["']([^"']{20,})["']/,
+                                /grecaptcha\.(?:enterprise\.)?render\([^,]+,\s*\{[^}]*sitekey["']?\s*:\s*["']([^"']+)["']/
                             ];
                             for (var i = 0; i < patterns.length; i++) {
                                 var match = html.match(patterns[i]);
@@ -2302,13 +2302,12 @@ def login_google(driver, email, password, known_totp_secret=None):
             email_input.send_keys(Keys.RETURN)
         logger.info("[STEP] Email submitted")
 
-        # Wait for page to transition after email submission (optimized)
-        time.sleep(2)  # Reduced from 3 to 2 seconds
+        # Wait for page to transition after email submission
+        time.sleep(3)  # Increased wait to allow page transition
         
-        # Add human-like behavior after email submission (optimized - less frequent)
-        if random.random() > 0.5:  # Only 50% of the time to reduce overhead
-            add_random_delays()
-            random_scroll_and_mouse_move(driver)
+        # Add human-like behavior after email submission
+        add_random_delays()
+        random_scroll_and_mouse_move(driver)
         
         # Check if we're still on the identifier page (email submission failed or CAPTCHA appeared)
         current_url = driver.current_url
@@ -3683,18 +3682,17 @@ def generate_app_password(driver, email):
                 logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed: {solve_error}")
                 return False, None, "CAPTCHA_DETECTED", f"CAPTCHA detected on app passwords page. 2Captcha solving failed: {solve_error}"
         
-        # Wait for page to be ready (optimized)
+        # Wait for page to be ready
         try:
-            WebDriverWait(driver, 8).until(  # Reduced from 10 to 8
+            WebDriverWait(driver, 10).until(
                 lambda d: d.execute_script("return document.readyState") == "complete"
             )
-            time.sleep(1.5)  # Reduced from 2 to 1.5 seconds
+            time.sleep(2)  # Additional wait for dynamic content
             logger.info("[STEP] App passwords page loaded")
         except TimeoutException:
             logger.warning("[STEP] App passwords page load timeout, proceeding anyway...")
         
-        # Optimized: Reduced retries - if input not found, it's likely 2SV issue
-        max_retries = 2  # Reduced from 3 to avoid unnecessary retries
+        max_retries = 3
         initial_timeout = 30
         
         for attempt in range(max_retries):
@@ -3722,9 +3720,9 @@ def generate_app_password(driver, email):
                         if element:
                             # Check if element is interactable
                             try:
-                                # Try to scroll into view and check if visible (optimized)
+                                # Try to scroll into view and check if visible
                                 driver.execute_script("arguments[0].scrollIntoView(true);", element)
-                                time.sleep(0.3)  # Reduced from 0.5 to 0.3
+                                time.sleep(0.5)
                                 if element.is_displayed() and element.is_enabled():
                                     app_name_field = element
                                     logger.info(f"[STEP] Found app name input field: {xpath}")
@@ -3735,31 +3733,13 @@ def generate_app_password(driver, email):
                         continue
                 
                 if not app_name_field:
-                    logger.warning(f"[STEP] App name input field not detected on attempt {attempt + 1}/{max_retries}")
-                    # Check if 2SV might not be enabled - this is a critical indicator
-                    current_url = driver.current_url
-                    page_text = driver.find_element(By.TAG_NAME, "body").text.lower() if driver.find_elements(By.TAG_NAME, "body") else ""
-                    
-                    # Check for indicators that 2SV is not enabled
-                    if 'two-step verification' in page_text or '2-step verification' in page_text or 'enable two-step' in page_text:
-                        logger.error("[STEP] ⚠️ CRITICAL: App password page indicates 2SV is not enabled!")
-                        if attempt < max_retries - 1:
-                            driver.refresh()
-                            time.sleep(3)
-                            continue
-                        else:
-                            # Return special error code to trigger 2SV retry
-                            return False, None, "RETRY_2SV_REQUIRED", "App password input field not found - 2SV may not be enabled"
-                    
-                    # Try refreshing page
+                    logger.warning(f"[STEP] App name input field not detected on attempt {attempt + 1}, refreshing page...")
                     driver.refresh()
                     time.sleep(3)
                     if attempt < max_retries - 1:
                         continue
                     else:
-                        # Final attempt failed - return error to trigger 2SV retry
-                        logger.error("[STEP] ⚠️ CRITICAL: Failed to locate app name input field after all retries - 2SV may not be enabled")
-                        return False, None, "RETRY_2SV_REQUIRED", "App password input field not found after retries - 2SV may not be enabled"
+                        raise TimeoutException("Failed to locate app name input field after retries")
                 
                 # Generate random app name (matching reference script format)
                 app_name = f"App-{int(time.time())}"
@@ -3913,8 +3893,8 @@ def generate_app_password(driver, email):
                             f"/html/body/div[{div_num}]//strong[contains(text(), '-')]",
                         ])
                     
-                    # Optimized: Retry with different XPaths (reduced retries for efficiency)
-                    for retry_attempt in range(2):  # Reduced from 3 to 2 retries
+                    # Retry with different XPaths
+                    for retry_attempt in range(3):
                         for i, xpath in enumerate(priority_xpaths):
                             try:
                                 element = WebDriverWait(driver, 2).until(
@@ -3931,9 +3911,9 @@ def generate_app_password(driver, email):
                         if app_password:
                             break
                         
-                        if retry_attempt < 1:  # Only wait if not last attempt
+                        if retry_attempt < 2:
                             logger.info(f"[STEP] Retry {retry_attempt + 1} failed, waiting before next attempt...")
-                            time.sleep(1.5)  # Reduced from 2 to 1.5 seconds
+                            time.sleep(2)
                 
                 if not app_password or len(app_password) < 16:
                     raise TimeoutException("Failed to locate valid app password element")
@@ -3942,25 +3922,12 @@ def generate_app_password(driver, email):
                 return True, app_password, None, None
                 
             except TimeoutException as e:
-                error_msg = str(e)
-                logger.warning(f"[STEP] Attempt {attempt + 1}/{max_retries} failed to generate app password: {error_msg}")
-                
-                # Check if this is an input field detection failure (should trigger 2SV retry)
-                if "app name input field" in error_msg.lower() or "input field" in error_msg.lower() or "failed to locate" in error_msg.lower():
-                    logger.error("[STEP] ⚠️ CRITICAL: App password input field detection failed - 2SV may not be enabled")
-                    if attempt < max_retries - 1:
-                        driver.refresh()
-                        time.sleep(2)
-                        continue
-                    else:
-                        return False, None, "RETRY_2SV_REQUIRED", f"App password input field not found after retries: {error_msg}"
-                
+                logger.warning(f"[STEP] Attempt {attempt + 1} failed to generate app password: {e}")
                 if attempt < max_retries - 1:
                     driver.refresh()
-                    time.sleep(2)  # Reduced from 3 to 2 seconds
+                    time.sleep(3)
                 else:
-                    # Final attempt failed
-                    return False, None, "APP_PASSWORD_GENERATION_FAILED", error_msg
+                    raise e
         
         logger.error("[STEP] App Password generation failed after all retries")
         return False, None, "APP_PASSWORD_GENERATION_FAILED", "Failed to generate app password after retries"
@@ -4401,74 +4368,53 @@ def process_single_user(email, password, batch_start_time=None):
         
         # Step 4: Generate App Password (with retry logic for 2SV)
         step_completed = "app_password"
-        max_app_password_retries = 3  # Increased retries for better reliability
+        max_app_password_retries = 2  # Maximum retries for app password generation
         app_password_retry_count = 0
         
         while app_password_retry_count <= max_app_password_retries:
             step_start = time.time()
             success, app_password, error_code, error_message = generate_app_password(driver, email)
-            timings[f"app_password_attempt_{app_password_retry_count + 1}"] = round(time.time() - step_start, 2)
+            timings["app_password"] = round(time.time() - step_start, 2)
             
             if success:
                 # App password generated successfully
-                logger.info(f"[STEP] ✓ App password generated successfully on attempt {app_password_retry_count + 1}")
                 break
             elif error_code == "RETRY_2SV_REQUIRED" and app_password_retry_count < max_app_password_retries:
                 # Retry 2-Step Verification and then retry app password generation
-                logger.warning(f"[STEP] ⚠️ App password input not detected - 2SV may not be enabled (attempt {app_password_retry_count + 1}/{max_app_password_retries + 1})")
-                logger.info("[STEP] Retrying 2-Step Verification to ensure it's enabled...")
-                
-                # Navigate directly to 2SV page to check status
-                try:
-                    driver.get("https://myaccount.google.com/signinoptions/twosv?hl=en")
-                    time.sleep(3)
-                except:
-                    pass
+                logger.warning(f"[STEP] App password generation indicates 2SV retry needed (attempt {app_password_retry_count + 1}/{max_app_password_retries + 1})")
+                logger.info("[STEP] Retrying 2-Step Verification step...")
                 
                 # Retry 2-Step Verification
                 step_start_2sv = time.time()
                 success_2sv, error_code_2sv, error_message_2sv = enable_two_step_verification(driver, email)
-                timings[f"enable_2sv_retry_{app_password_retry_count + 1}"] = round(time.time() - step_start_2sv, 2)
+                timings["enable_2sv_retry"] = round(time.time() - step_start_2sv, 2)
                 
                 if not success_2sv:
-                    logger.error(f"[STEP] ✗ 2-Step Verification retry failed: {error_message_2sv}")
-                    if app_password_retry_count < max_app_password_retries:
-                        logger.info("[STEP] Will retry one more time...")
-                        app_password_retry_count += 1
-                        time.sleep(5)
-                        continue
-                    else:
-                        return {
-                            "email": email,
-                            "status": "failed",
-                            "step_completed": "enable_2sv_retry",
-                            "error_step": "enable_2sv_retry",
-                            "error_message": f"2SV retry failed after {max_app_password_retries + 1} attempts: {error_message_2sv}",
-                            "app_password": None,
-                            "secret_key": secret_key[:4] + "****" + secret_key[-4:] if secret_key else None,
-                            "timings": timings
-                        }
+                    logger.error(f"[STEP] 2-Step Verification retry failed: {error_message_2sv}")
+                    return {
+                        "email": email,
+                        "status": "failed",
+                        "step_completed": "enable_2sv_retry",
+                        "error_step": "enable_2sv_retry",
+                        "error_message": f"2SV retry failed: {error_message_2sv}",
+                        "app_password": None,
+                        "secret_key": secret_key[:4] + "****" + secret_key[-4:] if secret_key else None,
+                        "timings": timings
+                    }
                 
-                logger.info("[STEP] ✓ 2-Step Verification retry successful. Waiting before retrying app password...")
-                time.sleep(8)  # Increased wait after re-enabling 2SV to ensure it's fully enabled
+                logger.info("[STEP] 2-Step Verification retry successful. Waiting before retrying app password...")
+                time.sleep(5)  # Wait after re-enabling 2SV
                 app_password_retry_count += 1
                 continue
             else:
                 # Other error or max retries reached
-                if app_password_retry_count >= max_app_password_retries:
-                    logger.error(f"[STEP] ✗ App Password generation failed after {max_app_password_retries + 1} attempts: {error_message}")
-                else:
-                    logger.warning(f"[STEP] App Password generation failed (attempt {app_password_retry_count + 1}): {error_message}")
-                    app_password_retry_count += 1
-                    time.sleep(3)
-                    continue
-                
+                logger.error(f"[STEP] App Password generation failed: {error_message}")
                 return {
                     "email": email,
                     "status": "failed",
                     "step_completed": step_completed,
                     "error_step": step_completed,
-                    "error_message": error_message or f"App password generation failed after {max_app_password_retries + 1} attempts",
+                    "error_message": error_message,
                     "app_password": None,
                     "secret_key": secret_key[:4] + "****" + secret_key[-4:] if secret_key else None,
                     "timings": timings
