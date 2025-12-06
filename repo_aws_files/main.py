@@ -2848,7 +2848,110 @@ def login_google(driver, email, password, known_totp_secret=None):
                             
                             if solved:
                                 logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Waiting for page to process...")
-                                time.sleep(3)
+                                # Wait longer for page redirect/processing after CAPTCHA solving
+                                time.sleep(5)
+                                
+                                # Check if page redirected to password page or TOTP challenge
+                                current_url = driver.current_url
+                                if "challenge/pwd" in current_url:
+                                    logger.info("[STEP] ✓ Page redirected to password page after CAPTCHA solving")
+                                    # Retry password field detection with longer timeout
+                                    password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=15)
+                                    if password_input:
+                                        logger.info("[STEP] ✓ Password field found after CAPTCHA solving and redirect!")
+                                    else:
+                                        # Try iframe method
+                                        logger.info("[STEP] Trying iframe method after CAPTCHA redirect...")
+                                        try:
+                                            driver.switch_to.default_content()
+                                            iframes = driver.find_elements(By.TAG_NAME, "iframe")
+                                            for iframe in iframes:
+                                                try:
+                                                    iframe_src = iframe.get_attribute('src') or ''
+                                                    if '_/bscframe' in iframe_src:
+                                                        driver.switch_to.frame(iframe)
+                                                        password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=5)
+                                                        if password_input:
+                                                            logger.info("[STEP] ✓ Password field found in iframe after CAPTCHA solving!")
+                                                            break
+                                                        driver.switch_to.default_content()
+                                                except:
+                                                    driver.switch_to.default_content()
+                                                    continue
+                                        except:
+                                            pass
+                                elif "challenge/totp" in current_url:
+                                    logger.info("[STEP] Page redirected to TOTP challenge after CAPTCHA solving")
+                                    # Handle TOTP challenge if we have secret key
+                                    known_totp_secret = get_secret_key_from_dynamodb(email)
+                                    if known_totp_secret:
+                                        logger.info("[STEP] TOTP secret found in DynamoDB, handling TOTP challenge...")
+                                        # Generate and enter TOTP code
+                                        try:
+                                            import pyotp
+                                            totp = pyotp.TOTP(known_totp_secret)
+                                            otp_code = totp.now()
+                                            logger.info(f"[STEP] Generated TOTP code: {otp_code}")
+                                            
+                                            # Find OTP input field
+                                            otp_input = None
+                                            otp_xpaths = [
+                                                "//input[@type='tel']",
+                                                "//input[contains(@aria-label, 'code') or contains(@aria-label, 'verification')]",
+                                                "//input[@autocomplete='one-time-code']",
+                                                "//input[@type='text']"
+                                            ]
+                                            for xpath in otp_xpaths:
+                                                try:
+                                                    otp_input = wait_for_xpath(driver, xpath, timeout=3)
+                                                    if otp_input:
+                                                        break
+                                                except:
+                                                    continue
+                                            
+                                            if otp_input:
+                                                otp_input.clear()
+                                                otp_input.send_keys(otp_code)
+                                                logger.info("[STEP] Entered TOTP code")
+                                                
+                                                # Click Next/Submit button
+                                                submit_xpaths = [
+                                                    "//button[contains(., 'Next')]",
+                                                    "//button[contains(., 'Verify')]",
+                                                    "//button[@type='submit']"
+                                                ]
+                                                for xpath in submit_xpaths:
+                                                    try:
+                                                        submit_btn = wait_for_clickable_xpath(driver, xpath, timeout=3)
+                                                        if submit_btn:
+                                                            submit_btn.click()
+                                                            logger.info("[STEP] Clicked submit button for TOTP")
+                                                            time.sleep(3)
+                                                            break
+                                                    except:
+                                                        continue
+                                                
+                                                # Wait for redirect to password page
+                                                time.sleep(3)
+                                                current_url = driver.current_url
+                                                if "challenge/pwd" in current_url:
+                                                    logger.info("[STEP] ✓ Redirected to password page after TOTP verification")
+                                                    password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=15)
+                                                    if password_input:
+                                                        logger.info("[STEP] ✓ Password field found after TOTP verification!")
+                                                elif "myaccount.google.com" in current_url:
+                                                    logger.info("[STEP] ✓ Already logged in after TOTP verification")
+                                                    return True, None, None, None
+                                        except Exception as totp_err:
+                                            logger.warning(f"[STEP] TOTP handling error: {totp_err}")
+                                    else:
+                                        logger.warning("[STEP] TOTP challenge detected but no secret key available in DynamoDB")
+                                else:
+                                    logger.info(f"[STEP] Page URL after CAPTCHA: {current_url}")
+                                    # Still try to find password field
+                                    password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=10)
+                                    if password_input:
+                                        logger.info("[STEP] ✓ Password field found after CAPTCHA solving!")
                             else:
                                 logger.error(f"[STEP] ✗ Failed to solve Image CAPTCHA: {error}")
                                 logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
@@ -3236,7 +3339,74 @@ def setup_authenticator(driver, email):
     try:
         # Navigate to authenticator setup page
         logger.info("[STEP] Navigating to Authenticator setup page...")
-        driver.get("https://myaccount.google.com/two-step-verification/authenticator?hl=en")
+        target_url = "https://myaccount.google.com/two-step-verification/authenticator?hl=en"
+        driver.get(target_url)
+        time.sleep(2)
+        
+        # Check for TOTP challenge during navigation (like reference script)
+        current_url = driver.current_url
+        if "challenge/totp" in current_url:
+            logger.info("[STEP] TOTP challenge detected during navigation to authenticator setup page")
+            known_totp_secret = get_secret_key_from_dynamodb(email)
+            if known_totp_secret:
+                logger.info("[STEP] TOTP secret found in DynamoDB, handling TOTP challenge...")
+                try:
+                    import pyotp
+                    totp = pyotp.TOTP(known_totp_secret.replace(" ", "").upper())
+                    otp_code = totp.now()
+                    logger.info(f"[STEP] Generated TOTP code: {otp_code}")
+                    
+                    # Find OTP input field
+                    otp_input = None
+                    otp_xpaths = [
+                        "//input[@type='tel']",
+                        "//input[contains(@aria-label, 'code') or contains(@aria-label, 'verification')]",
+                        "//input[@autocomplete='one-time-code']",
+                        "//input[@type='text']"
+                    ]
+                    for xpath in otp_xpaths:
+                        try:
+                            otp_input = wait_for_xpath(driver, xpath, timeout=3)
+                            if otp_input:
+                                break
+                        except:
+                            continue
+                    
+                    if otp_input:
+                        otp_input.clear()
+                        otp_input.send_keys(otp_code)
+                        logger.info("[STEP] Entered TOTP code")
+                        
+                        # Click Next/Submit button
+                        submit_xpaths = [
+                            "//button[contains(., 'Next')]",
+                            "//button[contains(., 'Verify')]",
+                            "//button[@type='submit']"
+                        ]
+                        for xpath in submit_xpaths:
+                            try:
+                                submit_btn = wait_for_clickable_xpath(driver, xpath, timeout=3)
+                                if submit_btn:
+                                    submit_btn.click()
+                                    logger.info("[STEP] Clicked submit button for TOTP")
+                                    time.sleep(3)
+                                    break
+                            except:
+                                continue
+                        
+                        # Wait for redirect to authenticator setup page
+                        time.sleep(3)
+                        current_url = driver.current_url
+                        if "authenticator" in current_url:
+                            logger.info("[STEP] ✓ Redirected to authenticator setup page after TOTP verification")
+                        elif "myaccount.google.com" in current_url:
+                            # Navigate again to authenticator setup page
+                            driver.get(target_url)
+                            time.sleep(2)
+                except Exception as totp_err:
+                    logger.warning(f"[STEP] TOTP handling error during navigation: {totp_err}")
+            else:
+                logger.warning("[STEP] TOTP challenge detected but no secret key available in DynamoDB")
         
         # Add human-like behavior after page load
         add_random_delays()
@@ -3658,7 +3828,75 @@ def generate_app_password(driver, email):
         logger.info("[STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...")
         
         # Navigate to app passwords page with hl=en for English
-        driver.get("https://myaccount.google.com/apppasswords?hl=en")
+        # Check for TOTP challenge during navigation (like reference script)
+        target_url = "https://myaccount.google.com/apppasswords?hl=en"
+        driver.get(target_url)
+        time.sleep(2)
+        
+        # Check for TOTP challenge after navigation (like reference script add_totp_check_to_navigation)
+        current_url = driver.current_url
+        if "challenge/totp" in current_url:
+            logger.info("[STEP] TOTP challenge detected during navigation to app passwords page")
+            known_totp_secret = get_secret_key_from_dynamodb(email)
+            if known_totp_secret:
+                logger.info("[STEP] TOTP secret found in DynamoDB, handling TOTP challenge...")
+                try:
+                    import pyotp
+                    totp = pyotp.TOTP(known_totp_secret.replace(" ", "").upper())
+                    otp_code = totp.now()
+                    logger.info(f"[STEP] Generated TOTP code: {otp_code}")
+                    
+                    # Find OTP input field
+                    otp_input = None
+                    otp_xpaths = [
+                        "//input[@type='tel']",
+                        "//input[contains(@aria-label, 'code') or contains(@aria-label, 'verification')]",
+                        "//input[@autocomplete='one-time-code']",
+                        "//input[@type='text']"
+                    ]
+                    for xpath in otp_xpaths:
+                        try:
+                            otp_input = wait_for_xpath(driver, xpath, timeout=3)
+                            if otp_input:
+                                break
+                        except:
+                            continue
+                    
+                    if otp_input:
+                        otp_input.clear()
+                        otp_input.send_keys(otp_code)
+                        logger.info("[STEP] Entered TOTP code")
+                        
+                        # Click Next/Submit button
+                        submit_xpaths = [
+                            "//button[contains(., 'Next')]",
+                            "//button[contains(., 'Verify')]",
+                            "//button[@type='submit']"
+                        ]
+                        for xpath in submit_xpaths:
+                            try:
+                                submit_btn = wait_for_clickable_xpath(driver, xpath, timeout=3)
+                                if submit_btn:
+                                    submit_btn.click()
+                                    logger.info("[STEP] Clicked submit button for TOTP")
+                                    time.sleep(3)
+                                    break
+                            except:
+                                continue
+                        
+                        # Wait for redirect to app passwords page
+                        time.sleep(3)
+                        current_url = driver.current_url
+                        if "apppasswords" in current_url:
+                            logger.info("[STEP] ✓ Redirected to app passwords page after TOTP verification")
+                        elif "myaccount.google.com" in current_url:
+                            # Navigate again to app passwords page
+                            driver.get(target_url)
+                            time.sleep(2)
+                except Exception as totp_err:
+                    logger.warning(f"[STEP] TOTP handling error during navigation: {totp_err}")
+            else:
+                logger.warning("[STEP] TOTP challenge detected but no secret key available in DynamoDB")
         
         # Add human-like behavior after page load
         add_random_delays()
@@ -3995,6 +4233,45 @@ def ensure_dynamodb_table_exists(table_name="gbot-app-passwords"):
         logger.error(f"[DYNAMODB] Traceback: {traceback.format_exc()}")
         return False
 
+def get_secret_key_from_dynamodb(email):
+    """
+    Retrieve TOTP secret key from DynamoDB for the given email.
+    Returns the full secret key (unmasked) if found, None otherwise.
+    """
+    table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
+    
+    try:
+        dynamodb = get_dynamodb_resource()
+        table = dynamodb.Table(table_name)
+        
+        response = table.get_item(Key={"email": email})
+        
+        if "Item" in response:
+            item = response["Item"]
+            # Check if secret_key exists and is not masked (contains "****")
+            if "secret_key" in item:
+                secret_key = item["secret_key"]
+                # If it's masked, we need to retrieve the full key from a different source
+                # For now, return None if masked (we should save full key separately)
+                if "****" in secret_key:
+                    logger.warning(f"[DYNAMODB] Secret key for {email} is masked in DynamoDB")
+                    return None
+                return secret_key
+            else:
+                logger.info(f"[DYNAMODB] No secret key found for {email} in DynamoDB")
+                return None
+        else:
+            logger.info(f"[DYNAMODB] No record found for {email} in DynamoDB")
+            return None
+            
+    except ClientError as e:
+        logger.error(f"[DYNAMODB] Error retrieving secret key for {email}: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"[DYNAMODB] Unexpected error retrieving secret key for {email}: {e}")
+        return None
+
+
 def save_to_dynamodb(email, app_password, secret_key=None):
     """
     Save app password to DynamoDB for reliable storage and retrieval.
@@ -4021,9 +4298,9 @@ def save_to_dynamodb(email, app_password, secret_key=None):
             "updated_at": timestamp
         }
         
-        # Add secret_key if provided (masked for security)
+        # Add secret_key if provided - save FULL key (unmasked) for TOTP generation
         if secret_key:
-            item["secret_key"] = secret_key[:4] + "****" + secret_key[-4:]
+            item["secret_key"] = secret_key  # Save full key, not masked
         
         # Put item (upsert - creates or updates)
         table.put_item(Item=item)
