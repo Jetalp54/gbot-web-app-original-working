@@ -336,43 +336,17 @@ def get_chrome_driver():
     chrome_options.add_argument("--disable-setuid-sandbox")
     chrome_options.add_argument("--disable-software-rasterizer")
     
-    # Enhanced Anti-detection options (Lambda-compatible)
+    # Essential Anti-detection options (MINIMAL - less is more!)
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_experimental_option("excludeSwitches", [
-        "enable-automation",
-        "enable-logging",
-        "enable-blink-features=AutomationControlled"
-    ])
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     
-    # Randomize timezone (important for fingerprinting)
-    timezones = ['America/New_York', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Asia/Tokyo']
-    selected_timezone = random.choice(timezones)
-    chrome_options.add_argument(f"--timezone={selected_timezone}")
-    logger.info(f"[ANTI-DETECT] Using timezone: {selected_timezone}")
-    
-    # Randomize locale
-    locales = ['en-US', 'en-GB', 'en-CA', 'en-AU']
-    selected_locale = random.choice(locales)
-    chrome_options.add_argument(f"--lang={selected_locale}")
-    logger.info(f"[ANTI-DETECT] Using locale: {selected_locale}")
-    
-    # Store selected_locale for use in JavaScript injection
-    chrome_options._selected_locale = selected_locale
-    
+    # Simple prefs - don't overdo it
     chrome_options.add_experimental_option("prefs", {
         "profile.default_content_setting_values.notifications": 2,
-        "profile.default_content_settings.popups": 0,
         "credentials_enable_service": False,
         "profile.password_manager_enabled": False,
-        "intl.accept_languages": selected_locale,
     })
-    
-    # Additional stealth arguments
-    chrome_options.add_argument("--disable-features=IsolateOrigins,site-per-process")
-    chrome_options.add_argument("--disable-site-isolation-trials")
-    chrome_options.add_argument("--disable-web-security")
-    chrome_options.add_argument("--disable-features=VizDisplayCompositor")
 
     try:
         # Create Service with explicit ChromeDriver path
@@ -401,349 +375,55 @@ def get_chrome_driver():
         # Inject comprehensive anti-detection scripts AFTER driver is stable
         # Do this BEFORE any navigation to ensure it's applied to all pages
         try:
-            # Generate randomized fingerprint values
-            webgl_vendors = ['Intel Inc.', 'NVIDIA Corporation', 'Google Inc. (Intel)', 'AMD']
-            webgl_renderers = [
-                'Intel Iris OpenGL Engine',
-                'NVIDIA GeForce GTX 1050 Ti OpenGL Engine',
-                'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)',
-                'AMD Radeon RX 580 Series'
-            ]
-            platforms = ['Win32', 'MacIntel', 'Linux x86_64']
-            hardware_concurrencies = [4, 8, 12, 16]
-            device_memories = [4, 8, 16]
-            
-            # Get locale from options (set earlier in chrome_options) - MUST be before f-string
-            selected_locale_js = getattr(chrome_options, '_selected_locale', 'en-US')
-            
-            selected_vendor = random.choice(webgl_vendors)
-            selected_renderer = random.choice(webgl_renderers)
-            selected_platform = random.choice(platforms)
-            selected_hw_concurrency = random.choice(hardware_concurrencies)
-            selected_device_memory = random.choice(device_memories)
-            
-            # Enhanced anti-detection script with realistic machine fingerprint
-            anti_detection_script = f'''
-                (function() {{
-                    // ========== CRITICAL: Remove ALL automation fingerprints ==========
-                    
-                    // 1. Remove webdriver property completely
-                    delete navigator.__proto__.webdriver;
-                    Object.defineProperty(navigator, 'webdriver', {{
+            # SIMPLIFIED anti-detection script - less is more!
+            # Aggressive scripts are MORE detectable than simple ones
+            anti_detection_script = '''
+                (function() {
+                    // ========== ESSENTIAL: Hide webdriver flag ==========
+                    // This is the ONLY critical thing to hide
+                    Object.defineProperty(navigator, 'webdriver', {
                         get: () => undefined,
                         configurable: true
-                    }});
+                    });
                     
-                    // 2. Remove automation flags
-                    Object.defineProperty(navigator, 'webdriver', {{
-                        get: () => false,
-                        configurable: true
-                    }});
+                    // ========== Remove ChromeDriver fingerprints ==========
+                    // These are specific to ChromeDriver and must be removed
+                    try {
+                        delete document.$cdc_asdjflasutopfhvcZLmcfl_;
+                        delete document.$chrome_asyncScriptInfo;
+                        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+                        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+                        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+                    } catch(e) {}
                     
-                    // 3. Override Chrome automation detection
-                    window.navigator.chrome = {{
-                        runtime: {{}},
-                        loadTimes: function() {{}},
-                        csi: function() {{}},
-                        app: {{}}
-                    }};
+                    // ========== Add minimal chrome object ==========
+                    // Chrome expects this to exist
+                    if (!window.chrome) {
+                        window.chrome = {
+                            runtime: {}
+                        };
+                    }
                     
-                    // 4. Remove automation indicators from window
-                    Object.defineProperty(window, 'navigator', {{
-                        get: () => {{
-                            const nav = navigator;
-                            delete nav.webdriver;
-                            return nav;
-                        }},
-                        configurable: true
-                    }});
-                    
-                    // ========== Realistic Machine Fingerprint ==========
-                    
-                    // 5. Spoof plugins with realistic data
-                    const realisticPlugins = [
-                        {{name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer'}},
-                        {{name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai'}},
-                        {{name: 'Native Client', filename: 'internal-nacl-plugin'}}
-                    ];
-                    Object.defineProperty(navigator, 'plugins', {{
-                        get: () => realisticPlugins,
-                        configurable: true
-                    }});
-                    
-                    // 6. Spoof languages (realistic)
-                    Object.defineProperty(navigator, 'languages', {{
-                        get: () => ['{selected_locale_js}', 'en'],
-                        configurable: true
-                    }});
-                    Object.defineProperty(navigator, 'language', {{
-                        get: () => '{selected_locale_js}',
-                        configurable: true
-                    }});
-                    
-                    // 7. Spoof platform (randomized)
-                    Object.defineProperty(navigator, 'platform', {{
-                        get: () => '{selected_platform}',
-                        configurable: true
-                    }});
-                    
-                    // 8. Spoof WebGL vendor and renderer (randomized realistic values)
-                    const getParameter = WebGLRenderingContext.prototype.getParameter;
-                    WebGLRenderingContext.prototype.getParameter = function(parameter) {{
-                        if (parameter === 37445) {{ // UNMASKED_VENDOR_WEBGL
-                            return '{selected_vendor}';
-                        }}
-                        if (parameter === 37446) {{ // UNMASKED_RENDERER_WEBGL
-                            return '{selected_renderer}';
-                        }}
-                        return getParameter.call(this, parameter);
-                    }};
-                    
-                    // Also handle WebGL2
-                    if (typeof WebGL2RenderingContext !== 'undefined') {{
-                        const getParameter2 = WebGL2RenderingContext.prototype.getParameter;
-                        WebGL2RenderingContext.prototype.getParameter = function(parameter) {{
-                            if (parameter === 37445) {{
-                                return '{selected_vendor}';
-                            }}
-                            if (parameter === 37446) {{
-                                return '{selected_renderer}';
-                            }}
-                            return getParameter2.call(this, parameter);
-                        }};
-                    }}
-                    
-                    // 9. Enhanced Canvas fingerprint randomization (more realistic noise)
-                    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-                    const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
-                    HTMLCanvasElement.prototype.toDataURL = function() {{
-                        const context = this.getContext('2d');
-                        if (context) {{
-                            try {{
-                                const imageData = context.getImageData(0, 0, Math.min(this.width, 100), Math.min(this.height, 100));
-                                // Add subtle, realistic noise (1-2 pixels)
-                                for (let i = 0; i < imageData.data.length; i += 4) {{
-                                    imageData.data[i] += Math.floor(Math.random() * 3) - 1; // R
-                                    imageData.data[i + 1] += Math.floor(Math.random() * 3) - 1; // G
-                                    imageData.data[i + 2] += Math.floor(Math.random() * 3) - 1; // B
-                                }}
-                                context.putImageData(imageData, 0, 0);
-                            }} catch(e) {{
-                                // Ignore errors
-                            }}
-                        }}
-                        return originalToDataURL.apply(this, arguments);
-                    }};
-                    
-                    // 10. Spoof AudioContext fingerprinting (critical for detection)
-                    if (typeof AudioContext !== 'undefined') {{
-                        const originalCreateOscillator = AudioContext.prototype.createOscillator;
-                        AudioContext.prototype.createOscillator = function() {{
-                            const oscillator = originalCreateOscillator.apply(this, arguments);
-                            const originalStart = oscillator.start;
-                            oscillator.start = function() {{
-                                // Add subtle noise to frequency data
-                                const buffer = this.context.createBuffer(1, 1024, this.context.sampleRate);
-                                const data = buffer.getChannelData(0);
-                                for (let i = 0; i < data.length; i++) {{
-                                    data[i] += (Math.random() * 0.0001 - 0.00005);
-                                }}
-                                originalStart.apply(this, arguments);
-                            }};
-                            return oscillator;
-                        }};
-                    }}
-                    
-                    // 11. Spoof mediaDevices with realistic device list
-                    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {{
-                        const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
-                        navigator.mediaDevices.enumerateDevices = function() {{
-                            return Promise.resolve([
-                                {{
-                                    deviceId: "default",
-                                    kind: "audioinput",
-                                    label: "Default - Microphone",
-                                    groupId: "group1"
-                                }},
-                                {{
-                                    deviceId: "communications",
-                                    kind: "audioinput",
-                                    label: "Communications - Microphone",
-                                    groupId: "group1"
-                                }},
-                                {{
-                                    deviceId: "default",
-                                    kind: "videoinput",
-                                    label: "Default - Camera",
-                                    groupId: "group1"
-                                }},
-                                {{
-                                    deviceId: "default",
-                                    kind: "audiooutput",
-                                    label: "Default - Speaker",
-                                    groupId: "group1"
-                                }}
-                            ]);
-                        }};
-                    }}
-                    
-                    // 12. Spoof Hardware Concurrency and Device Memory (randomized)
-                    Object.defineProperty(navigator, 'hardwareConcurrency', {{
-                        get: () => {selected_hw_concurrency},
-                        configurable: true
-                    }});
-                    Object.defineProperty(navigator, 'deviceMemory', {{
-                        get: () => {selected_device_memory},
-                        configurable: true
-                    }});
-                    
-                    // 13. Spoof Connection API (Network fingerprint)
-                    const connectionTypes = ['wifi', 'ethernet', 'cellular'];
-                    const effectiveTypes = ['4g', '3g'];
-                    Object.defineProperty(navigator, 'connection', {{
-                        get: () => ({{
-                            rtt: Math.floor(Math.random() * 50) + 50,
-                            type: connectionTypes[Math.floor(Math.random() * connectionTypes.length)],
-                            effectiveType: effectiveTypes[Math.floor(Math.random() * effectiveTypes.length)],
-                            downlink: Math.floor(Math.random() * 5) + 10,
-                            saveData: false
-                        }}),
-                        configurable: true
-                    }});
-                    
-                    // 14. Spoof Battery API (if available)
-                    if (navigator.getBattery) {{
-                        const originalGetBattery = navigator.getBattery;
-                        navigator.getBattery = function() {{
-                            return Promise.resolve({{
-                                charging: Math.random() > 0.3,
-                                level: Math.random() * 0.3 + 0.7,
-                                chargingTime: Infinity,
-                                dischargingTime: Infinity
-                            }});
-                        }};
-                    }}
-                    
-                    // 15. Spoof Permissions API
-                    const originalQuery = window.navigator.permissions.query;
-                    window.navigator.permissions.query = (parameters) => (
-                        parameters.name === 'notifications' ?
-                            Promise.resolve({{ state: Notification.permission }}) :
-                            originalQuery(parameters)
-                    );
-                    
-                    // 16. Enhanced realistic mouse movement simulation (continuous)
-                    let lastMouseX = window.innerWidth / 2;
-                    let lastMouseY = window.innerHeight / 2;
-                    let mouseMoveCount = 0;
-                    
-                    function easeInOutQuad(t) {{
-                        return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-                    }}
-                    
-                    function simulateMouseMovement() {{
-                        if (mouseMoveCount < 20) {{
-                            const targetX = Math.random() * window.innerWidth;
-                            const targetY = Math.random() * window.innerHeight;
-                            
-                            const steps = Math.floor(Math.random() * 5) + 5;
-                            for (let i = 0; i <= steps; i++) {{
-                                const t = i / steps;
-                                const easedT = easeInOutQuad(t);
-                                const currentX = lastMouseX + (targetX - lastMouseX) * easedT;
-                                const currentY = lastMouseY + (targetY - lastMouseY) * easedT;
-                                
-                                const event = new MouseEvent('mousemove', {{
-                                    view: window,
-                                    bubbles: true,
-                                    cancelable: true,
-                                    clientX: currentX,
-                                    clientY: currentY,
-                                    movementX: currentX - lastMouseX,
-                                    movementY: currentY - lastMouseY
-                                }});
-                                document.dispatchEvent(event);
-                                
-                                lastMouseX = currentX;
-                                lastMouseY = currentY;
-                            }}
-                            mouseMoveCount++;
-                        }} else {{
-                            // Continuous subtle movements
-                            const targetX = lastMouseX + (Math.random() - 0.5) * 100;
-                            const targetY = lastMouseY + (Math.random() - 0.5) * 100;
-                            const finalX = Math.max(0, Math.min(window.innerWidth, targetX));
-                            const finalY = Math.max(0, Math.min(window.innerHeight, targetY));
-                            
-                            const event = new MouseEvent('mousemove', {{
-                                view: window,
-                                bubbles: true,
-                                cancelable: true,
-                                clientX: finalX,
-                                clientY: finalY,
-                                movementX: finalX - lastMouseX,
-                                movementY: finalY - lastMouseY
-                            }});
-                            document.dispatchEvent(event);
-                            
-                            lastMouseX = finalX;
-                            lastMouseY = finalY;
-                        }}
-                    }}
-                    
-                    document.addEventListener('DOMContentLoaded', function() {{
-                        setInterval(simulateMouseMovement, 1500 + Math.random() * 2000);
-                    }});
-                    
-                    // 17. Override automation detection in document
-                    Object.defineProperty(document, '$cdc_asdjflasutopfhvcZLmcfl_', {{
-                        get: () => undefined,
-                        configurable: true
-                    }});
-                    Object.defineProperty(document, '$chrome_asyncScriptInfo', {{
-                        get: () => undefined,
-                        configurable: true
-                    }});
-                    
-                    // 18. Remove automation from window
-                    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
-                    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
-                    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
-                    
-                    // 19. Spoof timezone (reinforce Chrome args)
-                    const timezones = ['America/New_York', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Asia/Tokyo'];
-                    const selectedTz = timezones[Math.floor(Math.random() * timezones.length)];
-                    Object.defineProperty(Intl, 'DateTimeFormat', {{
-                        get: () => class extends Intl.DateTimeFormat {{
-                            constructor(locales, options) {{
-                                super(locales, {{ ...options, timeZone: selectedTz }});
-                            }}
-                        }}
-                    }});
-                    
-                    // 20. Override toString to hide modifications
-                    const originalToString = Function.prototype.toString;
-                    Function.prototype.toString = function() {{
-                        const webdriverDesc = Object.getOwnPropertyDescriptor(navigator, 'webdriver');
-                        if (this === navigator.webdriver || (webdriverDesc && this === webdriverDesc.get)) {{
-                            return 'function webdriver() {{ [native code] }}';
-                        }}
-                        return originalToString.call(this);
-                    }};
-                }})();
+                    // ========== Simple permissions fix ==========
+                    try {
+                        const originalQuery = window.navigator.permissions.query;
+                        window.navigator.permissions.query = (parameters) => (
+                            parameters.name === 'notifications' ?
+                                Promise.resolve({ state: Notification.permission }) :
+                                originalQuery(parameters)
+                        );
+                    } catch(e) {}
+                })();
             '''
             
-            # Inject via CDP (most reliable method)
+            # Inject via CDP ONLY using Page.addScriptToEvaluateOnNewDocument
+            # NOTE: Runtime.evaluate is REMOVED because it's a known detection vector!
+            # Google can detect code execution through Runtime.evaluate CDP command
             driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
                 'source': anti_detection_script
             })
             
-            # Also inject via Runtime.evaluate for immediate effect
-            driver.execute_cdp_cmd('Runtime.evaluate', {
-                'expression': anti_detection_script
-            })
-            
-            logger.info(f"[ANTI-DETECT] ✓ Enhanced anti-detection script injected (Vendor: {selected_vendor}, Platform: {selected_platform}, HW: {selected_hw_concurrency} cores, Memory: {selected_device_memory}GB)")
+            logger.info("[ANTI-DETECT] ✓ Minimal anti-detection script injected")
         except Exception as e:
             logger.warning(f"[LAMBDA] Could not inject anti-detection script (non-critical): {e}")
             # Continue anyway - this is not critical, but log it
@@ -1399,7 +1079,7 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                             for (var i = 0; i < scripts.length; i++) {
                                 var src = scripts[i].src || '';
                                 var content = scripts[i].innerHTML || '';
-                                var match = src.match(/[?&]k=([a-zA-Z0-9_-]{20,})/) || content.match(/sitekey['"]\s*[:=]\s*['"]([^'"]+)['"]/i);
+                                var match = src.match(/[?&]k=([a-zA-Z0-9_-]{20,})/) || content.match(/sitekey['"]\\s*[:=]\\s*['"]([^'"]+)['"]/i);
                                 if (match && match[1]) {
                                     siteKey = match[1];
                                     break;
@@ -1434,7 +1114,7 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                             r'[?&]k=([a-zA-Z0-9_-]{20,})',  # k= parameter
                             r'__recaptcha_api\.js[^"\'<>]*[?&]k=([a-zA-Z0-9_-]{20,})',  # Legacy format
                             r'recaptcha\.google\.com/recaptcha/api\.js[^"\'<>]*[?&]render=([a-zA-Z0-9_-]{20,})',  # Full URL
-                            r'sitekey["\']\s*[:=]\s*["\']([^"\']{20,})["\']',  # JSON-style sitekey
+                            r'sitekey["\']\\s*[:=]\\s*["\']([^"\']{20,})["\']',  # JSON-style sitekey
                         ]
                         
                         for pattern in patterns:
@@ -1539,8 +1219,8 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                             var html = document.documentElement.innerHTML;
                             var patterns = [
                                 /data-sitekey=["']([^"']{20,})["']/,
-                                /sitekey["']?\s*[:=]\s*["']([^"']{20,})["']/,
-                                /grecaptcha\.(?:enterprise\.)?render\([^,]+,\s*\{[^}]*sitekey["']?\s*:\s*["']([^"']+)["']/
+                                /sitekey["']?\\s*[:=]\\s*["']([^"']{20,})["']/,
+                                /grecaptcha\\.(?:enterprise\\.)?render\\([^,]+,\\s*\\{[^}]*sitekey["']?\\s*:\\s*["']([^"']+)["']/
                             ];
                             for (var i = 0; i < patterns.length; i++) {
                                 var match = html.match(patterns[i]);
