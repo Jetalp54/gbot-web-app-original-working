@@ -202,7 +202,7 @@
                     </div>
                     <div class="form-group-github">
                         <label class="form-label-github">Users per Function (lower = less CAPTCHA, default: 10):</label>
-                        <input type="number" id="usersPerFunction" class="form-control-github" value="10" min="1" max="20" style="width: 100px;">
+                        <input type="number" id="usersPerFunction" class="form-control-github" value="10" min="1" max="20" style="width: 100px;" onchange="updateLambdaCalculation()" oninput="updateLambdaCalculation()">
                         <small style="color: var(--color-fg-muted); font-size: 12px;">Number of users to process per Lambda function. Lower values reduce CAPTCHA frequency (default: 10, recommended: 5-8 for fewer CAPTCHAs)</small>
                     </div>
                     <div id="lambdaCalculation"
@@ -1981,7 +1981,7 @@
     // Update Lambda calculation - automatically counts users from input field
     function updateLambdaCalculation() {
         const createMultiple = document.getElementById('createMultipleLambdas').checked;
-        const usersPerFunction = 10; // Fixed at 10 users per function
+        const usersPerFunction = parseInt(document.getElementById('usersPerFunction')?.value || '10', 10) || 10; // Read from input field
 
         if (createMultiple) {
             // Automatically count users from the "Multiple Accounts" textarea
@@ -2010,6 +2010,21 @@
         const multipleUsersInput = document.getElementById('multipleUsers');
         if (multipleUsersInput) {
             multipleUsersInput.addEventListener('input', function () {
+                if (document.getElementById('createMultipleLambdas').checked) {
+                    updateLambdaCalculation();
+                }
+            });
+        }
+
+        // Add listener to usersPerFunction input for auto-calculation
+        const usersPerFunctionInput = document.getElementById('usersPerFunction');
+        if (usersPerFunctionInput) {
+            usersPerFunctionInput.addEventListener('input', function () {
+                if (document.getElementById('createMultipleLambdas').checked) {
+                    updateLambdaCalculation();
+                }
+            });
+            usersPerFunctionInput.addEventListener('change', function () {
                 if (document.getElementById('createMultipleLambdas').checked) {
                     updateLambdaCalculation();
                 }
