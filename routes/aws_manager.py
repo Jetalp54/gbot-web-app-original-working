@@ -602,10 +602,9 @@ def create_dynamodb_table():
         session = get_boto3_session(access_key, secret_key, region)
         dynamodb = session.client('dynamodb')
         
-        # Use configurable table name for multi-tenant support
-        naming_config_dynamo = get_naming_config()
-        table_name = naming_config_dynamo['dynamodb_table']
-        logger.info(f"[DYNAMODB] Using configurable table name: {table_name}")
+        # Get table name from request (preferred) or database (fallback)
+        table_name = data.get('table_name', '').strip() or get_naming_config().get('dynamodb_table', 'gbot-app-passwords')
+        logger.info(f"[DYNAMODB] Using table name from REQUEST: {table_name}")
         
         try:
             # Check if table exists
@@ -734,6 +733,22 @@ def create_infrastructure():
         access_key = data.get('access_key', '').strip()
         secret_key = data.get('secret_key', '').strip()
         region = data.get('region', '').strip()
+        
+        # Get custom naming from request
+        ecr_repo_name = data.get('ecr_repo_name', 'gbot-app-password-worker').strip() or 'gbot-app-password-worker'
+        s3_bucket = data.get('s3_bucket', 'gbot-app-passwords').strip() or 'gbot-app-passwords'
+        iam_role_prefix = data.get('iam_role_prefix', 'gbot').strip() or 'gbot'
+        
+        # Extract common prefix from resource names (e.g., "dev" from "dev-ec2-build-box")
+        # Use the first part before first dash, or use iam_role_prefix as fallback
+        prefix = iam_role_prefix
+        if '-' in ecr_repo_name:
+            prefix = ecr_repo_name.split('-')[0]
+        elif '-' in s3_bucket:
+            prefix = s3_bucket.split('-')[0]
+        
+        logger.info(f"[INFRA] Using prefix: {prefix}")
+        logger.info(f"[INFRA] ECR Repo: {ecr_repo_name}, S3 Bucket: {s3_bucket}, IAM Prefix: {iam_role_prefix}")
 
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide Access Key, Secret Key and Region.'}), 400
@@ -744,25 +759,33 @@ def create_infrastructure():
         logger.info("[INFRA] Ensuring IAM user has S3 permissions...")
         ensure_user_s3_permissions(session)
         
-        # Create IAM role for Lambda
+        # Create IAM role for Lambda with custom name
+        lambda_role_name = f"{prefix}-lambda-role"
         lambda_policies = [
             "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
             "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
             "arn:aws:iam::aws:policy/AmazonS3FullAccess",
             "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess",  # For app password storage
         ]
-        role_arn = create_iam_role(session, LAMBDA_ROLE_NAME, "lambda.amazonaws.com", lambda_policies)
+        logger.info(f"[INFRA] Creating IAM role: {lambda_role_name}")
+        role_arn = create_iam_role(session, lambda_role_name, "lambda.amazonaws.com", lambda_policies)
 
-        # Create ECR repo
-        create_ecr_repo(session, region)
+        # Create ECR repo with custom name
+        logger.info(f"[INFRA] Creating ECR repo: {ecr_repo_name}")
+        create_ecr_repo(session, region, ecr_repo_name)
 
-        # Create S3 bucket
-        create_s3_bucket(session, region)
+        # Create S3 bucket with custom name
+        logger.info(f"[INFRA] Creating S3 bucket: {s3_bucket}")
+        create_s3_bucket(session, region, s3_bucket)
 
         return jsonify({
             'success': True,
             'role_arn': role_arn,
-            'message': 'Infrastructure setup completed. S3 permissions have been ensured for your IAM user.'
+            'lambda_role_name': lambda_role_name,
+            'ecr_repo_name': ecr_repo_name,
+            's3_bucket': s3_bucket,
+            'prefix': prefix,
+            'message': f'Infrastructure setup completed with prefix "{prefix}". S3 permissions have been ensured for your IAM user.'
         })
     except Exception as e:
         logger.error(f"Error creating infrastructure: {e}")
@@ -784,9 +807,9 @@ def create_ecr_manual():
 
         session = get_boto3_session(access_key, secret_key, region)
         
-        # Use configurable ECR repo name for multi-tenant support
-        naming_config = get_naming_config()
-        ecr_repo_name = naming_config['ecr_repo_name']
+        # Get ECR repo name from request (preferred) or database (fallback)
+        ecr_repo_name = data.get('ecr_repo_name', '').strip() or get_naming_config().get('ecr_repo_name', 'gbot-app-password-worker')
+        logger.info(f"[ECR] Creating ECR repo: {ecr_repo_name}")
         
         create_ecr_repo(session, region, ecr_repo_name)
 
@@ -2317,14 +2340,16 @@ def create_lambdas():
         if not s3_bucket:
             return jsonify({'success': False, 'error': 'Please enter S3 Bucket name for app passwords storage.'}), 400
 
-        # Get customizable naming configuration for multi-tenant support
-        naming_config = get_naming_config()
-        ecr_repo_name = naming_config['ecr_repo_name']
-        lambda_prefix = naming_config['production_lambda_name']
-        dynamodb_table = naming_config['dynamodb_table']
-        instance_name = naming_config['instance_name']
+        # Get customizable naming configuration from request (preferred) or database (fallback)
+        lambda_prefix = data.get('lambda_prefix', '').strip() or get_naming_config().get('production_lambda_name', 'gbot-chromium')
+        ecr_repo_name = data.get('ecr_repo_name', '').strip() or get_naming_config().get('ecr_repo_name', 'gbot-app-password-worker')
+        dynamodb_table = data.get('dynamodb_table', '').strip() or get_naming_config().get('dynamodb_table', 'gbot-app-passwords')
         
-        logger.info(f"[LAMBDA] Using naming config: instance={instance_name}, lambda_prefix={lambda_prefix}, ecr_repo={ecr_repo_name}, dynamodb={dynamodb_table}")
+        # Extract prefix from lambda_prefix (e.g., "dev" from "dev-chromium")
+        prefix = lambda_prefix.split('-')[0] if '-' in lambda_prefix else lambda_prefix.split('_')[0] if '_' in lambda_prefix else 'gbot'
+        instance_name = prefix  # Use prefix as instance identifier
+        
+        logger.info(f"[LAMBDA] Using naming from REQUEST: lambda_prefix={lambda_prefix}, ecr_repo={ecr_repo_name}, dynamodb={dynamodb_table}, prefix={prefix}")
 
         session = get_boto3_session(access_key, secret_key, region)
 
@@ -2341,8 +2366,10 @@ def create_lambdas():
                 'error': 'ECR image does not appear to exist yet. Launch EC2 build box, wait a few minutes, then try again.'
             }), 400
 
-        # Ensure IAM role
-        role_arn = ensure_lambda_role(session)
+        # Ensure IAM role with custom prefix
+        lambda_role_name = f"{prefix}-lambda-role"
+        logger.info(f"[LAMBDA] Creating/verifying IAM role: {lambda_role_name}")
+        role_arn = ensure_lambda_role(session, lambda_role_name)
 
         # Environment variables (removed SFTP)
         # Use centralized DynamoDB in eu-west-1 (all Lambda functions save to same table)
@@ -3459,10 +3486,12 @@ def bulk_generate():
     if not users_raw:
         return jsonify({'success': False, 'error': 'No users provided'}), 400
 
-    # Get configurable naming for multi-tenant support
-    naming_config_bulk = get_naming_config()
-    dynamodb_table_bulk = naming_config_bulk['dynamodb_table']
-    lambda_prefix_bulk = naming_config_bulk['production_lambda_name']
+    # Get configurable naming from request (preferred) or database (fallback)
+    lambda_prefix_bulk = data.get('lambda_prefix', '').strip() or get_naming_config().get('production_lambda_name', 'gbot-chromium')
+    dynamodb_table_bulk = data.get('dynamodb_table', '').strip() or get_naming_config().get('dynamodb_table', 'gbot-app-passwords')
+    
+    logger.info(f"[BULK] Using lambda_prefix from REQUEST: {lambda_prefix_bulk}")
+    logger.info(f"[BULK] Using dynamodb_table from REQUEST: {dynamodb_table_bulk}")
     
     # Auto-clear DynamoDB before starting new batch
     try:
@@ -4814,20 +4843,24 @@ def invoke_lambda():
         if not email or not password:
             return jsonify({'success': False, 'error': 'Please provide email and password.'}), 400
 
+        # Get lambda_prefix from request (preferred) or database (fallback)
+        lambda_prefix_invoke = data.get('lambda_prefix', '').strip() or get_naming_config().get('production_lambda_name', 'gbot-chromium')
+        logger.info(f"[INVOKE] Using lambda_prefix from REQUEST: {lambda_prefix_invoke}")
+
         session = get_boto3_session(access_key, secret_key, region)
         lam = session.client("lambda")
 
         # Determine which Lambda function to use
-        lambda_function_name = PRODUCTION_LAMBDA_NAME
+        lambda_function_name = lambda_prefix_invoke  # Use prefix as base name
         lambda_region = region  # Track which region the function is in
         
         try:
             # List all Lambda functions that match our pattern in the specified region
-            logger.info(f"[INVOKE] Searching for Lambda functions in region: {region}")
+            logger.info(f"[INVOKE] Searching for Lambda functions with prefix '{lambda_prefix_invoke}' in region: {region}")
             all_functions = lam.list_functions()
             matching_functions = [
                 fn['FunctionName'] for fn in all_functions.get('Functions', [])
-                if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
+                if fn['FunctionName'].startswith(lambda_prefix_invoke)
             ]
             
             logger.info(f"[INVOKE] Found {len(matching_functions)} matching function(s) in {region}: {matching_functions}")
@@ -4862,7 +4895,7 @@ def invoke_lambda():
                         search_functions = search_lam.list_functions()
                         search_matching = [
                             fn['FunctionName'] for fn in search_functions.get('Functions', [])
-                            if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME)
+                            if fn['FunctionName'].startswith(lambda_prefix_invoke)
                         ]
                         if search_matching:
                             lambda_function_name = search_matching[0]  # Use first found
@@ -5370,28 +5403,32 @@ def delete_s3_content():
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
 
+        # Get bucket name from request (preferred) or database (fallback)
+        bucket_name = data.get('bucket_name', '').strip() or get_naming_config().get('s3_bucket', 'gbot-app-passwords')
+        logger.info(f"[S3 DELETE] Using bucket name from REQUEST: {bucket_name}")
+
         session = get_boto3_session(access_key, secret_key, region)
         s3 = session.client("s3")
 
         # First, check if bucket exists and we have ListBucket permission
         try:
-            s3.head_bucket(Bucket=S3_BUCKET_NAME)
+            s3.head_bucket(Bucket=bucket_name)
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
             if error_code == '404' or error_code == 'NoSuchBucket':
                 return jsonify({
                     'success': False,
-                    'error': f'S3 bucket {S3_BUCKET_NAME} does not exist.'
+                    'error': f'S3 bucket {bucket_name} does not exist.'
                 }), 404
             elif error_code == '403' or 'AccessDenied' in str(e):
                 return jsonify({
                     'success': False,
-                    'error': f'Access Denied to S3 bucket {S3_BUCKET_NAME}. Your AWS credentials need the following IAM permissions:\n'
+                    'error': f'Access Denied to S3 bucket {bucket_name}. Your AWS credentials need the following IAM permissions:\n'
                              f'- s3:ListBucket\n'
                              f'- s3:DeleteObject\n'
                              f'- s3:ListBucketVersions (if versioning enabled)\n'
                              f'- s3:DeleteObjectVersion (if versioning enabled)\n\n'
-                             f'You can attach the "AmazonS3FullAccess" policy to your IAM user, or create a custom policy with these permissions for bucket "{S3_BUCKET_NAME}".'
+                             f'You can attach the "AmazonS3FullAccess" policy to your IAM user, or create a custom policy with these permissions for bucket "{bucket_name}".'
                 }), 403
             else:
                 raise e
@@ -5401,23 +5438,23 @@ def delete_s3_content():
         # Delete regular objects
         try:
             paginator = s3.get_paginator('list_objects_v2')
-            for page in paginator.paginate(Bucket=S3_BUCKET_NAME):
+            for page in paginator.paginate(Bucket=bucket_name):
                 objects = page.get('Contents', [])
                 if objects:
                     delete_keys = [{'Key': obj['Key']} for obj in objects]
                     try:
                         s3.delete_objects(
-                            Bucket=S3_BUCKET_NAME,
+                            Bucket=bucket_name,
                             Delete={'Objects': delete_keys}
                         )
                         deleted_count += len(delete_keys)
-                        logger.info(f"[S3] Deleted {len(delete_keys)} objects from {S3_BUCKET_NAME}")
+                        logger.info(f"[S3] Deleted {len(delete_keys)} objects from {bucket_name}")
                     except ClientError as delete_err:
                         error_code = delete_err.response.get('Error', {}).get('Code', '')
                         if error_code == 'AccessDenied':
                             return jsonify({
                                 'success': False,
-                                'error': f'Access Denied when deleting objects. Your AWS credentials need s3:DeleteObject permission for bucket "{S3_BUCKET_NAME}".'
+                                'error': f'Access Denied when deleting objects. Your AWS credentials need s3:DeleteObject permission for bucket "{bucket_name}".'
                             }), 403
                         raise delete_err
         except ClientError as list_err:
@@ -5425,14 +5462,14 @@ def delete_s3_content():
             if error_code == 'AccessDenied':
                 return jsonify({
                     'success': False,
-                    'error': f'Access Denied when listing objects. Your AWS credentials need s3:ListBucket permission for bucket "{S3_BUCKET_NAME}".'
+                    'error': f'Access Denied when listing objects. Your AWS credentials need s3:ListBucket permission for bucket "{bucket_name}".'
                 }), 403
             raise list_err
         
         # Delete object versions if versioning is enabled
         try:
             version_paginator = s3.get_paginator('list_object_versions')
-            for page in version_paginator.paginate(Bucket=S3_BUCKET_NAME):
+            for page in version_paginator.paginate(Bucket=bucket_name):
                 versions = page.get('Versions', [])
                 delete_markers = page.get('DeleteMarkers', [])
                 
@@ -5445,11 +5482,11 @@ def delete_s3_content():
                 if to_delete:
                     try:
                         s3.delete_objects(
-                            Bucket=S3_BUCKET_NAME,
+                            Bucket=bucket_name,
                             Delete={'Objects': to_delete}
                         )
                         deleted_count += len(to_delete)
-                        logger.info(f"[S3] Deleted {len(to_delete)} versions/markers from {S3_BUCKET_NAME}")
+                        logger.info(f"[S3] Deleted {len(to_delete)} versions/markers from {bucket_name}")
                     except ClientError as version_err:
                         error_code = version_err.response.get('Error', {}).get('Code', '')
                         if error_code == 'AccessDenied':
@@ -5468,7 +5505,7 @@ def delete_s3_content():
         return jsonify({
             'success': True,
             'deleted_count': deleted_count,
-            'message': f'S3 bucket {S3_BUCKET_NAME} contents deleted successfully. Deleted {deleted_count} object(s).'
+            'message': f'S3 bucket {bucket_name} contents deleted successfully. Deleted {deleted_count} object(s).'
         })
     except ClientError as e:
         error_code = e.response.get('Error', {}).get('Code', '')
@@ -5510,6 +5547,10 @@ def delete_ecr_repo():
 
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        # Get ECR repo name from request (preferred) or database (fallback)
+        repo_name = data.get('repo_name', '').strip() or get_naming_config().get('ecr_repo_name', 'gbot-app-password-worker')
+        logger.info(f"[ECR DELETE] Using repo name from REQUEST: {repo_name}")
 
         # List of all AWS regions (as specified by user)
         AVAILABLE_GEO_REGIONS = [
@@ -5571,13 +5612,13 @@ def delete_ecr_repo():
     
                 try:
                     ecr.delete_repository(
-                        repositoryName=ECR_REPO_NAME,
+                        repositoryName=repo_name,
                         force=True
                     )
-                    logger.info(f"[DELETE ECR] [{target_region}] ✓ Repository deleted successfully")
+                    logger.info(f"[DELETE ECR] [{target_region}] ✓ Repository '{repo_name}' deleted successfully")
                     return {'success': True, 'region': target_region}
                 except ecr.exceptions.RepositoryNotFoundException:
-                    logger.info(f"[DELETE ECR] [{target_region}] Repository not found (skipping)")
+                    logger.info(f"[DELETE ECR] [{target_region}] Repository '{repo_name}' not found (skipping)")
                     return {'success': True, 'not_found': True, 'region': target_region}
                 except Exception as e:
                     logger.error(f"[DELETE ECR] [{target_region}] ✗ Error: {e}")
@@ -5636,6 +5677,14 @@ def delete_cloudwatch_logs():
 
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        # Get log group prefix from request (preferred) or database (fallback)
+        log_group_prefix = data.get('log_group_prefix', '').strip() or get_naming_config().get('lambda_prefix', 'gbot-chromium')
+        # Convert lambda prefix to log group prefix format (e.g., "dev-chromium" -> "/aws/lambda/dev")
+        if not log_group_prefix.startswith('/aws/lambda/'):
+            prefix_part = log_group_prefix.split('-')[0] if '-' in log_group_prefix else log_group_prefix.split('_')[0] if '_' in log_group_prefix else log_group_prefix
+            log_group_prefix = f"/aws/lambda/{prefix_part}"
+        logger.info(f"[CLOUDWATCH DELETE] Using log group prefix from REQUEST: {log_group_prefix}")
 
         # List of all AWS regions (as specified by user)
         AVAILABLE_GEO_REGIONS = [
@@ -5700,7 +5749,7 @@ def delete_cloudwatch_logs():
                 for page in paginator.paginate():
                     for log_group in page.get('logGroups', []):
                         log_group_name = log_group['logGroupName']
-                        if '/aws/lambda/edu-gw' in log_group_name:
+                        if log_group_prefix in log_group_name:
                             try:
                                 logs.delete_log_group(logGroupName=log_group_name)
                                 region_deleted.append(f"{log_group_name} ({target_region})")
@@ -5759,6 +5808,17 @@ def ec2_create_build_box():
         access_key = data.get('access_key', '').strip()
         secret_key = data.get('secret_key', '').strip()
         region = data.get('region', '').strip()
+        
+        # Get custom naming from request
+        instance_name = data.get('instance_name', 'gbot-ec2-build-box').strip() or 'gbot-ec2-build-box'
+        ecr_repo_name = data.get('ecr_repo_name', 'gbot-app-password-worker').strip() or 'gbot-app-password-worker'
+        
+        # Extract prefix from instance name (e.g., "dev" from "dev-ec2-build-box")
+        prefix = instance_name.split('-')[0] if '-' in instance_name else 'gbot'
+        
+        logger.info(f"[EC2] Using instance name: {instance_name}")
+        logger.info(f"[EC2] Using ECR repo: {ecr_repo_name}")
+        logger.info(f"[EC2] Extracted prefix: {prefix}")
 
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
@@ -5766,27 +5826,36 @@ def ec2_create_build_box():
         session = get_boto3_session(access_key, secret_key, region)
         account_id = get_account_id(session)
 
-        # Ensure ECR repo exists
-        if not create_ecr_repo(session, region):
+        # Ensure ECR repo exists with custom name
+        if not create_ecr_repo(session, region, ecr_repo_name):
             return jsonify({'success': False, 'error': 'Failed to create or verify ECR repository'}), 500
 
         # Verify ECR repo
         ecr = session.client("ecr")
         try:
-            resp = ecr.describe_repositories(repositoryNames=[ECR_REPO_NAME])
+            resp = ecr.describe_repositories(repositoryNames=[ecr_repo_name])
             repo_uri = resp['repositories'][0]['repositoryUri']
+            logger.info(f"[EC2] ✓ Verified ECR repo: {repo_uri}")
         except Exception as e:
             return jsonify({'success': False, 'error': f'ECR repository verification failed: {e}'}), 500
 
-        role_arn = ensure_ec2_role_profile(session)
-        sg_id = ensure_ec2_security_group(session)
-        ensure_ec2_key_pair(session)
+        # Get S3 bucket name from naming config
+        naming_config_ec2 = get_naming_config()
+        s3_bucket_ec2 = naming_config_ec2['s3_bucket']
+        
+        # Create EC2 resources with custom names based on prefix
+        role_arn = ensure_ec2_role_profile(session, prefix)
+        sg_id = ensure_ec2_security_group(session, prefix)
+        ensure_ec2_key_pair(session, prefix)
 
-        create_ec2_build_box(session, account_id, region, role_arn, sg_id)
+        create_ec2_build_box(session, account_id, region, role_arn, sg_id, instance_name, ecr_repo_name, s3_bucket_ec2)
 
         return jsonify({
             'success': True,
-            'message': 'EC2 build box launch requested. Wait ~5–10 minutes for Docker build & ECR push to complete.'
+            'instance_name': instance_name,
+            'ecr_repo_name': ecr_repo_name,
+            'prefix': prefix,
+            'message': f'EC2 build box "{instance_name}" launch requested. Wait ~5–10 minutes for Docker build & ECR push to complete.'
         })
     except Exception as e:
         logger.error(f"Error creating EC2 build box: {e}")
@@ -5967,7 +6036,9 @@ def empty_dynamodb_table():
 
         # DynamoDB is centralized in eu-west-1
         dynamodb_region = 'eu-west-1'
-        table_name = "gbot-app-passwords"
+        # Get table name from request (preferred) or database (fallback)
+        table_name = data.get('table_name', '').strip() or get_naming_config().get('dynamodb_table', 'gbot-app-passwords')
+        logger.info(f"[DYNAMODB EMPTY] Using table name from REQUEST: {table_name}")
         
         session = get_boto3_session(access_key, secret_key, dynamodb_region)
         dynamodb = session.resource('dynamodb')
@@ -6035,6 +6106,48 @@ def empty_dynamodb_table():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@aws_manager.route('/api/aws/delete-dynamodb-table', methods=['POST'])
+@login_required
+def delete_dynamodb_table():
+    """Delete DynamoDB table (not just empty it)"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+        region = data.get('region', '').strip()
+
+        if not access_key or not secret_key or not region:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        # DynamoDB is centralized in eu-west-1
+        dynamodb_region = 'eu-west-1'
+        # Get table name from request (preferred) or database (fallback)
+        table_name = data.get('table_name', '').strip() or get_naming_config().get('dynamodb_table', 'gbot-app-passwords')
+        logger.info(f"[DYNAMODB DELETE] Using table name from REQUEST: {table_name}")
+        
+        session = get_boto3_session(access_key, secret_key, dynamodb_region)
+        dynamodb = session.client('dynamodb')
+        
+        try:
+            dynamodb.delete_table(TableName=table_name)
+            logger.info(f"[DYNAMODB] ✓ Deleted table '{table_name}' in {dynamodb_region}")
+            return jsonify({
+                'success': True,
+                'message': f'DynamoDB table {table_name} deletion initiated in {dynamodb_region}.'
+            })
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == 'ResourceNotFoundException':
+                return jsonify({
+                    'success': False,
+                    'error': f'DynamoDB table {table_name} does not exist in {dynamodb_region}.'
+                }), 404
+            raise e
+    except Exception as e:
+        logger.error(f"Error deleting DynamoDB table: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @aws_manager.route('/api/aws/clean-logs', methods=['POST'])
 @login_required
 def clean_logs():
@@ -6050,12 +6163,14 @@ def ec2_show_status():
         access_key = data.get('access_key', '').strip()
         secret_key = data.get('secret_key', '').strip()
         region = data.get('region', '').strip()
+        instance_name = data.get('instance_name', 'gbot-ec2-build-box').strip() or 'gbot-ec2-build-box'
 
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
 
+        logger.info(f"[EC2] Showing status for instance: {instance_name}")
         session = get_boto3_session(access_key, secret_key, region)
-        inst = find_ec2_build_instance(session)
+        inst = find_ec2_build_instance(session, instance_name)
 
         if not inst:
             return jsonify({
@@ -6116,12 +6231,14 @@ def ec2_terminate():
         access_key = data.get('access_key', '').strip()
         secret_key = data.get('secret_key', '').strip()
         region = data.get('region', '').strip()
+        instance_name = data.get('instance_name', 'gbot-ec2-build-box').strip() or 'gbot-ec2-build-box'
 
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
 
+        logger.info(f"[EC2] Terminating instance: {instance_name}")
         session = get_boto3_session(access_key, secret_key, region)
-        inst = find_ec2_build_instance(session)
+        inst = find_ec2_build_instance(session, instance_name)
 
         if not inst:
             return jsonify({
@@ -6183,7 +6300,13 @@ def create_iam_role(session, role_name, service_principal, policy_arns):
     time.sleep(10)  # Wait for propagation
     return role_arn
 
-def ensure_lambda_role(session):
+def ensure_lambda_role(session, role_name=None):
+    """Ensure Lambda IAM role exists with custom name"""
+    if role_name is None:
+        naming_config = get_naming_config()
+        role_name = naming_config.get('lambda_role_name', 'gbot-app-password-lambda-role')
+    
+    logger.info(f"[LAMBDA] Ensuring IAM role: {role_name}")
     iam = session.client("iam")
     lambda_policies = [
         "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
@@ -6193,22 +6316,24 @@ def ensure_lambda_role(session):
     ]
     
     try:
-        resp = iam.get_role(RoleName=LAMBDA_ROLE_NAME)
+        resp = iam.get_role(RoleName=role_name)
         role_arn = resp["Role"]["Arn"]
+        logger.info(f"[LAMBDA] ✓ IAM role '{role_name}' already exists")
         
-        attached_policies = iam.list_attached_role_policies(RoleName=LAMBDA_ROLE_NAME)
+        attached_policies = iam.list_attached_role_policies(RoleName=role_name)
         attached_policy_arns = [p['PolicyArn'] for p in attached_policies['AttachedPolicies']]
         
         for policy_arn in lambda_policies:
             if policy_arn not in attached_policy_arns:
-                iam.attach_role_policy(RoleName=LAMBDA_ROLE_NAME, PolicyArn=policy_arn)
+                iam.attach_role_policy(RoleName=role_name, PolicyArn=policy_arn)
                 time.sleep(2)
         
         return role_arn
     except iam.exceptions.NoSuchEntityException:
+        logger.info(f"[LAMBDA] Creating IAM role: {role_name}")
         return create_iam_role(
             session,
-            role_name=LAMBDA_ROLE_NAME,
+            role_name=role_name,
             service_principal="lambda.amazonaws.com",
             policy_arns=lambda_policies,
         )
@@ -6219,10 +6344,11 @@ def create_ecr_repo(session, region, repo_name=None):
         naming_config = get_naming_config()
         repo_name = naming_config['ecr_repo_name']
     
+    logger.info(f"[ECR] Creating/verifying repository: {repo_name}")
     ecr = session.client("ecr")
     try:
         resp = ecr.describe_repositories(repositoryNames=[repo_name])
-        logger.info(f"[ECR] Repository '{repo_name}' already exists")
+        logger.info(f"[ECR] ✓ Repository '{repo_name}' already exists")
         return True
     except ecr.exceptions.RepositoryNotFoundException:
         try:
@@ -6231,19 +6357,25 @@ def create_ecr_repo(session, region, repo_name=None):
                 imageTagMutability='MUTABLE',
                 imageScanningConfiguration={'scanOnPush': False}
             )
-            logger.info(f"[ECR] Created repository '{repo_name}'")
+            logger.info(f"[ECR] ✓ Created repository '{repo_name}'")
             time.sleep(2)
             return True
         except Exception as e:
-            logger.error(f"Error creating ECR repository '{repo_name}': {e}")
+            logger.error(f"[ECR] ✗ Error creating ECR repository '{repo_name}': {e}")
             raise
 
-def create_s3_bucket(session, region):
-    global S3_BUCKET_NAME
+def create_s3_bucket(session, region, bucket_name=None):
+    """Create S3 bucket with configurable name"""
+    if bucket_name is None:
+        naming_config = get_naming_config()
+        bucket_name = naming_config['s3_bucket']
+    
+    logger.info(f"[S3] Creating/verifying bucket: {bucket_name}")
     s3 = session.client("s3")
     
     try:
-        s3.list_objects_v2(Bucket=S3_BUCKET_NAME, MaxKeys=1)
+        s3.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
+        logger.info(f"[S3] ✓ Bucket '{bucket_name}' already exists")
         return
     except ClientError as list_err:
         list_error_code = list_err.response.get('Error', {}).get('Code', '')
@@ -6251,23 +6383,25 @@ def create_s3_bucket(session, region):
             pass
         elif list_error_code in ['403', 'AccessDenied']:
             account_id = session.client('sts').get_caller_identity()['Account']
-            S3_BUCKET_NAME = f"{S3_BUCKET_NAME}-{account_id}"
-            return create_s3_bucket(session, region)
+            bucket_name = f"{bucket_name}-{account_id}"
+            logger.info(f"[S3] Access denied, trying with account ID: {bucket_name}")
+            return create_s3_bucket(session, region, bucket_name)
         else:
             raise list_err
     
     try:
         if region == 'us-east-1':
-            s3.create_bucket(Bucket=S3_BUCKET_NAME)
+            s3.create_bucket(Bucket=bucket_name)
         else:
             s3.create_bucket(
-                Bucket=S3_BUCKET_NAME,
+                Bucket=bucket_name,
                 CreateBucketConfiguration={'LocationConstraint': region}
             )
+        logger.info(f"[S3] ✓ Created bucket '{bucket_name}'")
         
         try:
             s3.put_bucket_versioning(
-                Bucket=S3_BUCKET_NAME,
+                Bucket=bucket_name,
                 VersioningConfiguration={'Status': 'Enabled'}
             )
         except:
@@ -6275,7 +6409,7 @@ def create_s3_bucket(session, region):
         
         try:
             s3.put_public_access_block(
-                Bucket=S3_BUCKET_NAME,
+                Bucket=bucket_name,
                 PublicAccessBlockConfiguration={
                     'BlockPublicAcls': True,
                     'IgnorePublicAcls': True,
@@ -6488,8 +6622,13 @@ def create_or_update_lambda(session, function_name, role_arn, timeout, env_vars,
                     except:
                         logger.error(f"[LAMBDA] Could not remove concurrency limit after 3 attempts")
 
-def ensure_ec2_role_profile(session):
+def ensure_ec2_role_profile(session, prefix='gbot'):
+    """Create EC2 role and instance profile with custom prefix"""
     iam = session.client("iam")
+    ec2_role_name = f"{prefix}-ec2-build-role"
+    ec2_instance_profile_name = f"{prefix}-ec2-build-instance-profile"
+    
+    logger.info(f"[EC2] Creating IAM role: {ec2_role_name}")
     ec2_policies = [
         "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess",
         "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
@@ -6499,20 +6638,22 @@ def ensure_ec2_role_profile(session):
 
     role_arn = create_iam_role(
         session,
-        role_name=EC2_ROLE_NAME,
+        role_name=ec2_role_name,
         service_principal="ec2.amazonaws.com",
         policy_arns=ec2_policies,
     )
 
     try:
-        iam.get_instance_profile(InstanceProfileName=EC2_INSTANCE_PROFILE_NAME)
+        iam.get_instance_profile(InstanceProfileName=ec2_instance_profile_name)
+        logger.info(f"[EC2] ✓ Instance profile '{ec2_instance_profile_name}' already exists")
     except iam.exceptions.NoSuchEntityException:
-        iam.create_instance_profile(InstanceProfileName=EC2_INSTANCE_PROFILE_NAME)
+        iam.create_instance_profile(InstanceProfileName=ec2_instance_profile_name)
+        logger.info(f"[EC2] ✓ Created instance profile '{ec2_instance_profile_name}'")
 
     try:
         iam.add_role_to_instance_profile(
-            InstanceProfileName=EC2_INSTANCE_PROFILE_NAME,
-            RoleName=EC2_ROLE_NAME,
+            InstanceProfileName=ec2_instance_profile_name,
+            RoleName=ec2_role_name,
         )
     except iam.exceptions.LimitExceededException:
         pass
@@ -6520,29 +6661,35 @@ def ensure_ec2_role_profile(session):
     time.sleep(10)
     return role_arn
 
-def ensure_ec2_security_group(session):
+def ensure_ec2_security_group(session, prefix='gbot'):
+    """Create EC2 security group with custom prefix"""
     ec2 = session.client("ec2")
+    ec2_security_group_name = f"{prefix}-ec2-build-sg"
+    
+    logger.info(f"[EC2] Creating security group: {ec2_security_group_name}")
     vpcs = ec2.describe_vpcs()
     default_vpc_id = vpcs["Vpcs"][0]["VpcId"]
 
     try:
         resp = ec2.describe_security_groups(
             Filters=[
-                {"Name": "group-name", "Values": [EC2_SECURITY_GROUP_NAME]},
+                {"Name": "group-name", "Values": [ec2_security_group_name]},
                 {"Name": "vpc-id", "Values": [default_vpc_id]},
             ]
         )
         if resp["SecurityGroups"]:
+            logger.info(f"[EC2] ✓ Security group '{ec2_security_group_name}' already exists")
             return resp["SecurityGroups"][0]["GroupId"]
     except:
         pass
 
     resp = ec2.create_security_group(
-        GroupName=EC2_SECURITY_GROUP_NAME,
-        Description="EC2 build box security group for docker-selenium-lambda",
+        GroupName=ec2_security_group_name,
+        Description=f"EC2 build box security group for {prefix} docker-selenium-lambda",
         VpcId=default_vpc_id,
     )
     sg_id = resp["GroupId"]
+    logger.info(f"[EC2] ✓ Created security group '{ec2_security_group_name}': {sg_id}")
 
     ec2.authorize_security_group_ingress(
         GroupId=sg_id,
@@ -6558,31 +6705,46 @@ def ensure_ec2_security_group(session):
 
     return sg_id
 
-def ensure_ec2_key_pair(session):
+def ensure_ec2_key_pair(session, prefix='gbot'):
+    """Create EC2 key pair with custom prefix"""
     ec2 = session.client("ec2")
+    ec2_key_pair_name = f"{prefix}-ec2-build-key"
+    
+    logger.info(f"[EC2] Creating key pair: {ec2_key_pair_name}")
     try:
-        ec2.describe_key_pairs(KeyNames=[EC2_KEY_PAIR_NAME])
+        ec2.describe_key_pairs(KeyNames=[ec2_key_pair_name])
+        logger.info(f"[EC2] ✓ Key pair '{ec2_key_pair_name}' already exists")
     except ClientError:
-        resp = ec2.create_key_pair(KeyName=EC2_KEY_PAIR_NAME)
+        resp = ec2.create_key_pair(KeyName=ec2_key_pair_name)
         private_key = resp["KeyMaterial"]
         key_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             "..",
-            f"{EC2_KEY_PAIR_NAME}.pem"
+            f"{ec2_key_pair_name}.pem"
         )
         with open(key_path, "w", encoding="utf-8") as f:
             f.write(private_key)
         os.chmod(key_path, 0o400)
+        logger.info(f"[EC2] ✓ Created key pair '{ec2_key_pair_name}'")
 
-def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
+def create_ec2_build_box(session, account_id, region, role_arn, sg_id, instance_name='gbot-ec2-build-box', ecr_repo_name='gbot-app-password-worker', s3_bucket_name=None):
+    """Create EC2 build box with custom naming"""
+    if s3_bucket_name is None:
+        naming_config = get_naming_config()
+        s3_bucket_name = naming_config['s3_bucket']
+    
     ec2 = session.client("ec2")
     ssm = session.client("ssm")
     s3 = session.client("s3")
 
+    logger.info(f"[EC2] Creating EC2 instance: {instance_name}")
+    logger.info(f"[EC2] Using ECR repo: {ecr_repo_name}")
+    logger.info(f"[EC2] Using S3 bucket: {s3_bucket_name}")
+
     # Ensure S3 bucket exists before uploading
-    logger.info(f"[EC2] Ensuring S3 bucket {S3_BUCKET_NAME} exists...")
+    logger.info(f"[EC2] Ensuring S3 bucket {s3_bucket_name} exists...")
     try:
-        create_s3_bucket(session, region)
+        create_s3_bucket(session, region, s3_bucket_name)
     except Exception as e:
         logger.warning(f"[EC2] S3 bucket creation warning: {e}")
 
@@ -6596,12 +6758,12 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
         raise Exception(f"Custom main.py not found at {main_py_path}. Please ensure repo_aws_files/main.py exists.")
     
     # Upload main.py
-    logger.info(f"[EC2] Uploading custom main.py to S3: s3://{S3_BUCKET_NAME}/{s3_build_prefix}/main.py")
+    logger.info(f"[EC2] Uploading custom main.py to S3: s3://{s3_bucket_name}/{s3_build_prefix}/main.py")
     
     try:
         with open(main_py_path, 'rb') as f:
             s3.put_object(
-                Bucket=S3_BUCKET_NAME,
+                Bucket=s3_bucket_name,
                 Key=f"{s3_build_prefix}/main.py",
                 Body=f.read(),
                 ContentType="text/x-python"
@@ -6610,10 +6772,10 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
         
         # Upload Dockerfile if it exists
         if os.path.exists(dockerfile_path):
-            logger.info(f"[EC2] Uploading custom Dockerfile to S3: s3://{S3_BUCKET_NAME}/{s3_build_prefix}/Dockerfile")
+            logger.info(f"[EC2] Uploading custom Dockerfile to S3: s3://{s3_bucket_name}/{s3_build_prefix}/Dockerfile")
             with open(dockerfile_path, 'rb') as f:
                 s3.put_object(
-                    Bucket=S3_BUCKET_NAME,
+                    Bucket=s3_bucket_name,
                     Key=f"{s3_build_prefix}/Dockerfile",
                     Body=f.read(),
                     ContentType="text/plain"
@@ -6625,7 +6787,7 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
     except ClientError as e:
         error_code = e.response.get('Error', {}).get('Code', '')
         if error_code == 'AccessDenied':
-            raise Exception(f"Access Denied to S3 bucket {S3_BUCKET_NAME}. Please ensure your AWS credentials have S3 write permissions (s3:PutObject).")
+            raise Exception(f"Access Denied to S3 bucket {s3_bucket_name}. Please ensure your AWS credentials have S3 write permissions (s3:PutObject).")
         else:
             raise Exception(f"Failed to upload files to S3: {e}")
     except Exception as e:
@@ -6639,7 +6801,7 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id):
 
     instance_type = "c5.xlarge"  # Using c5.xlarge for high network bandwidth (10Gbps)
 
-    repo_uri_base = f"{account_id}.dkr.ecr.{region}.amazonaws.com/{ECR_REPO_NAME}"
+    repo_uri_base = f"{account_id}.dkr.ecr.{region}.amazonaws.com/{ecr_repo_name}"
 
     # User data script that downloads custom main.py from S3
     # Using .format() instead of f-string to avoid issues with bash array syntax [@]
@@ -6885,41 +7047,58 @@ touch /home/ec2-user/MULTI_REGION_PUSH_DONE
 echo "=== EC2 Build Box User Data Script Completed Successfully ==="
 date
 """.format(
-        s3_bucket=S3_BUCKET_NAME,
+        s3_bucket=s3_bucket_name,
         s3_prefix=s3_build_prefix,
-        ecr_repo=ECR_REPO_NAME,
+        ecr_repo=ecr_repo_name,
         region=region,
         account_id=account_id,
         image_tag=ECR_IMAGE_TAG,
         repo_uri=repo_uri_base
     )
 
+    # Extract prefix for resource names
+    prefix = instance_name.split('-')[0] if '-' in instance_name else 'gbot'
+    ec2_instance_profile_name = f"{prefix}-ec2-build-instance-profile"
+    ec2_key_pair_name = f"{prefix}-ec2-build-key"
+    
+    logger.info(f"[EC2] Creating instance with Name tag: {instance_name}")
+    logger.info(f"[EC2] Using instance profile: {ec2_instance_profile_name}")
+    logger.info(f"[EC2] Using key pair: {ec2_key_pair_name}")
+
     resp = ec2.run_instances(
         ImageId=ami_id,
         InstanceType=instance_type,
         MinCount=1,
         MaxCount=1,
-        IamInstanceProfile={"Name": EC2_INSTANCE_PROFILE_NAME},
+        IamInstanceProfile={"Name": ec2_instance_profile_name},
         SecurityGroupIds=[sg_id],
-        KeyName=EC2_KEY_PAIR_NAME,
+        KeyName=ec2_key_pair_name,
         UserData=user_data,
         TagSpecifications=[
             {
                 "ResourceType": "instance",
                 "Tags": [
-                    {"Key": "Name", "Value": EC2_INSTANCE_NAME},
-                    {"Key": "Purpose", "Value": "docker-selenium-lambda-build"},
+                    {"Key": "Name", "Value": instance_name},
+                    {"Key": "Purpose", "Value": f"{prefix}-docker-selenium-lambda-build"},
                 ],
             }
         ],
     )
-    return resp["Instances"][0]["InstanceId"]
+    instance_id = resp["Instances"][0]["InstanceId"]
+    logger.info(f"[EC2] ✓ Created EC2 instance: {instance_id} with name: {instance_name}")
+    return instance_id
 
-def find_ec2_build_instance(session):
+def find_ec2_build_instance(session, instance_name=None):
+    """Find EC2 build instance by name tag"""
+    if instance_name is None:
+        naming_config = get_naming_config()
+        instance_name = naming_config.get('ec2_instance_name', 'gbot-ec2-build-box')
+    
+    logger.info(f"[EC2] Searching for instance with Name tag: {instance_name}")
     ec2 = session.client("ec2")
     resp = ec2.describe_instances(
         Filters=[
-            {"Name": "tag:Name", "Values": [EC2_INSTANCE_NAME]},
+            {"Name": "tag:Name", "Values": [instance_name]},
             {
                 "Name": "instance-state-name",
                 "Values": ["pending", "running", "stopping", "stopped"],

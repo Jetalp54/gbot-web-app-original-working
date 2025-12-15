@@ -836,8 +836,12 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        log('Creating core infrastructure (IAM, ECR, S3)...');
+        log(`Creating core infrastructure with prefix "${naming.ecr_repo_name.split('-')[0]}"...`);
+        log(`ECR Repo: ${naming.ecr_repo_name}`);
+        log(`S3 Bucket: ${naming.s3_bucket}`);
+        log(`IAM Prefix: ${naming.iam_role_prefix}`);
 
         fetch('/api/aws/create-infrastructure', {
             method: 'POST',
@@ -847,7 +851,10 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                ecr_repo_name: naming.ecr_repo_name,
+                s3_bucket: naming.s3_bucket,
+                iam_role_prefix: naming.iam_role_prefix
             })
         })
             .then(response => response.json())
@@ -1049,8 +1056,9 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        log('Manually creating ECR repository...');
+        log(`Manually creating ECR repository: ${naming.ecr_repo_name}...`);
 
         fetch('/api/aws/create-ecr-manual', {
             method: 'POST',
@@ -1060,7 +1068,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                ecr_repo_name: naming.ecr_repo_name
             })
         })
             .then(response => response.json())
