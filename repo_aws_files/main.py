@@ -1666,20 +1666,94 @@ def solve_captcha_with_2captcha(driver, email=None):
         logger.info("[2CAPTCHA] 2Captcha is enabled, detecting CAPTCHA type...")
         
         # First, check if it's Google's image CAPTCHA (not reCAPTCHA)
-        # Look for the input field with name="ca" and aria-label containing "hear or see"
+        # Use multiple detection methods for better reliability
         is_image_captcha = False
         captcha_input = None
         
         try:
+            # Method 1: Check for input fields with name="ca" or id="ca"
             captcha_inputs = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
             for inp in captcha_inputs:
-                if inp.is_displayed():
-                    aria_label = inp.get_attribute('aria-label') or ''
-                    if 'hear or see' in aria_label.lower() or 'captcha' in aria_label.lower():
-                        is_image_captcha = True
-                        captcha_input = inp
-                        logger.info("[2CAPTCHA] Detected Google image CAPTCHA (not reCAPTCHA)")
-                        break
+                try:
+                    if inp.is_displayed():
+                        aria_label = inp.get_attribute('aria-label') or ''
+                        if 'hear or see' in aria_label.lower() or 'captcha' in aria_label.lower():
+                            is_image_captcha = True
+                            captcha_input = inp
+                            logger.info("[2CAPTCHA] Detected Google image CAPTCHA via name/id='ca' (not reCAPTCHA)")
+                            break
+                except:
+                    continue
+            
+            # Method 2: If not found, check for any input with aria-label containing "hear or see" or "captcha"
+            if not is_image_captcha:
+                try:
+                    all_inputs = driver.find_elements(By.TAG_NAME, "input")
+                    for inp in all_inputs:
+                        try:
+                            if inp.is_displayed():
+                                aria_label = inp.get_attribute('aria-label') or ''
+                                placeholder = inp.get_attribute('placeholder') or ''
+                                name_attr = inp.get_attribute('name') or ''
+                                
+                                # Check for CAPTCHA-related text
+                                if ('hear or see' in aria_label.lower() or 
+                                    'captcha' in aria_label.lower() or
+                                    'captcha' in placeholder.lower() or
+                                    'ca' in name_attr.lower()):
+                                    # Verify there's a CAPTCHA image nearby
+                                    try:
+                                        # Check if there's a CAPTCHA image on the page
+                                        captcha_images = driver.find_elements(By.XPATH, 
+                                            "//img[contains(@src, 'captcha') or contains(@alt, 'captcha')]")
+                                        if captcha_images or 'captcha' in driver.page_source.lower():
+                                            is_image_captcha = True
+                                            captcha_input = inp
+                                            logger.info("[2CAPTCHA] Detected Google image CAPTCHA via aria-label/placeholder (not reCAPTCHA)")
+                                            break
+                                    except:
+                                        # If we can't verify image, still use it if aria-label matches
+                                        if 'hear or see' in aria_label.lower():
+                                            is_image_captcha = True
+                                            captcha_input = inp
+                                            logger.info("[2CAPTCHA] Detected Google image CAPTCHA via 'hear or see' aria-label")
+                                            break
+                        except:
+                            continue
+                except Exception as e:
+                    logger.debug(f"[2CAPTCHA] Error in Method 2 detection: {e}")
+            
+            # Method 3: Check page source for CAPTCHA indicators
+            if not is_image_captcha:
+                try:
+                    page_source = driver.page_source.lower()
+                    # Check for Google's CAPTCHA indicators
+                    if ('type the text you hear' in page_source or 
+                        'type the text you see' in page_source or
+                        'captcha' in page_source):
+                        # Look for any visible input field that might be the CAPTCHA input
+                        try:
+                            # Try to find input near CAPTCHA-related text
+                            captcha_inputs = driver.find_elements(By.XPATH, 
+                                "//input[@type='text' or @type='password']")
+                            for inp in captcha_inputs:
+                                try:
+                                    if inp.is_displayed():
+                                        # Check if it's near CAPTCHA-related elements
+                                        parent = inp.find_element(By.XPATH, "./..")
+                                        parent_text = parent.text.lower() if parent else ''
+                                        if 'captcha' in parent_text or 'hear' in parent_text or 'see' in parent_text:
+                                            is_image_captcha = True
+                                            captcha_input = inp
+                                            logger.info("[2CAPTCHA] Detected Google image CAPTCHA via page source analysis")
+                                            break
+                                except:
+                                    continue
+                        except:
+                            pass
+                except Exception as e:
+                    logger.debug(f"[2CAPTCHA] Error in Method 3 detection: {e}")
+                    
         except Exception as e:
             logger.debug(f"[2CAPTCHA] Error checking for image CAPTCHA: {e}")
         
@@ -2933,19 +3007,39 @@ def login_google(driver, email, password, known_totp_secret=None):
                             
                             if solved:
                                 logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Waiting for page to process...")
-                                # Wait longer for page redirect/processing after CAPTCHA solving
-                                time.sleep(5)
+                                # Reduced wait time - check page state more frequently
+                                time.sleep(2)  # Reduced from 5s to 2s
                                 
                                 # Check if page redirected to password page or TOTP challenge
                                 current_url = driver.current_url
                                 if "challenge/pwd" in current_url:
                                     logger.info("[STEP] ✓ Page redirected to password page after CAPTCHA solving")
-                                    # Retry password field detection with longer timeout
-                                    password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=15)
+                                    # Retry password field detection with multiple methods and shorter timeouts
+                                    password_input = None
+                                    
+                                    # Try main document first with shorter timeout
+                                    password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=8)
+                                    if not password_input:
+                                        # Try other common XPaths
+                                        password_xpaths = [
+                                            "//input[@type='password']",
+                                            "//input[@name='password']",
+                                            "//input[@id='password']",
+                                            "//input[contains(@aria-label, 'Password')]"
+                                        ]
+                                        for xpath in password_xpaths:
+                                            try:
+                                                password_input = wait_for_password_clickable(driver, By.XPATH, xpath, timeout=3)
+                                                if password_input:
+                                                    logger.info(f"[STEP] ✓ Password field found via XPath: {xpath}")
+                                                    break
+                                            except:
+                                                continue
+                                    
                                     if password_input:
                                         logger.info("[STEP] ✓ Password field found after CAPTCHA solving and redirect!")
                                     else:
-                                        # Try iframe method
+                                        # Try iframe method with shorter timeout
                                         logger.info("[STEP] Trying iframe method after CAPTCHA redirect...")
                                         try:
                                             driver.switch_to.default_content()
@@ -2955,7 +3049,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                                                     iframe_src = iframe.get_attribute('src') or ''
                                                     if '_/bscframe' in iframe_src:
                                                         driver.switch_to.frame(iframe)
-                                                        password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=5)
+                                                        password_input = wait_for_password_clickable(driver, By.NAME, "Passwd", timeout=3)
                                                         if password_input:
                                                             logger.info("[STEP] ✓ Password field found in iframe after CAPTCHA solving!")
                                                             break
@@ -3122,9 +3216,11 @@ def login_google(driver, email, password, known_totp_secret=None):
         # Wait for potential challenge pages, intermediate pages, or account home
         # Google may show: speedbump, verification, phone prompt, TOTP, recovery email, etc.
         # We'll wait longer and handle what we can, skip what we can't
-        max_wait_attempts = 30  # Increased from 15 to 30 (90 seconds total)
-        wait_interval = 3
+        max_wait_attempts = 30  # Increased from 15 to 30 (60 seconds total with reduced interval)
+        wait_interval = 2  # Reduced from 3s to 2s for faster processing
         current_url = None
+        speedbump_count = 0  # Counter to prevent infinite speedbump loops
+        max_speedbumps = 5  # Maximum number of speedbump redirects before giving up
         
         for attempt in range(max_wait_attempts):
             time.sleep(wait_interval)
@@ -3137,6 +3233,11 @@ def login_google(driver, email, password, known_totp_secret=None):
                 current_url = driver.current_url
                 logger.info(f"[STEP] Post-login check {attempt + 1}/{max_wait_attempts}: URL = {current_url}")
             except Exception as e:
+                error_str = str(e).lower()
+                # Check for browser crash/session errors
+                if 'invalid session' in error_str or 'session deleted' in error_str or 'browser has closed' in error_str:
+                    logger.error(f"[STEP] Browser session crashed: {e}")
+                    return False, "BROWSER_CRASHED", f"Browser session crashed: {e}"
                 logger.error(f"[STEP] Failed to get current URL: {e}")
                 return False, "driver_crashed", f"Driver crashed while checking URL: {e}"
             
@@ -3178,7 +3279,14 @@ def login_google(driver, email, password, known_totp_secret=None):
             
             # Handle speedbump/gaplustos page (Google Terms of Service)
             if "speedbump" in current_url:
-                logger.info(f"[STEP] Speedbump page detected: {current_url}")
+                speedbump_count += 1
+                logger.info(f"[STEP] Speedbump page detected ({speedbump_count}/{max_speedbumps}): {current_url}")
+                
+                # Prevent infinite speedbump loops
+                if speedbump_count > max_speedbumps:
+                    logger.error(f"[STEP] Too many speedbump redirects ({speedbump_count}). Breaking loop to prevent infinite wait.")
+                    logger.warning("[STEP] This may indicate Google is blocking automated access or requiring manual verification.")
+                    break
                 
                 # Check if it's the gaplustos page specifically
                 if "speedbump/gaplustos" in current_url:
