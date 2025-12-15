@@ -431,60 +431,6 @@
                 </div>
             </div>
 
-            <!-- Multi-Tenant Naming Configuration -->
-            <div style="background-color: rgba(99, 102, 241, 0.08); border: 1px solid var(--color-border-default); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                <h5 style="margin-bottom: 12px; color: var(--color-accent-fg);">
-                    <i class="fas fa-users-cog"></i> Multi-Tenant Naming (Optional)
-                </h5>
-                <small style="color: #656d76; display: block; margin-bottom: 16px;">
-                    Configure unique names for your resources. Useful when multiple users share the same AWS account.
-                    Leave as default if you're the only user.
-                </small>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group-github">
-                        <label for="aws_instance_name" class="form-label-github">
-                            <i class="fas fa-tag"></i> Instance Name
-                        </label>
-                        <input type="text" class="form-control-github" id="aws_instance_name" value="default"
-                            placeholder="e.g., client-acme, user1, production">
-                        <small style="color: #656d76; font-size: 11px;">
-                            Unique identifier for your instance (alphanumeric, dashes, underscores)
-                        </small>
-                    </div>
-                    <div class="form-group-github">
-                        <label for="aws_lambda_prefix" class="form-label-github">
-                            <i class="fas fa-code"></i> Lambda Function Prefix
-                        </label>
-                        <input type="text" class="form-control-github" id="aws_lambda_prefix" value="gbot-chromium"
-                            placeholder="e.g., gbot-chromium, myapp-worker">
-                        <small style="color: #656d76; font-size: 11px;">
-                            Prefix for Lambda function names
-                        </small>
-                    </div>
-                    <div class="form-group-github">
-                        <label for="aws_ecr_repo_name" class="form-label-github">
-                            <i class="fas fa-box"></i> ECR Repository Name
-                        </label>
-                        <input type="text" class="form-control-github" id="aws_ecr_repo_name" value="gbot-app-password-worker"
-                            placeholder="e.g., gbot-app-password-worker">
-                        <small style="color: #656d76; font-size: 11px;">
-                            Name of your ECR repository
-                        </small>
-                    </div>
-                    <div class="form-group-github">
-                        <label for="aws_dynamodb_table" class="form-label-github">
-                            <i class="fas fa-database"></i> DynamoDB Table Name
-                        </label>
-                        <input type="text" class="form-control-github" id="aws_dynamodb_table" value="gbot-app-passwords"
-                            placeholder="e.g., gbot-app-passwords">
-                        <small style="color: #656d76; font-size: 11px;">
-                            DynamoDB table for storing app passwords
-                        </small>
-                    </div>
-                </div>
-            </div>
-
             <div class="form-group-github" style="margin-bottom: 16px;">
                 <label for="aws_ecr_uri" class="form-label-github">
                     <i class="fas fa-box"></i> ECR Image URI (Chromium Lambda)
@@ -2849,11 +2795,6 @@
                     $('#aws_region').val(data.config.region || 'eu-west-1');
                     $('#aws_ecr_uri').val(data.config.ecr_uri || '(connect first)');
                     $('#aws_s3_bucket').val(data.config.s3_bucket || 'gbot-app-passwords');
-                    // Multi-tenant naming configuration
-                    $('#aws_instance_name').val(data.config.instance_name || 'default');
-                    $('#aws_lambda_prefix').val(data.config.lambda_prefix || 'gbot-chromium');
-                    $('#aws_ecr_repo_name').val(data.config.ecr_repo_name || 'gbot-app-password-worker');
-                    $('#aws_dynamodb_table').val(data.config.dynamodb_table || 'gbot-app-passwords');
                 }
             })
             .catch(error => {
@@ -2869,12 +2810,7 @@
             secret_access_key: $('#aws_secret_access_key').val().trim(),
             region: $('#aws_region').val(),
             ecr_uri: $('#aws_ecr_uri').val().trim(),
-            s3_bucket: $('#aws_s3_bucket').val().trim() || 'gbot-app-passwords',
-            // Multi-tenant naming configuration
-            instance_name: $('#aws_instance_name').val().trim() || 'default',
-            lambda_prefix: $('#aws_lambda_prefix').val().trim() || 'gbot-chromium',
-            ecr_repo_name: $('#aws_ecr_repo_name').val().trim() || 'gbot-app-password-worker',
-            dynamodb_table: $('#aws_dynamodb_table').val().trim() || 'gbot-app-passwords'
+            s3_bucket: $('#aws_s3_bucket').val().trim() || 'gbot-app-passwords'
         };
 
         console.log('Config to save:', {
@@ -2882,11 +2818,7 @@
             secret_access_key: config.secret_access_key ? '***' : 'empty',
             region: config.region,
             ecr_uri: config.ecr_uri,
-            s3_bucket: config.s3_bucket,
-            instance_name: config.instance_name,
-            lambda_prefix: config.lambda_prefix,
-            ecr_repo_name: config.ecr_repo_name,
-            dynamodb_table: config.dynamodb_table
+            s3_bucket: config.s3_bucket
         });
 
         // Validate required fields

@@ -48,6 +48,47 @@
                 <div id="tab-infra" class="tab-content active">
                     <div class="section">
                         <h4 style="margin-bottom: var(--spacing-md);">Core AWS Resources</h4>
+                        
+                        <!-- Resource Naming Configuration -->
+                        <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05)); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                            <h5 style="margin-bottom: 12px; color: var(--color-accent-fg); display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-tag"></i> Resource Naming Configuration
+                            </h5>
+                            <small style="color: #656d76; display: block; margin-bottom: 12px;">
+                                Configure unique names for your AWS resources. Use different names to manage multiple instances.
+                            </small>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div class="form-group-github" style="margin-bottom: 0;">
+                                    <label class="form-label-github" style="font-size: 12px;">
+                                        <i class="fas fa-box"></i> ECR Repository Name
+                                    </label>
+                                    <input type="text" class="form-control-github" id="ecrRepoName" value="gbot-app-password-worker"
+                                        placeholder="e.g., gbot-worker, myapp-worker">
+                                </div>
+                                <div class="form-group-github" style="margin-bottom: 0;">
+                                    <label class="form-label-github" style="font-size: 12px;">
+                                        <i class="fas fa-database"></i> DynamoDB Table Name
+                                    </label>
+                                    <input type="text" class="form-control-github" id="dynamodbTableName" value="gbot-app-passwords"
+                                        placeholder="e.g., gbot-passwords, myapp-passwords">
+                                </div>
+                                <div class="form-group-github" style="margin-bottom: 0;">
+                                    <label class="form-label-github" style="font-size: 12px;">
+                                        <i class="fas fa-bucket"></i> S3 Bucket Name
+                                    </label>
+                                    <input type="text" class="form-control-github" id="s3BucketName" value="gbot-app-passwords"
+                                        placeholder="e.g., gbot-bucket, myapp-bucket">
+                                </div>
+                                <div class="form-group-github" style="margin-bottom: 0;">
+                                    <label class="form-label-github" style="font-size: 12px;">
+                                        <i class="fas fa-user-shield"></i> IAM Role Prefix
+                                    </label>
+                                    <input type="text" class="form-control-github" id="iamRolePrefix" value="gbot"
+                                        placeholder="e.g., gbot, myapp">
+                                </div>
+                            </div>
+                        </div>
+                        
                         <button class="btn-github btn-github-primary" onclick="createInfrastructure()"
                             style="width: 100%; margin-bottom: var(--spacing-sm);">
                             <i class="fas fa-plus-circle"></i>
@@ -183,6 +224,27 @@
                     4) Invoke Lambda → Wait → Fetch from DynamoDB
                 </div>
             </div>
+            
+            <!-- Lambda Naming Configuration -->
+            <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05)); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                <h5 style="margin-bottom: 12px; color: #10b981; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-code"></i> Lambda Function Naming
+                </h5>
+                <small style="color: #656d76; display: block; margin-bottom: 12px;">
+                    The prefix will be used for all Lambda operations. Functions will be named: <code style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px;">{prefix}-{region}-{number}</code>
+                </small>
+                <div class="form-group-github" style="margin-bottom: 0;">
+                    <label class="form-label-github" style="font-size: 12px;">
+                        <i class="fas fa-tag"></i> Lambda Function Prefix (used for Create/Invoke/Delete)
+                    </label>
+                    <input type="text" class="form-control-github" id="lambdaPrefix" value="gbot-chromium"
+                        placeholder="e.g., gbot-chromium, myapp-worker, client-a">
+                    <small style="color: #656d76; font-size: 11px;">
+                        Example: With prefix "client-a", functions will be: client-a-useast1-1, client-a-useast1-2, etc.
+                    </small>
+                </div>
+            </div>
+            
             <!-- Lambda Creation Options -->
             <div class="section" style="margin-bottom: var(--spacing-md);">
                 <h5 style="margin-bottom: var(--spacing-sm);">Lambda Creation Options</h5>
@@ -315,7 +377,39 @@
             <!-- Cleanup Operations -->
             <div
                 style="border-top: 1px solid var(--color-border-default); padding-top: var(--spacing-md); margin-top: var(--spacing-md);">
-                <h5 style="margin-bottom: var(--spacing-sm); font-weight: 600;">Cleanup Operations</h5>
+                <h5 style="margin-bottom: var(--spacing-sm); font-weight: 600; color: #ef4444;">
+                    <i class="fas fa-exclamation-triangle"></i> Cleanup Operations (Destructive)
+                </h5>
+                
+                <!-- Cleanup Naming Configuration -->
+                <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(185, 28, 28, 0.05)); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                    <small style="color: #656d76; display: block; margin-bottom: 8px;">
+                        <i class="fas fa-info-circle"></i> Specify the resource names to delete. Leave default values to delete standard resources.
+                    </small>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <div class="form-group-github" style="margin-bottom: 0;">
+                            <label class="form-label-github" style="font-size: 11px;">S3 Bucket to Delete</label>
+                            <input type="text" class="form-control-github" id="deleteS3BucketName" value="gbot-app-passwords"
+                                placeholder="bucket-name" style="font-size: 12px;">
+                        </div>
+                        <div class="form-group-github" style="margin-bottom: 0;">
+                            <label class="form-label-github" style="font-size: 11px;">ECR Repo to Delete</label>
+                            <input type="text" class="form-control-github" id="deleteEcrRepoName" value="gbot-app-password-worker"
+                                placeholder="repo-name" style="font-size: 12px;">
+                        </div>
+                        <div class="form-group-github" style="margin-bottom: 0;">
+                            <label class="form-label-github" style="font-size: 11px;">CloudWatch Log Prefix</label>
+                            <input type="text" class="form-control-github" id="deleteLogGroupPrefix" value="/aws/lambda/gbot"
+                                placeholder="/aws/lambda/prefix" style="font-size: 12px;">
+                        </div>
+                        <div class="form-group-github" style="margin-bottom: 0;">
+                            <label class="form-label-github" style="font-size: 11px;">DynamoDB Table to Delete</label>
+                            <input type="text" class="form-control-github" id="deleteDynamodbTableName" value="gbot-app-passwords"
+                                placeholder="table-name" style="font-size: 12px;">
+                        </div>
+                    </div>
+                </div>
+                
                 <button class="btn-github" onclick="deleteS3Content()"
                     style="width: 100%; margin-bottom: var(--spacing-sm);">
                     <i class="fas fa-trash-alt"></i>
@@ -355,6 +449,24 @@
                     - Pushes it to your ECR repo as :latest
                 </div>
             </div>
+            
+            <!-- EC2 Instance Naming -->
+            <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.05)); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                <h5 style="margin-bottom: 12px; color: #f59e0b; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-desktop"></i> EC2 Instance Naming
+                </h5>
+                <div class="form-group-github" style="margin-bottom: 0;">
+                    <label class="form-label-github" style="font-size: 12px;">
+                        <i class="fas fa-tag"></i> EC2 Instance Name (used for Create/Terminate)
+                    </label>
+                    <input type="text" class="form-control-github" id="ec2InstanceName" value="gbot-ec2-build-box"
+                        placeholder="e.g., gbot-ec2-build-box, myapp-builder">
+                    <small style="color: #656d76; font-size: 11px;">
+                        This name will be used as the EC2 instance tag Name for identification.
+                    </small>
+                </div>
+            </div>
+            
             <button class="btn-github btn-github-primary" onclick="ec2CreateBuildBox()"
                 style="width: 100%; margin-bottom: var(--spacing-sm);">
                 <i class="fas fa-plus-circle"></i>
@@ -664,14 +776,35 @@
             region: window.awsConfig.region
         };
     }
+    
+    // Helper function to get resource naming configuration
+    function getNamingConfig() {
+        return {
+            // Infrastructure Tab
+            ecr_repo_name: document.getElementById('ecrRepoName')?.value?.trim() || 'gbot-app-password-worker',
+            dynamodb_table: document.getElementById('dynamodbTableName')?.value?.trim() || 'gbot-app-passwords',
+            s3_bucket: document.getElementById('s3BucketName')?.value?.trim() || 'gbot-app-passwords',
+            iam_role_prefix: document.getElementById('iamRolePrefix')?.value?.trim() || 'gbot',
+            // Lambda Tab
+            lambda_prefix: document.getElementById('lambdaPrefix')?.value?.trim() || 'gbot-chromium',
+            // EC2 Tab
+            ec2_instance_name: document.getElementById('ec2InstanceName')?.value?.trim() || 'gbot-ec2-build-box',
+            // Cleanup Tab
+            delete_s3_bucket: document.getElementById('deleteS3BucketName')?.value?.trim() || 'gbot-app-passwords',
+            delete_ecr_repo: document.getElementById('deleteEcrRepoName')?.value?.trim() || 'gbot-app-password-worker',
+            delete_log_prefix: document.getElementById('deleteLogGroupPrefix')?.value?.trim() || '/aws/lambda/gbot',
+            delete_dynamodb_table: document.getElementById('deleteDynamodbTableName')?.value?.trim() || 'gbot-app-passwords'
+        };
+    }
 
     // Create Infrastructure
     function createDynamoDBTable() {
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        log('Creating DynamoDB table for app password storage...');
+        log(`Creating DynamoDB table: ${naming.dynamodb_table}...`);
 
         fetch('/api/aws/create-dynamodb', {
             method: 'POST',
@@ -679,7 +812,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                table_name: naming.dynamodb_table
             })
         })
             .then(response => response.json())
@@ -1009,12 +1143,16 @@
             secretKey = window.awsConfig.secret_access_key;
             region = window.awsConfig.region;
             ecrUri = window.awsConfig.ecr_uri || '';
-            s3Bucket = window.awsConfig.s3_bucket || 'edu-gw-app-passwords';
+            s3Bucket = window.awsConfig.s3_bucket || 'gbot-app-passwords';
         } else {
             // Try to load from API
             alert('AWS credentials not loaded. Please configure them in Settings first.');
             return;
         }
+
+        // Get naming configuration
+        const naming = getNamingConfig();
+        s3Bucket = naming.s3_bucket; // Override with UI value
 
         if (!accessKey || !secretKey || !region) {
             alert('AWS credentials not configured. Please configure them in Settings.');
@@ -1030,6 +1168,10 @@
             alert('S3 Bucket name is required.');
             return;
         }
+        
+        log(`📦 Using Lambda prefix: ${naming.lambda_prefix}`);
+        log(`📦 Using S3 bucket: ${naming.s3_bucket}`);
+        log(`📦 Using DynamoDB table: ${naming.dynamodb_table}`);
 
         // Get Lambda creation options
         const createMultiple = document.getElementById('createMultipleLambdas').checked;
@@ -1091,7 +1233,11 @@
             s3_bucket: s3Bucket,
             user_count: userCount,
             users_per_function: usersPerFunctionValue,  // Use the value from input field
-            create_multiple: createMultiple
+            create_multiple: createMultiple,
+            // Naming configuration
+            lambda_prefix: naming.lambda_prefix,
+            ecr_repo_name: naming.ecr_repo_name,
+            dynamodb_table: naming.dynamodb_table
         };
         
         log(`[DEBUG] Request payload users_per_function: ${requestPayload.users_per_function}`);
@@ -1389,9 +1535,10 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
         log(`Using account: ${email}`);
-        log('Invoking PRODUCTION Lambda for account processing...');
+        log(`Invoking Lambda with prefix: ${naming.lambda_prefix}...`);
 
         fetch('/api/aws/invoke-lambda', {
             method: 'POST',
@@ -1403,7 +1550,8 @@
                 secret_key: secretKey,
                 region: region,
                 email: email.trim(),
-                password: password.trim()
+                password: password.trim(),
+                lambda_prefix: naming.lambda_prefix
             })
         })
             .then(response => response.json())
@@ -1455,6 +1603,10 @@
         document.getElementById('multiStatus').textContent = `Starting job for ${users.length} users...`;
         document.getElementById('resultsOutput').value = ''; // Clear previous results
 
+        const naming = getNamingConfig();
+        log(`📦 Using Lambda prefix: ${naming.lambda_prefix}`);
+        log(`📦 Using DynamoDB table: ${naming.dynamodb_table}`);
+        
         fetch('/api/aws/bulk-generate', {
             method: 'POST',
             headers: {
@@ -1465,7 +1617,9 @@
                 secret_key: secretKey,
                 region: region,
                 users: users,
-                users_per_function: parseInt(document.getElementById('usersPerFunction')?.value || '10', 10) || 10
+                users_per_function: parseInt(document.getElementById('usersPerFunction')?.value || '10', 10) || 10,
+                lambda_prefix: naming.lambda_prefix,
+                dynamodb_table: naming.dynamodb_table
             })
         })
             .then(response => {
@@ -1693,10 +1847,13 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        if (!confirm('Are you sure you want to delete all Lambdas? This action cannot be undone.')) {
+        if (!confirm(`Are you sure you want to delete all Lambdas with prefix "${naming.lambda_prefix}"?\n\nThis action cannot be undone.`)) {
             return;
         }
+
+        log(`Deleting all Lambdas with prefix: ${naming.lambda_prefix}...`);
 
         fetch('/api/aws/delete-all-lambdas', {
             method: 'POST',
@@ -1706,7 +1863,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                lambda_prefix: naming.lambda_prefix
             })
         })
             .then(response => response.json())
@@ -1730,10 +1888,13 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        if (!confirm('Are you sure you want to delete all contents from the S3 bucket? This action cannot be undone.')) {
+        if (!confirm(`Are you sure you want to delete all contents from S3 bucket "${naming.delete_s3_bucket}"?\n\nThis action cannot be undone.`)) {
             return;
         }
+
+        log(`Deleting contents from S3 bucket: ${naming.delete_s3_bucket}...`);
 
         fetch('/api/aws/delete-s3-content', {
             method: 'POST',
@@ -1743,7 +1904,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                bucket_name: naming.delete_s3_bucket
             })
         })
             .then(response => response.json())
@@ -1767,10 +1929,13 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        if (!confirm('Are you sure you want to delete the ECR repository and all images? This action cannot be undone.')) {
+        if (!confirm(`Are you sure you want to delete ECR repository "${naming.delete_ecr_repo}" and all images?\n\nThis action cannot be undone.`)) {
             return;
         }
+
+        log(`Deleting ECR repository: ${naming.delete_ecr_repo}...`);
 
         fetch('/api/aws/delete-ecr-repo', {
             method: 'POST',
@@ -1780,7 +1945,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                repo_name: naming.delete_ecr_repo
             })
         })
             .then(response => response.json())
@@ -1804,10 +1970,13 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        if (!confirm('Are you sure you want to delete CloudWatch log groups? This action cannot be undone.')) {
+        if (!confirm(`Are you sure you want to delete CloudWatch log groups with prefix "${naming.delete_log_prefix}"?\n\nThis action cannot be undone.`)) {
             return;
         }
+
+        log(`Deleting CloudWatch logs with prefix: ${naming.delete_log_prefix}...`);
 
         fetch('/api/aws/delete-cloudwatch-logs', {
             method: 'POST',
@@ -1817,7 +1986,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                log_group_prefix: naming.delete_log_prefix
             })
         })
             .then(response => response.json())
@@ -1841,12 +2011,13 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        if (!confirm('Are you sure you want to delete the DynamoDB table "gbot-app-passwords" across all regions? This will delete ALL stored app passwords. This action cannot be undone.')) {
+        if (!confirm(`Are you sure you want to delete DynamoDB table "${naming.delete_dynamodb_table}" across all regions?\n\nThis will delete ALL stored app passwords. This action cannot be undone.`)) {
             return;
         }
 
-        log('Deleting DynamoDB table across all regions...');
+        log(`Deleting DynamoDB table: ${naming.delete_dynamodb_table} across all regions...`);
 
         fetch('/api/aws/delete-dynamodb-table', {
             method: 'POST',
@@ -1856,7 +2027,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                table_name: naming.delete_dynamodb_table
             })
         })
             .then(response => response.json())
@@ -1886,8 +2058,10 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        log('Launching EC2 build box...');
+        log(`Launching EC2 build box: ${naming.ec2_instance_name}...`);
+        log(`Using ECR repo: ${naming.ecr_repo_name}`);
 
         fetch('/api/aws/ec2-create-build-box', {
             method: 'POST',
@@ -1897,7 +2071,9 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                instance_name: naming.ec2_instance_name,
+                ecr_repo_name: naming.ecr_repo_name
             })
         })
             .then(response => response.json())
@@ -1921,8 +2097,9 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        log('Checking EC2 build box status...');
+        log(`Checking EC2 build box status: ${naming.ec2_instance_name}...`);
 
         fetch('/api/aws/ec2-show-status', {
             method: 'POST',
@@ -1932,7 +2109,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                instance_name: naming.ec2_instance_name
             })
         })
             .then(response => response.json())
@@ -1964,12 +2142,13 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        if (!confirm('Are you sure you want to terminate the EC2 build box? This action cannot be undone.')) {
+        if (!confirm(`Are you sure you want to terminate EC2 instance "${naming.ec2_instance_name}"?\n\nThis action cannot be undone.`)) {
             return;
         }
 
-        log('Terminating EC2 build box...');
+        log(`Terminating EC2 build box: ${naming.ec2_instance_name}...`);
 
         fetch('/api/aws/ec2-terminate', {
             method: 'POST',
@@ -1979,7 +2158,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                instance_name: naming.ec2_instance_name
             })
         })
             .then(response => response.json())
