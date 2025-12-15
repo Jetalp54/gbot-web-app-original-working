@@ -5809,15 +5809,17 @@ def ec2_create_build_box():
         secret_key = data.get('secret_key', '').strip()
         region = data.get('region', '').strip()
         
-        # Get custom naming from request
+        # Get custom naming from request (preferred) or database (fallback)
         instance_name = data.get('instance_name', 'gbot-ec2-build-box').strip() or 'gbot-ec2-build-box'
         ecr_repo_name = data.get('ecr_repo_name', 'gbot-app-password-worker').strip() or 'gbot-app-password-worker'
+        s3_bucket_ec2 = data.get('s3_bucket', '').strip() or get_naming_config().get('s3_bucket', 'gbot-app-passwords')
         
         # Extract prefix from instance name (e.g., "dev" from "dev-ec2-build-box")
         prefix = instance_name.split('-')[0] if '-' in instance_name else 'gbot'
         
         logger.info(f"[EC2] Using instance name: {instance_name}")
         logger.info(f"[EC2] Using ECR repo: {ecr_repo_name}")
+        logger.info(f"[EC2] Using S3 bucket: {s3_bucket_ec2}")
         logger.info(f"[EC2] Extracted prefix: {prefix}")
 
         if not access_key or not secret_key or not region:
@@ -5838,10 +5840,6 @@ def ec2_create_build_box():
             logger.info(f"[EC2] ✓ Verified ECR repo: {repo_uri}")
         except Exception as e:
             return jsonify({'success': False, 'error': f'ECR repository verification failed: {e}'}), 500
-
-        # Get S3 bucket name from naming config
-        naming_config_ec2 = get_naming_config()
-        s3_bucket_ec2 = naming_config_ec2['s3_bucket']
         
         # Create EC2 resources with custom names based on prefix
         role_arn = ensure_ec2_role_profile(session, prefix)

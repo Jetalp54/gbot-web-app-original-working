@@ -2071,6 +2071,7 @@
 
         log(`Launching EC2 build box: ${naming.ec2_instance_name}...`);
         log(`Using ECR repo: ${naming.ecr_repo_name}`);
+        log(`Using S3 bucket: ${naming.s3_bucket}`);
 
         fetch('/api/aws/ec2-create-build-box', {
             method: 'POST',
@@ -2082,7 +2083,8 @@
                 secret_key: secretKey,
                 region: region,
                 instance_name: naming.ec2_instance_name,
-                ecr_repo_name: naming.ecr_repo_name
+                ecr_repo_name: naming.ecr_repo_name,
+                s3_bucket: naming.s3_bucket
             })
         })
             .then(response => response.json())
