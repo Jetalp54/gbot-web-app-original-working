@@ -132,6 +132,11 @@ class AwsConfig(db.Model):
     ecr_uri = db.Column(db.String(500))
     s3_bucket = db.Column(db.String(255), default='edu-gw-app-passwords')
     is_configured = db.Column(db.Boolean, default=False)
+    # Multi-tenant naming configuration
+    instance_name = db.Column(db.String(100), default='default')  # Unique identifier for this instance (e.g., "client-acme", "user1")
+    ecr_repo_name = db.Column(db.String(255), default='gbot-app-password-worker')  # Custom ECR repository name
+    lambda_prefix = db.Column(db.String(100), default='gbot-chromium')  # Lambda function prefix
+    dynamodb_table = db.Column(db.String(255), default='gbot-app-passwords')  # DynamoDB table name
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 

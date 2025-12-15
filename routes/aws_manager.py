@@ -27,19 +27,78 @@ from services.google_service_account import GoogleServiceAccount
 
 
 
-# Constants from aws.py
-LAMBDA_ROLE_NAME = "edu-gw-app-password-lambda-role"
-PRODUCTION_LAMBDA_NAME = "edu-gw-chromium"
-S3_BUCKET_NAME = "edu-gw-app-passwords"
-ECR_REPO_NAME = "edu-gw-app-password-worker-repo"
+# Default Constants (fallback values if not configured)
+DEFAULT_LAMBDA_ROLE_NAME = "gbot-app-password-lambda-role"
+DEFAULT_PRODUCTION_LAMBDA_NAME = "gbot-chromium"
+DEFAULT_S3_BUCKET_NAME = "gbot-app-passwords"
+DEFAULT_ECR_REPO_NAME = "gbot-app-password-worker"
+DEFAULT_DYNAMODB_TABLE = "gbot-app-passwords"
+DEFAULT_INSTANCE_NAME = "default"
 ECR_IMAGE_TAG = "latest"
-EC2_INSTANCE_NAME = "edu-gw-ec2-build-box"
-EC2_ROLE_NAME = "edu-gw-ec2-build-role"
-EC2_INSTANCE_PROFILE_NAME = "edu-gw-ec2-build-instance-profile"
-EC2_SECURITY_GROUP_NAME = "edu-gw-ec2-build-sg"
-EC2_KEY_PAIR_NAME = "edu-gw-ec2-build-key"
+EC2_INSTANCE_NAME = "gbot-ec2-build-box"
+EC2_ROLE_NAME = "gbot-ec2-build-role"
+EC2_INSTANCE_PROFILE_NAME = "gbot-ec2-build-instance-profile"
+EC2_SECURITY_GROUP_NAME = "gbot-ec2-build-sg"
+EC2_KEY_PAIR_NAME = "gbot-ec2-build-key"
+
+# Backwards compatibility aliases (will be overridden by get_naming_config)
+LAMBDA_ROLE_NAME = DEFAULT_LAMBDA_ROLE_NAME
+PRODUCTION_LAMBDA_NAME = DEFAULT_PRODUCTION_LAMBDA_NAME
+S3_BUCKET_NAME = DEFAULT_S3_BUCKET_NAME
+ECR_REPO_NAME = DEFAULT_ECR_REPO_NAME
 
 logger = logging.getLogger(__name__)
+
+
+def get_naming_config():
+    """
+    Get customizable naming configuration from database.
+    Returns dict with all naming values for multi-tenant support.
+    Each user/tenant can have their own instance with unique names.
+    """
+    try:
+        from app import app
+        with app.app_context():
+            config = AwsConfig.query.first()
+            if config:
+                instance_name = config.instance_name or DEFAULT_INSTANCE_NAME
+                lambda_prefix = config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME
+                ecr_repo = config.ecr_repo_name or DEFAULT_ECR_REPO_NAME
+                s3_bucket = config.s3_bucket or DEFAULT_S3_BUCKET_NAME
+                dynamodb_table = config.dynamodb_table or DEFAULT_DYNAMODB_TABLE
+                
+                return {
+                    'instance_name': instance_name,
+                    'lambda_prefix': lambda_prefix,
+                    'lambda_role_name': f"{lambda_prefix}-lambda-role",
+                    'production_lambda_name': lambda_prefix,
+                    'ecr_repo_name': ecr_repo,
+                    's3_bucket': s3_bucket,
+                    'dynamodb_table': dynamodb_table,
+                    'ec2_instance_name': f"{instance_name}-ec2-build-box",
+                    'ec2_role_name': f"{instance_name}-ec2-build-role",
+                    'ec2_instance_profile_name': f"{instance_name}-ec2-build-instance-profile",
+                    'ec2_security_group_name': f"{instance_name}-ec2-build-sg",
+                    'ec2_key_pair_name': f"{instance_name}-ec2-build-key",
+                }
+    except Exception as e:
+        logger.warning(f"[CONFIG] Could not load naming config from database: {e}")
+    
+    # Return defaults if config not found
+    return {
+        'instance_name': DEFAULT_INSTANCE_NAME,
+        'lambda_prefix': DEFAULT_PRODUCTION_LAMBDA_NAME,
+        'lambda_role_name': DEFAULT_LAMBDA_ROLE_NAME,
+        'production_lambda_name': DEFAULT_PRODUCTION_LAMBDA_NAME,
+        'ecr_repo_name': DEFAULT_ECR_REPO_NAME,
+        's3_bucket': DEFAULT_S3_BUCKET_NAME,
+        'dynamodb_table': DEFAULT_DYNAMODB_TABLE,
+        'ec2_instance_name': EC2_INSTANCE_NAME,
+        'ec2_role_name': EC2_ROLE_NAME,
+        'ec2_instance_profile_name': EC2_INSTANCE_PROFILE_NAME,
+        'ec2_security_group_name': EC2_SECURITY_GROUP_NAME,
+        'ec2_key_pair_name': EC2_KEY_PAIR_NAME,
+    }
 
 aws_manager = Blueprint('aws_manager', __name__)
 
@@ -331,13 +390,18 @@ def test_connection():
 
         session = get_boto3_session(access_key, secret_key, region)
         account_id = get_account_id(session)
-        ecr_uri = f"{account_id}.dkr.ecr.{region}.amazonaws.com/{ECR_REPO_NAME}:{ECR_IMAGE_TAG}"
+        
+        # Use configurable ECR repo name for multi-tenant support
+        naming_config = get_naming_config()
+        ecr_repo_name = naming_config['ecr_repo_name']
+        ecr_uri = f"{account_id}.dkr.ecr.{region}.amazonaws.com/{ecr_repo_name}:{ECR_IMAGE_TAG}"
 
         return jsonify({
             'success': True,
             'account_id': account_id,
             'region': region,
-            'ecr_uri': ecr_uri
+            'ecr_uri': ecr_uri,
+            'instance_name': naming_config['instance_name']
         })
     except Exception as e:
         logger.error(f"Error testing connection: {e}")
@@ -367,10 +431,21 @@ def save_aws_config():
         secret_access_key = data.get('secret_access_key', '').strip()
         region = data.get('region', 'us-east-1').strip()
         ecr_uri = data.get('ecr_uri', '').strip()
-        s3_bucket = data.get('s3_bucket', 'edu-gw-app-passwords').strip()
+        s3_bucket = data.get('s3_bucket', 'gbot-app-passwords').strip()
+        
+        # Multi-tenant naming configuration
+        instance_name = data.get('instance_name', 'default').strip()
+        ecr_repo_name = data.get('ecr_repo_name', 'gbot-app-password-worker').strip()
+        lambda_prefix = data.get('lambda_prefix', 'gbot-chromium').strip()
+        dynamodb_table = data.get('dynamodb_table', 'gbot-app-passwords').strip()
 
         if not access_key_id or not secret_access_key or not region:
             return jsonify({'success': False, 'error': 'Please provide Access Key ID, Secret Access Key and Region.'}), 400
+        
+        # Validate instance_name (alphanumeric, dashes, underscores only)
+        import re
+        if instance_name and not re.match(r'^[a-zA-Z0-9_-]+$', instance_name):
+            return jsonify({'success': False, 'error': 'Instance name can only contain letters, numbers, dashes and underscores.'}), 400
 
         # Get or create config
         config = AwsConfig.query.first()
@@ -387,6 +462,11 @@ def save_aws_config():
         config.region = region
         config.ecr_uri = ecr_uri if ecr_uri and ecr_uri != '(connect first)' else None
         config.s3_bucket = s3_bucket
+        # Multi-tenant naming
+        config.instance_name = instance_name or 'default'
+        config.ecr_repo_name = ecr_repo_name or 'gbot-app-password-worker'
+        config.lambda_prefix = lambda_prefix or 'gbot-chromium'
+        config.dynamodb_table = dynamodb_table or 'gbot-app-passwords'
         config.is_configured = True
         
         # Commit the changes
@@ -433,7 +513,12 @@ def get_aws_config():
                 'secret_access_key': config.secret_access_key,  # Note: In production, consider encrypting this
                 'region': config.region,
                 'ecr_uri': config.ecr_uri or '',
-                's3_bucket': config.s3_bucket
+                's3_bucket': config.s3_bucket,
+                # Multi-tenant naming configuration
+                'instance_name': getattr(config, 'instance_name', 'default') or 'default',
+                'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
+                'lambda_prefix': getattr(config, 'lambda_prefix', 'gbot-chromium') or 'gbot-chromium',
+                'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords'
             }
         })
     except Exception as e:
@@ -456,7 +541,11 @@ def create_dynamodb_table():
 
         session = get_boto3_session(access_key, secret_key, region)
         dynamodb = session.client('dynamodb')
-        table_name = "gbot-app-passwords"
+        
+        # Use configurable table name for multi-tenant support
+        naming_config_dynamo = get_naming_config()
+        table_name = naming_config_dynamo['dynamodb_table']
+        logger.info(f"[DYNAMODB] Using configurable table name: {table_name}")
         
         try:
             # Check if table exists
@@ -634,15 +723,21 @@ def create_ecr_manual():
             return jsonify({'success': False, 'error': 'Please provide Access Key, Secret Key and Region.'}), 400
 
         session = get_boto3_session(access_key, secret_key, region)
-        create_ecr_repo(session, region)
+        
+        # Use configurable ECR repo name for multi-tenant support
+        naming_config = get_naming_config()
+        ecr_repo_name = naming_config['ecr_repo_name']
+        
+        create_ecr_repo(session, region, ecr_repo_name)
 
         ecr = session.client("ecr")
-        resp = ecr.describe_repositories(repositoryNames=[ECR_REPO_NAME])
+        resp = ecr.describe_repositories(repositoryNames=[ecr_repo_name])
         repo_uri = resp['repositories'][0]['repositoryUri']
 
         return jsonify({
             'success': True,
-            'repo_uri': repo_uri
+            'repo_uri': repo_uri,
+            'instance_name': naming_config['instance_name']
         })
     except Exception as e:
         logger.error(f"Error creating ECR repository: {e}")
@@ -2033,22 +2128,27 @@ def inspect_region_task(access_key, secret_key, region):
     try:
         session = get_boto3_session(access_key, secret_key, region)
         
+        # Get configurable naming for multi-tenant support
+        naming_config = get_naming_config()
+        lambda_prefix = naming_config['production_lambda_name']
+        ecr_repo_name = naming_config['ecr_repo_name']
+        
         # Check Lambda Functions
         lam = session.client('lambda', config=Config(connect_timeout=5, read_timeout=5, retries={'max_attempts': 2}))
         functions = lam.list_functions()
         func_names = [f['FunctionName'] for f in functions.get('Functions', [])]
         # Filter for our production lambdas
-        prod_funcs = [f for f in func_names if PRODUCTION_LAMBDA_NAME in f]
+        prod_funcs = [f for f in func_names if lambda_prefix in f]
         result['lambda_count'] = len(prod_funcs)
         
         # Check ECR Repo
         ecr = session.client('ecr', config=Config(connect_timeout=5, read_timeout=5, retries={'max_attempts': 2}))
         try:
-            ecr.describe_repositories(repositoryNames=[ECR_REPO_NAME])
+            ecr.describe_repositories(repositoryNames=[ecr_repo_name])
             result['ecr_repo'] = True
             
             # Check Image
-            images = ecr.list_images(repositoryName=ECR_REPO_NAME, filter={'tagStatus': 'TAGGED'})
+            images = ecr.list_images(repositoryName=ecr_repo_name, filter={'tagStatus': 'TAGGED'})
             tags = [i.get('imageTag') for i in images.get('imageIds', [])]
             if ECR_IMAGE_TAG in tags:
                 result['image_tag'] = ECR_IMAGE_TAG
@@ -2157,13 +2257,22 @@ def create_lambdas():
         if not s3_bucket:
             return jsonify({'success': False, 'error': 'Please enter S3 Bucket name for app passwords storage.'}), 400
 
+        # Get customizable naming configuration for multi-tenant support
+        naming_config = get_naming_config()
+        ecr_repo_name = naming_config['ecr_repo_name']
+        lambda_prefix = naming_config['production_lambda_name']
+        dynamodb_table = naming_config['dynamodb_table']
+        instance_name = naming_config['instance_name']
+        
+        logger.info(f"[LAMBDA] Using naming config: instance={instance_name}, lambda_prefix={lambda_prefix}, ecr_repo={ecr_repo_name}, dynamodb={dynamodb_table}")
+
         session = get_boto3_session(access_key, secret_key, region)
 
         # Verify ECR image exists
         ecr = session.client("ecr")
         try:
             ecr.describe_images(
-                repositoryName=ECR_REPO_NAME,
+                repositoryName=ecr_repo_name,
                 imageIds=[{"imageTag": ECR_IMAGE_TAG}],
             )
         except ClientError as ce:
@@ -2178,10 +2287,11 @@ def create_lambdas():
         # Environment variables (removed SFTP)
         # Use centralized DynamoDB in eu-west-1 (all Lambda functions save to same table)
         chromium_env = {
-            "DYNAMODB_TABLE_NAME": "gbot-app-passwords",  # DynamoDB table for password storage
+            "DYNAMODB_TABLE_NAME": dynamodb_table,  # DynamoDB table for password storage (configurable)
             "DYNAMODB_REGION": "eu-west-1",  # Centralized region - all Lambda functions use this
             "APP_PASSWORDS_S3_BUCKET": s3_bucket,
             "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
+            "INSTANCE_NAME": instance_name,  # Instance identifier for multi-tenant support
         }
         
         # Add 2Captcha configuration if enabled
@@ -2292,9 +2402,9 @@ def create_lambdas():
                 func_num = func_counter + 1  # Function numbers start at 1
                 
                 if num_functions == 1:
-                    function_name = PRODUCTION_LAMBDA_NAME
+                    function_name = lambda_prefix
                 else:
-                    function_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
+                    function_name = f"{lambda_prefix}-{geo_code}-{func_num}"
                 
                 functions_by_geo[geo].append((func_num, function_name))
                 created_functions.append(function_name)
@@ -2379,7 +2489,8 @@ def create_lambdas():
                         
                         import re
                         geo_ecr_uri = None
-                        repo_name = ECR_REPO_NAME
+                        # Use configurable ECR repo name from naming_config (passed via closure)
+                        repo_name = ecr_repo_name  # From get_naming_config()
                         image_tag = ECR_IMAGE_TAG
                         base_region = None
                         
@@ -2704,9 +2815,9 @@ def create_lambdas():
                             if orphaned_index < len(orphaned_functions):
                                 func_num, old_name = orphaned_functions[orphaned_index]
                                 
-                                # Generate new name for the target region
+                                # Generate new name for the target region using configurable prefix
                                 geo_code = geo.replace('-', '')
-                                new_name = f"{PRODUCTION_LAMBDA_NAME}-{geo_code}-{func_num}"
+                                new_name = f"{lambda_prefix}-{geo_code}-{func_num}"
                                 
                                 # Add to the target region's list
                                 functions_by_geo_dict[geo].append((func_num, new_name))
@@ -2949,16 +3060,20 @@ def check_aws_limits():
             'recommendations': []
         }
         
+        # Get configurable lambda prefix for multi-tenant support
+        naming_config_limits = get_naming_config()
+        lambda_prefix_limits = naming_config_limits['production_lambda_name']
+        
         # 1. Check Lambda Function Concurrency Settings
         try:
-            func_config = lam.get_function_configuration(FunctionName=PRODUCTION_LAMBDA_NAME)
-            limits_info['lambda_function']['name'] = PRODUCTION_LAMBDA_NAME
+            func_config = lam.get_function_configuration(FunctionName=lambda_prefix_limits)
+            limits_info['lambda_function']['name'] = lambda_prefix_limits
             limits_info['lambda_function']['state'] = func_config.get('State', 'Unknown')
             limits_info['lambda_function']['state_reason'] = func_config.get('StateReason', 'N/A')
             
             # Check Reserved Concurrency
             try:
-                concurrency_config = lam.get_function_concurrency(FunctionName=PRODUCTION_LAMBDA_NAME)
+                concurrency_config = lam.get_function_concurrency(FunctionName=lambda_prefix_limits)
                 reserved = concurrency_config.get('ReservedConcurrentExecutions')
                 limits_info['lambda_function']['reserved_concurrency'] = reserved
                 if reserved and reserved < 1000:
@@ -2971,7 +3086,7 @@ def check_aws_limits():
             
             # Check Provisioned Concurrency
             try:
-                prov_configs = lam.list_provisioned_concurrency_configs(FunctionName=PRODUCTION_LAMBDA_NAME)
+                prov_configs = lam.list_provisioned_concurrency_configs(FunctionName=lambda_prefix_limits)
                 if prov_configs.get('ProvisionedConcurrencyConfigs'):
                     limits_info['lambda_function']['provisioned_concurrency'] = prov_configs['ProvisionedConcurrencyConfigs']
                     limits_info['recommendations'].append(
@@ -3181,16 +3296,20 @@ def fix_lambda_concurrency():
 
         session = get_boto3_session(access_key, secret_key, region)
         lam = session.client("lambda")
+        
+        # Get configurable lambda prefix for multi-tenant support
+        naming_config_fix = get_naming_config()
+        lambda_prefix_fix = naming_config_fix['production_lambda_name']
 
         try:
             # Check current concurrency settings
-            concurrency_config = lam.get_function_concurrency(FunctionName=PRODUCTION_LAMBDA_NAME)
+            concurrency_config = lam.get_function_concurrency(FunctionName=lambda_prefix_fix)
             reserved_concurrency = concurrency_config.get('ReservedConcurrentExecutions')
             
             if reserved_concurrency:
                 logger.info(f"[LAMBDA] Current reserved concurrency: {reserved_concurrency}")
                 # Delete reserved concurrency to use account limit (1000+)
-                lam.delete_function_concurrency(FunctionName=PRODUCTION_LAMBDA_NAME)
+                lam.delete_function_concurrency(FunctionName=lambda_prefix_fix)
                 logger.info(f"[LAMBDA] ✓ Removed reserved concurrency limit ({reserved_concurrency} → account limit)")
                 return jsonify({
                     'success': True,
@@ -3207,12 +3326,12 @@ def fix_lambda_concurrency():
         except lam.exceptions.ResourceNotFoundException:
             return jsonify({
                 'success': False,
-                'error': f'Lambda function {PRODUCTION_LAMBDA_NAME} not found. Create it first.'
+                'error': f'Lambda function {lambda_prefix_fix} not found. Create it first.'
             }), 404
         except Exception as e:
             # Try to delete anyway (might be a different error)
             try:
-                lam.delete_function_concurrency(FunctionName=PRODUCTION_LAMBDA_NAME)
+                lam.delete_function_concurrency(FunctionName=lambda_prefix_fix)
                 logger.info(f"[LAMBDA] ✓ Removed reserved concurrency limit")
                 return jsonify({
                     'success': True,
@@ -3280,11 +3399,16 @@ def bulk_generate():
     if not users_raw:
         return jsonify({'success': False, 'error': 'No users provided'}), 400
 
+    # Get configurable naming for multi-tenant support
+    naming_config_bulk = get_naming_config()
+    dynamodb_table_bulk = naming_config_bulk['dynamodb_table']
+    lambda_prefix_bulk = naming_config_bulk['production_lambda_name']
+    
     # Auto-clear DynamoDB before starting new batch
     try:
         session_boto = get_boto3_session(access_key, secret_key, region)
         dynamodb = session_boto.resource('dynamodb')
-        table = dynamodb.Table("gbot-app-passwords")
+        table = dynamodb.Table(dynamodb_table_bulk)
         
         # Quick scan and delete old items
         response = table.scan()
@@ -3420,7 +3544,7 @@ def bulk_generate():
                         
                         matching_functions = [
                             fn['FunctionName'] for fn in geo_functions.get('Functions', [])
-                            if fn['FunctionName'].startswith(PRODUCTION_LAMBDA_NAME) or 'edu-gw-chromium' in fn['FunctionName']
+                            if fn['FunctionName'].startswith(lambda_prefix_bulk) or 'gbot' in fn['FunctionName'].lower()
                         ]
                         
                         if matching_functions:
@@ -5078,6 +5202,11 @@ def delete_all_lambdas():
         total_deleted = 0
         total_errors = 0
 
+        # Get configurable lambda prefix for multi-tenant support
+        naming_config_delete = get_naming_config()
+        lambda_prefix_delete = naming_config_delete['production_lambda_name']
+        instance_name_delete = naming_config_delete['instance_name']
+        
         def delete_region_lambdas(target_region):
             """Delete all Lambda functions in a specific region (parallel execution)"""
             region_deleted = []
@@ -5089,22 +5218,23 @@ def delete_all_lambdas():
     
                 # Try to delete production lambda
                 try:
-                    lam.delete_function(FunctionName=PRODUCTION_LAMBDA_NAME)
-                    region_deleted.append(f"{PRODUCTION_LAMBDA_NAME} ({target_region})")
+                    lam.delete_function(FunctionName=lambda_prefix_delete)
+                    region_deleted.append(f"{lambda_prefix_delete} ({target_region})")
                 except lam.exceptions.ResourceNotFoundException:
                     pass
                 except Exception as e:
-                    error_msg = f"{target_region}: {PRODUCTION_LAMBDA_NAME} - {str(e)}"
+                    error_msg = f"{target_region}: {lambda_prefix_delete} - {str(e)}"
                     logger.error(f"[DELETE LAMBDA] [{target_region}] Error: {error_msg}")
                     region_errors.append(error_msg)
 
-        # Also check for any other edu-gw lambdas
+        # Also check for lambdas with the configured prefix
                 try:
                     paginator = lam.get_paginator("list_functions")
                     for page in paginator.paginate():
                         for fn in page.get("Functions", []):
                             fn_name = fn["FunctionName"]
-                            if "edu-gw" in fn_name:
+                            # Delete functions matching the configured prefix or legacy edu-gw prefix
+                            if lambda_prefix_delete in fn_name or "gbot" in fn_name.lower():
                                 try:
                                     lam.delete_function(FunctionName=fn_name)
                                     region_deleted.append(f"{fn_name} ({target_region})")
@@ -6023,22 +6153,29 @@ def ensure_lambda_role(session):
             policy_arns=lambda_policies,
         )
 
-def create_ecr_repo(session, region):
+def create_ecr_repo(session, region, repo_name=None):
+    """Create ECR repository with configurable name for multi-tenant support"""
+    if repo_name is None:
+        naming_config = get_naming_config()
+        repo_name = naming_config['ecr_repo_name']
+    
     ecr = session.client("ecr")
     try:
-        resp = ecr.describe_repositories(repositoryNames=[ECR_REPO_NAME])
+        resp = ecr.describe_repositories(repositoryNames=[repo_name])
+        logger.info(f"[ECR] Repository '{repo_name}' already exists")
         return True
     except ecr.exceptions.RepositoryNotFoundException:
         try:
             ecr.create_repository(
-                repositoryName=ECR_REPO_NAME,
+                repositoryName=repo_name,
                 imageTagMutability='MUTABLE',
                 imageScanningConfiguration={'scanOnPush': False}
             )
+            logger.info(f"[ECR] Created repository '{repo_name}'")
             time.sleep(2)
             return True
         except Exception as e:
-            logger.error(f"Error creating ECR repository: {e}")
+            logger.error(f"Error creating ECR repository '{repo_name}': {e}")
             raise
 
 def create_s3_bucket(session, region):

@@ -2007,6 +2007,10 @@
                     // Store credentials in hidden fields or use directly
                     window.awsConfig = data.config;
                     log('AWS credentials loaded from settings.');
+                    // Show instance name if configured
+                    if (data.config.instance_name && data.config.instance_name !== 'default') {
+                        log(`🏷️ Instance: ${data.config.instance_name} | Lambda: ${data.config.lambda_prefix || 'gbot-chromium'} | ECR: ${data.config.ecr_repo_name || 'gbot-app-password-worker'}`);
+                    }
                 } else {
                     log('⚠️ No AWS credentials found. Please configure them in Settings.');
                 }
