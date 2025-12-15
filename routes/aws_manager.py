@@ -2197,7 +2197,7 @@ AVAILABLE_GEO_REGIONS = [
     'sa-east-1',      # São Paulo
 ]
 
-def inspect_region_task(access_key, secret_key, region):
+def inspect_region_task(access_key, secret_key, region, lambda_prefix=None, ecr_repo_name=None):
     """Inspect resources in a single region (for parallel execution)"""
     result = {
         'region': region,
@@ -2211,43 +2211,65 @@ def inspect_region_task(access_key, secret_key, region):
     try:
         session = get_boto3_session(access_key, secret_key, region)
         
-        # Get configurable naming for multi-tenant support
-        naming_config = get_naming_config()
-        lambda_prefix = naming_config['production_lambda_name']
-        ecr_repo_name = naming_config['ecr_repo_name']
+        # Get configurable naming from parameters (preferred) or database (fallback)
+        if lambda_prefix is None or ecr_repo_name is None:
+            naming_config = get_naming_config()
+            if lambda_prefix is None:
+                lambda_prefix = naming_config.get('production_lambda_name', 'gbot-chromium')
+            if ecr_repo_name is None:
+                ecr_repo_name = naming_config.get('ecr_repo_name', 'gbot-app-password-worker')
+        
+        logger.debug(f"[INSPECT] [{region}] Checking Lambda prefix: {lambda_prefix}, ECR repo: {ecr_repo_name}")
         
         # Check Lambda Functions
         lam = session.client('lambda', config=Config(connect_timeout=5, read_timeout=5, retries={'max_attempts': 2}))
         functions = lam.list_functions()
         func_names = [f['FunctionName'] for f in functions.get('Functions', [])]
-        # Filter for our production lambdas
-        prod_funcs = [f for f in func_names if lambda_prefix in f]
+        # Filter for our production lambdas - check if function name starts with prefix
+        prod_funcs = [f for f in func_names if f.startswith(lambda_prefix)]
         result['lambda_count'] = len(prod_funcs)
+        if prod_funcs:
+            logger.debug(f"[INSPECT] [{region}] Found Lambda functions: {prod_funcs}")
         
         # Check ECR Repo
         ecr = session.client('ecr', config=Config(connect_timeout=5, read_timeout=5, retries={'max_attempts': 2}))
         try:
             ecr.describe_repositories(repositoryNames=[ecr_repo_name])
             result['ecr_repo'] = True
+            logger.debug(f"[INSPECT] [{region}] ECR repo '{ecr_repo_name}' exists")
             
             # Check Image
-            images = ecr.list_images(repositoryName=ecr_repo_name, filter={'tagStatus': 'TAGGED'})
-            tags = [i.get('imageTag') for i in images.get('imageIds', [])]
-            if ECR_IMAGE_TAG in tags:
-                result['image_tag'] = ECR_IMAGE_TAG
-            else:
-                result['image_tag'] = 'MISSING'
+            try:
+                images = ecr.list_images(repositoryName=ecr_repo_name, filter={'tagStatus': 'TAGGED'})
+                tags = [i.get('imageTag') for i in images.get('imageIds', [])]
+                logger.debug(f"[INSPECT] [{region}] Found image tags: {tags}")
+                if ECR_IMAGE_TAG in tags:
+                    result['image_tag'] = ECR_IMAGE_TAG
+                    logger.debug(f"[INSPECT] [{region}] ✓ Image tag '{ECR_IMAGE_TAG}' found")
+                else:
+                    result['image_tag'] = 'MISSING'
+                    logger.debug(f"[INSPECT] [{region}] ✗ Image tag '{ECR_IMAGE_TAG}' not found")
+            except Exception as img_err:
+                logger.warning(f"[INSPECT] [{region}] Error checking images: {img_err}")
+                result['image_tag'] = 'ERROR'
         except ClientError as e:
-            if e.response['Error']['Code'] == 'RepositoryNotFoundException':
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == 'RepositoryNotFoundException':
                 result['ecr_repo'] = False
+                logger.debug(f"[INSPECT] [{region}] ECR repo '{ecr_repo_name}' not found")
             else:
+                logger.warning(f"[INSPECT] [{region}] Error checking ECR repo: {e}")
                 raise
                 
         result['status'] = 'ready' if result['lambda_count'] > 0 and result['ecr_repo'] and result['image_tag'] == ECR_IMAGE_TAG else 'incomplete'
+        logger.info(f"[INSPECT] [{region}] Status: {result['status']} (Lambdas: {result['lambda_count']}, ECR: {result['ecr_repo']}, Image: {result['image_tag']})")
         
     except Exception as e:
         result['status'] = 'error'
         result['error'] = str(e)
+        logger.error(f"[INSPECT] [{region}] Error during inspection: {e}")
+        import traceback
+        logger.debug(f"[INSPECT] [{region}] Traceback: {traceback.format_exc()}")
         
     return result
 
@@ -2260,14 +2282,23 @@ def inspect_all_regions():
         access_key = data.get('access_key', '').strip()
         secret_key = data.get('secret_key', '').strip()
         
+        # Get naming configuration from request (preferred) or database (fallback)
+        lambda_prefix = data.get('lambda_prefix', '').strip() or get_naming_config().get('production_lambda_name', 'gbot-chromium')
+        ecr_repo_name = data.get('ecr_repo_name', '').strip() or get_naming_config().get('ecr_repo_name', 'gbot-app-password-worker')
+        
+        logger.info(f"[INSPECT] Starting global inspection for {len(AVAILABLE_GEO_REGIONS)} regions...")
+        logger.info(f"[INSPECT] Using Lambda prefix: {lambda_prefix}")
+        logger.info(f"[INSPECT] Using ECR repo: {ecr_repo_name}")
+        
         if not access_key or not secret_key:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
-            
-        logger.info(f"[INSPECT] Starting global inspection for {len(AVAILABLE_GEO_REGIONS)} regions...")
         
         results = []
         with ThreadPoolExecutor(max_workers=20) as pool:
-            future_to_region = {pool.submit(inspect_region_task, access_key, secret_key, region): region for region in AVAILABLE_GEO_REGIONS}
+            future_to_region = {
+                pool.submit(inspect_region_task, access_key, secret_key, region, lambda_prefix, ecr_repo_name): region 
+                for region in AVAILABLE_GEO_REGIONS
+            }
             
             for future in as_completed(future_to_region):
                 region = future_to_region[future]

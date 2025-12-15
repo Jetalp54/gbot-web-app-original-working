@@ -655,6 +655,7 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey } = creds;
+        const naming = getNamingConfig();
 
         const loading = document.getElementById('globalStatusLoading');
         const tbody = document.getElementById('statusTableBody');
@@ -664,7 +665,9 @@
         tbody.innerHTML = ''; // Clear table body
         if (tfoot) tfoot.innerHTML = ''; // Clear table footer
 
-        log('Initiating global AWS resource status check...');
+        log(`Initiating global AWS resource status check...`);
+        log(`Using Lambda prefix: ${naming.lambda_prefix}`);
+        log(`Using ECR repo: ${naming.ecr_repo_name}`);
 
         try {
             const response = await fetch('/api/aws/inspect-all-regions', {
@@ -674,7 +677,9 @@
                 },
                 body: JSON.stringify({
                     access_key: accessKey,
-                    secret_key: secretKey
+                    secret_key: secretKey,
+                    lambda_prefix: naming.lambda_prefix,
+                    ecr_repo_name: naming.ecr_repo_name
                 })
             });
 
