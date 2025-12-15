@@ -5930,6 +5930,10 @@ def ec2_create_build_box():
         except Exception as e:
             return jsonify({'success': False, 'error': f'ECR repository verification failed: {e}'}), 500
         
+        # Ensure user's AWS credentials have S3 write permissions before uploading files
+        logger.info("[EC2] Ensuring user has S3 write permissions...")
+        ensure_user_s3_permissions(session)
+        
         # Create EC2 resources with custom names based on prefix
         role_arn = ensure_ec2_role_profile(session, prefix)
         sg_id = ensure_ec2_security_group(session, prefix)
@@ -6834,6 +6838,35 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id, instance_
         create_s3_bucket(session, region, s3_bucket_name)
     except Exception as e:
         logger.warning(f"[EC2] S3 bucket creation warning: {e}")
+
+    # Test S3 write permissions before uploading files
+    logger.info(f"[EC2] Testing S3 write permissions for bucket {s3_bucket_name}...")
+    try:
+        test_key = f"ec2-build-files/.test-write-permission-{int(time.time())}"
+        s3.put_object(
+            Bucket=s3_bucket_name,
+            Key=test_key,
+            Body=b"test",
+            ContentType="text/plain"
+        )
+        # Clean up test object
+        try:
+            s3.delete_object(Bucket=s3_bucket_name, Key=test_key)
+        except:
+            pass
+        logger.info(f"[EC2] ✓ S3 write permissions verified for bucket {s3_bucket_name}")
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'AccessDenied':
+            raise Exception(
+                f"Access Denied to S3 bucket {s3_bucket_name}. "
+                f"Please ensure your AWS credentials have S3 write permissions (s3:PutObject, s3:DeleteObject). "
+                f"You can attach the 'AmazonS3FullAccess' policy to your IAM user, or create a custom policy with these permissions for bucket '{s3_bucket_name}'."
+            )
+        else:
+            raise Exception(f"Failed to verify S3 write permissions: {e}")
+    except Exception as e:
+        logger.warning(f"[EC2] Could not test S3 permissions: {e}, proceeding anyway...")
 
     # Upload custom files to S3 for EC2 to download
     s3_build_prefix = "ec2-build-files"
