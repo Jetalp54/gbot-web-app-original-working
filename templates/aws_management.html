@@ -687,6 +687,12 @@
 
             if (data.success) {
                 log('Global status check completed. Populating table...');
+                
+                if (!data.results || data.results.length === 0) {
+                    log('⚠️ No results returned from status check. This might indicate a configuration issue.');
+                    alert('No results returned. Please check server logs for details.');
+                    return;
+                }
 
                 // Initialize counters
                 let totalRegions = 0;
@@ -694,15 +700,23 @@
                 let totalRepos = 0;
                 let totalImages = 0;
                 let readyRegions = 0;
+                let errorRegions = 0;
 
                 data.results.forEach(region => {
                     totalRegions++;
                     if (region.lambda_count) totalLambdas += region.lambda_count;
                     if (region.ecr_repo) totalRepos++;
-                    if (region.image_tag && region.image_tag !== 'MISSING') totalImages++;
+                    if (region.image_tag && region.image_tag !== 'MISSING' && region.image_tag !== 'ERROR') totalImages++;
                     if (region.status === 'ready') readyRegions++;
+                    if (region.status === 'error') errorRegions++;
 
                     const tr = document.createElement('tr');
+                    
+                    // Add error details if available
+                    let errorDetails = '';
+                    if (region.error) {
+                        errorDetails = `<br><small style="color: var(--color-danger-fg);">Error: ${region.error.substring(0, 100)}</small>`;
+                    }
 
                     // Status Icon
                     let statusIcon = '❓ Unknown';
@@ -722,10 +736,10 @@
                     }
 
                     tr.innerHTML = `
-                        <td>${region.region}</td>
+                        <td>${region.region}${errorDetails}</td>
                         <td>${region.lambda_count !== undefined ? `${region.lambda_count} function(s)` : 'N/A'}</td>
                         <td>${region.ecr_repo ? '✅ Found' : '❌ Missing'}</td>
-                        <td>${region.image_tag === 'MISSING' ? '❌ Missing' : (region.image_tag ? '✅ ' + region.image_tag : '❌ None')}</td>
+                        <td>${region.image_tag === 'MISSING' ? '❌ Missing' : (region.image_tag === 'ERROR' ? '❌ Error' : (region.image_tag ? '✅ ' + region.image_tag : '❌ None'))}</td>
                         <td class="${statusClass}">${statusIcon}</td>
                     `;
                     tbody.appendChild(tr);
@@ -745,16 +759,19 @@
                 footerRow.style.borderTop = '2px solid var(--color-border-default)';
 
                 footerRow.innerHTML = `
-                    <td style="padding: 12px;">TOTAL (${totalRegions} Regions)</td>
+                    <td style="padding: 12px;">TOTAL (${totalRegions} Regions)${errorRegions > 0 ? ` - ${errorRegions} Error(s)` : ''}</td>
                     <td style="padding: 12px;">${totalLambdas} function(s)</td>
                     <td style="padding: 12px;">${totalRepos} Repo(s)</td>
                     <td style="padding: 12px;">${totalImages} Image(s)</td>
-                    <td style="padding: 12px;">${readyRegions}/${totalRegions} Ready</td>
+                    <td style="padding: 12px;">${readyRegions}/${totalRegions} Ready${errorRegions > 0 ? `, ${errorRegions} Error(s)` : ''}</td>
                 `;
 
                 const targetTfoot = document.getElementById('statusTableFoot') || document.querySelector('tfoot');
                 targetTfoot.innerHTML = '';
                 targetTfoot.appendChild(footerRow);
+                
+                // Log summary
+                log(`✓ Status check complete: ${totalRegions} regions checked, ${totalLambdas} Lambda(s), ${totalRepos} ECR repo(s), ${totalImages} image(s), ${readyRegions} ready${errorRegions > 0 ? `, ${errorRegions} error(s)` : ''}`);
 
             } else {
                 log(`❌ Error checking global status: ${data.error}`);
@@ -2095,7 +2112,18 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // Update the input field with the instance name that was created
+                    if (data.instance_name) {
+                        const instanceNameInput = document.getElementById('ec2InstanceName');
+                        if (instanceNameInput) {
+                            instanceNameInput.value = data.instance_name;
+                            log(`✓ Instance name field updated to: ${data.instance_name}`);
+                        }
+                    }
                     log('EC2 build box launch requested.');
+                    log(`Instance: ${data.instance_name || naming.ec2_instance_name}`);
+                    log(`ECR Repo: ${data.ecr_repo_name || naming.ecr_repo_name}`);
+                    log(`Prefix: ${data.prefix || 'N/A'}`);
                     log('Wait ~5–10 minutes for Docker build & ECR push to complete, then create Lambdas from the Lambdas tab.');
                     alert('EC2 build box launch requested.\n\nWait ~5–10 minutes for Docker build & ECR push to complete.');
                 } else {

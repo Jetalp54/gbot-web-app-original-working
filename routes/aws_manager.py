@@ -7118,13 +7118,15 @@ date
     return instance_id
 
 def find_ec2_build_instance(session, instance_name=None):
-    """Find EC2 build instance by name tag"""
+    """Find EC2 build instance by name tag - tries exact match first, then pattern match"""
     if instance_name is None:
         naming_config = get_naming_config()
         instance_name = naming_config.get('ec2_instance_name', 'gbot-ec2-build-box')
     
     logger.info(f"[EC2] Searching for instance with Name tag: {instance_name}")
     ec2 = session.client("ec2")
+    
+    # First, try exact match
     resp = ec2.describe_instances(
         Filters=[
             {"Name": "tag:Name", "Values": [instance_name]},
@@ -7136,5 +7138,31 @@ def find_ec2_build_instance(session, instance_name=None):
     )
     for r in resp.get("Reservations", []):
         for inst in r.get("Instances", []):
+            logger.info(f"[EC2] ✓ Found instance with exact name match: {instance_name}")
             return inst
+    
+    # If not found, try to find instances with "ec2-build-box" pattern (for backward compatibility)
+    logger.info(f"[EC2] Exact match not found, trying pattern search for instances with 'ec2-build-box' in name...")
+    resp = ec2.describe_instances(
+        Filters=[
+            {
+                "Name": "instance-state-name",
+                "Values": ["pending", "running", "stopping", "stopped"],
+            },
+        ]
+    )
+    
+    # Look for instances with Purpose tag containing "docker-selenium-lambda-build" or Name containing "ec2-build-box"
+    for r in resp.get("Reservations", []):
+        for inst in r.get("Instances", []):
+            tags = {tag['Key']: tag['Value'] for tag in inst.get('Tags', [])}
+            name_tag = tags.get('Name', '')
+            purpose_tag = tags.get('Purpose', '')
+            
+            # Check if it matches our pattern
+            if 'ec2-build-box' in name_tag.lower() or 'docker-selenium-lambda-build' in purpose_tag.lower():
+                logger.info(f"[EC2] ✓ Found instance with pattern match: Name={name_tag}, Purpose={purpose_tag}")
+                return inst
+    
+    logger.warning(f"[EC2] ✗ No EC2 build instance found with name '{instance_name}' or matching pattern")
     return None
