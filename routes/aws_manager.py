@@ -2205,7 +2205,11 @@ def inspect_region_task(access_key, secret_key, region, lambda_prefix=None, ecr_
         'lambda_count': 0,
         'ecr_repo': False,
         'image_tag': None,
-        'error': None
+        'error': None,
+        'lambda_prefix_searched': lambda_prefix or 'N/A',
+        'ecr_repo_searched': ecr_repo_name or 'N/A',
+        'lambda_functions_found': [],
+        'ecr_repo_found': None
     }
     
     try:
@@ -2225,41 +2229,95 @@ def inspect_region_task(access_key, secret_key, region, lambda_prefix=None, ecr_
         lam = session.client('lambda', config=Config(connect_timeout=5, read_timeout=5, retries={'max_attempts': 2}))
         functions = lam.list_functions()
         func_names = [f['FunctionName'] for f in functions.get('Functions', [])]
-        # Filter for our production lambdas - check if function name starts with prefix
+        
+        # Try exact prefix match first
         prod_funcs = [f for f in func_names if f.startswith(lambda_prefix)]
+        
+        # If no matches, try to extract prefix from ECR repo name and search again
+        if not prod_funcs and ecr_repo_name:
+            # Extract prefix from ECR repo (e.g., "dev-app-password-worker" -> "dev")
+            ecr_prefix = ecr_repo_name.split('-')[0] if '-' in ecr_repo_name else None
+            if ecr_prefix and ecr_prefix != lambda_prefix:
+                logger.debug(f"[INSPECT] [{region}] No Lambdas found with prefix '{lambda_prefix}', trying prefix '{ecr_prefix}' from ECR repo name")
+                prod_funcs = [f for f in func_names if f.startswith(ecr_prefix)]
+                if prod_funcs:
+                    logger.info(f"[INSPECT] [{region}] Found Lambda functions using prefix '{ecr_prefix}': {prod_funcs}")
+        
+        # If still no matches, try common patterns
+        if not prod_funcs:
+            # Try patterns like "*-chromium-*", "*-lambda-*", etc.
+            common_patterns = ['chromium', 'lambda', 'worker', 'app-password']
+            for pattern in common_patterns:
+                pattern_funcs = [f for f in func_names if pattern in f.lower()]
+                if pattern_funcs:
+                    logger.debug(f"[INSPECT] [{region}] Found Lambda functions matching pattern '{pattern}': {pattern_funcs}")
+                    prod_funcs = pattern_funcs
+                    break
+        
         result['lambda_count'] = len(prod_funcs)
+        result['lambda_functions_found'] = prod_funcs
         if prod_funcs:
             logger.debug(f"[INSPECT] [{region}] Found Lambda functions: {prod_funcs}")
+        else:
+            logger.debug(f"[INSPECT] [{region}] No Lambda functions found (searched with prefix '{lambda_prefix}', total functions in region: {len(func_names)})")
+            if func_names:
+                logger.debug(f"[INSPECT] [{region}] Available Lambda functions in region: {func_names[:10]}...")  # Show first 10
         
         # Check ECR Repo
         ecr = session.client('ecr', config=Config(connect_timeout=5, read_timeout=5, retries={'max_attempts': 2}))
+        found_repo_name = None
         try:
             ecr.describe_repositories(repositoryNames=[ecr_repo_name])
+            found_repo_name = ecr_repo_name
             result['ecr_repo'] = True
+            result['ecr_repo_found'] = found_repo_name
             logger.debug(f"[INSPECT] [{region}] ECR repo '{ecr_repo_name}' exists")
-            
-            # Check Image
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == 'RepositoryNotFoundException':
+                # Try to find repos with similar names
+                logger.debug(f"[INSPECT] [{region}] ECR repo '{ecr_repo_name}' not found, searching for similar repos...")
+                try:
+                    all_repos = ecr.describe_repositories()
+                    repo_names = [r['repositoryName'] for r in all_repos.get('repositories', [])]
+                    
+                    # Try to find repos matching common patterns
+                    # Extract base name (e.g., "app-password-worker" from "dev-app-password-worker")
+                    base_patterns = ['app-password-worker', 'app-password', 'password-worker', 'worker']
+                    for pattern in base_patterns:
+                        matching_repos = [r for r in repo_names if pattern in r.lower()]
+                        if matching_repos:
+                            found_repo_name = matching_repos[0]  # Use first match
+                            result['ecr_repo'] = True
+                            result['ecr_repo_found'] = found_repo_name
+                            logger.info(f"[INSPECT] [{region}] Found ECR repo '{found_repo_name}' (was looking for '{ecr_repo_name}')")
+                            break
+                    
+                    if not found_repo_name:
+                        result['ecr_repo'] = False
+                        logger.debug(f"[INSPECT] [{region}] No matching ECR repos found. Available repos: {repo_names}")
+                except Exception as search_err:
+                    logger.warning(f"[INSPECT] [{region}] Error searching for ECR repos: {search_err}")
+                    result['ecr_repo'] = False
+            else:
+                logger.warning(f"[INSPECT] [{region}] Error checking ECR repo: {e}")
+                raise
+        
+        # Check Image if repo was found
+        if result['ecr_repo'] and found_repo_name:
             try:
-                images = ecr.list_images(repositoryName=ecr_repo_name, filter={'tagStatus': 'TAGGED'})
+                images = ecr.list_images(repositoryName=found_repo_name, filter={'tagStatus': 'TAGGED'})
                 tags = [i.get('imageTag') for i in images.get('imageIds', [])]
-                logger.debug(f"[INSPECT] [{region}] Found image tags: {tags}")
+                logger.debug(f"[INSPECT] [{region}] Found image tags in '{found_repo_name}': {tags}")
                 if ECR_IMAGE_TAG in tags:
                     result['image_tag'] = ECR_IMAGE_TAG
                     logger.debug(f"[INSPECT] [{region}] ✓ Image tag '{ECR_IMAGE_TAG}' found")
                 else:
                     result['image_tag'] = 'MISSING'
-                    logger.debug(f"[INSPECT] [{region}] ✗ Image tag '{ECR_IMAGE_TAG}' not found")
+                    logger.debug(f"[INSPECT] [{region}] ✗ Image tag '{ECR_IMAGE_TAG}' not found (available tags: {tags})")
             except Exception as img_err:
                 logger.warning(f"[INSPECT] [{region}] Error checking images: {img_err}")
                 result['image_tag'] = 'ERROR'
-        except ClientError as e:
-            error_code = e.response.get('Error', {}).get('Code', '')
-            if error_code == 'RepositoryNotFoundException':
-                result['ecr_repo'] = False
-                logger.debug(f"[INSPECT] [{region}] ECR repo '{ecr_repo_name}' not found")
-            else:
-                logger.warning(f"[INSPECT] [{region}] Error checking ECR repo: {e}")
-                raise
                 
         result['status'] = 'ready' if result['lambda_count'] > 0 and result['ecr_repo'] and result['image_tag'] == ECR_IMAGE_TAG else 'incomplete'
         logger.info(f"[INSPECT] [{region}] Status: {result['status']} (Lambdas: {result['lambda_count']}, ECR: {result['ecr_repo']}, Image: {result['image_tag']})")

@@ -712,10 +712,26 @@
 
                     const tr = document.createElement('tr');
                     
-                    // Add error details if available
+                    // Add helpful hints when resources aren't found
                     let errorDetails = '';
+                    let lambdaHint = '';
+                    let ecrHint = '';
+                    
                     if (region.error) {
                         errorDetails = `<br><small style="color: var(--color-danger-fg);">Error: ${region.error.substring(0, 100)}</small>`;
+                    }
+                    
+                    // Show hints if resources weren't found
+                    if (region.lambda_count === 0 && region.lambda_functions_found && region.lambda_functions_found.length > 0) {
+                        lambdaHint = `<br><small style="color: var(--color-accent-fg);">Found: ${region.lambda_functions_found.join(', ')}</small>`;
+                    } else if (region.lambda_count === 0 && region.lambda_prefix_searched) {
+                        lambdaHint = `<br><small style="color: #656d76;">Searched: ${region.lambda_prefix_searched}*</small>`;
+                    }
+                    
+                    if (!region.ecr_repo && region.ecr_repo_found) {
+                        ecrHint = `<br><small style="color: var(--color-accent-fg);">Found: ${region.ecr_repo_found}</small>`;
+                    } else if (!region.ecr_repo && region.ecr_repo_searched) {
+                        ecrHint = `<br><small style="color: #656d76;">Searched: ${region.ecr_repo_searched}</small>`;
                     }
 
                     // Status Icon
@@ -737,8 +753,8 @@
 
                     tr.innerHTML = `
                         <td>${region.region}${errorDetails}</td>
-                        <td>${region.lambda_count !== undefined ? `${region.lambda_count} function(s)` : 'N/A'}</td>
-                        <td>${region.ecr_repo ? '✅ Found' : '❌ Missing'}</td>
+                        <td>${region.lambda_count !== undefined ? `${region.lambda_count} function(s)` : 'N/A'}${lambdaHint}</td>
+                        <td>${region.ecr_repo ? '✅ Found' : '❌ Missing'}${ecrHint}</td>
                         <td>${region.image_tag === 'MISSING' ? '❌ Missing' : (region.image_tag === 'ERROR' ? '❌ Error' : (region.image_tag ? '✅ ' + region.image_tag : '❌ None'))}</td>
                         <td class="${statusClass}">${statusIcon}</td>
                     `;
@@ -772,6 +788,17 @@
                 
                 // Log summary
                 log(`✓ Status check complete: ${totalRegions} regions checked, ${totalLambdas} Lambda(s), ${totalRepos} ECR repo(s), ${totalImages} image(s), ${readyRegions} ready${errorRegions > 0 ? `, ${errorRegions} error(s)` : ''}`);
+                
+                // Show helpful message if no resources found
+                if (totalLambdas === 0 && totalRepos === 0) {
+                    log(`⚠️ No resources found. Make sure the Lambda prefix and ECR repo name in the UI match your actual resource names.`);
+                    log(`   Current settings: Lambda prefix="${naming.lambda_prefix}", ECR repo="${naming.ecr_repo_name}"`);
+                    log(`   Tip: Update these fields in the "Core Infrastructure" and "Production Lambda" tabs to match your actual resources.`);
+                } else if (totalLambdas === 0) {
+                    log(`⚠️ No Lambda functions found with prefix "${naming.lambda_prefix}". Check if your Lambdas use a different prefix.`);
+                } else if (totalRepos === 0) {
+                    log(`⚠️ No ECR repos found with name "${naming.ecr_repo_name}". Check if your repo uses a different name.`);
+                }
 
             } else {
                 log(`❌ Error checking global status: ${data.error}`);
