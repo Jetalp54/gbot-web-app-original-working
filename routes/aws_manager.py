@@ -415,11 +415,35 @@ def save_aws_config():
         if session.get('role') != 'admin':
             return jsonify({'success': False, 'error': 'Admin privileges required'}), 403
         
-        # Ensure table exists
+        # Ensure table exists and has required columns
         try:
             inspector = db.inspect(db.engine)
             if 'aws_config' not in inspector.get_table_names():
                 db.create_all()
+            else:
+                # Check if multi-tenant columns exist, add them if missing
+                columns = [col['name'] for col in inspector.get_columns('aws_config')]
+                missing_columns = []
+                
+                if 'instance_name' not in columns:
+                    missing_columns.append(('instance_name', "VARCHAR(100) DEFAULT 'default'"))
+                if 'ecr_repo_name' not in columns:
+                    missing_columns.append(('ecr_repo_name', "VARCHAR(255) DEFAULT 'gbot-app-password-worker'"))
+                if 'lambda_prefix' not in columns:
+                    missing_columns.append(('lambda_prefix', "VARCHAR(100) DEFAULT 'gbot-chromium'"))
+                if 'dynamodb_table' not in columns:
+                    missing_columns.append(('dynamodb_table', "VARCHAR(255) DEFAULT 'gbot-app-passwords'"))
+                
+                if missing_columns:
+                    logger.info(f"[AWS_CONFIG] Adding missing columns: {[c[0] for c in missing_columns]}")
+                    for col_name, col_type in missing_columns:
+                        try:
+                            db.session.execute(text(f'ALTER TABLE aws_config ADD COLUMN {col_name} {col_type}'))
+                            db.session.commit()
+                            logger.info(f"[AWS_CONFIG] ✓ Added column {col_name}")
+                        except Exception as col_err:
+                            db.session.rollback()
+                            logger.warning(f"[AWS_CONFIG] Could not add column {col_name}: {col_err}")
         except Exception as e:
             logger.warning(f"Could not check/create aws_config table: {e}")
         
@@ -433,18 +457,18 @@ def save_aws_config():
         ecr_uri = data.get('ecr_uri', '').strip()
         s3_bucket = data.get('s3_bucket', 'gbot-app-passwords').strip()
         
-        # Multi-tenant naming configuration
-        instance_name = data.get('instance_name', 'default').strip()
-        ecr_repo_name = data.get('ecr_repo_name', 'gbot-app-password-worker').strip()
-        lambda_prefix = data.get('lambda_prefix', 'gbot-chromium').strip()
-        dynamodb_table = data.get('dynamodb_table', 'gbot-app-passwords').strip()
+        # Multi-tenant naming configuration (with safe defaults)
+        instance_name = data.get('instance_name', 'default').strip() or 'default'
+        ecr_repo_name = data.get('ecr_repo_name', 'gbot-app-password-worker').strip() or 'gbot-app-password-worker'
+        lambda_prefix = data.get('lambda_prefix', 'gbot-chromium').strip() or 'gbot-chromium'
+        dynamodb_table = data.get('dynamodb_table', 'gbot-app-passwords').strip() or 'gbot-app-passwords'
 
         if not access_key_id or not secret_access_key or not region:
             return jsonify({'success': False, 'error': 'Please provide Access Key ID, Secret Access Key and Region.'}), 400
         
-        # Validate instance_name (alphanumeric, dashes, underscores only)
+        # Validate instance_name (alphanumeric, dashes, underscores only) - only if provided
         import re
-        if instance_name and not re.match(r'^[a-zA-Z0-9_-]+$', instance_name):
+        if instance_name and instance_name != 'default' and not re.match(r'^[a-zA-Z0-9_-]+$', instance_name):
             return jsonify({'success': False, 'error': 'Instance name can only contain letters, numbers, dashes and underscores.'}), 400
 
         # Get or create config
@@ -456,29 +480,65 @@ def save_aws_config():
         else:
             logger.info("[AWS_CONFIG] Updating existing AWS config entry")
         
-        # Update config
+        # Update config - core fields (always required)
         config.access_key_id = access_key_id
         config.secret_access_key = secret_access_key
         config.region = region
         config.ecr_uri = ecr_uri if ecr_uri and ecr_uri != '(connect first)' else None
         config.s3_bucket = s3_bucket
-        # Multi-tenant naming
-        config.instance_name = instance_name or 'default'
-        config.ecr_repo_name = ecr_repo_name or 'gbot-app-password-worker'
-        config.lambda_prefix = lambda_prefix or 'gbot-chromium'
-        config.dynamodb_table = dynamodb_table or 'gbot-app-passwords'
         config.is_configured = True
         
-        # Commit the changes
-        db.session.commit()
-        logger.info("[AWS_CONFIG] ✓ AWS configuration saved successfully")
+        # Multi-tenant naming (only set if columns exist, use safe defaults)
+        try:
+            # Check if columns exist before setting them
+            inspector = db.inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('aws_config')]
+            
+            if 'instance_name' in columns:
+                config.instance_name = instance_name
+            if 'ecr_repo_name' in columns:
+                config.ecr_repo_name = ecr_repo_name
+            if 'lambda_prefix' in columns:
+                config.lambda_prefix = lambda_prefix
+            if 'dynamodb_table' in columns:
+                config.dynamodb_table = dynamodb_table
+        except Exception as col_err:
+            logger.warning(f"[AWS_CONFIG] Could not set multi-tenant fields (columns may not exist): {col_err}")
+            # Continue without multi-tenant fields - not critical for basic save
         
-        return jsonify({'success': True, 'message': 'AWS configuration saved successfully'})
+        # Commit the changes
+        try:
+            db.session.commit()
+            logger.info("[AWS_CONFIG] ✓ AWS configuration saved successfully")
+            logger.info(f"[AWS_CONFIG] Saved: access_key_id={access_key_id[:4]}***, region={region}, s3_bucket={s3_bucket}")
+            
+            return jsonify({'success': True, 'message': 'AWS configuration saved successfully'})
+        except Exception as commit_err:
+            db.session.rollback()
+            logger.error(f"[AWS_CONFIG] Database commit failed: {commit_err}")
+            logger.error(traceback.format_exc())
+            # Check if it's a column error
+            if 'no such column' in str(commit_err).lower() or 'column' in str(commit_err).lower():
+                return jsonify({
+                    'success': False, 
+                    'error': f'Database schema error. Please run migration: python3 migrate_db.py. Details: {str(commit_err)}'
+                }), 500
+            raise  # Re-raise to be caught by outer except
     except Exception as e:
-        logger.error(f"Error saving AWS config: {e}")
+        logger.error(f"[AWS_CONFIG] Error saving AWS config: {e}")
         logger.error(traceback.format_exc())
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        
+        # Provide more helpful error messages
+        error_msg = str(e)
+        if 'no such column' in error_msg.lower():
+            error_msg = 'Database schema is outdated. Please run: python3 migrate_db.py'
+        elif 'UNIQUE constraint' in error_msg:
+            error_msg = 'Configuration already exists. Updating existing entry...'
+        elif 'permission denied' in error_msg.lower():
+            error_msg = 'Database permission error. Check file permissions.'
+        
+        return jsonify({'success': False, 'error': error_msg}), 500
 
 @aws_manager.route('/api/aws/get-config', methods=['GET'])
 @login_required

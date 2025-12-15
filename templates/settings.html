@@ -2828,17 +2828,41 @@
         }
 
         showStatus('Saving AWS configuration...', 'info');
+        
+        // Debug: Log what we're sending (without sensitive data)
+        console.log('[AWS SAVE] Sending config:', {
+            access_key_id: config.access_key_id ? config.access_key_id.substring(0, 4) + '***' : 'empty',
+            secret_access_key: config.secret_access_key ? '***' : 'empty',
+            region: config.region,
+            ecr_uri: config.ecr_uri,
+            s3_bucket: config.s3_bucket,
+            has_access_key: !!config.access_key_id,
+            has_secret_key: !!config.secret_access_key,
+            has_region: !!config.region
+        });
 
         fetch('/api/aws/save-config', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             body: JSON.stringify(config)
         })
             .then(response => {
-                console.log('Response status:', response.status);
+                console.log('[AWS SAVE] Response status:', response.status);
+                console.log('[AWS SAVE] Response headers:', Object.fromEntries(response.headers.entries()));
+                
                 if (!response.ok) {
-                    return response.json().then(err => {
-                        throw new Error(err.error || `HTTP ${response.status}`);
+                    // Try to get error message from response
+                    return response.text().then(text => {
+                        console.error('[AWS SAVE] Error response body:', text);
+                        try {
+                            const errData = JSON.parse(text);
+                            throw new Error(errData.error || `HTTP ${response.status}: ${text.substring(0, 200)}`);
+                        } catch (parseErr) {
+                            throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+                        }
                     });
                 }
                 return response.json();
