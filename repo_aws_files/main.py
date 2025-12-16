@@ -2625,6 +2625,42 @@ def login_google(driver, email, password, known_totp_secret=None):
                                     elif "myaccount.google.com" in current_url_after_captcha:
                                         logger.info("[STEP] ✓ Already logged in after image CAPTCHA solve!")
                                         return True, None, None
+                                    elif '/signin/identifier' in current_url_after_captcha or 'identifier' in current_url_after_captcha.lower():
+                                        logger.warning("[STEP] Still on identifier page after CAPTCHA solve. Attempting to click Next again...")
+                                        
+                                        # Retry clicking Next button
+                                        next_button_xpaths = [
+                                            "//div[@id='identifierNext']//button",
+                                            "//button[span[text()='Next']]",
+                                            "//button[contains(., 'Next')]",
+                                            "//div[@id='identifierNext']"
+                                        ]
+                                        
+                                        next_clicked = False
+                                        for xpath in next_button_xpaths:
+                                            try:
+                                                if element_exists(driver, xpath, timeout=3):
+                                                    btn = wait_for_clickable_xpath(driver, xpath, timeout=3)
+                                                    if btn:
+                                                        logger.info(f"[STEP] Found Next button for retry: {xpath}")
+                                                        driver.execute_script("arguments[0].click();", btn)
+                                                        next_clicked = True
+                                                        break
+                                            except:
+                                                continue
+                                        
+                                        if next_clicked:
+                                            logger.info("[STEP] Clicked Next button again. Waiting for transition...")
+                                            time.sleep(5)
+                                            
+                                            # Check URL again
+                                            current_url_retry = driver.current_url
+                                            if "challenge/pwd" in current_url_retry or "signin/challenge/pwd" in current_url_retry:
+                                                logger.info("[STEP] ✓ Page redirected to password page after retry click!")
+                                            else:
+                                                logger.warning(f"[STEP] Still on identifier page after retry click. URL: {current_url_retry[:50]}...")
+                                        else:
+                                            logger.warning("[STEP] Could not find Next button for retry.")
                                 else:
                                     logger.error(f"[STEP] ✗ Failed to solve Image CAPTCHA: {error}")
                                     logger.warning("[STEP] Waiting 5-10 seconds to see if Google auto-clears it...")
