@@ -1810,6 +1810,7 @@
 
         log(`Fetching ${emails.length} passwords from DynamoDB...`);
 
+        const naming = getNamingConfig();
         fetch('/api/aws/fetch-from-dynamodb', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1817,7 +1818,8 @@
                 access_key: accessKey,
                 secret_key: secretKey,
                 region: region,
-                emails: emails
+                emails: emails,
+                dynamodb_table: naming.dynamodb_table || 'gbot-app-passwords'
             })
         })
             .then(response => response.json())

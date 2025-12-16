@@ -3958,7 +3958,10 @@ def bulk_generate():
                         dynamodb_batch = session_batch.resource('dynamodb', config=Config(
                             max_pool_connections=10
                         ))
-                        table_batch = dynamodb_batch.Table("gbot-app-passwords")
+                        # Use configurable DynamoDB table name
+                        dynamodb_table_batch = dynamodb_table_bulk  # From outer scope
+                        table_batch = dynamodb_batch.Table(dynamodb_table_batch)
+                        logger.info(f"[BULK] Using DynamoDB table: {dynamodb_table_batch}")
                     
                         # Prepare all users for processing - NO pre-filtering
                         # Lambda will handle deduplication if needed
@@ -4328,12 +4331,14 @@ def bulk_generate():
                                         logger.info(f"[BULK] [{geo}] ✓ Function {func_name} found in region {geo}")
                                         try:
                                             role_arn = ensure_lambda_role(session_boto)
+                                            # Use configurable DynamoDB table name from bulk_generate scope
                                             chromium_env = {
-                                                "DYNAMODB_TABLE_NAME": "gbot-app-passwords",
+                                                "DYNAMODB_TABLE_NAME": dynamodb_table_bulk,  # Use configurable table name
                                                 "DYNAMODB_REGION": "eu-west-1",
                                                 "APP_PASSWORDS_S3_BUCKET": S3_BUCKET_NAME,
                                                 "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
                                             }
+                                            logger.info(f"[BULK] [{geo}] Using DynamoDB table: {dynamodb_table_bulk}")
                                             
                                             # Add proxy configuration if enabled
                                             proxy_config = get_proxy_config()
@@ -4823,12 +4828,14 @@ def fetch_from_dynamodb():
         if not emails:
             return jsonify({'success': False, 'error': 'No emails provided'}), 400
         
+        # Get configurable DynamoDB table name from request (preferred) or database (fallback)
+        table_name = data.get('dynamodb_table', '').strip() or get_naming_config().get('dynamodb_table', DEFAULT_DYNAMODB_TABLE)
+        
         # Centralized DynamoDB region - all Lambda functions save to this single table
         # This saves resources (1 table instead of 17 tables)
         dynamodb_region = "eu-west-1"  # Fixed region for centralized storage
-        table_name = "gbot-app-passwords"
         
-        logger.info(f"[DYNAMODB] Fetching {len(emails)} email(s) from DynamoDB in {dynamodb_region} (centralized storage)...")
+        logger.info(f"[DYNAMODB] Fetching {len(emails)} email(s) from DynamoDB table '{table_name}' in {dynamodb_region} (centralized storage)...")
         
         session = get_boto3_session(access_key, secret_key, dynamodb_region)
         dynamodb = session.resource('dynamodb')
@@ -6207,12 +6214,16 @@ def get_aws_status():
             'error': None
         }
         try:
+            # Use configurable DynamoDB table name
+            dynamodb_table_status = data.get('dynamodb_table', '').strip() or get_naming_config().get('dynamodb_table', DEFAULT_DYNAMODB_TABLE)
             dynamodb_session = get_boto3_session(access_key, secret_key, 'eu-west-1')
             dynamodb = dynamodb_session.resource('dynamodb')
-            table = dynamodb.Table("gbot-app-passwords")
+            table = dynamodb.Table(dynamodb_table_status)
+            logger.info(f"[STATUS] Checking DynamoDB table: {dynamodb_table_status}")
             try:
                 table.load()
                 dynamodb_status['table_exists'] = True
+                dynamodb_status['table_name'] = dynamodb_table_status
                 # Get item count (approximate)
                 try:
                     response = table.scan(Select='COUNT')
