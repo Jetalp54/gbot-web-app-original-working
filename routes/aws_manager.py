@@ -2442,21 +2442,84 @@ def create_lambdas():
         instance_name = prefix  # Use prefix as instance identifier
         
         logger.info(f"[LAMBDA] Using naming from REQUEST: lambda_prefix={lambda_prefix}, ecr_repo={ecr_repo_name}, dynamodb={dynamodb_table}, prefix={prefix}")
+        
+        # Parse ECR URI and reconstruct if repo name doesn't match
+        import re
+        ecr_uri_repo_name = None
+        if ecr_uri and 'amazonaws.com' in ecr_uri:
+            ecr_match = re.match(r'(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com/([^:]+):(.+)', ecr_uri)
+            if ecr_match:
+                account_id, uri_region, ecr_uri_repo_name, image_tag = ecr_match.groups()
+                logger.info(f"[LAMBDA] Parsed ECR URI - Account: {account_id}, Region: {uri_region}, Repo: {ecr_uri_repo_name}, Tag: {image_tag}")
+                
+                # If repo name in URI doesn't match configurable name, reconstruct URI
+                if ecr_uri_repo_name != ecr_repo_name:
+                    logger.warning(f"[LAMBDA] ⚠️ ECR URI repo name '{ecr_uri_repo_name}' doesn't match configurable name '{ecr_repo_name}'")
+                    logger.info(f"[LAMBDA] Reconstructing ECR URI with correct repo name: {ecr_repo_name}")
+                    ecr_uri = f"{account_id}.dkr.ecr.{uri_region}.amazonaws.com/{ecr_repo_name}:{image_tag}"
+                    logger.info(f"[LAMBDA] New ECR URI: {ecr_uri}")
 
         session = get_boto3_session(access_key, secret_key, region)
 
-        # Verify ECR image exists
+        # Verify ECR image exists using configurable repo name
         ecr = session.client("ecr")
+        logger.info(f"[LAMBDA] Verifying ECR image exists in repo: {ecr_repo_name}, tag: {ECR_IMAGE_TAG}, region: {region}")
         try:
-            ecr.describe_images(
-                repositoryName=ecr_repo_name,
-                imageIds=[{"imageTag": ECR_IMAGE_TAG}],
-            )
-        except ClientError as ce:
+            # First check if repository exists
+            try:
+                repo_response = ecr.describe_repositories(repositoryNames=[ecr_repo_name])
+                logger.info(f"[LAMBDA] ✓ ECR repository '{ecr_repo_name}' exists in region {region}")
+            except ClientError as repo_err:
+                error_code = repo_err.response.get('Error', {}).get('Code', '')
+                if error_code == 'RepositoryNotFoundException':
+                    logger.error(f"[LAMBDA] ✗ ECR repository '{ecr_repo_name}' NOT FOUND in region {region}")
+                    return jsonify({
+                        'success': False,
+                        'error': f'ECR repository "{ecr_repo_name}" not found in region {region}. Please create the repository first or check the repository name.'
+                    }), 400
+                else:
+                    raise repo_err
+            
+            # Then check if image exists
+            try:
+                ecr.describe_images(
+                    repositoryName=ecr_repo_name,
+                    imageIds=[{"imageTag": ECR_IMAGE_TAG}],
+                )
+                logger.info(f"[LAMBDA] ✓ ECR image with tag '{ECR_IMAGE_TAG}' exists in repository '{ecr_repo_name}'")
+            except ClientError as img_err:
+                error_code = img_err.response.get('Error', {}).get('Code', '')
+                if error_code == 'ImageNotFoundException':
+                    logger.error(f"[LAMBDA] ✗ ECR image with tag '{ECR_IMAGE_TAG}' NOT FOUND in repository '{ecr_repo_name}'")
+                    # Try to list available images to help user
+                    try:
+                        list_response = ecr.list_images(repositoryName=ecr_repo_name, maxResults=10)
+                        available_tags = [img.get('imageTag') for img in list_response.get('imageIds', []) if img.get('imageTag')]
+                        if available_tags:
+                            return jsonify({
+                                'success': False,
+                                'error': f'ECR image with tag "{ECR_IMAGE_TAG}" not found in repository "{ecr_repo_name}". Available tags: {", ".join(available_tags[:5])}. Launch EC2 build box to build and push the image.'
+                            }), 400
+                        else:
+                            return jsonify({
+                                'success': False,
+                                'error': f'ECR repository "{ecr_repo_name}" exists but contains no images. Launch EC2 build box, wait a few minutes for the build to complete, then try again.'
+                            }), 400
+                    except Exception as list_err:
+                        logger.warning(f"[LAMBDA] Could not list images: {list_err}")
+                        return jsonify({
+                            'success': False,
+                            'error': f'ECR image with tag "{ECR_IMAGE_TAG}" not found in repository "{ecr_repo_name}". Launch EC2 build box, wait a few minutes, then try again.'
+                        }), 400
+                else:
+                    raise img_err
+        except Exception as e:
+            logger.error(f"[LAMBDA] Error verifying ECR image: {e}")
+            logger.error(traceback.format_exc())
             return jsonify({
                 'success': False,
-                'error': 'ECR image does not appear to exist yet. Launch EC2 build box, wait a few minutes, then try again.'
-            }), 400
+                'error': f'Error verifying ECR image: {str(e)}'
+            }), 500
 
         # Ensure IAM role with custom prefix
         lambda_role_name = f"{prefix}-lambda-role"
