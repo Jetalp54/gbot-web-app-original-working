@@ -44,6 +44,9 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Global Constants
+DEFAULT_TIMEOUT = 10
+
 # =====================================================================
 # Global boto3 clients/resources (reused across invocations for better performance)
 # =====================================================================
@@ -2359,64 +2362,104 @@ def login_google(driver, email, password, known_totp_secret=None):
         return False, "navigation_failed", str(nav_error)
 
     try:
-        # ========== STEP 1: Find email input (with multiple attempts and human behavior) ==========
-        logger.info("[STEP] Step 1: Locating email input field...")
-        email_input = None
-        for attempt in range(3):
+        # ========== STEP 1: Find and Enter Email (with retry logic) ==========
+        email_submission_success = False
+        max_email_retries = 3
+        
+        for email_attempt in range(max_email_retries):
             try:
-                email_input = wait_for_xpath(driver, "//input[@id='identifierId']", timeout=10)
-                if email_input:
-                    break
-            except:
-                if attempt < 2:
-                    logger.info(f"[STEP] Email input not found, retrying... (attempt {attempt + 1}/3)")
-                    time.sleep(random.uniform(1, 2))
-                    random_scroll_and_mouse_move(driver)
-                else:
-                    raise
-        
-        if not email_input:
-            raise Exception("Email input field not found after 3 attempts")
-        
-        # ========== STEP 2: Human-like interaction before typing ==========
-        logger.info("[STEP] Step 2: Simulating human behavior before typing...")
-        random_scroll_and_mouse_move(driver)
-        time.sleep(random.uniform(0.5, 1.2))  # Human thinking delay
-        
-        # Move mouse to input field (simulate human focus)
-        try:
-            driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", email_input)
-            time.sleep(random.uniform(0.3, 0.7))
-        except:
-            pass
-        
-        # ========== STEP 3: Clear field with human-like behavior ==========
-        logger.info("[STEP] Step 3: Clearing email field...")
-        email_input.clear()
-        add_random_delays()
-        time.sleep(random.uniform(0.2, 0.5))
-        
-        # ========== STEP 4: Type email with realistic human typing ==========
-        logger.info("[STEP] Step 4: Typing email address...")
-        simulate_human_typing(email_input, email, driver)
-        logger.info("[STEP] Email entered with human-like typing")
-        
-        # ========== STEP 5: Human pause before submission ==========
-        logger.info("[STEP] Step 5: Human pause before submission...")
-        time.sleep(random.uniform(0.5, 1.2))  # Human reading/checking delay
-        
-        # ========== STEP 6: Submit email using Enter key ==========
-        logger.info("[STEP] Step 6: Submitting email...")
-        email_input.send_keys(Keys.RETURN)
-        logger.info("[STEP] Email submitted using Enter key")
+                logger.info(f"[STEP] Email submission attempt {email_attempt + 1}/{max_email_retries}")
+                
+                # 1. Find email input
+                logger.info("[STEP] Locating email input field...")
+                email_input = None
+                email_input_xpaths = [
+                    "//input[@id='identifierId']",
+                    "//input[@type='email']",
+                    "//input[@name='identifier']"
+                ]
+                
+                for xpath in email_input_xpaths:
+                    if element_exists(driver, xpath, timeout=5):
+                        email_input = wait_for_xpath(driver, xpath, timeout=5)
+                        break
+                
+                if not email_input:
+                    logger.warning(f"[STEP] Email input not found on attempt {email_attempt + 1}")
+                    if email_attempt < max_email_retries - 1:
+                        driver.refresh()
+                        time.sleep(3)
+                        continue
+                    else:
+                        raise Exception("Email input field not found")
 
-        # ========== STEP 7: Wait for page transition with human-like behavior ==========
-        logger.info("[STEP] Step 7: Waiting for page transition...")
-        time.sleep(random.uniform(2, 3.5))  # Realistic wait for page load
+                # 2. Human-like interaction
+                random_scroll_and_mouse_move(driver)
+                time.sleep(random.uniform(0.5, 1.0))
+                
+                # 3. Clear and Type
+                logger.info("[STEP] Clearing and typing email...")
+                try:
+                    email_input.clear()
+                except:
+                    pass # Ignore if clear fails
+                    
+                simulate_human_typing(email_input, email, driver)
+                logger.info("[STEP] Email entered with human-like typing")
+                time.sleep(random.uniform(0.5, 1.0))
+                
+                # 4. Find and Click Next Button (Explicit Click instead of Enter)
+                logger.info("[STEP] Locating 'Next' button...")
+                next_button = None
+                next_button_xpaths = [
+                    "//div[@id='identifierNext']//button",
+                    "//button[span[text()='Next']]",
+                    "//button[contains(., 'Next')]",
+                    "//div[@id='identifierNext']"
+                ]
+                
+                for xpath in next_button_xpaths:
+                    try:
+                        if element_exists(driver, xpath, timeout=3):
+                            next_button = wait_for_clickable_xpath(driver, xpath, timeout=3)
+                            if next_button:
+                                logger.info(f"[STEP] Found Next button with xpath: {xpath}")
+                                break
+                    except:
+                        continue
+                
+                if next_button:
+                    logger.info("[STEP] Clicking 'Next' button...")
+                    try:
+                        # Try standard click first
+                        next_button.click()
+                    except:
+                        # Fallback to JS click
+                        logger.info("[STEP] Standard click failed, using JavaScript click")
+                        driver.execute_script("arguments[0].click();", next_button)
+                else:
+                    # Fallback to Enter key if button not found (but log it)
+                    logger.warning("[STEP] 'Next' button not found, falling back to Enter key")
+                    email_input.send_keys(Keys.RETURN)
+                
+                # 5. Wait for transition
+                logger.info("[STEP] Waiting for page transition...")
+                time.sleep(random.uniform(2, 3.5))
+                
+                # Add human-like behavior during wait
+                random_scroll_and_mouse_move(driver)
+                
+                email_submission_success = True
+                break
+                
+            except Exception as e:
+                logger.warning(f"[STEP] Email submission attempt {email_attempt + 1} failed: {e}")
+                if email_attempt < max_email_retries - 1:
+                    driver.refresh()
+                    time.sleep(3)
         
-        # Add human-like behavior during wait
-        random_scroll_and_mouse_move(driver)
-        time.sleep(random.uniform(0.5, 1.0))
+        if not email_submission_success:
+            raise Exception("Failed to submit email after retries")
         
         # Check if we're still on the identifier page (email submission failed or CAPTCHA appeared)
         current_url = driver.current_url
@@ -3633,80 +3676,45 @@ def setup_authenticator(driver, email):
         # Step 2: Click "Can't scan it?" link to show text version
         logger.info("[STEP] Looking for 'Can't scan it?' link...")
         
-        # First try: Use JavaScript with div[11] as specified (priority)
+        # First try: Use JavaScript with dynamic div indices (more robust)
         cant_scan_clicked = False
-        try:
-            # Try div[11] first using JavaScript (as specified by user)
-            cant_scan_element = driver.execute_script("""
-                var element = document.evaluate(
-                    '/html/body/div[11]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]',
-                    document,
-                    null,
-                    XPathResult.FIRST_ORDERED_NODE_TYPE,
-                    null
-                ).singleNodeValue;
-                if (element) {
-                    element.click();
-                    return true;
-                }
-                return false;
-            """)
-            if cant_scan_element:
-                logger.info("[STEP] Clicked 'Can't scan it?' link using JavaScript with div[11]")
-                time.sleep(1)  # Reduced wait time
-                cant_scan_clicked = True
-        except Exception as js_err:
-            logger.debug(f"[STEP] JavaScript click with div[11] failed: {js_err}")
         
-        # If JavaScript didn't work, try XPath patterns (with div[11] as first priority)
+        # Try a range of div indices as the modal position can vary
+        for div_index in range(8, 18):
+            try:
+                # Construct XPath for this index
+                xpath = f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]"
+                
+                # Check if element exists
+                if element_exists(driver, xpath, timeout=0.5):
+                    logger.info(f"[STEP] Found 'Can't scan it?' button at div[{div_index}]")
+                    element = driver.find_element(By.XPATH, xpath)
+                    driver.execute_script("arguments[0].click();", element)
+                    logger.info(f"[STEP] Clicked 'Can't scan it?' link using div[{div_index}]")
+                    time.sleep(1)
+                    cant_scan_clicked = True
+                    break
+            except:
+                continue
+        
         if not cant_scan_clicked:
+            # Try generic XPaths
             cant_scan_xpaths = [
-                "/html/body/div[11]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]",  # Priority: div[11]
-                "/html/body/div[11]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[4]",
-                "/html/body/div[11]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[3]",
-                "/html/body/div[11]/div/div[2]/span/div/div/div/div[2]/center/div/div/button",
-                "//span[contains(text(), 'Can't scan it?')]",
-                "//a[contains(text(), 'Can't scan it?')]",
-                "//button[contains(text(), 'Can't scan it?')]",
-                "//*[contains(text(), 'Can't scan it?')]",
+                "//button[contains(., 'scan it')]",
+                "//button[contains(., 'Can') and contains(., 'scan')]",
+                "//div[contains(text(), 'scan it')]/ancestor::button",
+                "//span[contains(text(), 'scan it')]/ancestor::button"
             ]
-            
-            # Add other div indices (9-14, excluding 11 which is already first)
-            for div_index in [9, 10, 12, 13, 14]:
-                cant_scan_xpaths.extend([
-                    f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]",
-                    f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[4]",
-                    f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[3]",
-                    f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button",
-                ])
-            
-            # Add class-based patterns
-            cant_scan_xpaths.extend([
-                "//button[contains(@class, 'VfPpkd-LgbsSe')]//span[contains(text(), 'Can')]",
-                "//button[contains(@class, 'VfPpkd-LgbsSe')]//span[contains(text(), 'scan')]",
-            ])
             
             for xpath in cant_scan_xpaths:
                 try:
-                    element = wait_for_xpath(driver, xpath, timeout=2)
-                    if element:
-                        # Try JavaScript click first
-                        try:
-                            driver.execute_script("arguments[0].click();", element)
-                            logger.info(f"[STEP] Clicked 'Can't scan it?' link using JavaScript: {xpath}")
-                            time.sleep(1)  # Reduced wait time
-                            cant_scan_clicked = True
-                            break
-                        except:
-                            # Fallback to regular click
-                            element.click()
-                            logger.info(f"[STEP] Clicked 'Can't scan it?' link using regular click: {xpath}")
-                            time.sleep(1)  # Reduced wait time
-                            cant_scan_clicked = True
-                            break
+                    if element_exists(driver, xpath, timeout=2):
+                        click_xpath(driver, xpath)
+                        logger.info(f"[STEP] Clicked 'Can't scan it?' using generic xpath: {xpath}")
+                        cant_scan_clicked = True
+                        break
                 except:
                     continue
-        
         if not cant_scan_clicked:
             logger.warning("[STEP] Could not find 'Can't scan it?' link")
         
@@ -4600,8 +4608,8 @@ def handler(event, context):
                 "results": []
             }
         
-        # CRITICAL: Enforce 10-user limit - truncate if exceeded
-        MAX_USERS_PER_BATCH = 10
+        # CRITICAL: Enforce 3-user limit to prevent memory exhaustion (2GB Lambda)
+        MAX_USERS_PER_BATCH = 3
         if len(users_batch) > MAX_USERS_PER_BATCH:
             logger.warning(f"[LAMBDA] ⚠️ WARNING: Batch has {len(users_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
             logger.warning(f"[LAMBDA] Truncating batch to {MAX_USERS_PER_BATCH} users")
@@ -4645,7 +4653,7 @@ def handler(event, context):
             # Stagger Chrome initialization to avoid resource contention
             # Each thread waits a bit before starting to spread out resource usage
             # This prevents all Chrome instances from initializing at exactly the same time
-            stagger_delay = idx * 1.0  # 1 second between each Chrome start
+            stagger_delay = idx * 2.0  # Increased stagger to 2 seconds
             if stagger_delay > 0:
                 logger.info(f"[LAMBDA] [THREAD] Staggering Chrome start for user {idx + 1}: waiting {stagger_delay}s")
                 time.sleep(stagger_delay)
@@ -4667,11 +4675,10 @@ def handler(event, context):
                 }
         
         # Use ThreadPoolExecutor to process users in parallel
-        # Lambda has 2048 MB memory, each Chrome instance uses ~200-300 MB
-        # We can safely run 15-20 concurrent instances (15 * 300MB = 4500MB theoretical, but Chrome instances share memory)
-        # In practice, with 2048 MB, we can run 15-20 Chrome instances efficiently
-        # For maximum speed, process all users in parallel (up to 20 per function)
-        max_concurrent = min(20, len(users_batch))  # Process up to 20 users in parallel (all users in batch)
+        # Lambda has 2048 MB memory. Each Chrome instance needs ~400MB+ for stability.
+        # 3 instances * 400MB = 1200MB, leaving ~800MB for OS/Python overhead.
+        # This is a safe limit to prevent OOM and timeouts.
+        max_concurrent = min(3, len(users_batch))
         logger.info(f"[LAMBDA] Using {max_concurrent} concurrent workers for {len(users_batch)} users (processing all users in parallel for maximum speed)")
         
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
