@@ -776,7 +776,10 @@ def create_infrastructure():
 
         # Create S3 bucket with custom name
         logger.info(f"[INFRA] Creating S3 bucket: {s3_bucket}")
-        create_s3_bucket(session, region, s3_bucket)
+        actual_bucket_name = create_s3_bucket(session, region, s3_bucket)
+        if actual_bucket_name and actual_bucket_name != s3_bucket:
+            logger.info(f"[INFRA] Bucket created/verified with name: {actual_bucket_name} (requested: {s3_bucket})")
+            s3_bucket = actual_bucket_name  # Use the actual bucket name
 
         return jsonify({
             'success': True,
@@ -5940,9 +5943,12 @@ def ec2_create_build_box():
         logger.info(f"[EC2] Testing S3 write access for bucket {s3_bucket_ec2}...")
         s3_client = session.client("s3")
         try:
-            # Ensure bucket exists first
+            # Ensure bucket exists first and get actual bucket name
             try:
-                create_s3_bucket(session, region, s3_bucket_ec2)
+                actual_bucket_name = create_s3_bucket(session, region, s3_bucket_ec2)
+                if actual_bucket_name and actual_bucket_name != s3_bucket_ec2:
+                    logger.info(f"[EC2] Bucket exists/created with name: {actual_bucket_name} (requested: {s3_bucket_ec2})")
+                    s3_bucket_ec2 = actual_bucket_name  # Use the actual bucket name
             except Exception as bucket_err:
                 logger.warning(f"[EC2] S3 bucket creation/verification warning: {bucket_err}")
             
@@ -6507,29 +6513,67 @@ def create_ecr_repo(session, region, repo_name=None):
             raise
 
 def create_s3_bucket(session, region, bucket_name=None):
-    """Create S3 bucket with configurable name"""
+    """Create S3 bucket with configurable name. Returns the actual bucket name used."""
     if bucket_name is None:
         naming_config = get_naming_config()
         bucket_name = naming_config['s3_bucket']
     
+    original_bucket_name = bucket_name
     logger.info(f"[S3] Creating/verifying bucket: {bucket_name}")
     s3 = session.client("s3")
+    account_id = session.client('sts').get_caller_identity()['Account']
+    bucket_name_with_suffix = f"{bucket_name}-{account_id}"
     
+    # First, try to check if bucket exists with original name
+    bucket_exists_original = False
     try:
         s3.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
         logger.info(f"[S3] ✓ Bucket '{bucket_name}' already exists")
-        return
+        bucket_exists_original = True
     except ClientError as list_err:
         list_error_code = list_err.response.get('Error', {}).get('Code', '')
         if list_error_code == 'NoSuchBucket':
-            pass
+            # Bucket doesn't exist with original name, check if it exists with suffix
+            logger.info(f"[S3] Bucket '{bucket_name}' doesn't exist, checking if '{bucket_name_with_suffix}' exists...")
+            try:
+                s3.list_objects_v2(Bucket=bucket_name_with_suffix, MaxKeys=1)
+                logger.info(f"[S3] ✓ Bucket '{bucket_name_with_suffix}' already exists (with account ID suffix)")
+                return bucket_name_with_suffix  # Return the actual bucket name
+            except ClientError as suffix_err:
+                suffix_error_code = suffix_err.response.get('Error', {}).get('Code', '')
+                if suffix_error_code == 'NoSuchBucket':
+                    # Neither bucket exists, will try to create with original name first
+                    logger.info(f"[S3] Neither bucket exists, will try to create '{bucket_name}'")
+                elif suffix_error_code in ['403', 'AccessDenied']:
+                    # Access denied to suffix version too - will try to create with suffix
+                    logger.info(f"[S3] Access denied to '{bucket_name_with_suffix}', will try to create with suffix")
+                    bucket_name = bucket_name_with_suffix
+                else:
+                    # Some other error with suffix check
+                    logger.warning(f"[S3] Error checking suffix bucket: {suffix_err}")
         elif list_error_code in ['403', 'AccessDenied']:
-            account_id = session.client('sts').get_caller_identity()['Account']
-            bucket_name = f"{bucket_name}-{account_id}"
-            logger.info(f"[S3] Access denied, trying with account ID: {bucket_name}")
-            return create_s3_bucket(session, region, bucket_name)
+            # Access denied to original name - check if bucket exists with suffix
+            logger.info(f"[S3] Access denied to '{bucket_name}', checking if bucket exists with account ID suffix: {bucket_name_with_suffix}")
+            try:
+                s3.list_objects_v2(Bucket=bucket_name_with_suffix, MaxKeys=1)
+                logger.info(f"[S3] ✓ Bucket '{bucket_name_with_suffix}' already exists (with account ID suffix)")
+                return bucket_name_with_suffix  # Return the actual bucket name
+            except ClientError as suffix_err:
+                suffix_error_code = suffix_err.response.get('Error', {}).get('Code', '')
+                if suffix_error_code == 'NoSuchBucket':
+                    # Bucket with suffix doesn't exist, will create with suffix
+                    bucket_name = bucket_name_with_suffix
+                    logger.info(f"[S3] Will create bucket with account ID suffix: {bucket_name}")
+                else:
+                    # Access denied to suffix version too - will try to create with suffix anyway
+                    bucket_name = bucket_name_with_suffix
+                    logger.info(f"[S3] Access denied to suffix version too, will try to create: {bucket_name}")
         else:
             raise list_err
+    
+    # If bucket exists with original name, return it
+    if bucket_exists_original:
+        return bucket_name
     
     try:
         if region == 'us-east-1':
@@ -6561,6 +6605,8 @@ def create_s3_bucket(session, region, bucket_name=None):
             )
         except:
             pass
+        
+        return bucket_name  # Return the actual bucket name that was created
     except ClientError as ce:
         raise
 
@@ -6886,7 +6932,10 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id, instance_
     # Ensure S3 bucket exists before uploading (permissions already verified in route)
     logger.info(f"[EC2] Ensuring S3 bucket {s3_bucket_name} exists...")
     try:
-        create_s3_bucket(session, region, s3_bucket_name)
+        actual_bucket_name = create_s3_bucket(session, region, s3_bucket_name)
+        if actual_bucket_name and actual_bucket_name != s3_bucket_name:
+            logger.info(f"[EC2] Bucket exists/created with name: {actual_bucket_name} (requested: {s3_bucket_name})")
+            s3_bucket_name = actual_bucket_name  # Use the actual bucket name
     except Exception as e:
         logger.warning(f"[EC2] S3 bucket creation warning: {e}")
 
