@@ -2644,17 +2644,64 @@ def login_google(driver, email, password, known_totp_secret=None):
         if '/signin/identifier' in current_url or 'identifier' in current_url.lower():
             logger.warning("[STEP] ⚠️ Still on identifier page after email submission - checking for issues...")
             
-            # Check for "Account not found" error - FATAL ERROR
-            if "Couldn't find your Google Account" in driver.page_source or \
-               element_exists(driver, "//*[contains(text(), 'find your Google Account')]"):
-                logger.error("[STEP] ✗ Login Error: Couldn't find your Google Account")
-                return False, "ACCOUNT_NOT_FOUND", "Couldn't find your Google Account"
+            # IMPORTANT: Wait for page to FULLY stabilize before checking for errors
+            # This prevents false positives during parallel processing
+            time.sleep(3)
+            
+            # Re-check current URL after wait (page might have transitioned)
+            current_url_recheck = driver.current_url
+            if "challenge/pwd" in current_url_recheck or "myaccount.google.com" in current_url_recheck:
+                logger.info("[STEP] ✓ Page transitioned to password/account page during wait. Proceeding...")
+                # Don't check for errors - page has moved on
+            else:
+                # Check for "Account not found" error - FATAL ERROR
+                # Double-check to avoid false positives
+                account_not_found = False
+                error_text = ""
                 
-            # Check for "Secure Browser" error - RETRY WITH NEW BROWSER
-            if "This browser or app may not be secure" in driver.page_source or \
-               element_exists(driver, "//*[contains(text(), 'This browser or app may not be secure')]"):
-                logger.error("[STEP] ✗ Login Error: Secure Browser Block detected")
-                return False, "SECURE_BROWSER_BLOCK", "Secure Browser Block detected"
+                try:
+                    # Method 1: Check page source
+                    page_source = driver.page_source
+                    if "Couldn't find your Google Account" in page_source:
+                        error_text = "Couldn't find your Google Account"
+                        account_not_found = True
+                    elif "Enter a valid email" in page_source:
+                        error_text = "Enter a valid email or phone number"
+                        account_not_found = True
+                except:
+                    pass
+                
+                # Method 2: Check for visible error element
+                if not account_not_found:
+                    if element_exists(driver, "//*[contains(text(), 'find your Google Account')]", timeout=2):
+                        error_text = "Couldn't find your Google Account (element detected)"
+                        account_not_found = True
+                    elif element_exists(driver, "//*[contains(text(), 'Enter a valid email')]", timeout=2):
+                        error_text = "Enter a valid email (element detected)"
+                        account_not_found = True
+                
+                if account_not_found:
+                    # DOUBLE CHECK: Wait a moment and verify error is still there
+                    time.sleep(2)
+                    still_on_identifier = '/signin/identifier' in driver.current_url or 'identifier' in driver.current_url.lower()
+                    error_still_visible = (
+                        "Couldn't find your Google Account" in driver.page_source or
+                        "Enter a valid email" in driver.page_source or
+                        element_exists(driver, "//*[contains(text(), 'find your Google Account')]", timeout=1) or
+                        element_exists(driver, "//*[contains(text(), 'Enter a valid email')]", timeout=1)
+                    )
+                    
+                    if still_on_identifier and error_still_visible:
+                        logger.error(f"[STEP] ✗ Login Error (CONFIRMED): {error_text}")
+                        return False, "ACCOUNT_NOT_FOUND", error_text
+                    else:
+                        logger.info("[STEP] Error was transient, page has moved on. Continuing...")
+                    
+                # Check for "Secure Browser" error - RETRY WITH NEW BROWSER
+                if "This browser or app may not be secure" in driver.page_source or \
+                   element_exists(driver, "//*[contains(text(), 'This browser or app may not be secure')]"):
+                    logger.error("[STEP] ✗ Login Error: Secure Browser Block detected")
+                    return False, "SECURE_BROWSER_BLOCK", "Secure Browser Block detected"
 
             # Check for image CAPTCHA input field (Google's own CAPTCHA, not reCAPTCHA)
             # This appears as: <input type="text" name="ca" id="ca" aria-label="Type the text you hear or see">
