@@ -2408,7 +2408,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                 logger.info("[STEP] Email entered with human-like typing")
                 time.sleep(random.uniform(0.5, 1.0))
                 
-                # 4. Find and Click Next Button (Explicit Click instead of Enter)
+                # 4. Find and Click Next Button (Explicit Click with Retry)
                 logger.info("[STEP] Locating 'Next' button...")
                 next_button = None
                 next_button_xpaths = [
@@ -2429,14 +2429,42 @@ def login_google(driver, email, password, known_totp_secret=None):
                         continue
                 
                 if next_button:
-                    logger.info("[STEP] Clicking 'Next' button...")
-                    try:
-                        # Try standard click first
-                        next_button.click()
-                    except:
-                        # Fallback to JS click
-                        logger.info("[STEP] Standard click failed, using JavaScript click")
-                        driver.execute_script("arguments[0].click();", next_button)
+                    # Retry clicking logic
+                    click_success = False
+                    for click_attempt in range(3):
+                        logger.info(f"[STEP] Clicking 'Next' button (Attempt {click_attempt + 1})...")
+                        try:
+                            if click_attempt == 0:
+                                next_button.click()
+                            elif click_attempt == 1:
+                                driver.execute_script("arguments[0].click();", next_button)
+                            else:
+                                ActionChains(driver).move_to_element(next_button).click().perform()
+                            
+                            # Wait and check for transition
+                            time.sleep(3)
+                            
+                            # Check if we moved away from identifier page or if password field appeared
+                            current_url_check = driver.current_url
+                            if "challenge/pwd" in current_url_check or "password" in driver.page_source.lower():
+                                logger.info("[STEP] ✓ Transitioned to password page/challenge")
+                                click_success = True
+                                break
+                                
+                            # Check for specific error before retrying click
+                            error_xpath = "//*[contains(text(), 'find your Google Account') or contains(text(), 'Enter a valid email')]"
+                            if element_exists(driver, error_xpath, timeout=1):
+                                # Error found, no need to retry click, let the outer loop handle it
+                                break
+                                
+                            logger.warning("[STEP] Still on email page after click, retrying...")
+                            
+                        except Exception as click_err:
+                            logger.warning(f"[STEP] Click attempt {click_attempt + 1} failed: {click_err}")
+                            time.sleep(1)
+                    
+                    if not click_success:
+                         logger.warning("[STEP] Failed to transition after multiple click attempts")
                 else:
                     # Fallback to Enter key if button not found (but log it)
                     logger.warning("[STEP] 'Next' button not found, falling back to Enter key")
@@ -4238,45 +4266,69 @@ def generate_app_password(driver, email):
                     "//c-wiz//button[not(contains(@aria-label, 'Close'))]"
                 ]
                 
-                generate_clicked = False
-                for xpath in generate_button_xpath_variations:
-                    try:
-                        if element_exists(driver, xpath, timeout=3):
-                            element = wait_for_clickable_xpath(driver, xpath, timeout=5)
-                            if element:
-                                driver.execute_script("arguments[0].scrollIntoView(true);", element)
-                                driver.execute_script("arguments[0].click();", element)
-                                logger.info(f"[STEP] Clicked Generate button: {xpath}")
-                                generate_clicked = True
-                                time.sleep(2)
-                                break
-                    except:
-                        continue
-                
-                if not generate_clicked:
-                    raise TimeoutException("Failed to click Generate button")
-                
-                # Wait for app password dialog to appear (from reference script)
-                logger.info("[STEP] Waiting for app password dialog to appear...")
+                # Click Generate button with retry logic
                 dialog_appeared = False
-                dialog_selectors = [
-                    "//div[@aria-modal='true']",
-                    "//div[@role='dialog']",
-                    "//div[@class='uW2Fw-P5QLlc']",
-                    "//span[contains(text(), 'Generated app password')]",
-                    "//h2[contains(., 'Generated app password')]"
-                ]
                 
-                for selector in dialog_selectors:
-                    try:
-                        WebDriverWait(driver, 15).until(
-                            EC.presence_of_element_located((By.XPATH, selector))
-                        )
-                        logger.info(f"[STEP] App password dialog detected: {selector}")
-                        dialog_appeared = True
+                for click_attempt in range(3):
+                    logger.info(f"[STEP] Attempting to click Generate button (Attempt {click_attempt + 1})...")
+                    generate_clicked = False
+                    
+                    for xpath in generate_button_xpath_variations:
+                        try:
+                            if element_exists(driver, xpath, timeout=3):
+                                element = wait_for_clickable_xpath(driver, xpath, timeout=5)
+                                if element:
+                                    driver.execute_script("arguments[0].scrollIntoView(true);", element)
+                                    
+                                    # Try different click methods based on attempt
+                                    if click_attempt == 0:
+                                        driver.execute_script("arguments[0].click();", element)
+                                    elif click_attempt == 1:
+                                        element.click()
+                                    else:
+                                        ActionChains(driver).move_to_element(element).click().perform()
+                                        
+                                    logger.info(f"[STEP] Clicked Generate button: {xpath}")
+                                    generate_clicked = True
+                                    time.sleep(2)
+                                    break
+                        except:
+                            continue
+                    
+                    if not generate_clicked:
+                        logger.warning(f"[STEP] Failed to click Generate button on attempt {click_attempt + 1}")
+                        if click_attempt < 2:
+                            continue
+                        else:
+                            raise TimeoutException("Failed to click Generate button after retries")
+                    
+                    # Wait for app password dialog to appear
+                    logger.info("[STEP] Waiting for app password dialog to appear...")
+                    
+                    dialog_selectors = [
+                        "//div[@aria-modal='true']",
+                        "//div[@role='dialog']",
+                        "//div[@class='uW2Fw-P5QLlc']",
+                        "//span[contains(text(), 'Generated app password')]",
+                        "//h2[contains(., 'Generated app password')]"
+                    ]
+                    
+                    for selector in dialog_selectors:
+                        try:
+                            WebDriverWait(driver, 5).until( # Short timeout for retry loop
+                                EC.presence_of_element_located((By.XPATH, selector))
+                            )
+                            logger.info(f"[STEP] App password dialog detected: {selector}")
+                            dialog_appeared = True
+                            break
+                        except TimeoutException:
+                            continue
+                    
+                    if dialog_appeared:
                         break
-                    except TimeoutException:
-                        continue
+                    
+                    logger.warning("[STEP] Dialog did not appear after click, retrying...")
+                    time.sleep(2)
                 
                 if not dialog_appeared:
                     logger.error("[STEP] App password dialog did not appear after clicking Generate")
