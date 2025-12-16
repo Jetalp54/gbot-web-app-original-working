@@ -1798,6 +1798,24 @@ def solve_captcha_with_2captcha(driver, email=None):
                 
                 # First, try Enter key to submit (faster and more natural)
                 try:
+                    # Clear and type solution
+                    captcha_input.clear()
+                    time.sleep(0.5)
+                    simulate_human_typing(captcha_input, solution)
+                    
+                    # VERIFICATION: Check if the value was actually typed
+                    try:
+                        typed_value = captcha_input.get_attribute('value')
+                        if typed_value != solution:
+                            logger.warning(f"[2CAPTCHA] Input mismatch! Typed: '{typed_value}', Expected: '{solution}'. Retrying type...")
+                            captcha_input.clear()
+                            time.sleep(0.5)
+                            captcha_input.send_keys(solution)
+                        else:
+                            logger.info(f"[2CAPTCHA] Verified input value matches solution: {solution}")
+                    except Exception as verify_err:
+                        logger.debug(f"[2CAPTCHA] Could not verify input value: {verify_err}")
+
                     captcha_input.send_keys(Keys.RETURN)
                     logger.info("[2CAPTCHA] Pressed Enter key to submit CAPTCHA solution")
                     time.sleep(2)  # Wait for page to process
@@ -2456,6 +2474,12 @@ def login_google(driver, email, password, known_totp_secret=None):
                             if element_exists(driver, error_xpath, timeout=1):
                                 # Error found, no need to retry click, let the outer loop handle it
                                 break
+                            
+                            # Check for Secure Browser Block
+                            secure_browser_xpath = "//*[contains(text(), 'This browser or app may not be secure')]"
+                            if element_exists(driver, secure_browser_xpath, timeout=1):
+                                logger.error("[STEP] ✗ Secure Browser Block detected!")
+                                return False, "SECURE_BROWSER_BLOCK", "Secure Browser Block detected"
                                 
                             logger.warning("[STEP] Still on email page after click, retrying...")
                             
@@ -2582,38 +2606,63 @@ def login_google(driver, email, password, known_totp_secret=None):
         # Check if we're still on identifier page (email might not have been submitted or page redirected back)
         if '/signin/identifier' in current_url or 'identifier' in current_url.lower():
             logger.warning("[STEP] ⚠️ Still on identifier page after email submission - checking for issues...")
-            # Error check moved to before CAPTCHA check for better efficiency
             
+            # Check for "Account not found" error - FATAL ERROR
+            if "Couldn't find your Google Account" in driver.page_source or \
+               element_exists(driver, "//*[contains(text(), 'find your Google Account')]"):
+                logger.error("[STEP] ✗ Login Error: Couldn't find your Google Account")
+                return False, "ACCOUNT_NOT_FOUND", "Couldn't find your Google Account"
+                
+            # Check for "Secure Browser" error - RETRY WITH NEW BROWSER
+            if "This browser or app may not be secure" in driver.page_source or \
+               element_exists(driver, "//*[contains(text(), 'This browser or app may not be secure')]"):
+                logger.error("[STEP] ✗ Login Error: Secure Browser Block detected")
+                return False, "SECURE_BROWSER_BLOCK", "Secure Browser Block detected"
+
             # Check for image CAPTCHA input field (Google's own CAPTCHA, not reCAPTCHA)
             # This appears as: <input type="text" name="ca" id="ca" aria-label="Type the text you hear or see">
             try:
                 image_captcha_input = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
+                captcha_detected = False
                 if image_captcha_input:
                     for inp in image_captcha_input:
                         if inp.is_displayed():
                             aria_label = inp.get_attribute('aria-label') or ''
                             if 'hear or see' in aria_label.lower() or 'captcha' in aria_label.lower():
-                                logger.warning("[STEP] ⚠️ Image CAPTCHA detected (input field visible)")
+                                captcha_detected = True
+                                break
+                
+                if captcha_detected:
+                    logger.warning("[STEP] ⚠️ Image CAPTCHA detected (input field visible)")
+                    
+                    # If 2Captcha is enabled, try to solve it
+                    twocaptcha_config = get_twocaptcha_config()
+                    if twocaptcha_config.get('enabled'):
+                        # Retry loop for CAPTCHA solving
+                        max_captcha_retries = 3
+                        for captcha_attempt in range(max_captcha_retries):
+                            try:
+                                if captcha_attempt > 0:
+                                    logger.info(f"[STEP] Retrying CAPTCHA solve (Attempt {captcha_attempt + 1}/{max_captcha_retries})...")
                                 
-                                # Only solve CAPTCHA once per user
-                                if not captcha_solved:
-                                    logger.info("[STEP] Attempting to solve Google Image CAPTCHA using 2Captcha Image CAPTCHA solver...")
-                                    
-                                    # Capture screenshot for analysis
-                                    capture_captcha_screenshot(driver, captcha_type="image", email=email)
-                                    
-                                    # Solve the image CAPTCHA using 2Captcha
-                                    solved, error = solve_captcha_with_2captcha(driver, email=email)
-                                    captcha_solved = True  # Mark as solved
-                                else:
-                                    logger.info("[STEP] CAPTCHA already solved once for this user, skipping...")
-                                    solved = True
-                                    error = None
+                                logger.info("[STEP] Attempting to solve Google Image CAPTCHA using 2Captcha Image CAPTCHA solver...")
+                                
+                                # Capture screenshot for analysis
+                                capture_captcha_screenshot(driver, captcha_type="image", email=email)
+                                
+                                # Solve the image CAPTCHA using 2Captcha
+                                solved, error = solve_captcha_with_2captcha(driver, email=email)
                                 
                                 if solved:
-                                    logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Waiting for page redirect...")
-                                    # Wait longer for Google to process the solution and potentially redirect
+                                    logger.info("[STEP] ✓ Image CAPTCHA solved successfully! Waiting for page response...")
+                                    # Wait for Google to process the solution
                                     time.sleep(5)
+                                    
+                                    # CHECK FOR REJECTION ("Please enter the characters you see")
+                                    rejection_xpath = "//*[contains(text(), 'enter the characters you see') or contains(text(), 'characters you entered')]"
+                                    if element_exists(driver, rejection_xpath, timeout=2):
+                                        logger.warning("[STEP] ✗ CAPTCHA solution rejected by Google (Incorrect solution). Retrying...")
+                                        continue # Retry the loop
                                     
                                     # Check if page redirected after CAPTCHA solve
                                     current_url_after_captcha = driver.current_url
@@ -2622,6 +2671,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                                     # If redirected to password page, we're good
                                     if "challenge/pwd" in current_url_after_captcha or "signin/challenge/pwd" in current_url_after_captcha:
                                         logger.info("[STEP] ✓ Page redirected to password page after image CAPTCHA solve!")
+                                        break # Success, exit loop
                                     elif "myaccount.google.com" in current_url_after_captcha:
                                         logger.info("[STEP] ✓ Already logged in after image CAPTCHA solve!")
                                         return True, None, None
@@ -2653,35 +2703,29 @@ def login_google(driver, email, password, known_totp_secret=None):
                                             logger.info("[STEP] Clicked Next button again. Waiting for transition...")
                                             time.sleep(5)
                                             
+                                            # Check for rejection AGAIN after clicking Next
+                                            if element_exists(driver, rejection_xpath, timeout=2):
+                                                logger.warning("[STEP] ✗ CAPTCHA solution rejected after retry click. Retrying...")
+                                                continue
+                                            
                                             # Check URL again
                                             current_url_retry = driver.current_url
                                             if "challenge/pwd" in current_url_retry or "signin/challenge/pwd" in current_url_retry:
                                                 logger.info("[STEP] ✓ Page redirected to password page after retry click!")
+                                                break # Success
                                             else:
                                                 logger.warning(f"[STEP] Still on identifier page after retry click. URL: {current_url_retry[:50]}...")
                                         else:
                                             logger.warning("[STEP] Could not find Next button for retry.")
                                 else:
                                     logger.error(f"[STEP] ✗ Failed to solve Image CAPTCHA: {error}")
-                                    logger.warning("[STEP] Waiting 5-10 seconds to see if Google auto-clears it...")
-                                    # Wait longer - sometimes Google auto-clears CAPTCHA
-                                    time.sleep(random.uniform(5, 10))
-                                    # Check again if CAPTCHA is still there
-                                    captcha_still_there = False
-                                    try:
-                                        still_visible = driver.find_elements(By.XPATH, "//input[@name='ca' or @id='ca']")
-                                        for inp2 in still_visible:
-                                            if inp2.is_displayed():
-                                                captcha_still_there = True
-                                                break
-                                    except:
-                                        pass
-                                    if captcha_still_there:
-                                        logger.warning("[STEP] Image CAPTCHA still present - login may fail")
-                                        logger.warning("[STEP] Google may be blocking automated access. Consider using different IP/proxy.")
-                                    else:
-                                        logger.info("[STEP] Image CAPTCHA cleared! Proceeding...")
-                                break
+                                    
+                            except Exception as captcha_err:
+                                logger.error(f"[STEP] Error in CAPTCHA loop: {captcha_err}")
+                        
+                        # End of CAPTCHA loop
+                    else:
+                        logger.info("[STEP] 2Captcha not enabled, cannot solve CAPTCHA")
             except Exception as image_captcha_check:
                 logger.debug(f"[STEP] Image CAPTCHA check error: {image_captcha_check}")
         
@@ -4859,32 +4903,107 @@ def process_single_user(email, password, batch_start_time=None):
     error_code = None
     error_message = None
     
+    # Browser restart loop for "Secure Browser" blocks
+    max_browser_attempts = 3
+    login_success = False
+    
+    for browser_attempt in range(max_browser_attempts):
+        try:
+            if browser_attempt > 0:
+                logger.info(f"[LAMBDA] Restarting browser (Attempt {browser_attempt + 1}/{max_browser_attempts})...")
+            
+            # Step 0: Initialize Chrome driver
+            step_start = time.time()
+            driver = get_chrome_driver()
+            timings["driver_init"] = round(time.time() - step_start, 2)
+            logger.info(f"[LAMBDA] Chrome driver started for {email}")
+            
+            # Step 1: Login
+            step_completed = "login"
+            step_start = time.time()
+            success, error_code, error_message = login_google(driver, email, password)
+            timings["login"] = round(time.time() - step_start, 2)
+            
+            if success:
+                login_success = True
+                break
+            
+            # Handle Login Failures
+            if error_code == "SECURE_BROWSER_BLOCK":
+                logger.warning(f"[LAMBDA] Secure Browser Block detected for {email}. Restarting browser...")
+                if driver:
+                    try:
+                        driver.quit()
+                    except:
+                        pass
+                    driver = None
+                continue # Restart loop
+            
+            elif error_code == "ACCOUNT_NOT_FOUND":
+                logger.error(f"[LAMBDA] FATAL ERROR: Account not found for {email}. Aborting.")
+                if driver:
+                    driver.quit()
+                return {
+                    "email": email,
+                    "status": "failed",
+                    "step_completed": step_completed,
+                    "error_step": step_completed,
+                    "error_message": error_message,
+                    "app_password": None,
+                    "secret_key": None,
+                    "timings": timings
+                }
+            
+            else:
+                logger.error(f"[STEP] Login failed: {error_message}")
+                if driver:
+                    driver.quit()
+                return {
+                    "email": email,
+                    "status": "failed",
+                    "step_completed": step_completed,
+                    "error_step": step_completed,
+                    "error_message": error_message,
+                    "app_password": None,
+                    "secret_key": None,
+                    "timings": timings
+                }
+                
+        except Exception as e:
+            logger.error(f"[LAMBDA] Exception during browser attempt {browser_attempt + 1}: {e}")
+            if driver:
+                try:
+                    driver.quit()
+                except:
+                    pass
+                driver = None
+            
+            if browser_attempt == max_browser_attempts - 1:
+                return {
+                    "email": email,
+                    "status": "failed",
+                    "step_completed": step_completed,
+                    "error_step": step_completed,
+                    "error_message": f"Max browser retries reached: {str(e)}",
+                    "app_password": None,
+                    "secret_key": None,
+                    "timings": timings
+                }
+            time.sleep(2)
+            
+    if not login_success:
+        return {
+            "email": email,
+            "status": "failed",
+            "step_completed": "login",
+            "error_step": "login",
+            "error_message": "Login failed after all retries",
+            "app_password": None,
+            "secret_key": None,
+            "timings": timings
+        }
+
     try:
-        # Step 0: Initialize Chrome driver
-        step_start = time.time()
-        driver = get_chrome_driver()
-        timings["driver_init"] = round(time.time() - step_start, 2)
-        logger.info(f"[LAMBDA] Chrome driver started for {email}")
-        
-        # Step 1: Login
-        step_completed = "login"
-        step_start = time.time()
-        success, error_code, error_message = login_google(driver, email, password)
-        timings["login"] = round(time.time() - step_start, 2)
-        
-        if not success:
-            logger.error(f"[STEP] Login failed: {error_message}")
-            return {
-                "email": email,
-                "status": "failed",
-                "step_completed": step_completed,
-                "error_step": step_completed,
-                "error_message": error_message,
-                "app_password": None,
-                "secret_key": None,
-                "timings": timings
-            }
-        
         # Step 2: Setup Authenticator (extract secret)
         step_completed = "authenticator_setup"
         step_start = time.time()
