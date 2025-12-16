@@ -2468,6 +2468,21 @@ def login_google(driver, email, password, known_totp_secret=None):
         
         # Check for CAPTCHA after email submission (this is when it typically appears)
         # Only solve CAPTCHA once per user
+        
+        # CRITICAL: Check for "Couldn't find your Google Account" error BEFORE CAPTCHA check
+        # This prevents false CAPTCHA detection or timeouts on invalid accounts
+        try:
+            # Robust XPath ignoring specific quote types (curly vs straight)
+            # Matches "Couldn't find your Google Account" or "Enter a valid email"
+            error_xpath = "//*[contains(text(), 'find your Google Account') or contains(text(), 'Enter a valid email')]"
+            if element_exists(driver, error_xpath, timeout=3):
+                error_element = driver.find_element(By.XPATH, error_xpath)
+                error_text = error_element.text
+                logger.error(f"[STEP] ✗ Login Error: {error_text}")
+                return False, "EMAIL_ERROR", f"Google rejected email: {error_text}"
+        except Exception as e:
+            logger.warning(f"[STEP] Error checking failed: {e}")
+
         if not captcha_solved and detect_captcha(driver, email=email):
             logger.warning("[STEP] ⚠️ CAPTCHA detected after email submission!")
             
@@ -2539,15 +2554,7 @@ def login_google(driver, email, password, known_totp_secret=None):
         # Check if we're still on identifier page (email might not have been submitted or page redirected back)
         if '/signin/identifier' in current_url or 'identifier' in current_url.lower():
             logger.warning("[STEP] ⚠️ Still on identifier page after email submission - checking for issues...")
-            # Check for error messages
-            try:
-                error_elements = driver.find_elements(By.XPATH, "//*[contains(text(), 'Couldn\\'t find your Google Account') or contains(text(), 'Enter a valid email') or contains(text(), 'error')]")
-                if error_elements:
-                    error_text = error_elements[0].text
-                    logger.error(f"[STEP] ✗ Error on identifier page: {error_text}")
-                    return False, "EMAIL_ERROR", f"Error after email submission: {error_text}"
-            except:
-                pass
+            # Error check moved to before CAPTCHA check for better efficiency
             
             # Check for image CAPTCHA input field (Google's own CAPTCHA, not reCAPTCHA)
             # This appears as: <input type="text" name="ca" id="ca" aria-label="Type the text you hear or see">
