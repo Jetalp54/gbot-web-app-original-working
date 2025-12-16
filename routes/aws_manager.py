@@ -5932,7 +5932,58 @@ def ec2_create_build_box():
         
         # Ensure user's AWS credentials have S3 write permissions before uploading files
         logger.info("[EC2] Ensuring user has S3 write permissions...")
-        ensure_user_s3_permissions(session)
+        s3_permissions_ensured = ensure_user_s3_permissions(session)
+        if not s3_permissions_ensured:
+            logger.warning("[EC2] Could not automatically attach S3 permissions. Will test S3 access before proceeding...")
+        
+        # Test S3 write access early (before creating EC2 resources) to fail fast
+        logger.info(f"[EC2] Testing S3 write access for bucket {s3_bucket_ec2}...")
+        s3_client = session.client("s3")
+        try:
+            # Ensure bucket exists first
+            try:
+                create_s3_bucket(session, region, s3_bucket_ec2)
+            except Exception as bucket_err:
+                logger.warning(f"[EC2] S3 bucket creation/verification warning: {bucket_err}")
+            
+            # Test write permission
+            test_key = f"ec2-build-files/.test-write-permission-{int(time.time())}"
+            s3_client.put_object(
+                Bucket=s3_bucket_ec2,
+                Key=test_key,
+                Body=b"test",
+                ContentType="text/plain"
+            )
+            # Clean up test object
+            try:
+                s3_client.delete_object(Bucket=s3_bucket_ec2, Key=test_key)
+            except:
+                pass
+            logger.info(f"[EC2] ✓ S3 write permissions verified for bucket {s3_bucket_ec2}")
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == 'AccessDenied':
+                error_msg = (
+                    f"Access Denied to S3 bucket '{s3_bucket_ec2}'. "
+                    f"Your AWS credentials do not have S3 write permissions.\n\n"
+                    f"To fix this:\n"
+                    f"1. Go to AWS IAM Console → Users → [Your IAM User]\n"
+                    f"2. Click 'Add permissions' → 'Attach policies directly'\n"
+                    f"3. Search for and attach 'AmazonS3FullAccess' policy\n"
+                    f"4. Or create a custom policy with these permissions for bucket '{s3_bucket_ec2}':\n"
+                    f"   - s3:PutObject\n"
+                    f"   - s3:GetObject\n"
+                    f"   - s3:DeleteObject\n"
+                    f"   - s3:ListBucket\n\n"
+                    f"After attaching the policy, wait 1-2 minutes for permissions to propagate, then try again."
+                )
+                logger.error(f"[EC2] {error_msg}")
+                return jsonify({'success': False, 'error': error_msg}), 403
+            else:
+                return jsonify({'success': False, 'error': f"Failed to verify S3 write permissions: {e}"}), 500
+        except Exception as e:
+            logger.error(f"[EC2] Failed to test S3 permissions: {e}")
+            return jsonify({'success': False, 'error': f"Failed to verify S3 access: {e}"}), 500
         
         # Create EC2 resources with custom names based on prefix
         role_arn = ensure_ec2_role_profile(session, prefix)
@@ -6832,43 +6883,14 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id, instance_
     logger.info(f"[EC2] Using ECR repo: {ecr_repo_name}")
     logger.info(f"[EC2] Using S3 bucket: {s3_bucket_name}")
 
-    # Ensure S3 bucket exists before uploading
+    # Ensure S3 bucket exists before uploading (permissions already verified in route)
     logger.info(f"[EC2] Ensuring S3 bucket {s3_bucket_name} exists...")
     try:
         create_s3_bucket(session, region, s3_bucket_name)
     except Exception as e:
         logger.warning(f"[EC2] S3 bucket creation warning: {e}")
 
-    # Test S3 write permissions before uploading files
-    logger.info(f"[EC2] Testing S3 write permissions for bucket {s3_bucket_name}...")
-    try:
-        test_key = f"ec2-build-files/.test-write-permission-{int(time.time())}"
-        s3.put_object(
-            Bucket=s3_bucket_name,
-            Key=test_key,
-            Body=b"test",
-            ContentType="text/plain"
-        )
-        # Clean up test object
-        try:
-            s3.delete_object(Bucket=s3_bucket_name, Key=test_key)
-        except:
-            pass
-        logger.info(f"[EC2] ✓ S3 write permissions verified for bucket {s3_bucket_name}")
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', '')
-        if error_code == 'AccessDenied':
-            raise Exception(
-                f"Access Denied to S3 bucket {s3_bucket_name}. "
-                f"Please ensure your AWS credentials have S3 write permissions (s3:PutObject, s3:DeleteObject). "
-                f"You can attach the 'AmazonS3FullAccess' policy to your IAM user, or create a custom policy with these permissions for bucket '{s3_bucket_name}'."
-            )
-        else:
-            raise Exception(f"Failed to verify S3 write permissions: {e}")
-    except Exception as e:
-        logger.warning(f"[EC2] Could not test S3 permissions: {e}, proceeding anyway...")
-
-    # Upload custom files to S3 for EC2 to download
+    # Upload custom files to S3 for EC2 to download (permissions already verified)
     s3_build_prefix = "ec2-build-files"
     repo_files_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "repo_aws_files")
     main_py_path = os.path.join(repo_files_dir, "main.py")
