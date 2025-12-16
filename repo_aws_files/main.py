@@ -1774,59 +1774,96 @@ def solve_captcha_with_2captcha(driver, email=None):
             try:
                 logger.info(f"[2CAPTCHA] Entering solution into CAPTCHA input field: {solution}")
                 
+                # RE-LOCATE the CAPTCHA input field to ensure we have a fresh reference
+                # This prevents stale element issues
+                captcha_input = None
+                captcha_input_xpaths = [
+                    "//input[@name='ca']",
+                    "//input[@id='ca']",
+                    "//input[contains(@aria-label, 'Type the text you hear or see')]",
+                    "//input[contains(@aria-label, 'hear or see')]",
+                    "//input[contains(@aria-label, 'captcha')]",
+                    "//input[@type='text' and contains(@placeholder, 'captcha')]"
+                ]
+                
+                for xpath in captcha_input_xpaths:
+                    try:
+                        elements = driver.find_elements(By.XPATH, xpath)
+                        for elem in elements:
+                            if elem.is_displayed():
+                                captcha_input = elem
+                                logger.info(f"[2CAPTCHA] Re-located CAPTCHA input using: {xpath}")
+                                break
+                        if captcha_input:
+                            break
+                    except:
+                        continue
+                
+                if not captcha_input:
+                    logger.error("[2CAPTCHA] Could not re-locate CAPTCHA input field!")
+                    return False, "Could not locate CAPTCHA input field"
+                
+                # Click on the input to ensure it has focus
+                try:
+                    captcha_input.click()
+                    time.sleep(0.3)
+                    logger.info("[2CAPTCHA] Clicked on CAPTCHA input to ensure focus")
+                except:
+                    # Try JavaScript click as fallback
+                    try:
+                        driver.execute_script("arguments[0].click(); arguments[0].focus();", captcha_input)
+                        time.sleep(0.3)
+                        logger.info("[2CAPTCHA] Used JavaScript to focus CAPTCHA input")
+                    except Exception as focus_err:
+                        logger.warning(f"[2CAPTCHA] Could not focus CAPTCHA input: {focus_err}")
+                
                 # Clear the field first
                 captcha_input.clear()
-                time.sleep(0.2)
+                time.sleep(0.3)
                 
-                # Enter the solution with human-like typing
-                simulate_human_typing(captcha_input, solution, driver)
-                
-                # Trigger input events to ensure Google's scripts detect it
-                driver.execute_script("""
-                    var input = arguments[0];
-                    var value = arguments[1];
-                    input.value = value;
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                    input.dispatchEvent(new Event('keyup', { bubbles: true }));
-                """, captcha_input, solution)
-                
-                logger.info("[2CAPTCHA] ✓ Solution entered into CAPTCHA input field")
-                
-                # Wait briefly for Google to process
+                # Type the solution using direct send_keys (most reliable)
+                captcha_input.send_keys(solution)
                 time.sleep(0.5)
                 
-                # First, try Enter key to submit (faster and more natural)
-                try:
-                    # Clear and type solution
-                    captcha_input.clear()
-                    time.sleep(0.5)
-                    simulate_human_typing(captcha_input, solution)
+                # VERIFICATION: Check if the value was actually typed
+                typed_value = captcha_input.get_attribute('value')
+                logger.info(f"[2CAPTCHA] Typed value in field: '{typed_value}'")
+                
+                if typed_value != solution:
+                    logger.warning(f"[2CAPTCHA] Input mismatch! Typed: '{typed_value}', Expected: '{solution}'. Retrying with JavaScript...")
+                    # Try JavaScript to set the value
+                    driver.execute_script("""
+                        var input = arguments[0];
+                        var value = arguments[1];
+                        input.value = value;
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    """, captcha_input, solution)
+                    time.sleep(0.3)
                     
-                    # VERIFICATION: Check if the value was actually typed
-                    try:
-                        typed_value = captcha_input.get_attribute('value')
-                        if typed_value != solution:
-                            logger.warning(f"[2CAPTCHA] Input mismatch! Typed: '{typed_value}', Expected: '{solution}'. Retrying type...")
-                            captcha_input.clear()
-                            time.sleep(0.5)
-                            captcha_input.send_keys(solution)
-                        else:
-                            logger.info(f"[2CAPTCHA] Verified input value matches solution: {solution}")
-                    except Exception as verify_err:
-                        logger.debug(f"[2CAPTCHA] Could not verify input value: {verify_err}")
-
-                    captcha_input.send_keys(Keys.RETURN)
-                    logger.info("[2CAPTCHA] Pressed Enter key to submit CAPTCHA solution")
-                    time.sleep(2)  # Wait for page to process
+                    # Verify again
+                    typed_value = captcha_input.get_attribute('value')
+                    if typed_value != solution:
+                        logger.error(f"[2CAPTCHA] FAILED to type solution! Field value: '{typed_value}'")
+                        return False, f"Failed to type solution into field. Field shows: '{typed_value}'"
+                
+                logger.info(f"[2CAPTCHA] ✓ Solution entered and verified: {solution}")
+                
+                # Now submit the CAPTCHA
+                time.sleep(0.5)
+                captcha_input.send_keys(Keys.RETURN)
+                logger.info("[2CAPTCHA] Pressed Enter key to submit CAPTCHA solution")
+                time.sleep(2)  # Wait for page to process
+                
+                # Check if page changed (CAPTCHA was submitted successfully)
+                current_url = driver.current_url
+                if "challenge/pwd" in current_url or "myaccount.google.com" in current_url:
+                    logger.info("[2CAPTCHA] ✓✓✓ CAPTCHA submitted successfully with Enter key!")
+                    return True, None
                     
-                    # Check if page changed (CAPTCHA was submitted successfully)
-                    current_url = driver.current_url
-                    if "challenge/pwd" in current_url or "myaccount.google.com" in current_url:
-                        logger.info("[2CAPTCHA] ✓✓✓ CAPTCHA submitted successfully with Enter key!")
-                        return True, None
-                except Exception as enter_err:
-                    logger.debug(f"[2CAPTCHA] Enter key submission failed: {enter_err}")
+            except Exception as enter_err:
+                logger.error(f"[2CAPTCHA] Error entering CAPTCHA solution: {enter_err}")
+                logger.error(traceback.format_exc())
                 
                 # If Enter didn't work, try finding and clicking Next/Continue button
                 try:
