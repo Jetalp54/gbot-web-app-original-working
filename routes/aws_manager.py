@@ -2602,11 +2602,16 @@ def create_lambdas():
         
         # Start background thread to create/update Lambda functions across geos
         # Use 900 seconds (15 minutes) timeout for batch processing (10 users can take 5-10 minutes)
-        def create_lambdas_background(functions_by_geo_dict, access_key, secret_key, role_arn, timeout, env_vars, package_type, base_ecr_uri, job_id=None):
+        def create_lambdas_background(functions_by_geo_dict, access_key, secret_key, role_arn, timeout, env_vars, package_type, base_ecr_uri, ecr_repo_name=None, dynamodb_table=None, job_id=None):
             """
             Create Lambda functions distributed across geos.
             Each geo gets its own boto3 session and creates functions in its region.
             """
+            # Use provided names or fall back to defaults
+            if ecr_repo_name is None:
+                ecr_repo_name = get_naming_config().get('ecr_repo_name', DEFAULT_ECR_REPO_NAME)
+            if dynamodb_table is None:
+                dynamodb_table = get_naming_config().get('dynamodb_table', DEFAULT_DYNAMODB_TABLE)
             success_count = 0
             failure_count = 0
             errors_by_geo = {}
@@ -2668,8 +2673,8 @@ def create_lambdas():
                         
                         import re
                         geo_ecr_uri = None
-                        # Use configurable ECR repo name from naming_config (passed via closure)
-                        repo_name = ecr_repo_name  # From get_naming_config()
+                        # Use configurable ECR repo name from parameter
+                        repo_name = ecr_repo_name  # From function parameter
                         image_tag = ECR_IMAGE_TAG
                         base_region = None
                         
@@ -2802,10 +2807,20 @@ def create_lambdas():
                         # Create each function in this geo
                         # Re-initialize counters (they were initialized at function start but need to be here too)
                         geo_failures = []
+                        logger.info(f"[LAMBDA] [{geo}] ===== About to create {len(func_list)} function(s) in {geo} =====")
+                        for func_num, function_name in func_list:
+                            logger.info(f"[LAMBDA] [{geo}] Function #{func_num}: {function_name}")
+                        logger.info(f"[LAMBDA] [{geo}] =========================================================")
+                        
                         for func_num, function_name in func_list:
                             try:
-                                logger.info(f"[LAMBDA] [{geo}] Creating function {function_name}...")
+                                logger.info("=" * 60)
+                                logger.info(f"[LAMBDA] [{geo}] ===== CREATING FUNCTION {func_num}/{len(func_list)}: {function_name} =====")
                                 logger.info(f"[LAMBDA] [{geo}] Using ECR URI: {geo_ecr_uri}")
+                                logger.info(f"[LAMBDA] [{geo}] Using ECR repo name: {repo_name}")
+                                logger.info(f"[LAMBDA] [{geo}] Using image tag: {image_tag}")
+                                logger.info(f"[LAMBDA] [{geo}] Using role ARN: {geo_role_arn}")
+                                logger.info("=" * 60)
                                 
                                 create_or_update_lambda(
                                     session=geo_session,
@@ -2888,18 +2903,24 @@ def create_lambdas():
                 logger.info(f"[LAMBDA] PRE-CHECK: Verifying ECR images in {len(functions_by_geo_dict)} regions...")
                 logger.info("=" * 60)
                 
-                # Parse ECR details once
+                # Parse ECR details once - use configurable repo name
                 import re
-                pc_repo_name = ECR_REPO_NAME
+                pc_repo_name = ecr_repo_name  # Use configurable name from parameter
                 pc_image_tag = ECR_IMAGE_TAG
                 pc_account_id = None
                 
                 try:
                     pc_match = re.match(r'(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com/([^:]+):(.+)', base_ecr_uri)
                     if pc_match:
-                        pc_account_id, _, pc_repo_name, pc_image_tag = pc_match.groups()
+                        pc_account_id, _, parsed_repo_name, parsed_image_tag = pc_match.groups()
+                        # Use parsed repo name if it matches, otherwise keep configurable name
+                        if parsed_repo_name == ecr_repo_name or not pc_repo_name:
+                            pc_repo_name = parsed_repo_name
+                        pc_image_tag = parsed_image_tag
                 except Exception:
                     pass
+                
+                logger.info(f"[LAMBDA] Using ECR repo name: {pc_repo_name} (configurable: {ecr_repo_name})")
 
                 def verify_geo_image(geo):
                     """Check if ECR image exists in the region (Robust Check)"""
@@ -3116,13 +3137,21 @@ def create_lambdas():
                         logger.info(f"[LAMBDA] ✓✓✓ FINAL CHECK PASSED: All {len(expected_geos)} expected geos were processed")
                 
                 logger.info("=" * 60)
-                logger.info(f"[LAMBDA] Background Lambda creation completed")
+                logger.info(f"[LAMBDA] ===== BACKGROUND LAMBDA CREATION COMPLETED =====")
                 logger.info(f"[LAMBDA] Total Success: {success_count}, Total Failed: {failure_count}")
                 logger.info(f"[LAMBDA] Successfully created functions: {len(successfully_created_functions)}")
                 if successfully_created_functions:
-                    logger.info(f"[LAMBDA] Created function names: {', '.join(successfully_created_functions[:10])}{'...' if len(successfully_created_functions) > 10 else ''}")
+                    logger.info(f"[LAMBDA] ✓✓✓ CREATED FUNCTION NAMES:")
+                    for func_name in successfully_created_functions:
+                        logger.info(f"[LAMBDA]   - {func_name}")
+                else:
+                    logger.error(f"[LAMBDA] ✗✗✗ NO FUNCTIONS WERE CREATED!")
+                    logger.error(f"[LAMBDA] This usually means:")
+                    logger.error(f"[LAMBDA]   1. ECR images were not found in any region")
+                    logger.error(f"[LAMBDA]   2. All regions were skipped during pre-check")
+                    logger.error(f"[LAMBDA]   3. All function creations failed (check errors below)")
                 if errors_by_geo:
-                    logger.info(f"[LAMBDA] Errors by geo:")
+                    logger.error(f"[LAMBDA] Errors by geo:")
                     for geo, errors in errors_by_geo.items():
                         logger.error(f"[LAMBDA]   {geo}: {errors}")
                 logger.info("=" * 60)
@@ -3178,7 +3207,7 @@ def create_lambdas():
         
         threading.Thread(
             target=create_lambdas_with_tracking,
-            args=(functions_by_geo, access_key, secret_key, role_arn, 900, chromium_env, "Image", ecr_uri),
+            args=(functions_by_geo, access_key, secret_key, role_arn, 900, chromium_env, "Image", ecr_uri, ecr_repo_name, dynamodb_table),
             kwargs={'job_id': creation_job_id},
             daemon=True
         ).start()
