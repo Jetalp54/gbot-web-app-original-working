@@ -212,6 +212,21 @@ WINDOW_SIZES = [
     "1280,720"
 ]
 
+def cleanup_chrome_processes():
+    """
+    Forcefully kill any lingering Chrome or ChromeDriver processes.
+    Crucial for Lambda environment to prevent memory leaks and zombie processes.
+    """
+    try:
+        # Kill chromedriver
+        subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True)
+        # Kill chrome/chromium
+        subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+        subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
+        logger.info("[LAMBDA] Cleaned up Chrome processes")
+    except Exception as e:
+        logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
+
 def get_chrome_driver():
     """
     Initialize Selenium Chrome driver for AWS Lambda environment.
@@ -356,6 +371,15 @@ def get_chrome_driver():
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--lang=en-US")
+    
+    # Aggressive Memory Optimization for Lambda (2GB limit)
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-application-cache")
+    chrome_options.add_argument("--disk-cache-size=0")
+    chrome_options.add_argument("--no-zygote")  # Saves memory by not forking a zygote process
+    chrome_options.add_argument("--disable-setuid-sandbox")
+    chrome_options.add_argument("--disable-infobars")
+    chrome_options.add_argument("--disable-notifications")
     
     # Additional stability options for Lambda environment
     chrome_options.add_argument("--single-process")  # Critical for Lambda
@@ -4964,7 +4988,8 @@ def handler(event, context):
             # Stagger Chrome initialization to avoid resource contention
             # Each thread waits a bit before starting to spread out resource usage
             # This prevents all Chrome instances from initializing at exactly the same time
-            stagger_delay = idx * 2.0  # Increased stagger to 2 seconds
+            # CRITICAL: Increased to 15s to prevent OOM during simultaneous startups
+            stagger_delay = idx * 15.0 
             if stagger_delay > 0:
                 logger.info(f"[LAMBDA] [THREAD] Staggering Chrome start for user {idx + 1}: waiting {stagger_delay}s")
                 time.sleep(stagger_delay)
@@ -4985,42 +5010,60 @@ def handler(event, context):
                     "secret_key": None
                 }
         
-        # Use ThreadPoolExecutor to process users in parallel
-        # Lambda has 2048 MB memory. Each Chrome instance needs ~400MB+ for stability.
-        # 3 instances * 400MB = 1200MB, leaving ~800MB for OS/Python overhead.
-        # This is a safe limit to prevent OOM and timeouts.
-        max_concurrent = min(3, len(users_batch))
-        logger.info(f"[LAMBDA] Using {max_concurrent} concurrent workers for {len(users_batch)} users (processing all users in parallel for maximum speed)")
+        # Check for SEQUENTIAL_PROCESSING override for maximum stability
+        sequential_mode = os.environ.get('SEQUENTIAL_PROCESSING', 'false').lower() == 'true'
         
-        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-            # Submit all tasks
-            future_to_user = {
-                executor.submit(process_user_wrapper, user_data, idx): (idx, user_data)
-                for idx, user_data in enumerate(users_batch)
-            }
-            
-            # Collect results as they complete (maintain order)
-            completed_results = {}
-            for future in as_completed(future_to_user):
-                idx, user_data = future_to_user[future]
+        if sequential_mode:
+            logger.info("[LAMBDA] SEQUENTIAL_PROCESSING enabled. Processing users one by one for maximum stability.")
+            results = []
+            for idx, user_data in enumerate(users_batch):
+                # Clean /tmp before each user to prevent disk exhaustion
                 try:
-                    result = future.result()
-                    completed_results[idx] = result
-                except Exception as e:
-                    email = user_data.get("email", "unknown")
-                    logger.error(f"[LAMBDA] [THREAD] Future exception for user {idx + 1}: {email} - {str(e)}")
-                    completed_results[idx] = {
-                        "email": email,
-                        "status": "failed",
-                        "error_message": f"Future exception: {str(e)}",
-                        "app_password": None,
-                        "secret_key": None
-                    }
+                    subprocess.run(['rm', '-rf', '/tmp/chrome-data', '/tmp/data-path', '/tmp/cache-dir'], capture_output=True)
+                    os.makedirs('/tmp/chrome-data', exist_ok=True)
+                except:
+                    pass
+                    
+                logger.info(f"[LAMBDA] Processing user {idx + 1}/{len(users_batch)} sequentially...")
+                result = process_user_wrapper(user_data, idx)
+                results.append(result)
+                
+                # Small cool-down between users
+                time.sleep(2)
+        else:
+            # Parallel Processing
+            max_concurrent = min(3, len(users_batch))
+            logger.info(f"[LAMBDA] Using {max_concurrent} concurrent workers for {len(users_batch)} users (processing all users in parallel for maximum speed)")
             
-            # Reconstruct results in original order
-            results = [completed_results[idx] for idx in sorted(completed_results.keys())]
-        
-        logger.info(f"[LAMBDA] All {len(users_batch)} users processed in parallel")
+            with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+                # Submit all tasks
+                future_to_user = {
+                    executor.submit(process_user_wrapper, user_data, idx): (idx, user_data)
+                    for idx, user_data in enumerate(users_batch)
+                }
+                
+                # Collect results as they complete (maintain order)
+                completed_results = {}
+                for future in as_completed(future_to_user):
+                    idx, user_data = future_to_user[future]
+                    try:
+                        result = future.result()
+                        completed_results[idx] = result
+                    except Exception as e:
+                        email = user_data.get("email", "unknown")
+                        logger.error(f"[LAMBDA] [THREAD] Future exception for user {idx + 1}: {email} - {str(e)}")
+                        completed_results[idx] = {
+                            "email": email,
+                            "status": "failed",
+                            "error_message": f"Future exception: {str(e)}",
+                            "app_password": None,
+                            "secret_key": None
+                        }
+                
+                # Reconstruct results in original order
+                results = [completed_results[idx] for idx in sorted(completed_results.keys())]
+            
+            logger.info(f"[LAMBDA] All {len(users_batch)} users processed in parallel")
         
         # Calculate total time
         total_time = round(time.time() - start_time, 2)
@@ -5081,6 +5124,9 @@ def process_single_user(email, password, batch_start_time=None):
     
     for browser_attempt in range(max_browser_attempts):
         try:
+            # Ensure clean state before starting
+            cleanup_chrome_processes()
+            
             if browser_attempt > 0:
                 logger.info(f"[LAMBDA] Restarting browser (Attempt {browser_attempt + 1}/{max_browser_attempts})...")
             
@@ -5101,17 +5147,7 @@ def process_single_user(email, password, batch_start_time=None):
                 break
             
             # Handle Login Failures
-            if error_code == "SECURE_BROWSER_BLOCK":
-                logger.warning(f"[LAMBDA] Secure Browser Block detected for {email}. Restarting browser...")
-                if driver:
-                    try:
-                        driver.quit()
-                    except:
-                        pass
-                    driver = None
-                continue # Restart loop
-            
-            elif error_code == "ACCOUNT_NOT_FOUND":
+            if error_code == "ACCOUNT_NOT_FOUND":
                 logger.error(f"[LAMBDA] FATAL ERROR: Account not found for {email}. Aborting.")
                 if driver:
                     driver.quit()
@@ -5126,20 +5162,21 @@ def process_single_user(email, password, batch_start_time=None):
                     "timings": timings
                 }
             
-            else:
-                logger.error(f"[STEP] Login failed: {error_message}")
-                if driver:
+            # For SECURE_BROWSER_BLOCK, CRASHES, TIMEOUTS, or any other error -> RETRY
+            # We treat almost everything as a transient failure worth retrying with a fresh browser
+            logger.warning(f"[LAMBDA] Login failed with error: {error_code} - {error_message}")
+            logger.warning(f"[LAMBDA] Retrying with fresh browser (Attempt {browser_attempt + 1}/{max_browser_attempts})...")
+            
+            if driver:
+                try:
                     driver.quit()
-                return {
-                    "email": email,
-                    "status": "failed",
-                    "step_completed": step_completed,
-                    "error_step": step_completed,
-                    "error_message": error_message,
-                    "app_password": None,
-                    "secret_key": None,
-                    "timings": timings
-                }
+                except:
+                    pass
+                driver = None
+            
+            # Force cleanup after failure
+            cleanup_chrome_processes()
+            continue # Restart loop for ALL other errors
                 
         except Exception as e:
             logger.error(f"[LAMBDA] Exception during browser attempt {browser_attempt + 1}: {e}")

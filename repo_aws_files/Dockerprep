@@ -115,7 +115,12 @@ RUN pip install --no-cache-dir --upgrade pip && \
         undetected-chromedriver>=3.5.0 \
         google-auth>=2.23.0 \
         google-auth-oauthlib>=1.1.0 \
-        requests>=2.31.0
+        requests>=2.31.0 \
+        selenium-stealth==1.0.6 \
+        fake-useragent==1.4.0 \
+        selenium-wire==5.1.0 \
+        pyotp==2.9.0 \
+        webdriver-manager==4.0.1
 
 # ------------------------
 # Verify installations
