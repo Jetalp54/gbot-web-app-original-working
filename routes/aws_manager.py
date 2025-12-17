@@ -997,6 +997,7 @@ def push_ecr_to_all_regions():
         secret_key = data.get('secret_key', '').strip()
         base_ecr_uri = data.get('ecr_uri', '').strip()
         source_region_override = data.get('source_region', '').strip()  # Allow manual selection
+        custom_target_repo = data.get('repo_name', '').strip()  # Allow custom target repo name
         
         if not access_key or not secret_key or not base_ecr_uri:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials and ECR URI.'}), 400
@@ -1010,16 +1011,20 @@ def push_ecr_to_all_regions():
         if not ecr_match:
             return jsonify({'success': False, 'error': 'Could not parse ECR URI. Format: account.dkr.ecr.region.amazonaws.com/repo:tag'}), 400
         
-        account_id, parsed_region, repo_name, image_tag = ecr_match.groups()
+        account_id, parsed_region, source_repo_name, image_tag = ecr_match.groups()
+        
+        # Determine target repo name (use custom if provided, else use source name)
+        target_repo_name = custom_target_repo if custom_target_repo else source_repo_name
         
         # Use override if provided, otherwise use parsed region from URI
         source_region = source_region_override if source_region_override else parsed_region
         
         # Construct source ECR URI using the selected source region
-        source_ecr_uri = f"{account_id}.dkr.ecr.{source_region}.amazonaws.com/{repo_name}:{image_tag}"
+        source_ecr_uri = f"{account_id}.dkr.ecr.{source_region}.amazonaws.com/{source_repo_name}:{image_tag}"
         
         logger.info(f"[ECR] Source region: {source_region} (override: {source_region_override}, parsed: {parsed_region})")
         logger.info(f"[ECR] Source ECR URI: {source_ecr_uri}")
+        logger.info(f"[ECR] Target Repo Name: {target_repo_name} (Source: {source_repo_name})")
         
         # Get all available AWS regions (as specified by user)
         AVAILABLE_GEO_REGIONS = [
@@ -1267,7 +1272,7 @@ def push_ecr_to_all_regions():
                 # Check all regions in parallel for faster pre-scan
                 logger.info("=" * 60)
                 logger.info(f"[ECR] PRE-SCAN PHASE: Checking {len(regions_to_process)} regions for existing images...")
-                logger.info(f"[ECR] Looking for image tag: '{image_tag}' in repository: '{repo_name}'")
+                logger.info(f"[ECR] Looking for image tag: '{image_tag}' in repository: '{target_repo_name}'")
                 logger.info("=" * 60)
                 regions_to_push = []
                 regions_with_image = []
@@ -1402,14 +1407,14 @@ def push_ecr_to_all_regions():
                         ecr_client = target_session.client('ecr')
                         repo_exists = False
                         try:
-                            ecr_client.describe_repositories(repositoryNames=[repo_name])
+                            ecr_client.describe_repositories(repositoryNames=[target_repo_name])
                             repo_exists = True
                             logger.info(f"[ECR] [{target_region}] ✓ ECR repository already exists")
                         except ClientError as e:
                             if e.response['Error']['Code'] == 'RepositoryNotFoundException':
                                 try:
                                     ecr_client.create_repository(
-                                        repositoryName=repo_name,
+                                        repositoryName=target_repo_name,
                                         imageTagMutability='MUTABLE',
                                         imageScanningConfiguration={'scanOnPush': False}
                                     )
@@ -1427,11 +1432,11 @@ def push_ecr_to_all_regions():
                         
                         # Quick double-check: Verify image still doesn't exist (might have been pushed by another process)
                         # This is a fast check since pre-scan already determined it doesn't exist
-                        target_ecr_uri = f"{account_id}.dkr.ecr.{target_region}.amazonaws.com/{repo_name}:{image_tag}"
+                        target_ecr_uri = f"{account_id}.dkr.ecr.{target_region}.amazonaws.com/{target_repo_name}:{image_tag}"
                         if repo_exists:
                             try:
                                 ecr_client.describe_images(
-                                    repositoryName=repo_name,
+                                    repositoryName=target_repo_name,
                                     imageIds=[{"imageTag": image_tag}],
                                 )
                                 # Image exists now (might have been pushed by another process or EC2 script)
@@ -1457,7 +1462,7 @@ def push_ecr_to_all_regions():
                             )
                             source_ecr_client = source_session.client('ecr')
                             source_ecr_client.describe_images(
-                                repositoryName=repo_name,
+                                repositoryName=source_repo_name,
                                 imageIds=[{"imageTag": image_tag}],
                             )
                             logger.info(f"[ECR] [{target_region}] ✓ Verified source image exists in {source_region}")
@@ -1552,7 +1557,7 @@ echo "✓ Image pushed successfully"
 echo "=== Step 6: Verifying image exists in {target_region}... ==="
 sleep 2  # Reduced wait time for ECR to update
 for i in {{1..3}}; do
-    if aws ecr describe-images --repository-name {repo_name} --image-ids imageTag={image_tag} --region {target_region} 2>&1; then
+    if aws ecr describe-images --repository-name {target_repo_name} --image-ids imageTag={image_tag} --region {target_region} 2>&1; then
         echo "✓✓✓ VERIFIED: Image exists in ECR after push!"
         exit 0
     fi
@@ -1630,7 +1635,7 @@ exit 1
                                             for verify_attempt in range(verification_attempts):
                                                 try:
                                                     ecr_client.describe_images(
-                                                        repositoryName=repo_name,
+                                                        repositoryName=target_repo_name,
                                                         imageIds=[{"imageTag": image_tag}],
                                                     )
                                                     image_verified = True
