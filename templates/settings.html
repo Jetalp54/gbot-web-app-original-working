@@ -2966,7 +2966,7 @@
             })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success && data.config && data.config.is_configured) {
+                    if (data.success && data.config && data.config.api_key_configured) {
                         // Config exists in database, proceed with fetch
                         proceedWithFetch();
                     } else {
