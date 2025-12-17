@@ -50,7 +50,9 @@
         </div>
 
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
-
+            <button onclick="openAddAccountModal()" class="btn-github btn-github-primary">
+                <i class="fas fa-plus-circle"></i> Add Account
+            </button>
             {% if session.role == 'admin' %}
             <button onclick="forceTokenStatusCheck()" class="btn-github"
                 style="background-color: var(--color-warning-emphasis); border-color: var(--color-warning-emphasis); color: #ffffff;">
@@ -179,6 +181,82 @@
                 </button>
                 <button onclick="closeOAuthModal()" class="btn-github">
                     <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Account Modal -->
+    <div id="addAccountModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-plus-circle"></i> Add New Account
+                </h3>
+                <button type="button" class="btn-github" onclick="closeAddAccountModal()" style="margin-left: auto;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div
+                    style="background-color: rgba(9, 105, 218, 0.1); border: 1px solid var(--color-accent-emphasis); border-radius: 6px; padding: 12px; margin-bottom: 16px; color: var(--color-accent-fg);">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Instructions:</strong> Enter the account email and upload the service account JSON
+                    credentials file to add a new account.
+                </div>
+
+                <div class="form-group-github" style="margin-bottom: 16px;">
+                    <label for="addAccountEmail" class="form-label-github">
+                        <i class="fas fa-envelope"></i> Account Email (Admin Email)
+                    </label>
+                    <input type="email" id="addAccountEmail" class="form-control-github"
+                        placeholder="admin@yourdomain.com" required>
+                    <small style="color: #656d76; font-size: 12px; margin-top: 4px; display: block;">
+                        This should be the admin email address for the Google Workspace account.
+                    </small>
+                </div>
+
+                <div class="form-group-github" style="margin-bottom: 16px;">
+                    <label for="addAccountName" class="form-label-github">
+                        <i class="fas fa-tag"></i> Account Name (Optional)
+                    </label>
+                    <input type="text" id="addAccountName" class="form-control-github"
+                        placeholder="My Workspace Account">
+                    <small style="color: #656d76; font-size: 12px; margin-top: 4px; display: block;">
+                        A friendly name for this account. If left blank, the email will be used.
+                    </small>
+                </div>
+
+                <div class="form-group-github" style="margin-bottom: 16px;">
+                    <label for="addAccountJsonFile" class="form-label-github">
+                        <i class="fas fa-file-code"></i> Service Account JSON File
+                    </label>
+                    <input type="file" id="addAccountJsonFile" class="form-control-github" accept=".json" required>
+                    <small style="color: #656d76; font-size: 12px; margin-top: 4px; display: block;">
+                        Upload the service account credentials JSON file downloaded from Google Cloud Console.
+                    </small>
+                </div>
+
+                <div id="addAccountJsonPreview" style="display: none; margin-bottom: 16px;">
+                    <label class="form-label-github">
+                        <i class="fas fa-check-circle" style="color: #28a745;"></i> JSON File Preview
+                    </label>
+                    <div
+                        style="background: #f6f8fa; padding: 12px; border-radius: 6px; border: 1px solid #d0d7de; font-family: 'Courier New', monospace; font-size: 12px; max-height: 150px; overflow-y: auto;">
+                        <div id="addAccountJsonContent"></div>
+                    </div>
+                </div>
+
+                <div id="addAccountStatus" style="display: none; margin-top: 16px;">
+                    <div id="addAccountStatusContent" style="padding: 12px; border-radius: 6px;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="submitAddAccount()" class="btn-github btn-github-primary" id="addAccountSubmitBtn">
+                    <i class="fas fa-plus"></i> Add Account
+                </button>
+                <button onclick="closeAddAccountModal()" class="btn-github">
+                    <i class="fas fa-times"></i> Cancel
                 </button>
             </div>
         </div>
@@ -11332,6 +11410,111 @@
 
     // --- GCP Account Management ---
 
+
+
+    // --- Add Account Modal Functions ---
+    function openAddAccountModal() {
+        document.getElementById('addAccountModal').style.display = 'block';
+        // Reset form
+        document.getElementById('addAccountEmail').value = '';
+        document.getElementById('addAccountName').value = '';
+        document.getElementById('addAccountJsonFile').value = '';
+        document.getElementById('addAccountJsonPreview').style.display = 'none';
+        document.getElementById('addAccountStatus').style.display = 'none';
+    }
+
+    function closeAddAccountModal() {
+        document.getElementById('addAccountModal').style.display = 'none';
+    }
+
+    // Handle JSON file selection for preview
+    document.getElementById('addAccountJsonFile').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                const jsonContent = JSON.parse(e.target.result);
+                // Mask private key for security in preview
+                if (jsonContent.private_key) {
+                    jsonContent.private_key = "PRIVATE KEY HIDDEN";
+                }
+                document.getElementById('addAccountJsonContent').textContent = JSON.stringify(jsonContent, null, 2);
+                document.getElementById('addAccountJsonPreview').style.display = 'block';
+            } catch (err) {
+                alert('Invalid JSON file: ' + err.message);
+                document.getElementById('addAccountJsonFile').value = '';
+                document.getElementById('addAccountJsonPreview').style.display = 'none';
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    function submitAddAccount() {
+        const email = document.getElementById('addAccountEmail').value.trim();
+        const name = document.getElementById('addAccountName').value.trim();
+        const fileInput = document.getElementById('addAccountJsonFile');
+        const file = fileInput.files[0];
+
+        if (!email) {
+            alert('Please enter an account email.');
+            return;
+        }
+        if (!file) {
+            alert('Please select a service account JSON file.');
+            return;
+        }
+
+        const submitBtn = document.getElementById('addAccountSubmitBtn');
+        const statusDiv = document.getElementById('addAccountStatus');
+        const statusContent = document.getElementById('addAccountStatusContent');
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+
+        statusDiv.style.display = 'block';
+        statusContent.innerHTML = 'Uploading and verifying account credentials...';
+        statusContent.style.backgroundColor = '#e1e4e8';
+        statusContent.style.color = '#24292f';
+
+        const formData = new FormData();
+        formData.append('email', email);
+        formData.append('name', name || email); // Use email as name if not provided
+        formData.append('json_file', file);
+
+        fetch('/api/add-account-json', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusContent.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
+                    statusContent.style.backgroundColor = '#d4edda';
+                    statusContent.style.color = '#155724';
+
+                    setTimeout(() => {
+                        closeAddAccountModal();
+                        location.reload(); // Reload to show new account
+                    }, 1500);
+                } else {
+                    statusContent.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error: ' + data.error;
+                    statusContent.style.backgroundColor = '#f8d7da';
+                    statusContent.style.color = '#721c24';
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-plus"></i> Add Account';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                statusContent.innerHTML = '<i class="fas fa-exclamation-circle"></i> Network Error: ' + error.message;
+                statusContent.style.backgroundColor = '#f8d7da';
+                statusContent.style.color = '#721c24';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-plus"></i> Add Account';
+            });
+    }
 
 
     function toggleProviderSettings() {

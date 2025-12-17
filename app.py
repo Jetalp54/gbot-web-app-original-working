@@ -797,7 +797,76 @@ def api_add_whitelist_ip():
         except Exception as db_error:
             db.session.rollback()
             app.logger.error(f"Database error adding IP {ip_address}: {db_error}")
+            return jsonify({'success': False, 'error': str(db_error)})
             
+        return jsonify({'success': True, 'message': f'IP {ip_address} added to whitelist'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/add-account-json', methods=['POST'])
+@login_required
+def api_add_account_json():
+    """Add a new Google Workspace account using Service Account JSON"""
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'})
+    
+    try:
+        email = request.form.get('email', '').strip()
+        name = request.form.get('name', '').strip()
+        json_file = request.files.get('json_file')
+        
+        if not email:
+            return jsonify({'success': False, 'error': 'Account email is required'})
+        
+        if not json_file:
+            return jsonify({'success': False, 'error': 'Service account JSON file is required'})
+            
+        # Read and parse JSON file
+        try:
+            json_content_str = json_file.read().decode('utf-8')
+            json_content = json.loads(json_content_str)
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Invalid JSON file: {str(e)}'})
+            
+        # Validate JSON content
+        required_keys = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email']
+        missing_keys = [key for key in required_keys if key not in json_content]
+        
+        if missing_keys:
+            return jsonify({'success': False, 'error': f'Invalid service account JSON. Missing keys: {", ".join(missing_keys)}'})
+            
+        if json_content.get('type') != 'service_account':
+            return jsonify({'success': False, 'error': 'JSON file is not a service account credential'})
+            
+        # Check if account already exists (by admin email or client email)
+        existing_account = ServiceAccount.query.filter(
+            (ServiceAccount.admin_email == email) | (ServiceAccount.client_email == json_content['client_email'])
+        ).first()
+        
+        if existing_account:
+            return jsonify({'success': False, 'error': f'Account already exists (Admin: {existing_account.admin_email}, Client: {existing_account.client_email})'})
+            
+        # Create new Service Account
+        new_account = ServiceAccount(
+            name=name if name else email,
+            admin_email=email,
+            project_id=json_content['project_id'],
+            client_email=json_content['client_email'],
+            private_key_id=json_content['private_key_id'],
+            json_content=json_content_str,
+            is_active=True
+        )
+        
+        db.session.add(new_account)
+        db.session.commit()
+        
+        app.logger.info(f"Added new service account: {name} ({email})")
+        return jsonify({'success': True, 'message': f'Account {email} added successfully'})
+        
+    except Exception as e:
+        app.logger.error(f"Error adding account: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
             # If it's a unique constraint violation, the IP might already exist
             if "duplicate key value violates unique constraint" in str(db_error):
                 # Check again if it was added by another process
