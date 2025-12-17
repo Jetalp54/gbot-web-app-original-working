@@ -1341,19 +1341,19 @@
                 } else {
                     // Build detailed error message
                     let errorMsg = `❌ Error: ${data.error || 'Invalid API key or connection failed'}`;
-                    
+
                     if (data.details) {
                         errorMsg += `\n\n📋 Details: ${data.details}`;
                     }
-                    
+
                     if (data.suggestion) {
                         errorMsg += `\n\n💡 Suggestion: ${data.suggestion}`;
                     }
-                    
+
                     if (data.help) {
                         errorMsg += `\n\n🔗 ${data.help}`;
                     }
-                    
+
                     // Log full response to console for debugging
                     console.error('2Captcha API Test Error:', {
                         error: data.error,
@@ -1361,7 +1361,7 @@
                         full_response: data.full_response,
                         raw_response: data.raw_response
                     });
-                    
+
                     showStatus(errorMsg, 'error');
                 }
             })
@@ -1629,7 +1629,7 @@
 
         // Convert newlines to <br> tags for proper multi-line display
         var formattedMessage = String(message).replace(/\n/g, '<br>');
-        
+
         var statusHtml = '<div class="alert-github" style="background: ' + bgColor + '; border: 1px solid ' + borderColor + '; color: ' + textColor + '; display: flex; align-items: flex-start; gap: 8px; padding: 16px; border-radius: 6px;">' +
             '<i class="' + icon + '" style="margin-top: 2px;"></i>' +
             '<div style="flex: 1; line-height: 1.6;">' + formattedMessage + '</div>' +
@@ -2699,7 +2699,15 @@
                     $('#namecheap_api_user').val(data.config.api_user || '');
                     $('#namecheap_username').val(data.config.username || '');
                     $('#namecheap_client_ip').val(data.config.client_ip || '');
-                    // Don't populate API key for security
+
+                    // Handle API key display
+                    if (data.config.api_key_configured) {
+                        $('#namecheap_api_key').attr('placeholder', '•••••••• (Stored - leave blank to keep)');
+                        $('#namecheap_api_key').data('configured', true);
+                    } else {
+                        $('#namecheap_api_key').attr('placeholder', 'your_api_key');
+                        $('#namecheap_api_key').data('configured', false);
+                    }
                     $('#namecheap_api_key').val('');
 
                     // Show status
@@ -2738,7 +2746,10 @@
         };
 
         // Validate required fields
-        if (!config.api_user || !config.api_key || !config.username || !config.client_ip) {
+        // API Key is optional if already configured
+        const isConfigured = $('#namecheap_api_key').data('configured');
+
+        if (!config.api_user || (!config.api_key && !isConfigured) || !config.username || !config.client_ip) {
             showStatus('Please fill in all required fields', 'error');
             return;
         }
@@ -2828,7 +2839,7 @@
         }
 
         showStatus('Saving AWS configuration...', 'info');
-        
+
         // Debug: Log what we're sending (without sensitive data)
         console.log('[AWS SAVE] Sending config:', {
             access_key_id: config.access_key_id ? config.access_key_id.substring(0, 4) + '***' : 'empty',
@@ -2843,7 +2854,7 @@
 
         fetch('/api/aws/save-config', {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
             },
@@ -2852,7 +2863,7 @@
             .then(response => {
                 console.log('[AWS SAVE] Response status:', response.status);
                 console.log('[AWS SAVE] Response headers:', Object.fromEntries(response.headers.entries()));
-                
+
                 if (!response.ok) {
                     // Try to get error message from response
                     return response.text().then(text => {

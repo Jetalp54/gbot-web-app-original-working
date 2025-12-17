@@ -3782,7 +3782,8 @@ def get_namecheap_config():
                 'config': {
                     'api_user': config.api_user,
                     'username': config.username,
-                    'client_ip': config.client_ip
+                    'client_ip': config.client_ip,
+                    'api_key_configured': bool(config.api_key)
                     # Do not return api_key for security
                 }
             })
@@ -3803,12 +3804,6 @@ def save_namecheap_config():
     try:
         data = request.get_json()
         
-        # Validate required fields
-        required_fields = ['api_user', 'api_key', 'username', 'client_ip']
-        for field in required_fields:
-            if not data.get(field):
-                return jsonify({'success': False, 'error': f'Missing required field: {field}'})
-        
         from database import NamecheapConfig
         
         # Get or create config
@@ -3816,10 +3811,23 @@ def save_namecheap_config():
         if not config:
             config = NamecheapConfig()
             db.session.add(config)
+            
+        # Validate required fields
+        # API Key is optional if we already have one configured
+        if not data.get('api_key') and not config.api_key:
+             return jsonify({'success': False, 'error': 'Missing required field: api_key'})
+             
+        required_fields = ['api_user', 'username', 'client_ip']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'})
         
         # Update config
         config.api_user = data['api_user']
-        config.api_key = data['api_key']
+        # Only update API key if provided
+        if data.get('api_key'):
+            config.api_key = data['api_key']
+            
         config.username = data['username']
         config.client_ip = data['client_ip']
         config.is_configured = True
