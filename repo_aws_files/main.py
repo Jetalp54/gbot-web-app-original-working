@@ -401,7 +401,8 @@ def get_chrome_driver():
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
         # Set page load timeout BEFORE any operations
-        driver.set_page_load_timeout(60)
+        # Increased to 120 seconds to handle slow proxy connections
+        driver.set_page_load_timeout(120)
         
         # Wait for Chrome to fully initialize
         time.sleep(2)
@@ -2493,8 +2494,8 @@ def login_google(driver, email, password, known_totp_secret=None):
                 ]
                 
                 for xpath in email_input_xpaths:
-                    if element_exists(driver, xpath, timeout=5):
-                        email_input = wait_for_xpath(driver, xpath, timeout=5)
+                    if element_exists(driver, xpath, timeout=15):
+                        email_input = wait_for_xpath(driver, xpath, timeout=15)
                         break
                 
                 if not email_input:
