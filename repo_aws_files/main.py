@@ -1778,6 +1778,7 @@ def solve_captcha_with_2captcha(driver, email=None):
                 # This prevents stale element issues
                 captcha_input = None
                 captcha_input_xpaths = [
+                    "/html/body/div[2]/div[1]/div[1]/div[2]/c-wiz/main/div[2]/div/div/div/form/span/section[2]/div/div/div[2]/div[2]/div[1]/div[1]/div/div[1]/input", # User provided specific XPath
                     "//input[@name='ca']",
                     "//input[@id='ca']",
                     "//input[contains(@aria-label, 'Type the text you hear or see')]",
@@ -1799,6 +1800,26 @@ def solve_captcha_with_2captcha(driver, email=None):
                     except:
                         continue
                 
+                # Fallback: User provided JS Path
+                if not captcha_input:
+                    try:
+                        logger.info("[2CAPTCHA] XPath failed, trying user-provided JS Path...")
+                        js_selector = "#yDmH0d > c-wiz > main > div.UXFQgc > div > div > div > form > span > section:nth-child(2) > div > div > div.lbFS4d > div.AFTWye > div.rFrNMe.X3mtXb.UOsO2.zKHdkd.sdJrJc > div.aCsJod.oJeWuf"
+                        captcha_input = driver.execute_script(f"""
+                            var el = document.querySelector('{js_selector}');
+                            if (el) {{
+                                // If it's an input, return it
+                                if (el.tagName === 'INPUT') return el;
+                                // If it's a container, find the input inside
+                                return el.querySelector('input');
+                            }}
+                            return null;
+                        """)
+                        if captcha_input:
+                            logger.info("[2CAPTCHA] Found CAPTCHA input using user-provided JS Path")
+                    except Exception as js_err:
+                        logger.warning(f"[2CAPTCHA] User JS Path failed: {js_err}")
+
                 if not captcha_input:
                     logger.error("[2CAPTCHA] Could not re-locate CAPTCHA input field!")
                     return False, "Could not locate CAPTCHA input field"
