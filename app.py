@@ -3806,11 +3806,19 @@ def save_namecheap_config():
         
         from database import NamecheapConfig
         
-        # Get or create config
-        config = NamecheapConfig.query.first()
+        # Get existing configured record first
+        config = NamecheapConfig.query.filter_by(is_configured=True).first()
+        
+        # If no configured record, get any record
+        if not config:
+            config = NamecheapConfig.query.first()
+            
+        # If still no record, create new one
         if not config:
             config = NamecheapConfig()
             db.session.add(config)
+            
+        app.logger.info(f"Updating Namecheap config. ID: {config.id if config.id else 'New'}")
             
         # Validate required fields
         # API Key is optional if we already have one configured
@@ -3824,9 +3832,12 @@ def save_namecheap_config():
         
         # Update config
         config.api_user = data['api_user']
-        # Only update API key if provided
+        # Only update API key if provided (and not empty string)
         if data.get('api_key'):
             config.api_key = data['api_key']
+            app.logger.info("Namecheap API key updated")
+        else:
+            app.logger.info("Namecheap API key preserved (not provided in request)")
             
         config.username = data['username']
         config.client_ip = data['client_ip']
@@ -3834,6 +3845,17 @@ def save_namecheap_config():
         config.updated_at = db.func.current_timestamp()
         
         db.session.commit()
+        
+        # Clean up any other configured records to avoid confusion
+        try:
+            other_configs = NamecheapConfig.query.filter(NamecheapConfig.id != config.id).all()
+            for other in other_configs:
+                db.session.delete(other)
+            if other_configs:
+                db.session.commit()
+                app.logger.info(f"Cleaned up {len(other_configs)} duplicate Namecheap config records")
+        except Exception as cleanup_error:
+            app.logger.error(f"Error cleaning up duplicate configs: {cleanup_error}")
         
         app.logger.info(f"Namecheap configuration saved by {session.get('user')}")
         return jsonify({'success': True, 'message': 'Namecheap configuration saved successfully'})
