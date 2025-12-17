@@ -2555,6 +2555,29 @@ def create_lambdas():
             elif not twocaptcha_config.get('api_key'):
                 logger.warning(f"[2CAPTCHA] ✗ 2Captcha API key is empty in database")
             logger.info(f"[2CAPTCHA] 2Captcha feature disabled or not configured - Lambda will not solve CAPTCHAs")
+        
+        # Add Proxy configuration if enabled
+        proxy_config = get_proxy_config()
+        logger.info(f"[PROXY] Retrieved config from database: enabled={proxy_config.get('enabled') if proxy_config else False}, has_proxies={bool(proxy_config and proxy_config.get('proxies'))}")
+        
+        if proxy_config and proxy_config.get('enabled') and proxy_config.get('proxies'):
+            chromium_env['PROXY_ENABLED'] = 'true'
+            chromium_env['PROXY_LIST'] = proxy_config.get('proxies', '')
+            # Count number of proxies
+            proxy_count = len([line for line in proxy_config.get('proxies', '').strip().split('\n') if line.strip()])
+            logger.info(f"[PROXY] ✓ Proxy feature ENABLED with {proxy_count} proxy/proxies")
+            logger.info(f"[PROXY] Proxy list length: {len(chromium_env['PROXY_LIST'])} characters")
+        else:
+            chromium_env['PROXY_ENABLED'] = 'false'
+            chromium_env['PROXY_LIST'] = ''
+            if not proxy_config:
+                logger.warning(f"[PROXY] ✗ Proxy config not found in database")
+            elif not proxy_config.get('enabled'):
+                logger.warning(f"[PROXY] ✗ Proxy is disabled in database")
+            elif not proxy_config.get('proxies'):
+                logger.warning(f"[PROXY] ✗ Proxy list is empty in database")
+            logger.info(f"[PROXY] Proxy feature disabled or not configured - Lambda will not use proxies")
+
 
         # Calculate number of Lambda functions to create
         import math
