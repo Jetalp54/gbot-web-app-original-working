@@ -867,21 +867,7 @@ def api_add_account_json():
     except Exception as e:
         app.logger.error(f"Error adding account: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
-            # If it's a unique constraint violation, the IP might already exist
-            if "duplicate key value violates unique constraint" in str(db_error):
-                # Check again if it was added by another process
-                existing_ip = WhitelistedIP.query.filter_by(ip_address=ip_address).first()
-                if existing_ip:
-                    return jsonify({'success': False, 'error': 'IP address already exists'})
-                else:
-                    return jsonify({'success': False, 'error': f'Database constraint violation: {str(db_error)}'})
-            else:
-                return jsonify({'success': False, 'error': f'Database error: {str(db_error)}'})
-        
-        return jsonify({'success': True, 'message': f'IP address {ip_address} whitelisted successfully'})
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+
 
 @app.route('/api/fix-database-sequences', methods=['POST'])
 @login_required
