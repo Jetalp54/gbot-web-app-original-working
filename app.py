@@ -3765,6 +3765,75 @@ def save_server_config():
         app.logger.error(f"Error saving server config: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/namecheap-config', methods=['GET'])
+@login_required
+def get_namecheap_config():
+    """Get Namecheap configuration"""
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    
+    try:
+        from database import NamecheapConfig
+        config = NamecheapConfig.query.filter_by(is_configured=True).first()
+        
+        if config:
+            return jsonify({
+                'success': True,
+                'config': {
+                    'api_user': config.api_user,
+                    'username': config.username,
+                    'client_ip': config.client_ip
+                    # Do not return api_key for security
+                }
+            })
+        else:
+            return jsonify({'success': True, 'config': None})
+            
+    except Exception as e:
+        app.logger.error(f"Error getting Namecheap config: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/namecheap-config', methods=['POST'])
+@login_required
+def save_namecheap_config():
+    """Save Namecheap configuration"""
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['api_user', 'api_key', 'username', 'client_ip']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'})
+        
+        from database import NamecheapConfig
+        
+        # Get or create config
+        config = NamecheapConfig.query.first()
+        if not config:
+            config = NamecheapConfig()
+            db.session.add(config)
+        
+        # Update config
+        config.api_user = data['api_user']
+        config.api_key = data['api_key']
+        config.username = data['username']
+        config.client_ip = data['client_ip']
+        config.is_configured = True
+        config.updated_at = db.func.current_timestamp()
+        
+        db.session.commit()
+        
+        app.logger.info(f"Namecheap configuration saved by {session.get('user')}")
+        return jsonify({'success': True, 'message': 'Namecheap configuration saved successfully'})
+        
+    except Exception as e:
+        app.logger.error(f"Error saving Namecheap config: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/test-server-connection', methods=['POST'])
 @login_required
 def test_server_connection():
