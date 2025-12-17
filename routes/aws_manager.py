@@ -997,7 +997,8 @@ def push_ecr_to_all_regions():
         secret_key = data.get('secret_key', '').strip()
         base_ecr_uri = data.get('ecr_uri', '').strip()
         source_region_override = data.get('source_region', '').strip()  # Allow manual selection
-        custom_target_repo = data.get('repo_name', '').strip()  # Allow custom target repo name
+        # Check multiple possible keys for custom repo name to be robust
+        custom_target_repo = data.get('repo_name', '').strip() or data.get('ecr_repo_name', '').strip() or data.get('repository_name', '').strip()
         
         if not access_key or not secret_key or not base_ecr_uri:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials and ECR URI.'}), 400
@@ -1161,7 +1162,7 @@ def push_ecr_to_all_regions():
                         
                         # Check if repository exists
                         try:
-                            ecr_check.describe_repositories(repositoryNames=[repo_name])
+                            ecr_check.describe_repositories(repositoryNames=[target_repo_name])
                             region_status['repo_exists'] = True
                         except ClientError as repo_err:
                             if repo_err.response['Error']['Code'] != 'RepositoryNotFoundException':
@@ -1175,7 +1176,7 @@ def push_ecr_to_all_regions():
                             # This is more reliable than describe_images with specific tag
                             try:
                                 list_response = ecr_check.list_images(
-                                    repositoryName=repo_name,
+                                    repositoryName=target_repo_name,
                                     maxResults=100  # Check up to 100 images
                                 )
                                 image_ids = list_response.get('imageIds', [])
@@ -1199,7 +1200,7 @@ def push_ecr_to_all_regions():
                                         # Double-check using describe_images to be absolutely sure
                                         try:
                                             ecr_check.describe_images(
-                                                repositoryName=repo_name,
+                                                repositoryName=target_repo_name,
                                                 imageIds=[{"imageTag": image_tag}],
                                             )
                                             # If describe_images succeeds, image exists
@@ -1218,7 +1219,7 @@ def push_ecr_to_all_regions():
                                     # No images at all - double check with describe_images
                                     try:
                                         ecr_check.describe_images(
-                                            repositoryName=repo_name,
+                                            repositoryName=target_repo_name,
                                             imageIds=[{"imageTag": image_tag}],
                                         )
                                         # If describe_images succeeds, image exists (list_images might have missed it)
@@ -1243,7 +1244,7 @@ def push_ecr_to_all_regions():
                                     # Try fallback: describe_images with specific tag
                                     try:
                                         ecr_check.describe_images(
-                                            repositoryName=repo_name,
+                                            repositoryName=target_repo_name,
                                             imageIds=[{"imageTag": image_tag}],
                                         )
                                         region_status['image_exists'] = True
