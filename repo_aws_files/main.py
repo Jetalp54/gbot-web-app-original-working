@@ -216,8 +216,19 @@ def get_chrome_driver():
     """
     Initialize Selenium Chrome driver for AWS Lambda environment.
     Uses standard Selenium with CDP-based anti-detection (Lambda-compatible).
-    Supports proxy configuration if PROXY_CONFIG environment variable is set.
+    Supports proxy configuration if PROXY_ENABLED environment variable is set.
+    Integrates selenium-stealth for enhanced anti-detection.
     """
+    # Import selenium-stealth
+    try:
+        from selenium_stealth import stealth
+        from fake_useragent import UserAgent
+        stealth_available = True
+        logger.info("[ANTI-DETECT] selenium-stealth library loaded successfully")
+    except ImportError as e:
+        stealth_available = False
+        logger.warning(f"[ANTI-DETECT] selenium-stealth not available: {e}. Falling back to basic anti-detection.")
+    
     # Force environment variables to prevent SeleniumManager from trying to write to read-only FS
     os.environ['HOME'] = '/tmp'
     os.environ['XDG_CACHE_HOME'] = '/tmp/.cache'
@@ -228,6 +239,7 @@ def get_chrome_driver():
     
     # Ensure /tmp directories exist
     os.makedirs('/tmp/.cache/selenium', exist_ok=True)
+    os.makedirs('/tmp/chrome-data', exist_ok=True)  # For user data dir
     
     # Locate Chrome binary and ChromeDriver
     logger.info("[LAMBDA] Checking /opt directory contents...")
@@ -304,11 +316,23 @@ def get_chrome_driver():
     if proxy_config:
         logger.info(f"[PROXY] Using proxy: {proxy_config['ip']}:{proxy_config['port']}")
         chrome_options.add_argument(f"--proxy-server={proxy_config['http']}")
+    else:
+        logger.info("[PROXY] Proxy disabled or not configured")
     
-    # Randomize User-Agent
-    user_agent = random.choice(USER_AGENTS)
+    # Randomize User-Agent using fake-useragent if available, otherwise use predefined list
+    if stealth_available:
+        try:
+            ua = UserAgent()
+            user_agent = ua.random
+            logger.info(f"[ANTI-DETECT] Using random User-Agent from fake-useragent: {user_agent}")
+        except:
+            user_agent = random.choice(USER_AGENTS)
+            logger.info(f"[ANTI-DETECT] Using User-Agent from predefined list: {user_agent}")
+    else:
+        user_agent = random.choice(USER_AGENTS)
+        logger.info(f"[ANTI-DETECT] Using User-Agent: {user_agent}")
+    
     chrome_options.add_argument(f"--user-agent={user_agent}")
-    logger.info(f"[ANTI-DETECT] Using User-Agent: {user_agent}")
 
     # Randomize Window Size
     window_size = random.choice(WINDOW_SIZES)
@@ -335,12 +359,23 @@ def get_chrome_driver():
     chrome_options.add_argument("--disable-setuid-sandbox")
     chrome_options.add_argument("--disable-software-rasterizer")
     
-    # Essential Anti-detection options (MINIMAL - less is more!)
+    # Enhanced Anti-detection options (from user's configuration)
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("--disable-infobars")
+    chrome_options.add_argument("--disable-web-security")
+    chrome_options.add_argument("--disable-site-isolation-trials")
+    chrome_options.add_argument("--ignore-certificate-errors")
+    chrome_options.add_argument("--allow-running-insecure-content")
+    
+    # User data directory for persistent profile (IMPORTANT for anti-detection)
+    chrome_options.add_argument("--user-data-dir=/tmp/chrome-data")
+    chrome_options.add_argument("--profile-directory=Profile1")
+    
+    # Remove automation flags completely
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     
-    # Simple prefs - don't overdo it
+    # Enhanced prefs
     chrome_options.add_experimental_option("prefs", {
         "profile.default_content_setting_values.notifications": 2,
         "credentials_enable_service": False,
@@ -371,61 +406,67 @@ def get_chrome_driver():
         # Wait for Chrome to fully initialize
         time.sleep(2)
         
-        # Inject comprehensive anti-detection scripts AFTER driver is stable
-        # Do this BEFORE any navigation to ensure it's applied to all pages
-        try:
-            # SIMPLIFIED anti-detection script - less is more!
-            # Aggressive scripts are MORE detectable than simple ones
-            anti_detection_script = '''
-                (function() {
-                    // ========== ESSENTIAL: Hide webdriver flag ==========
-                    // This is the ONLY critical thing to hide
-                    Object.defineProperty(navigator, 'webdriver', {
-                        get: () => undefined,
-                        configurable: true
-                    });
-                    
-                    // ========== Remove ChromeDriver fingerprints ==========
-                    // These are specific to ChromeDriver and must be removed
-                    try {
-                        delete document.$cdc_asdjflasutopfhvcZLmcfl_;
-                        delete document.$chrome_asyncScriptInfo;
-                        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
-                        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
-                        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
-                    } catch(e) {}
-                    
-                    // ========== Add minimal chrome object ==========
-                    // Chrome expects this to exist
-                    if (!window.chrome) {
-                        window.chrome = {
-                            runtime: {}
-                        };
-                    }
-                    
-                    // ========== Simple permissions fix ==========
-                    try {
-                        const originalQuery = window.navigator.permissions.query;
-                        window.navigator.permissions.query = (parameters) => (
-                            parameters.name === 'notifications' ?
-                                Promise.resolve({ state: Notification.permission }) :
-                                originalQuery(parameters)
-                        );
-                    } catch(e) {}
-                })();
-            '''
-            
-            # Inject via CDP ONLY using Page.addScriptToEvaluateOnNewDocument
-            # NOTE: Runtime.evaluate is REMOVED because it's a known detection vector!
-            # Google can detect code execution through Runtime.evaluate CDP command
-            driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-                'source': anti_detection_script
-            })
-            
-            logger.info("[ANTI-DETECT] ✓ Minimal anti-detection script injected")
-        except Exception as e:
-            logger.warning(f"[LAMBDA] Could not inject anti-detection script (non-critical): {e}")
-            # Continue anyway - this is not critical, but log it
+        # Apply selenium-stealth if available
+        if stealth_available:
+            try:
+                stealth(
+                    driver,
+                    languages=["en-US", "en"],
+                    vendor="Google Inc.",
+                    platform="Linux x86_64",
+                    webgl_vendor="Intel Inc.",
+                    renderer="Intel Iris OpenGL Engine",
+                    fix_hairline=True,
+                )
+                logger.info("[ANTI-DETECT] ✓ selenium-stealth patch applied successfully")
+            except Exception as e:
+                logger.warning(f"[ANTI-DETECT] Could not apply selenium-stealth (non-critical): {e}")
+        else:
+            # Fallback: Inject basic anti-detection scripts if stealth not available
+            try:
+                anti_detection_script = '''
+                    (function() {
+                        // Hide webdriver flag
+                        Object.defineProperty(navigator, 'webdriver', {
+                            get: () => undefined,
+                            configurable: true
+                        });
+                        
+                        // Remove ChromeDriver fingerprints
+                        try {
+                            delete document.$cdc_asdjflasutopfhvcZLmcfl_;
+                            delete document.$chrome_asyncScriptInfo;
+                            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+                            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+                            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+                        } catch(e) {}
+                        
+                        // Add minimal chrome object
+                        if (!window.chrome) {
+                            window.chrome = {
+                                runtime: {}
+                            };
+                        }
+                        
+                        // Simple permissions fix
+                        try {
+                            const originalQuery = window.navigator.permissions.query;
+                            window.navigator.permissions.query = (parameters) => (
+                                parameters.name === 'notifications' ?
+                                    Promise.resolve({ state: Notification.permission }) :
+                                    originalQuery(parameters)
+                            );
+                        } catch(e) {}
+                    })();
+                '''
+                
+                driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+                    'source': anti_detection_script
+                })
+                
+                logger.info("[ANTI-DETECT] ✓ Basic anti-detection script injected")
+            except Exception as e:
+                logger.warning(f"[LAMBDA] Could not inject anti-detection script (non-critical): {e}")
         
         logger.info("[LAMBDA] Chrome driver created successfully")
         return driver
@@ -4848,8 +4889,10 @@ def handler(event, context):
                 "results": []
             }
         
-        # CRITICAL: Enforce 3-user limit to prevent memory exhaustion (2GB Lambda)
-        MAX_USERS_PER_BATCH = 3
+        # Get MAX_CONCURRENT_USERS from environment (configurable by admin)
+        MAX_USERS_PER_BATCH = int(os.environ.get('MAX_CONCURRENT_USERS', '3'))
+        logger.info(f"[LAMBDA] MAX_CONCURRENT_USERS setting: {MAX_USERS_PER_BATCH}")
+        
         if len(users_batch) > MAX_USERS_PER_BATCH:
             logger.warning(f"[LAMBDA] ⚠️ WARNING: Batch has {len(users_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
             logger.warning(f"[LAMBDA] Truncating batch to {MAX_USERS_PER_BATCH} users")
