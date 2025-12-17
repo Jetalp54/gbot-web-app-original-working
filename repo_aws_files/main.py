@@ -312,10 +312,21 @@ def get_chrome_driver():
     chrome_options = Options()
     
     # Get proxy configuration if enabled
+    # Use selenium-wire for proxy authentication support in headless mode
     proxy_config = get_proxy_from_env()
+    seleniumwire_options = {}
+    
     if proxy_config:
-        logger.info(f"[PROXY] Using proxy: {proxy_config['ip']}:{proxy_config['port']}")
-        chrome_options.add_argument(f"--proxy-server={proxy_config['http']}")
+        logger.info(f"[PROXY] Using proxy with authentication: {proxy_config['ip']}:{proxy_config['port']}")
+        # selenium-wire format for authenticated proxies
+        seleniumwire_options = {
+            'proxy': {
+                'http': proxy_config['http'],
+                'https': proxy_config['http'],  # Use same proxy for HTTPS
+                'no_proxy': 'localhost,127.0.0.1'  # Bypass proxy for local addresses
+            }
+        }
+        logger.info(f"[PROXY] Configured selenium-wire with proxy authentication")
     else:
         logger.info("[PROXY] Proxy disabled or not configured")
     
@@ -398,8 +409,24 @@ def get_chrome_driver():
         logger.info(f"[LAMBDA] Environment: SE_SELENIUM_MANAGER={os.environ.get('SE_SELENIUM_MANAGER')}")
         
         # Create driver with explicit paths - this bypasses SeleniumManager
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        
+        # Use selenium-wire if proxy is configured, otherwise use regular selenium
+        if seleniumwire_options:
+            try:
+                from seleniumwire import webdriver as wire_webdriver
+                logger.info("[PROXY] Using selenium-wire for proxy authentication")
+                driver = wire_webdriver.Chrome(
+                    service=service,
+                    options=chrome_options,
+                    seleniumwire_options=seleniumwire_options
+                )
+                logger.info("[PROXY] ✓ selenium-wire driver initialized successfully with proxy")
+            except ImportError:
+                logger.error("[PROXY] ✗ selenium-wire not available! Falling back to regular selenium (proxy auth will NOT work)")
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+        else:
+            # No proxy configured, use regular selenium
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            
         # Set page load timeout BEFORE any operations
         # Increased to 120 seconds to handle slow proxy connections
         driver.set_page_load_timeout(120)
