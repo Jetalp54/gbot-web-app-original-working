@@ -993,6 +993,10 @@ def push_ecr_to_all_regions():
     """Push ECR image to all available AWS regions for multi-region Lambda deployment"""
     try:
         data = request.get_json()
+        # DEBUG: Log all keys received to find the correct repo name field
+        safe_data = {k: v for k, v in data.items() if 'key' not in k and 'password' not in k}
+        logger.info(f"[ECR] Received push request data: {safe_data}")
+        
         access_key = data.get('access_key', '').strip()
         secret_key = data.get('secret_key', '').strip()
         base_ecr_uri = data.get('ecr_uri', '').strip()
@@ -1012,20 +1016,20 @@ def push_ecr_to_all_regions():
         if not ecr_match:
             return jsonify({'success': False, 'error': 'Could not parse ECR URI. Format: account.dkr.ecr.region.amazonaws.com/repo:tag'}), 400
         
-        account_id, parsed_region, source_repo_name, image_tag = ecr_match.groups()
+        account_id, parsed_region, repo_name, image_tag = ecr_match.groups()
         
         # Determine target repo name (use custom if provided, else use source name)
-        target_repo_name = custom_target_repo if custom_target_repo else source_repo_name
+        target_repo_name = custom_target_repo if custom_target_repo else repo_name
         
         # Use override if provided, otherwise use parsed region from URI
         source_region = source_region_override if source_region_override else parsed_region
         
         # Construct source ECR URI using the selected source region
-        source_ecr_uri = f"{account_id}.dkr.ecr.{source_region}.amazonaws.com/{source_repo_name}:{image_tag}"
+        source_ecr_uri = f"{account_id}.dkr.ecr.{source_region}.amazonaws.com/{repo_name}:{image_tag}"
         
         logger.info(f"[ECR] Source region: {source_region} (override: {source_region_override}, parsed: {parsed_region})")
         logger.info(f"[ECR] Source ECR URI: {source_ecr_uri}")
-        logger.info(f"[ECR] Target Repo Name: {target_repo_name} (Source: {source_repo_name})")
+        logger.info(f"[ECR] Target Repo Name: {target_repo_name} (Source: {repo_name})")
         
         # Get all available AWS regions (as specified by user)
         AVAILABLE_GEO_REGIONS = [
@@ -1463,7 +1467,7 @@ def push_ecr_to_all_regions():
                             )
                             source_ecr_client = source_session.client('ecr')
                             source_ecr_client.describe_images(
-                                repositoryName=source_repo_name,
+                                repositoryName=repo_name,
                                 imageIds=[{"imageTag": image_tag}],
                             )
                             logger.info(f"[ECR] [{target_region}] ✓ Verified source image exists in {source_region}")
