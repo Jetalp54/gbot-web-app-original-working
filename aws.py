@@ -397,6 +397,10 @@ class AwsEducationApp(tk.Tk):
         self.prep_users_text.pack(fill="both", expand=True, pady=5)
         
         ttk.Button(exec_frame, text="Invoke Workspace Prep (Batch)", command=self.on_prep_invoke).pack(fill="x", pady=2)
+    
+        ttk.Separator(exec_frame, orient="horizontal").pack(fill="x", pady=5)
+        ttk.Label(exec_frame, text="Alternative: Run Locally (Bypasses Lambda)").pack(anchor="w")
+        ttk.Button(exec_frame, text="Run Prep Locally (Desktop)", command=self.on_prep_run_locally).pack(fill="x", pady=2)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -2112,13 +2116,15 @@ date
             repo_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "repo_aws_files")
             prep_py = os.path.join(repo_folder, "prep.py")
             docker_prep = os.path.join(repo_folder, "Dockerprep")
+            req_txt = os.path.join(repo_folder, "requirements_prep.txt")
             
-            if not os.path.exists(prep_py) or not os.path.exists(docker_prep):
-                raise FileNotFoundError("prep.py or Dockerprep not found in repo_aws_files/")
+            if not os.path.exists(prep_py) or not os.path.exists(docker_prep) or not os.path.exists(req_txt):
+                raise FileNotFoundError("prep.py, Dockerprep, or requirements_prep.txt not found in repo_aws_files/")
                 
             self.log("Uploading prep files to S3...")
             s3.upload_file(prep_py, s3_bucket, f"{s3_prefix}/prep.py")
             s3.upload_file(docker_prep, s3_bucket, f"{s3_prefix}/Dockerprep")
+            s3.upload_file(req_txt, s3_bucket, f"{s3_prefix}/requirements_prep.txt")
             
             # 2. Prepare User Data
             user_data = self._create_prep_user_data(s3_bucket, s3_prefix, account_id, region)
@@ -2204,6 +2210,7 @@ cd docker-selenium-lambda
 # Download Custom Files
 aws s3 cp s3://{bucket}/{prefix}/prep.py ./prep.py
 aws s3 cp s3://{bucket}/{prefix}/Dockerprep ./Dockerfile
+aws s3 cp s3://{bucket}/{prefix}/requirements_prep.txt ./requirements_prep.txt
 
 # Build & Push to Multiple Regions
 aws ecr get-login-password --region {region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{region}.amazonaws.com
@@ -2454,6 +2461,61 @@ done
             self.after(0, lambda: messagebox.showinfo("Complete", f"Triggered: {results['success']}\nFailed: {results['failed']}"))
 
         threading.Thread(target=_run_background, daemon=True).start()
+
+    def on_prep_run_locally(self):
+        """Run the prep process locally on the desktop."""
+        try:
+            # 1. Get Credentials
+            text_content = self.prep_users_text.get("1.0", tk.END).strip()
+            if not text_content:
+                messagebox.showerror("Error", "Please enter users in the 'Execute Prep Process' box first (email:password).")
+                return
+                
+            lines = [l.strip() for l in text_content.split('\n') if ':' in l]
+            if not lines:
+                messagebox.showerror("Error", "No valid users found (format: email:password).")
+                return
+                
+            # 2. Check/Install Dependencies
+            self.log("Checking local dependencies (selenium, undetected-chromedriver)...")
+            import subprocess
+            import sys
+            
+            try:
+                import selenium
+                import undetected_chromedriver
+            except ImportError:
+                self.log("Installing missing dependencies...")
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "selenium", "undetected-chromedriver"])
+                self.log("Dependencies installed.")
+                
+            # 3. Import prep_local
+            try:
+                import prep_local
+            except ImportError:
+                # Try to add current dir to path
+                sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+                import prep_local
+                
+            # 4. Run for each user
+            session = self.get_session()
+            s3_bucket = self.s3_bucket_var.get().strip()
+            
+            for line in lines:
+                email, password = line.split(':', 1)
+                email = email.strip()
+                password = password.strip()
+                
+                self.log(f"Starting local prep for {email}...")
+                result = prep_local.run_prep_process(email, password, session, s3_bucket)
+                self.log(f"Result for {email}: {result}")
+                
+            messagebox.showinfo("Complete", "Local prep execution finished. Check logs.")
+            
+        except Exception as e:
+            self.log(f"Error running locally: {e}")
+            traceback.print_exc()
+            messagebox.showerror("Error", str(e))
 
 # ======================================================================
 # Entry point

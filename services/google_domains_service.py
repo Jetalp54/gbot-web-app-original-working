@@ -208,7 +208,22 @@ class GoogleDomainsService:
             }
             
             try:
-                token_response = service.webResource().getToken(body=verification_request).execute()
+                # Retry logic for 503 errors
+                token_response = None
+                max_retries = 5
+                for attempt in range(max_retries):
+                    try:
+                        token_response = service.webResource().getToken(body=verification_request).execute()
+                        break
+                    except HttpError as e:
+                        if e.resp.status == 503:
+                            if attempt < max_retries - 1:
+                                wait_time = (2 ** attempt) + 1  # Exponential backoff
+                                logger.warning(f"503 error getting token, retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})")
+                                time.sleep(wait_time)
+                                continue
+                        raise e
+                
                 token = token_response.get('token', '')
                 
                 if not token:

@@ -1,0 +1,975 @@
+﻿"""
+prep_local.py - Local Desktop version of the Cloud Shell Automation
+
+This script runs LOCALLY on your Windows machine.
+It uses Selenium to:
+1. Login to Google
+2. Open Cloud Shell
+3. Execute gcloud commands to create resources
+4. Download the key
+5. Upload the key to S3 (using provided AWS credentials)
+
+Dependencies:
+    pip install selenium undetected-chromedriver boto3
+"""
+
+import os
+import time
+import json
+import logging
+import threading
+import boto3
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import undetected_chromedriver as uc
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger()
+
+def get_local_driver():
+    """Initialize local Chrome driver"""
+    options = webdriver.ChromeOptions()
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1600,900")
+    options.add_argument("--disable-gpu")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    # Allow popups and disable popup blocking
+    options.add_argument("--disable-popup-blocking")
+    options.add_experimental_option("prefs", {
+        "profile.default_content_setting_values.popups": 1,
+        "profile.default_content_settings.popups": 1
+    })
+    
+    print("Initializing Local Chrome Driver...")
+    try:
+        # Try with use_subprocess=True first (recommended for uc)
+        driver = uc.Chrome(options=options, use_subprocess=True)
+        
+        # Verify the driver is actually responsive and has a window
+        try:
+            _ = driver.current_window_handle
+            print("Driver initialized successfully.")
+            return driver
+        except Exception as e:
+            print(f"Driver started but window not found: {e}")
+            try:
+                driver.quit()
+            except:
+                pass
+            raise e
+            
+    except Exception as e:
+        print(f"Initial driver initialization failed: {e}")
+        print("Retrying with alternative configuration...")
+        try:
+            # Fallback: try without use_subprocess
+            driver = uc.Chrome(options=options, use_subprocess=False)
+            return driver
+        except Exception as e2:
+            print(f"Retry failed: {e2}")
+            raise e
+
+def login_google(driver, email, password):
+    """Login to Google account"""
+    print(f"Logging in as {email}...")
+    driver.get("https://accounts.google.com/signin")
+    time.sleep(3)
+    
+    try:
+        email_field = WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.ID, "identifierId"))
+        )
+        email_field.send_keys(email)
+        email_field.send_keys(Keys.ENTER)
+        time.sleep(3)
+        
+        password_field = WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.NAME, "Passwd"))
+        )
+        password_field.send_keys(password)
+        password_field.send_keys(Keys.ENTER)
+        
+        print("Waiting for login to complete... (If 2FA appears, please handle it manually in the browser window)")
+        time.sleep(8)
+        print("Login successful (or proceeded)")
+        return True
+    except Exception as e:
+        print(f"Login error: {e}")
+        return False
+
+def open_cloud_shell(driver):
+    """Navigate to Cloud Shell and handle all pop-ups"""
+    print("Opening Cloud Shell...")
+    driver.get("https://shell.cloud.google.com/?hl=en_US&fromcloudshell=true&show=terminal")
+    
+    print("Waiting for Cloud Shell to load...")
+    time.sleep(10)
+    
+    try:
+        # Handle Welcome/Terms pop-up
+        print("Checking for Welcome/Terms pop-ups...")
+        try:
+            checkbox_xpath = "/html/body/div/div[2]/div/mat-dialog-container/div/div/dialog-overlay/div[3]/div[3]/mat-checkbox/div/div/input"
+            checkbox = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, checkbox_xpath))
+            )
+            driver.execute_script("arguments[0].click();", checkbox)
+            print("Clicked specific Terms checkbox")
+            time.sleep(1)
+            
+            button_xpath = "/html/body/div/div[2]/div/mat-dialog-container/div/div/dialog-overlay/div[5]/modal-action[1]/button"
+            button = WebDriverWait(driver, 3).until(
+                EC.element_to_be_clickable((By.XPATH, button_xpath))
+            )
+            button.click()
+            print("Clicked specific 'Agree and continue' button")
+            time.sleep(3)
+        except:
+            print("Specific checkbox not found, trying generic...")
+            try:
+                welcome_selectors = [
+                    "//button[contains(text(), 'Agree and continue')]",
+                    "//span[contains(text(), 'Agree and continue')]/parent::button",
+                    "//button[contains(text(), 'Continue')]"
+                ]
+                for selector in welcome_selectors:
+                    try:
+                        button = WebDriverWait(driver, 2).until(
+                            EC.element_to_be_clickable((By.XPATH, selector))
+                        )
+                        button.click()
+                        print(f"Clicked pop-up button: {selector}")
+                        time.sleep(2)
+                        break
+                    except:
+                        pass
+            except:
+                print("No welcome pop-up found")
+
+        # Handle Intermediate Dialog
+        print("Checking for intermediate dialog...")
+        try:
+            intermediate_checkbox_xpath = "/html/body/div/div[2]/div/mat-dialog-container/div/div/dialog-overlay/div[3]/div[3]/mat-checkbox/div/div/input"
+            try:
+                checkbox = WebDriverWait(driver, 3).until(
+                    EC.presence_of_element_located((By.XPATH, intermediate_checkbox_xpath))
+                )
+                driver.execute_script("arguments[0].click();", checkbox)
+                print("Clicked intermediate dialog checkbox")
+                time.sleep(1)
+            except:
+                print("Intermediate checkbox not found (may not be required)")
+            
+            intermediate_button_xpath = "/html/body/div/div[2]/div/mat-dialog-container/div/div/dialog-overlay/div[5]/modal-action[1]"
+            try:
+                button = WebDriverWait(driver, 3).until(
+                    EC.element_to_be_clickable((By.XPATH, intermediate_button_xpath))
+                )
+                driver.execute_script("arguments[0].click();", button)
+                print("Clicked intermediate dialog 'Continue' button")
+                time.sleep(3)
+            except:
+                print("Intermediate dialog button not found (may not exist)")
+        except Exception as e:
+            print(f"Error handling intermediate dialog: {e}")
+
+        # Handle Cloud Shell intro dialog
+        print("Checking for secondary Cloud Shell intro dialog...")
+        try:
+            intro_text_keywords = ["Cloud Shell", "editor", "environment", "Welcome"]
+            
+            dialogs = driver.find_elements(By.XPATH, "//mat-dialog-container | //div[contains(@class, 'dialog')] | //div[contains(@class, 'modal')]")
+            for dialog in dialogs:
+                dialog_text = dialog.text
+                if any(keyword in dialog_text for keyword in intro_text_keywords):
+                    print(f"Found Cloud Shell intro dialog")
+                    continue_buttons = dialog.find_elements(By.XPATH, ".//button")
+                    for btn in continue_buttons:
+                        if any(word in btn.text for word in ["Continue", "Got it", "OK", "Start"]):
+                            btn.click()
+                            print("Clicked 'Continue' button")
+                            time.sleep(2)
+                            break
+                    break
+        except:
+            print("Not found in main context, checking iframes...")
+            iframes = driver.find_elements(By.TAG_NAME, "iframe")
+            for i, iframe in enumerate(iframes):
+                try:
+                    driver.switch_to.frame(iframe)
+                    dialogs = driver.find_elements(By.XPATH, "//mat-dialog-container | //div[contains(@class, 'dialog')]")
+                    for dialog in dialogs:
+                        dialog_text = dialog.text
+                        if any(keyword in dialog_text for keyword in ["Cloud Shell", "editor", "environment"]):
+                            print(f"Found Cloud Shell intro dialog (matched text content)")
+                            continue_buttons = dialog.find_elements(By.XPATH, ".//button")
+                            for btn in continue_buttons:
+                                try:
+                                    driver.execute_script("arguments[0].click();", btn)
+                                    print("Clicked Continue via JS")
+                                    time.sleep(2)
+                                    break
+                                except:
+                                    pass
+                            print(f"Handled dialog in iframe {i}")
+                            driver.switch_to.default_content()
+                            break
+                    driver.switch_to.default_content()
+                except:
+                    driver.switch_to.default_content()
+
+        # Handle Authorize dialog
+        print("Checking for Authorize button...")
+        def find_and_click_authorize(drv):
+            auth_selectors = [
+                "//button[contains(text(), 'Authorize')]",
+                "//span[contains(text(), 'Authorize')]/parent::button",
+                "//button[contains(@class, 'authorize')]"
+            ]
+            for selector in auth_selectors:
+                try:
+                    elements = drv.find_elements(By.XPATH, selector)
+                    for elem in elements:
+                        if elem.is_displayed():
+                            try:
+                                parent = elem.find_element(By.XPATH, "./ancestor::*[contains(@class, 'dialog') or contains(@class, 'modal') or contains(@class, 'overlay')]")
+                                dialog_text = parent.text
+                                if "Authorize" in dialog_text and "Cloud Shell" in dialog_text:
+                                    print(f"Found Authorize dialog with text: {dialog_text[:50]}...")
+                                    print(dialog_text[50:100] + "...")
+                            except:
+                                pass
+                            try:
+                                elem.click()
+                                print(f"Clicked Authorize via specific XPath")
+                                return True
+                            except:
+                                try:
+                                    drv.execute_script("arguments[0].click();", elem)
+                                    print(f"Clicked Authorize via JS")
+                                    return True
+                                except:
+                                    pass
+                except:
+                    pass
+            return False
+        
+        for attempt in range(10):
+            if find_and_click_authorize(driver):
+                print("Authorize found in main context")
+                time.sleep(3)
+                break
+            
+            iframes = driver.find_elements(By.TAG_NAME, "iframe")
+            found_in_iframe = False
+            for i, iframe in enumerate(iframes):
+                try:
+                    driver.switch_to.frame(iframe)
+                    if find_and_click_authorize(driver):
+                        print(f"Authorize found in iframe {i}")
+                        driver.switch_to.default_content()
+                        found_in_iframe = True
+                        time.sleep(3)
+                        break
+                    driver.switch_to.default_content()
+                except:
+                    driver.switch_to.default_content()
+            
+            if found_in_iframe:
+                break
+            
+            print(f"Authorize dialog not found, attempt {attempt + 1}/10, waiting...")
+            time.sleep(1)
+        else:
+            print("Authorize dialog not found after 10 attempts")
+        
+        # Handle re-login pop-up
+        print("Checking for re-login pop-up...")
+        try:
+            email_field = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.ID, "identifierId"))
+            )
+            print("Re-login required, entering credentials...")
+        except:
+            print("No re-login required")
+        
+        # Handle Allow dialog
+        print("Checking for Allow dialog...")
+        try:
+            allow_selectors = [
+                "//button[contains(text(), 'Allow')]",
+                "//span[contains(text(), 'Allow')]/parent::button",
+                "//button[@id='submit_approve_access']"
+            ]
+            for selector in allow_selectors:
+                try:
+                    allow_btn = WebDriverWait(driver, 3).until(
+                        EC.element_to_be_clickable((By.XPATH, selector))
+                    )
+                    allow_btn.click()
+                    print(f"Clicked 'Allow' button: {selector}")
+                    time.sleep(3)
+                    break
+                except:
+                    continue
+        except:
+            print("No Allow dialog found")
+            
+    except Exception as e:
+        print(f"Error handling Authorize: {e}")
+        
+    # Wait for terminal
+    print("Waiting for terminal...")
+    try:
+        print("Looking for Cloud Shell iframe...")
+        iframe = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "iframe.cloudshell-frame"))
+        )
+        print("Found Cloud Shell iframe, switching context...")
+        driver.switch_to.frame(iframe)
+        
+        print("Looking for terminal inside iframe...")
+        WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, ".xterm-screen"))
+        )
+        print("Terminal found! Ready to send commands.")
+        time.sleep(3)
+        return True
+    except Exception as e:
+        print(f"Primary terminal detection failed: {e}")
+        print("Trying fallback terminal detection...")
+        try:
+            driver.switch_to.default_content()
+            # Fallback XPath for terminal
+            fallback_xpath = "/html/body/cloud-shell-root/div/stand-alone/div[1]/div/horizontal-split/div[2]/devshell/terminal-container/div/xterm-terminal-tab/div/xterm-terminal"
+            terminal = WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.XPATH, fallback_xpath))
+            )
+            print("Terminal found via fallback XPath!")
+            time.sleep(3)
+            return True
+        except Exception as e2:
+            print(f"Fallback terminal detection also failed: {e2}")
+            try:
+                driver.switch_to.default_content()
+            except:
+                pass
+            return False
+
+def send_terminal_command(driver, command):
+    """Send command to terminal"""
+    print(f"Executing: {command}")
+    try:
+        textarea = driver.find_element(By.CSS_SELECTOR, "textarea.xterm-helper-textarea")
+        
+        driver.execute_script("""
+            var textarea = arguments[0];
+            var command = arguments[1];
+            textarea.focus();
+            if (window.term) {
+                window.term.paste(command + '\\n');
+            } else {
+                var clipboardData = new DataTransfer();
+                clipboardData.setData('text/plain', command);
+                var pasteEvent = new ClipboardEvent('paste', {
+                    bubbles: true,
+                    cancelable: true,
+                    clipboardData: clipboardData
+                });
+                textarea.dispatchEvent(pasteEvent);
+                setTimeout(function() {
+                    var enterEvent = new KeyboardEvent('keydown', {
+                        key: 'Enter',
+                        code: 'Enter',
+                        keyCode: 13,
+                        which: 13,
+                        bubbles: true
+                    });
+                    textarea.dispatchEvent(enterEvent);
+                }, 100);
+            }
+        """, textarea, command)
+        
+        time.sleep(3)
+        print(f"Command sent successfully")
+    except Exception as e:
+        print(f"Error sending command: {e}")
+
+def run_prep_process(email, password, aws_session, s3_bucket):
+    """Main execution function called by aws.py"""
+    driver = None
+    try:
+        driver = get_local_driver()
+        
+        if not login_google(driver, email, password):
+            return "Login Failed"
+            
+        if not open_cloud_shell(driver):
+            return "Cloud Shell Failed"
+            
+        # Generate IDs
+        timestamp = str(int(time.time()))
+        project_id = f"edu-gw-{timestamp}"
+        sa_name = f"sa-{timestamp}"
+        key_path = f"~/edu-gw-{timestamp}.json"
+        
+        # Press Enter to clear terminal
+        print("Pressing Enter to clear terminal...")
+        send_terminal_command(driver, "")
+        time.sleep(2)
+        
+        # ============================================================
+        # STEP 1: Create Project and Service Account FIRST
+        # ============================================================
+        print("\n" + "="*80)
+        print("STEP 1: Creating GCP Project and Service Account")
+        print("="*80 + "\n")
+        
+        send_terminal_command(driver, f"gcloud projects create {project_id} --name 'my first project'")
+        time.sleep(10)
+        
+        send_terminal_command(driver, f"gcloud config set project {project_id}")
+        time.sleep(5)
+        
+        send_terminal_command(driver, f"gcloud iam service-accounts create {sa_name} --project {project_id} --display-name 'Automation SA'")
+        time.sleep(10)
+        
+        # ============================================================
+        # STEP 2: Grant Organization Permissions
+        # ============================================================
+        print("\n" + "="*80)
+        print("STEP 2: Granting Org Policy Administrator Permission")
+        print("="*80 + "\n")
+        
+        # List organizations and get ORG_ID
+        send_terminal_command(driver, "gcloud organizations list")
+        time.sleep(5)
+        
+        send_terminal_command(driver, "ORG_ID=$(gcloud organizations list --format='value(name)' --limit=1)")
+        time.sleep(2)
+        
+        # Grant Org Policy Admin role at ORG level (REQUIRED to disable policy)
+        send_terminal_command(driver, f"gcloud organizations add-iam-policy-binding $ORG_ID --member='user:{email}' --role='roles/orgpolicy.policyAdmin'")
+        time.sleep(5)
+        
+        # Optional but safe: also grant org admin
+        send_terminal_command(driver, f"gcloud organizations add-iam-policy-binding $ORG_ID --member='user:{email}' --role='roles/resourcemanager.organizationAdmin'")
+        time.sleep(5)
+        
+        # ============================================================
+        # STEP 3: Disable LEGACY Constraint at ORGANIZATION Level
+        # THIS IS THE CRITICAL STEP - MUST BE AT ORG LEVEL
+        # ============================================================
+        print("\n" + "="*80)
+        print("STEP 3: Disabling LEGACY iam.disableServiceAccountKeyCreation at ORG level")
+        print("="*80 + "\n")
+        
+        # LEGACY constraint at ORGANIZATION level (NOT project level!)
+        send_terminal_command(driver, "gcloud resource-manager org-policies disable-enforce iam.disableServiceAccountKeyCreation --organization=$ORG_ID")
+        time.sleep(8)
+        
+        # ============================================================
+        # STEP 3b: Get Service Account Unique ID (needed for delegation)
+        # ============================================================
+        print("\nGetting Service Account Unique ID...")
+        send_terminal_command(driver, f"gcloud iam service-accounts describe {sa_name}@{project_id}.iam.gserviceaccount.com --format='value(uniqueId)'")
+        time.sleep(5)
+        
+        # Store the SA email for later use
+        sa_email = f"{sa_name}@{project_id}.iam.gserviceaccount.com"
+        
+        # ============================================================
+        # STEP 3c: Verify the policy is disabled (authoritative check)
+        # ============================================================
+        print("\nVerifying policy is disabled...")
+        send_terminal_command(driver, "gcloud resource-manager org-policies describe iam.disableServiceAccountKeyCreation --effective --organization=$ORG_ID")
+        time.sleep(5)
+        
+        # ============================================================
+        # STEP 4: Configure Domain-Wide Delegation in Admin Console
+        # ============================================================
+        print("\n" + "="*80)
+        print("STEP 4: Configuring Domain-Wide Delegation")
+        print("="*80 + "\n")
+        
+        # First, get the Service Account Unique ID from Cloud Shell
+        # The unique ID was already output in the terminal from earlier command
+        print("Getting Service Account Unique ID...")
+        sa_unique_id = None
+        
+        # We need to first switch to default content, then to the Cloud Shell iframe
+        try:
+            driver.switch_to.default_content()
+            time.sleep(1)
+        except:
+            pass
+        
+        # Now find and switch to Cloud Shell iframe
+        try:
+            # Try to find the iframe
+            iframes = driver.find_elements(By.TAG_NAME, "iframe")
+            cloudshell_iframe = None
+            for iframe in iframes:
+                try:
+                    src = iframe.get_attribute("src") or ""
+                    class_attr = iframe.get_attribute("class") or ""
+                    if "cloudshell" in src.lower() or "cloudshell" in class_attr.lower():
+                        cloudshell_iframe = iframe
+                        break
+                except:
+                    pass
+            
+            if cloudshell_iframe:
+                driver.switch_to.frame(cloudshell_iframe)
+                print("Switched to Cloud Shell iframe")
+                time.sleep(1)
+                
+                # The unique ID was already displayed from the earlier command
+                # Just try to read it from the terminal with retries
+                for attempt in range(10):
+                    try:
+                        terminal_screen = driver.find_element(By.CSS_SELECTOR, ".xterm-screen")
+                        terminal_text = terminal_screen.text
+                        if attempt == 0:
+                            print(f"Terminal text sample: {terminal_text[:200]}...")
+                        
+                        # The unique ID should be a long numeric string (15-25 digits)
+                        import re
+                        unique_id_match = re.search(r'\b(\d{15,25})\b', terminal_text)
+                        if unique_id_match:
+                            sa_unique_id = unique_id_match.group(1)
+                            print(f"Found Service Account Unique ID: {sa_unique_id}")
+                            break
+                    except Exception as e:
+                        if attempt == 0:
+                            print(f"Could not extract unique ID (attempt {attempt+1}): {e}")
+                    time.sleep(2)
+                
+                driver.switch_to.default_content()
+            else:
+                print("Could not find Cloud Shell iframe, will use fallback")
+        except Exception as e:
+            print(f"Error getting unique ID: {e}")
+            try:
+                driver.switch_to.default_content()
+            except:
+                pass
+        
+        # If we couldn't get the unique ID, use SA email as fallback
+        if not sa_unique_id:
+            print("WARNING: Could not retrieve Unique ID automatically. Using SA email as fallback.")
+            sa_unique_id = f"{sa_name}@{project_id}.iam.gserviceaccount.com"
+        
+        # Make sure we're in default content before any window operations
+        try:
+            driver.switch_to.default_content()
+            print("Ensured we're in default content")
+        except:
+            pass
+        
+        # Save current window handle (Cloud Shell tab)
+        original_window = driver.current_window_handle
+        original_window_count = len(driver.window_handles)
+        print(f"Saved Cloud Shell window handle: {original_window}")
+        print(f"Current window count: {original_window_count}")
+        
+        # Open NEW TAB using Selenium's native method (more reliable than JS)
+        print("Opening NEW TAB for Admin Console Domain-Wide Delegation...")
+        
+        # Method 1: Using Selenium's new_window command (most reliable)
+        new_tab = None
+        try:
+            driver.switch_to.new_window('tab')
+            new_tab = driver.current_window_handle
+            print(f"Created new tab via Selenium: {new_tab}")
+            
+            # Navigate to the DWD page
+            driver.get("https://admin.google.com/ac/owl/domainwidedelegation?utm_source=og_am")
+            print("Navigated to Domain-Wide Delegation page")
+        except Exception as e:
+            print(f"Selenium new_window method failed: {e}")
+            
+            # Method 2: Use keyboard shortcut Ctrl+T
+            try:
+                from selenium.webdriver.common.action_chains import ActionChains
+                actions = ActionChains(driver)
+                actions.key_down(Keys.CONTROL).send_keys('t').key_up(Keys.CONTROL).perform()
+                time.sleep(2)
+                
+                all_windows = driver.window_handles
+                for window in all_windows:
+                    if window != original_window:
+                        new_tab = window
+                        break
+                
+                if new_tab:
+                    driver.switch_to.window(new_tab)
+                    driver.get("https://admin.google.com/ac/owl/domainwidedelegation?utm_source=og_am")
+                    print(f"Created new tab via Ctrl+T: {new_tab}")
+            except Exception as e2:
+                print(f"Ctrl+T method failed: {e2}")
+                
+                # Method 3: Fallback to JS with explicit wait
+                try:
+                    driver.execute_script("window.open('about:blank', '_blank');")
+                    time.sleep(3)
+                    
+                    all_windows = driver.window_handles
+                    for window in all_windows:
+                        if window != original_window:
+                            new_tab = window
+                            break
+                    
+                    if new_tab:
+                        driver.switch_to.window(new_tab)
+                        driver.get("https://admin.google.com/ac/owl/domainwidedelegation?utm_source=og_am")
+                        print(f"Created new tab via JS fallback: {new_tab}")
+                except Exception as e3:
+                    print(f"JS fallback method failed: {e3}")
+        
+        # Wait for page to load
+        time.sleep(5)
+        
+        # Verify we have a new tab
+        all_windows = driver.window_handles
+        print(f"Window handles after open: {len(all_windows)} windows")
+        
+        if not new_tab and len(all_windows) > original_window_count:
+            for window in all_windows:
+                if window != original_window:
+                    new_tab = window
+                    driver.switch_to.window(new_tab)
+                    print(f"Found new tab: {window}")
+                    break
+        
+        if new_tab:
+            
+            # Wait for Domain-Wide Delegation page to load
+            print("Waiting for Domain-Wide Delegation page to load...")
+            time.sleep(10)
+            
+            # Click "Add new" button
+            print("Looking for 'Add new' button...")
+            add_clicked = False
+            try:
+                add_new_xpath = "/html/body/div[9]/c-wiz[2]/div/div[1]/div/div[2]/div[1]/div/div[2]/div/div[2]/div/div/div[2]/div[1]/div[2]/div/div/div/div[1]/div"
+                add_new_btn = WebDriverWait(driver, 15).until(
+                    EC.element_to_be_clickable((By.XPATH, add_new_xpath))
+                )
+                add_new_btn.click()
+                print("Clicked 'Add new' button via XPath")
+                add_clicked = True
+                time.sleep(3)
+            except Exception as e:
+                print(f"XPath failed: {e}")
+            
+            if not add_clicked:
+                try:
+                    add_new_btn = driver.find_element(By.XPATH, "//*[contains(text(), 'Add new')]")
+                    add_new_btn.click()
+                    print("Clicked 'Add new' via text search")
+                    add_clicked = True
+                    time.sleep(3)
+                except:
+                    print("Could not find 'Add new' button")
+            
+            # Wait for popup dialog
+            print("Waiting for popup dialog...")
+            try:
+                popup_xpath = "/html/body/div[9]/div[6]/div/div[2]"
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.XPATH, popup_xpath))
+                )
+                print("Popup dialog appeared")
+                time.sleep(2)
+            except:
+                print("Popup not detected via specific XPath, continuing anyway...")
+            
+            # Enter the Client ID (SA Unique ID)
+            print(f"Entering Service Account Client ID: {sa_unique_id}")
+            try:
+                # User provided XPath: /html/body/div[9]/div[5]/div/div[2]/span/c-wiz/div/span/c-wiz/div[2]/div/div[1]/div/div[1]/input
+                client_id_xpath = "/html/body/div[9]/div[5]/div/div[2]/span/c-wiz/div/span/c-wiz/div[2]/div/div[1]/div/div[1]/input"
+                client_id_input = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.XPATH, client_id_xpath))
+                )
+                client_id_input.clear()
+                client_id_input.send_keys(sa_unique_id)
+                print("Entered Client ID successfully")
+                time.sleep(2)
+            except Exception as e:
+                print(f"XPath for Client ID failed: {e}, trying alternative...")
+                try:
+                    # Try to find by placeholder or aria-label
+                    client_id_input = driver.find_element(By.XPATH, "//input[contains(@placeholder, 'Client') or contains(@aria-label, 'Client')]")
+                    client_id_input.clear()
+                    client_id_input.send_keys(sa_unique_id)
+                    print("Entered Client ID via alternative method")
+                    time.sleep(2)
+                except:
+                    print("Could not find Client ID input field")
+            
+            # Enter OAuth Scopes - typically there's ONE input field for all scopes (comma-separated)
+            # Or there may be an "Add scope" button to add more
+            all_scopes = "https://www.googleapis.com/auth/admin.directory.domain,https://www.googleapis.com/auth/admin.directory.user,https://www.googleapis.com/auth/siteverification,https://www.googleapis.com/auth/gmail.send"
+            
+            print("Entering OAuth Scopes...")
+            try:
+                # First try the specific XPath for scope input (User provided div[5] variant)
+                # User provided: /html/body/div[9]/div[5]/div/div[2]/span/c-wiz/div/span/c-wiz/div[4]/div/div/div[1]/div/div[1]/div/div[1]/input
+                scope_xpath = "/html/body/div[9]/div[5]/div/div[2]/span/c-wiz/div/span/c-wiz/div[4]/div/div/div[1]/div/div[1]/div/div[1]/input"
+                scope_input = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.XPATH, scope_xpath))
+                )
+                scope_input.clear()
+                scope_input.send_keys(all_scopes)
+                print("Entered all scopes in scope field")
+                time.sleep(2)
+            except Exception as e:
+                print(f"Specific scope XPath failed: {e}")
+                try:
+                    # Try to find scope input by placeholder
+                    scope_input = driver.find_element(By.XPATH, "//input[contains(@placeholder, 'scope') or contains(@placeholder, 'Scope') or contains(@aria-label, 'scope')]")
+                    scope_input.clear()
+                    scope_input.send_keys(all_scopes)
+                    print("Entered scopes via alternative method")
+                    time.sleep(2)
+                except:
+                    print("Could not find scope input field - may need to add scopes individually")
+                    # Try adding scopes one by one if there are multiple fields
+                    scopes_list = [
+                        "https://www.googleapis.com/auth/admin.directory.domain",
+                        "https://www.googleapis.com/auth/admin.directory.user",
+                        "https://www.googleapis.com/auth/siteverification",
+                        "https://www.googleapis.com/auth/gmail.send"
+                    ]
+                    for i, scope in enumerate(scopes_list):
+                        try:
+                            scope_inputs = driver.find_elements(By.XPATH, "//input[contains(@type, 'text')]")
+                            if len(scope_inputs) > i + 1:  # Skip first input (Client ID)
+                                scope_inputs[i + 1].clear()
+                                scope_inputs[i + 1].send_keys(scope)
+                                print(f"Entered scope {i+1}: {scope}")
+                                time.sleep(1)
+                        except:
+                            pass
+            
+            # Click AUTHORIZE button
+            print("Clicking AUTHORIZE button...")
+            auth_clicked = False
+            try:
+                authorize_xpath = "/html/body/div[9]/div[6]/div/div[2]/span/c-wiz/div/div[2]/div[2]"
+                authorize_btn = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, authorize_xpath))
+                )
+                authorize_btn.click()
+                print("Clicked AUTHORIZE via XPath")
+                auth_clicked = True
+                time.sleep(3)
+            except:
+                pass
+            
+            if not auth_clicked:
+                try:
+                    authorize_btn = driver.find_element(By.XPATH, "//*[contains(text(), 'AUTHORIZE') or contains(text(), 'Authorize')]")
+                    authorize_btn.click()
+                    print("Clicked AUTHORIZE via text")
+                    auth_clicked = True
+                    time.sleep(3)
+                except:
+                    print("Could not find AUTHORIZE button")
+            
+            # Click CONFIRM button
+            print("Clicking CONFIRM button...")
+            confirm_clicked = False
+            try:
+                confirm_xpath = "/html/body/div[9]/div[7]/div/div[2]/span/div/div[2]/div[2]"
+                confirm_btn = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, confirm_xpath))
+                )
+                confirm_btn.click()
+                print("Clicked CONFIRM via XPath")
+                confirm_clicked = True
+                time.sleep(3)
+            except:
+                pass
+            
+            if not confirm_clicked:
+                try:
+                    confirm_btn = driver.find_element(By.XPATH, "//*[contains(text(), 'CONFIRM') or contains(text(), 'Confirm')]")
+                    confirm_btn.click()
+                    print("Clicked CONFIRM via text")
+                    time.sleep(3)
+                except:
+                    print("Could not find CONFIRM button")
+            
+            print("Domain-Wide Delegation configuration complete!")
+            
+            # Close the Admin Console TAB and switch back to Cloud Shell
+            print("Closing Admin Console tab and returning to Cloud Shell...")
+            driver.close()
+            time.sleep(1)
+        else:
+            print("ERROR: Could not create new tab for Domain-Wide Delegation!")
+            print("SKIPPING Domain-Wide Delegation setup - you may need to configure this manually.")
+            print(f"  Service Account: {sa_email}")
+            print(f"  Unique ID: {sa_unique_id}")
+            print("  Required Scopes:")
+            print("    - https://www.googleapis.com/auth/admin.directory.domain")
+            print("    - https://www.googleapis.com/auth/admin.directory.user")
+            print("    - https://www.googleapis.com/auth/siteverification")
+            print("    - https://www.googleapis.com/auth/gmail.send")
+        
+        # Switch back to the original Cloud Shell window
+        driver.switch_to.window(original_window)
+        print("Switched back to Cloud Shell window")
+        time.sleep(2)
+        
+        # Switch back to Cloud Shell iframe to continue terminal commands
+        try:
+            iframe = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "iframe.cloudshell-frame"))
+            )
+            driver.switch_to.frame(iframe)
+            print("Switched back to Cloud Shell terminal iframe")
+            time.sleep(2)
+        except Exception as e:
+            print(f"Could not switch back to Cloud Shell iframe: {e}")
+        
+        # ============================================================
+        # STEP 5: Wait for Policy Propagation (reduced to 4 attempts)
+        # ============================================================
+        print("\n" + "="*80)
+        print("STEP 5: WAITING FOR ORGANIZATION POLICY PROPAGATION...")
+        print("Checking every 30 seconds (max 4 attempts)...")
+        print("="*80 + "\n")
+        
+        for attempt in range(1, 5):  # Reduced to 4 attempts
+            print(f"[Attempt {attempt}/4] Checking if policy has propagated...")
+            send_terminal_command(driver, f"gcloud iam service-accounts keys list --iam-account={sa_name}@{project_id}.iam.gserviceaccount.com 2>&1")
+            time.sleep(3)
+            
+            if attempt < 4:
+                print(f"Waiting 30 seconds...")
+                time.sleep(30)
+        
+        print("\n Policy propagation wait complete\n")
+        
+        # ============================================================
+        # STEP 6: Enable APIs and Create Key
+        # ============================================================
+        print("\n" + "="*80)
+        print("STEP 6: Enabling APIs and Creating Service Account Key")
+        print("="*80 + "\n")
+        
+        send_terminal_command(driver, f"gcloud services enable admin.googleapis.com --project {project_id}")
+        time.sleep(10)
+        
+        send_terminal_command(driver, f"gcloud services enable siteverification.googleapis.com --project {project_id}")
+        time.sleep(10)
+        
+        send_terminal_command(driver, f"gcloud iam service-accounts keys create {key_path} --project {project_id} --iam-account {sa_name}@{project_id}.iam.gserviceaccount.com")
+        time.sleep(10)
+        
+        # ============================================================
+        # STEP 7: Download Key
+        # ============================================================
+        print("\n" + "="*80)
+        print("STEP 7: Downloading Service Account Key")
+        print("="*80 + "\n")
+        
+        send_terminal_command(driver, f"cloudshell download {key_path}")
+        time.sleep(3)
+        
+        # Switch out of iframe to click download button
+        driver.switch_to.default_content()
+        time.sleep(2)
+        
+        # Click download button
+        clicked = False
+        
+        # Strategy 1: User-provided XPaths - detect container first, then click button
+        try:
+            container_xpath = "/html/body/div[3]/div[2]/div/mat-dialog-container"
+            container = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, container_xpath))
+            )
+            print("Found download dialog container")
+            
+            # Try the specific button XPath
+            button_xpath = "/html/body/div[3]/div[2]/div/mat-dialog-container/div/div/dialog-overlay/div[5]/modal-action[1]/button"
+            download_btn = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, button_xpath))
+            )
+            download_btn.click()
+            print("Clicked Download button via specific XPath!")
+            clicked = True
+        except Exception as e:
+            print(f"Strategy 1 failed: {e}")
+        
+        # Strategy 2: Find Download text within the container
+        if not clicked:
+            try:
+                container_xpath = "/html/body/div[3]/div[2]/div/mat-dialog-container"
+                container = driver.find_element(By.XPATH, container_xpath)
+                download_btn = container.find_element(By.XPATH, ".//button[contains(., 'Download')]")
+                download_btn.click()
+                print("Clicked Download button via text match in container!")
+                clicked = True
+            except Exception as e:
+                print(f"Strategy 2 failed: {e}")
+        
+        # Strategy 3: Fallback - any mat-dialog-container with Download button
+        if not clicked:
+            try:
+                download_btn = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, "//mat-dialog-container//button[contains(., 'Download')]"))
+                )
+                download_btn.click()
+                print("Clicked Download button via fallback!")
+                clicked = True
+            except:
+                print("Could not click download button with any strategy")
+        
+        time.sleep(10)
+        
+        # ============================================================
+        # STEP 8: Upload to S3
+        # ============================================================
+        downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+        downloaded_file = os.path.join(downloads_dir, f"edu-gw-{timestamp}.json")
+        
+        if os.path.exists(downloaded_file):
+            print(f"\nFound downloaded key: {downloaded_file}")
+            print(f"Uploading to S3 bucket: {s3_bucket}...")
+            
+            s3 = aws_session.client("s3")
+            s3_key = f"workspace-keys/{email}.json"
+            s3.upload_file(downloaded_file, s3_bucket, s3_key)
+            
+            print(f"SUCCESS! Key uploaded to s3://{s3_bucket}/{s3_key}")
+            return f"Success! Key uploaded to s3://{s3_bucket}/{s3_key}"
+        else:
+            print(f"File not found in {downloads_dir}")
+            return "Failed to find downloaded key file"
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return str(e)
+    finally:
+        if driver:
+            print("\nClosing browser...")
+            try:
+                driver.quit()
+            except OSError:
+                pass
+            except Exception as e:
+                print(f"Error closing driver: {e}")
+
+if __name__ == "__main__":
+    print("This script is intended to be run from aws.py, but you can run it standalone if you set up AWS credentials.")
