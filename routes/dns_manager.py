@@ -33,7 +33,7 @@ def login_required(f):
 active_jobs = {}
 job_lock = threading.Lock()
 
-def process_domain_verification(job_id: str, domain: str, account_name: str, dry_run: bool, skip_verified: bool, provider: str = 'namecheap'):
+def process_domain_verification(job_id: str, domain: str, account_name: str, dry_run: bool, skip_verified: bool, provider: str = 'namecheap', stop_event=None):
     """
     Process domain verification for a single domain in background thread.
     
@@ -44,10 +44,16 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
         dry_run: If True, skip DNS writes
         skip_verified: If True, skip already verified domains
         provider: DNS provider ('namecheap' or 'cloudflare')
+        stop_event: threading.Event to signal stopping
     """
     # Create Flask app context for background thread
     from app import app
     with app.app_context():
+        # Check stop event at start
+        if stop_event and stop_event.is_set():
+            logger.info(f"Job {job_id}: Domain {domain} processing stopped by user (before start)")
+            return
+
         operation_id = str(uuid.uuid4())
         operation = DomainOperation(
             id=operation_id,
@@ -72,6 +78,12 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
         
         try:
             # Step 1: Identify apex domain
+            if stop_event and stop_event.is_set():
+                operation.message = 'Stopped by user'
+                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
+                db.session.commit()
+                return
+
             apex = to_apex(domain)
             logger.info(f"Processing domain: {domain} -> Apex: {apex} (Provider: {provider})")
             
@@ -94,6 +106,12 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
             db.session.commit()
             
             # Step 2: Check if already verified (if skip_verified is True)
+            if stop_event and stop_event.is_set():
+                operation.message = 'Stopped by user'
+                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
+                db.session.commit()
+                return
+
             if skip_verified:
                 try:
                     google_service = GoogleDomainsService(account_name)
@@ -110,6 +128,12 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     # Continue with process
             
             # Step 3: Add domain to Workspace (or continue if already exists)
+            if stop_event and stop_event.is_set():
+                operation.message = 'Stopped by user'
+                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
+                db.session.commit()
+                return
+
             google_service = None
             try:
                 google_service = GoogleDomainsService(account_name)
@@ -175,6 +199,12 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                         return
             
             # Step 4: Get verification token (always proceed, even if domain already existed)
+            if stop_event and stop_event.is_set():
+                operation.message = 'Stopped by user'
+                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
+                db.session.commit()
+                return
+
             try:
                 if not google_service:
                     google_service = GoogleDomainsService(account_name)
@@ -209,6 +239,12 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 return
             
             # Step 5: Create TXT record in DNS (unless dry-run)
+            if stop_event and stop_event.is_set():
+                operation.message = 'Stopped by user'
+                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
+                db.session.commit()
+                return
+
             if dry_run:
                 operation.dns_status = 'dry-run'
                 operation.message = f'Dry-run: DNS TXT record not created (would use host: {txt_host})'
@@ -247,6 +283,12 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     return
             
             # Step 6: Verify domain (with retries)
+            if stop_event and stop_event.is_set():
+                operation.message = 'Stopped by user'
+                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
+                db.session.commit()
+                return
+
             if not dry_run:
                 # Wait 10 seconds after DNS TXT record creation before first verification attempt
                 logger.info(f"Waiting 10 seconds for DNS propagation before verification...")
@@ -257,6 +299,12 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 verified = False
                 
                 while attempt < max_attempts and not verified:
+                    if stop_event and stop_event.is_set():
+                        operation.message = 'Stopped by user'
+                        operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
+                        db.session.commit()
+                        return
+
                     attempt += 1
                     try:
                         logger.info(f"Verification attempt {attempt}/{max_attempts} for {domain}")
@@ -373,8 +421,18 @@ def add_and_verify_domains():
             active_jobs[job_id] = {
                 'status': 'running',
                 'total': len(normalized_domains),
-                'started_at': datetime.now().isoformat()
+                'started_at': datetime.now().isoformat(),
+                'stop_event': threading.Event()
             }
+        
+        # Stop any other running jobs
+        with job_lock:
+            for jid, job in active_jobs.items():
+                if jid != job_id and job.get('status') == 'running':
+                    logger.info(f"Stopping existing job {jid} to start new job {job_id}")
+                    if 'stop_event' in job:
+                        job['stop_event'].set()
+                    job['status'] = 'stopped'
         
         # Start background processing
         max_workers = min(5, len(normalized_domains))  # Cap at 5 parallel domains
@@ -388,7 +446,8 @@ def add_and_verify_domains():
                     account_name,
                     dry_run,
                     skip_verified,
-                    provider
+                    provider,
+                    active_jobs[job_id]['stop_event']
                 )
         
         logger.info(f"Started domain verification job {job_id} for {len(normalized_domains)} domains (Provider: {provider})")
@@ -401,6 +460,39 @@ def add_and_verify_domains():
     
     except Exception as e:
         logger.error(f"Error starting domain verification: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@dns_manager.route('/api/domains/stop', methods=['POST'])
+@login_required
+def stop_domain_verification():
+    """
+    Stop a running domain verification job.
+    """
+    try:
+        data = request.get_json()
+        job_id = data.get('job_id')
+        
+        count = 0
+        with job_lock:
+            if job_id:
+                # Stop specific job
+                if job_id in active_jobs and active_jobs[job_id]['status'] == 'running':
+                    if 'stop_event' in active_jobs[job_id]:
+                        active_jobs[job_id]['stop_event'].set()
+                    active_jobs[job_id]['status'] = 'stopped'
+                    count = 1
+            else:
+                # Stop ALL running jobs
+                for jid, job in active_jobs.items():
+                    if job.get('status') == 'running':
+                        if 'stop_event' in job:
+                            job['stop_event'].set()
+                        job['status'] = 'stopped'
+                        count += 1
+        
+        return jsonify({'success': True, 'stopped_count': count})
+    except Exception as e:
+        logger.error(f"Error stopping domain verification: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @dns_manager.route('/api/namecheap-domains', methods=['GET'])

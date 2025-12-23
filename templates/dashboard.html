@@ -1282,6 +1282,10 @@
                 class="btn-github btn-github-primary" id="domain-verification-start-btn">
                 <i class="fas fa-play"></i> Start Process
             </button>
+            <button onclick="stopDomainVerification()" class="btn-github" id="domain-verification-stop-btn"
+                style="background-color: var(--color-danger-emphasis); border-color: var(--color-danger-emphasis); color: #ffffff; margin-left: 8px;">
+                <i class="fas fa-stop"></i> Stop Process
+            </button>
         </div>
 
         <!-- Status Table -->
@@ -11162,6 +11166,49 @@
             }
             alert('Error: ' + (error.message || String(error)));
         }
+    };
+
+    window.stopDomainVerification = function () {
+        console.log('🛑 stopDomainVerification() called');
+
+        if (!domainVerificationJobId) {
+            console.warn('No active job to stop');
+            alert('No active process to stop');
+            return;
+        }
+
+        const btn = document.getElementById('domain-verification-stop-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Stopping...';
+        }
+
+        fetch('/api/domains/stop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_id: domainVerificationJobId })
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log('🛑 Stop response:', data);
+                if (data.success) {
+                    if (typeof logBulkDomain === 'function') {
+                        logBulkDomain('🛑 Process stopped by user');
+                    }
+                } else {
+                    alert('Failed to stop process: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping process:', error);
+                alert('Error stopping process: ' + error.message);
+            })
+            .finally(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-stop"></i> Stop Process';
+                }
+            });
     };
 
     // Verify function was created IMMEDIATELY
