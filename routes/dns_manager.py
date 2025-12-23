@@ -104,6 +104,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
             
             logger.info(f"TXT Host for {domain} (Apex: {apex}): {txt_host}")
             
+            operation.apex_domain = apex
             operation.raw_log = [log_entry('apex', 'success', f'Converted {domain} to apex: {apex}, TXT host: {txt_host}')]
             db.session.commit()
             
@@ -144,12 +145,16 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 
                 if result.get('already_exists'):
                     operation.workspace_status = 'success'
+                    operation.message = 'Domain exists, getting verification token...'
                     operation.raw_log.append(log_entry('workspace', 'success', 'Domain already exists in Workspace - continuing with verification'))
                     logger.info(f"Domain {domain} already exists, continuing with verification process")
+                    db.session.commit()
                 elif result.get('created'):
                     operation.workspace_status = 'success'
+                    operation.message = 'Domain added, getting verification token...'
                     operation.raw_log.append(log_entry('workspace', 'success', 'Domain added to Workspace'))
                     logger.info(f"Domain {domain} added to Workspace")
+                    db.session.commit()
                 else:
                     raise Exception("Unexpected result from ensure_domain_added")
                 
@@ -230,6 +235,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
             
             except Exception as e:
                 error_msg = str(e)
+                logger.error(f"Job {job_id}: Step 4 FAILED for {domain}: {error_msg}", exc_info=True)
                 # Check for scope/permission errors
                 if 'insufficient' in error_msg.lower() or 'scope' in error_msg.lower() or 'permission' in error_msg.lower():
                     error_msg = f'Missing Google Site Verification API scope. Please re-authenticate: {error_msg}'
@@ -237,6 +243,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     error_msg = f'Domain not found in Google Workspace. Ensure domain is added first: {error_msg}'
                 
                 operation.dns_status = 'failed'
+                operation.verify_status = 'failed'
                 operation.message = f'Failed to get verification token: {error_msg}'
                 operation.raw_log.append(log_entry('token', 'failed', error_msg))
                 db.session.commit()
@@ -281,7 +288,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     
                 except Exception as e:
                     error_msg = f"DNS API Error ({provider}): {str(e)}"
-                    logger.error(error_msg)
+                    logger.error(f"Job {job_id}: Step 5 FAILED: {error_msg}", exc_info=True)
                     operation.dns_status = 'failed'
                     operation.message = error_msg
                     operation.raw_log.append(log_entry('dns', 'failed', error_msg))
