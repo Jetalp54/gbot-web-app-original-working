@@ -1581,7 +1581,9 @@ def api_bulk_create_account_users():
         
         # Authenticate all accounts in parallel
         authenticated_accounts = {}
-        with ThreadPoolExecutor(max_workers=min(10, len(accounts_data))) as auth_executor:
+        if not accounts_data:
+            return jsonify({'success': False, 'error': 'No accounts provided'}), 400
+        with ThreadPoolExecutor(max_workers=max(1, min(10, len(accounts_data)))) as auth_executor:
             auth_futures = {auth_executor.submit(authenticate_account, account_info): account_info['account'] for account_info in accounts_data}
             
             for future in as_completed(auth_futures):
@@ -1706,7 +1708,7 @@ def api_bulk_create_account_users():
         
         # Process all accounts in parallel
         all_results = []
-        with ThreadPoolExecutor(max_workers=min(10, len(accounts_data))) as executor:
+        with ThreadPoolExecutor(max_workers=max(1, min(10, len(accounts_data)))) as executor:
             # Submit all accounts
             future_to_account = {executor.submit(process_account, account_info): account_info['account'] for account_info in accounts_data}
             
@@ -1792,7 +1794,9 @@ def api_bulk_delete_account_users():
                     return {'account': account_name, 'authenticated': False, 'error': str(e)}
         
         authenticated_accounts = {}
-        with ThreadPoolExecutor(max_workers=min(10, len(accounts))) as auth_executor:
+        if not accounts:
+            return jsonify({'success': False, 'error': 'No accounts provided'}), 400
+        with ThreadPoolExecutor(max_workers=max(1, min(10, len(accounts)))) as auth_executor:
             auth_futures = {auth_executor.submit(authenticate_account, account): account for account in accounts}
             
             for future in as_completed(auth_futures):
@@ -1888,7 +1892,9 @@ def api_bulk_delete_account_users():
         
         # Delete users from all authenticated accounts in parallel
         all_results = []
-        with ThreadPoolExecutor(max_workers=min(10, len(authenticated_accounts))) as executor:
+        if not authenticated_accounts:
+            return jsonify({'success': False, 'error': 'No authenticated accounts to process', 'results': []})
+        with ThreadPoolExecutor(max_workers=max(1, min(10, len(authenticated_accounts)))) as executor:
             delete_futures = {executor.submit(delete_account_users, account): account for account in authenticated_accounts.keys()}
             
             for future in as_completed(delete_futures):
@@ -1982,7 +1988,9 @@ def api_bulk_retrieve_account_users():
                     return {'account': account_name, 'authenticated': False, 'error': str(e)}
         
         authenticated_accounts = {}
-        with ThreadPoolExecutor(max_workers=min(10, len(accounts))) as auth_executor:
+        if not accounts:
+            return jsonify({'success': False, 'error': 'No accounts provided'}), 400
+        with ThreadPoolExecutor(max_workers=max(1, min(10, len(accounts)))) as auth_executor:
             auth_futures = {auth_executor.submit(authenticate_account, account): account for account in accounts}
             
             for future in as_completed(auth_futures):
@@ -2105,7 +2113,9 @@ def api_bulk_retrieve_account_users():
         
         # Retrieve users from all authenticated accounts in parallel
         all_results = []
-        with ThreadPoolExecutor(max_workers=min(10, len(authenticated_accounts))) as executor:
+        if not authenticated_accounts:
+            return jsonify({'success': False, 'error': 'No authenticated accounts to retrieve users from', 'results': []})
+        with ThreadPoolExecutor(max_workers=max(1, min(10, len(authenticated_accounts)))) as executor:
             retrieve_futures = {executor.submit(retrieve_account_users, account): account for account in authenticated_accounts.keys()}
             
             for future in as_completed(retrieve_futures):

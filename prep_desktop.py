@@ -230,7 +230,7 @@ Follow these steps in Google Admin Console:
 1. Go to: https://admin.google.com
 
 2. Navigate to: Security → API Controls → Domain-wide Delegation
-   (Or directly: https://admin.google.com/ac/owl/domainwidedelegation)
+   (Or directly: https://admin.google.com/u/0/ac/owl/domainwidedelegation?hl=en)
 
 3. Click "Add new"
 

@@ -550,24 +550,66 @@ def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
             if cloudshell_iframe:
                 driver.switch_to.frame(cloudshell_iframe)
                 print("Switched to Cloud Shell iframe")
-                time.sleep(1)
+                time.sleep(2)
                 
-                # The unique ID was already displayed from the earlier command
-                # Just try to read it from the terminal with retries
+                # Try multiple methods to read terminal output
+                terminal_text = ""
+                terminal_selectors = [
+                    ".xterm-screen",
+                    ".xterm-rows", 
+                    "xterm-terminal",
+                    ".terminal-container",
+                    "[class*='xterm']",
+                    "div[class*='terminal']",
+                    "//div[contains(@class, 'xterm')]",
+                ]
+                
                 for attempt in range(10):
                     try:
-                        terminal_screen = driver.find_element(By.CSS_SELECTOR, ".xterm-screen")
-                        terminal_text = terminal_screen.text
-                        if attempt == 0:
-                            print(f"Terminal text sample: {terminal_text[:200]}...")
+                        # Try each selector
+                        for selector in terminal_selectors:
+                            try:
+                                if selector.startswith("//"):
+                                    elements = driver.find_elements(By.XPATH, selector)
+                                else:
+                                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                                
+                                for element in elements:
+                                    try:
+                                        text = element.text
+                                        if text and len(text) > 10:
+                                            terminal_text = text
+                                            if attempt == 0:
+                                                print(f"Found terminal text via '{selector}': {text[:200]}...")
+                                            break
+                                    except:
+                                        pass
+                                if terminal_text:
+                                    break
+                            except:
+                                pass
                         
-                        # The unique ID should be a long numeric string (15-25 digits)
-                        import re
-                        unique_id_match = re.search(r'\b(\d{15,25})\b', terminal_text)
-                        if unique_id_match:
-                            sa_unique_id = unique_id_match.group(1)
-                            print(f"Found Service Account Unique ID: {sa_unique_id}")
-                            break
+                        if terminal_text:
+                            # Look for unique ID pattern (long numeric string 15-25 digits)
+                            import re
+                            unique_id_match = re.search(r'\b(\d{15,25})\b', terminal_text)
+                            if unique_id_match:
+                                sa_unique_id = unique_id_match.group(1)
+                                print(f"Found Service Account Unique ID: {sa_unique_id}")
+                                break
+                        
+                        # Alternative: Try to get from page source
+                        if not sa_unique_id:
+                            page_source = driver.page_source
+                            unique_id_match = re.search(r'\b(\d{18,22})\b', page_source)
+                            if unique_id_match:
+                                potential_id = unique_id_match.group(1)
+                                # Validate it's a reasonable unique ID (not a timestamp or other number)
+                                if len(potential_id) >= 18 and potential_id.startswith('10'):
+                                    sa_unique_id = potential_id
+                                    print(f"Found Unique ID from page source: {sa_unique_id}")
+                                    break
+                                    
                     except Exception as e:
                         if attempt == 0:
                             print(f"Could not extract unique ID (attempt {attempt+1}): {e}")
@@ -586,6 +628,8 @@ def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
         # If we couldn't get the unique ID, use SA email as fallback
         if not sa_unique_id:
             print("WARNING: Could not retrieve Unique ID automatically. Using SA email as fallback.")
+            print("NOTE: You may need to manually get the unique ID from Cloud Shell output.")
+            print("The command 'gcloud iam service-accounts describe SA_EMAIL --format=value(uniqueId)' was executed.")
             sa_unique_id = f"{sa_name}@{project_id}.iam.gserviceaccount.com"
         
         # Make sure we're in default content before any window operations
@@ -612,7 +656,7 @@ def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
             print(f"Created new tab via Selenium: {new_tab}")
             
             # Navigate to the DWD page
-            driver.get("https://admin.google.com/ac/owl/domainwidedelegation?utm_source=og_am")
+            driver.get("https://admin.google.com/u/0/ac/owl/domainwidedelegation?hl=en")
             print("Navigated to Domain-Wide Delegation page")
         except Exception as e:
             print(f"Selenium new_window method failed: {e}")
@@ -632,7 +676,7 @@ def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
                 
                 if new_tab:
                     driver.switch_to.window(new_tab)
-                    driver.get("https://admin.google.com/ac/owl/domainwidedelegation?utm_source=og_am")
+                    driver.get("https://admin.google.com/u/0/ac/owl/domainwidedelegation?hl=en")
                     print(f"Created new tab via Ctrl+T: {new_tab}")
             except Exception as e2:
                 print(f"Ctrl+T method failed: {e2}")
@@ -650,7 +694,7 @@ def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
                     
                     if new_tab:
                         driver.switch_to.window(new_tab)
-                        driver.get("https://admin.google.com/ac/owl/domainwidedelegation?utm_source=og_am")
+                        driver.get("https://admin.google.com/u/0/ac/owl/domainwidedelegation?hl=en")
                         print(f"Created new tab via JS fallback: {new_tab}")
                 except Exception as e3:
                     print(f"JS fallback method failed: {e3}")

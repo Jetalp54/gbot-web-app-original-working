@@ -73,7 +73,7 @@ MANUAL CONFIGURATION REQUIRED
 
 The automated configuration failed. Please complete these steps manually:
 
-1. Go to: https://admin.google.com/ac/owl/domainwidedelegation
+1. Go to: https://admin.google.com/u/0/ac/owl/domainwidedelegation?hl=en
 2. Login with: {email}
 3. Click "Add new"
 4. Enter Client ID: {client_id}
@@ -112,7 +112,7 @@ Required Scopes:
         
         # Navigate to Domain-wide Delegation page
         print("Step 3: Navigating to Domain-wide Delegation settings...")
-        delegation_url = "https://admin.google.com/ac/owl/domainwidedelegation"
+        delegation_url = "https://admin.google.com/u/0/ac/owl/domainwidedelegation?hl=en"
         driver.get(delegation_url)
         time.sleep(5)
         
