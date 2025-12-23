@@ -77,23 +77,70 @@ class GoogleDomainsService:
         self._admin_service = build('admin', 'directory_v1', credentials=creds)
         return self._admin_service
     
-    def _get_site_verification_service(self, force_refresh=False):
-        """Get or create Site Verification API service."""
-        if self._site_verification_service and not force_refresh:
-            return self._site_verification_service
+    def _get_site_verification_service(self, force_refresh=False, without_delegation=False):
+        """Get or create Site Verification API service.
         
-        # Clear cached service if force refresh
+        Args:
+            force_refresh: Force rebuild the service with new credentials
+            without_delegation: If True, use service account without impersonating admin
+        """
+        cache_key = 'without_delegation' if without_delegation else 'with_delegation'
+        
+        if not force_refresh and hasattr(self, '_sv_cache') and cache_key in self._sv_cache:
+            return self._sv_cache[cache_key]
+        
         if force_refresh:
-            self._site_verification_service = None
-            logger.info("Force refreshing Site Verification service with new credentials")
+            logger.info(f"Force refreshing Site Verification service (without_delegation={without_delegation})")
         
-        creds = self._get_credentials()
-        if not creds:
-            raise Exception("Failed to get valid credentials for Site Verification API")
-        
-        self._site_verification_service = build('siteVerification', 'v1', credentials=creds)
-        logger.info("Site Verification service built successfully")
-        return self._site_verification_service
+        try:
+            # Get credentials for Site Verification
+            creds = self._get_credentials_for_site_verification(without_delegation)
+            if not creds:
+                raise Exception("Failed to get valid credentials for Site Verification API")
+            
+            service = build('siteVerification', 'v1', credentials=creds)
+            
+            # Cache the service
+            if not hasattr(self, '_sv_cache'):
+                self._sv_cache = {}
+            self._sv_cache[cache_key] = service
+            
+            logger.info(f"Site Verification service built successfully (without_delegation={without_delegation})")
+            return service
+        except Exception as e:
+            logger.error(f"Failed to build Site Verification service: {e}")
+            raise
+    
+    def _get_credentials_for_site_verification(self, without_delegation=False):
+        """Get credentials specifically for Site Verification API."""
+        try:
+            service_account_row = ServiceAccount.query.filter_by(name=self.account_name).first()
+            if service_account_row:
+                from services.google_service_account import GoogleServiceAccount
+                import json
+                from google.oauth2 import service_account as sa_lib
+                
+                gsa = GoogleServiceAccount(service_account_row.id)
+                
+                if without_delegation:
+                    # Use service account credentials WITHOUT impersonating a user
+                    # Some APIs work better with direct service account auth
+                    logger.info("Using Site Verification credentials WITHOUT domain delegation")
+                    creds = sa_lib.Credentials.from_service_account_info(
+                        gsa.credentials_info,
+                        scopes=['https://www.googleapis.com/auth/siteverification']
+                    )
+                    return creds
+                else:
+                    # Use standard delegated credentials (impersonate admin)
+                    logger.info(f"Using Site Verification credentials WITH domain delegation to {gsa.admin_email}")
+                    return gsa.get_credentials()
+            
+            # Fallback to standard credentials
+            return self._get_credentials()
+        except Exception as e:
+            logger.error(f"Error getting Site Verification credentials: {e}")
+            return None
     
     def ensure_domain_added(self, apex: str) -> Dict:
         """
@@ -190,90 +237,113 @@ class GoogleDomainsService:
             logger.error(f"Error adding domain {apex}: {e}")
             raise
     
-    def get_verification_token(self, domain: str) -> Dict:
+    def get_verification_token(self, domain: str, apex_domain: str = None) -> Dict:
         """
         Get DNS TXT verification token from Google Site Verification API.
         
         Args:
             domain: Domain to verify (can be subdomain or apex)
+            apex_domain: Optional apex domain to fall back to if subdomain fails
         
         Returns:
             Dict with 'token' (str), 'host' (str, default '@'), 'method' (str)
         """
-        try:
-            service = self._get_site_verification_service()
-            
-            # Request verification token
-            verification_request = {
-                'site': {
-                    'type': 'INET_DOMAIN',
-                    'identifier': domain
-                },
-                'verificationMethod': 'DNS_TXT'
-            }
-            
-            logger.info(f"Requesting verification token for domain: {domain}")
-            
-            # Retry logic for 503 errors with SHORTER wait times
-            token_response = None
-            max_retries = 5  # Reduced from 10
-            last_error = None
-            
-            for attempt in range(max_retries):
-                try:
-                    token_response = service.webResource().getToken(body=verification_request).execute()
-                    logger.info(f"Successfully got token response for {domain}")
-                    break
-                except HttpError as e:
-                    last_error = e
-                    if e.resp.status == 503:
-                        if attempt < max_retries - 1:
-                            # After 2 failed attempts, try refreshing the service with new credentials
-                            if attempt == 1:
-                                logger.info(f"Refreshing Site Verification service after {attempt+1} 503 errors")
-                                service = self._get_site_verification_service(force_refresh=True)
-                            
-                            # Cap wait time at 10 seconds
-                            wait_time = min(2 + (attempt * 2), 10) + random.uniform(0, 1)
-                            logger.warning(f"503 error getting token for {domain}, retrying in {wait_time:.1f}s (Attempt {attempt+1}/{max_retries})")
-                            time.sleep(wait_time)
-                            continue
-                        else:
-                            logger.error(f"All {max_retries} retries exhausted for {domain} due to 503 errors")
-                    raise e
-            
-            if token_response is None:
-                if last_error:
-                    raise last_error
-                raise Exception("No response received from Google Site Verification API")
-            
-            token = token_response.get('token', '')
-            
-            if not token:
-                logger.error(f"Empty token returned for {domain}. Response: {token_response}")
-                raise Exception("No token returned from Google Site Verification API")
-            
-            # Default host is '@' for apex domain
-            host = '@'
-            
-            logger.info(f"Got verification token for {domain}: {token[:20]}...")
-            
-            return {
-                'token': token,
-                'host': host,
-                'method': 'DNS_TXT',
-                'txt_value': f'google-site-verification={token}'
-            }
-            
-        except HttpError as e:
-            error_str = str(e)
-            status_code = e.resp.status if hasattr(e, 'resp') else 'unknown'
-            logger.error(f"HTTP {status_code} error getting verification token for {domain}: {error_str}")
-            raise Exception(f"Google Site Verification API error (HTTP {status_code}): {error_str}")
+        # Try to get token, with fallback to apex domain if subdomain fails
+        domains_to_try = [domain]
+        if apex_domain and apex_domain != domain:
+            domains_to_try.append(apex_domain)
         
-        except Exception as e:
-            logger.error(f"Error getting verification token for {domain}: {e}", exc_info=True)
-            raise
+        last_error = None
+        
+        for try_domain in domains_to_try:
+            try:
+                logger.info(f"Requesting verification token for: {try_domain}")
+                token_result = self._request_verification_token(try_domain)
+                if token_result:
+                    return token_result
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Failed to get token for {try_domain}: {e}")
+                if try_domain != domains_to_try[-1]:
+                    logger.info(f"Trying next domain in fallback list...")
+                    continue
+                raise
+        
+        if last_error:
+            raise last_error
+        raise Exception("Failed to get verification token from Google")
+    
+    def _request_verification_token(self, domain: str) -> Dict:
+        """Internal method to request verification token for a specific domain.
+        
+        Tries with domain delegation first, then without if that fails with 503.
+        """
+        # Try with delegation first, then without
+        delegation_modes = [False, True]  # Try WITH delegation, then WITHOUT
+        
+        for without_delegation in delegation_modes:
+            try:
+                service = self._get_site_verification_service(without_delegation=without_delegation)
+                
+                verification_request = {
+                    'site': {
+                        'type': 'INET_DOMAIN',
+                        'identifier': domain
+                    },
+                    'verificationMethod': 'DNS_TXT'
+                }
+                
+                # Retry logic for 503 errors
+                token_response = None
+                max_retries = 3  # Fewer retries per mode
+                last_error = None
+                
+                for attempt in range(max_retries):
+                    try:
+                        token_response = service.webResource().getToken(body=verification_request).execute()
+                        logger.info(f"Successfully got token for {domain} (without_delegation={without_delegation})")
+                        break
+                    except HttpError as e:
+                        last_error = e
+                        if e.resp.status == 503:
+                            if attempt < max_retries - 1:
+                                wait_time = 2 + (attempt * 2) + random.uniform(0, 1)
+                                logger.warning(f"503 error for {domain} (mode={without_delegation}), retry in {wait_time:.1f}s (Attempt {attempt+1}/{max_retries})")
+                                time.sleep(wait_time)
+                                continue
+                            else:
+                                # All retries for this mode failed
+                                logger.warning(f"503 errors exhausted for {domain} with without_delegation={without_delegation}")
+                                break  # Try next delegation mode
+                        raise e
+                
+                if token_response:
+                    token = token_response.get('token', '')
+                    if token:
+                        logger.info(f"Got verification token for {domain}: {token[:20]}...")
+                        return {
+                            'token': token,
+                            'host': '@',
+                            'method': 'DNS_TXT',
+                            'txt_value': f'google-site-verification={token}'
+                        }
+                    else:
+                        logger.error(f"Empty token for {domain}. Response: {token_response}")
+                        raise Exception("No token returned from Google")
+                
+            except HttpError as e:
+                if e.resp.status != 503:
+                    raise  # Non-503 error, don't retry with different mode
+                last_error = e
+            except Exception as e:
+                last_error = e
+                logger.error(f"Error with without_delegation={without_delegation}: {e}")
+        
+        # All modes failed
+        if last_error:
+            raise last_error
+        raise Exception("Failed to get verification token from Google Site Verification API")
+    
     
     def verify_domain(self, apex: str) -> Dict:
         """

@@ -221,7 +221,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 if not google_service:
                     google_service = GoogleDomainsService(account_name)
                     
-                token_result = google_service.get_verification_token(domain)
+                token_result = google_service.get_verification_token(domain, apex_domain=apex)
                 token = token_result['token']
                 # Use the calculated subdomain host, not the default '@' from Google
                 # Google returns '@' for apex, but we need the subdomain part for subdomains
