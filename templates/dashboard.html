@@ -11001,11 +11001,26 @@
     // Domain Verification Variables - MUST be defined BEFORE function
     let domainVerificationJobId = null;
     let domainVerificationPollInterval = null;
+    let domainVerificationInProgress = false; // Lock to prevent duplicate calls
 
     // Define function DIRECTLY on window - SIMPLE AND DIRECT
     console.log('About to define window.startDomainVerification...');
     window.startDomainVerification = function () {
         console.log('🚀 startDomainVerification() called');
+
+        // Prevent duplicate calls
+        if (domainVerificationInProgress) {
+            console.warn('⚠️ Domain verification already in progress, ignoring duplicate call');
+            return;
+        }
+        domainVerificationInProgress = true;
+
+        // Disable button immediately
+        const btn = document.getElementById('domain-verification-start-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        }
 
         try {
             const inputEl = document.getElementById('domain-verification-input');
@@ -11071,12 +11086,7 @@
             document.getElementById('domain-verification-table-body').innerHTML = '';
             document.getElementById('domain-verification-log').textContent = '';
 
-            // Disable button to prevent double-clicks
-            const btn = document.getElementById('domain-verification-start-btn');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-            }
+            // Button already disabled at start of function
 
             // Start process
             if (typeof logBulkDomain === 'function') {
@@ -11132,6 +11142,7 @@
                     } else {
                         const errorMsg = data.error || 'Failed to start verification';
                         console.error('Failed to start:', errorMsg);
+                        domainVerificationInProgress = false; // Reset lock on error
                         if (typeof logBulkDomain === 'function') {
                             logBulkDomain(`❌ Failed to start verification: ${errorMsg}`);
                         }
@@ -11144,6 +11155,7 @@
                 .catch(error => {
                     console.error('❌ Fetch error:', error);
                     console.error('Error details:', error);
+                    domainVerificationInProgress = false; // Reset lock on error
                     if (btn) {
                         btn.disabled = false;
                         btn.innerHTML = '<i class="fas fa-play"></i> Start Process';
@@ -11161,6 +11173,7 @@
         } catch (error) {
             console.error('❌ startDomainVerification error:', error);
             console.error('Error stack:', error.stack);
+            domainVerificationInProgress = false; // Reset lock on error
             if (typeof logBulkDomain === 'function') {
                 logBulkDomain(`❌ JavaScript Error: ${error.message || String(error)}`);
             }
@@ -11378,35 +11391,11 @@
         console.log('📄 DOMContentLoaded fired');
         const btn = document.getElementById('domain-verification-start-btn');
         if (btn) {
-            console.log('✅ Domain verification button found, adding event listener...');
-            // Keep onclick but also add event listener as backup
-            btn.addEventListener('click', function (e) {
-                console.log('🔘 Button clicked via event listener');
-                console.log('Function type:', typeof window.startDomainVerification);
-                if (typeof window.startDomainVerification === 'function') {
-                    try {
-                        window.startDomainVerification();
-                    } catch (err) {
-                        console.error('Error calling startDomainVerification:', err);
-                        alert('Error: ' + err.message);
-                    }
-                } else {
-                    console.error('❌ startDomainVerification function not found!');
-                    alert('Error: startDomainVerification function not found. Please refresh the page.');
-                }
-            });
-            console.log('✅ Event listener added successfully');
+            console.log('✅ Domain verification button found');
+            // NOTE: Button already has onclick handler, no need for duplicate event listener
+            // The onclick handler in the HTML calls window.startDomainVerification()
         } else {
             console.warn('⚠️ Domain verification button not found on page load');
-            // Try again after a delay
-            setTimeout(function () {
-                const btn2 = document.getElementById('domain-verification-start-btn');
-                if (btn2) {
-                    console.log('✅ Found button on retry');
-                } else {
-                    console.error('❌ Button still not found after retry');
-                }
-            }, 2000);
         }
 
         // Verify function is accessible
