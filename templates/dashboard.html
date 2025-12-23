@@ -11032,6 +11032,11 @@
 
             if (!input) {
                 console.error('❌ No input provided');
+                domainVerificationInProgress = false; // Reset lock on early return
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-play"></i> Start Process';
+                }
                 if (typeof logBulkDomain === 'function') {
                     logBulkDomain('❌ Error: Please enter at least one domain');
                 }
@@ -11041,6 +11046,11 @@
 
             if (typeof isAuthenticated === 'undefined' || !isAuthenticated) {
                 console.error('❌ Not authenticated');
+                domainVerificationInProgress = false; // Reset lock on early return
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-play"></i> Start Process';
+                }
                 if (typeof logBulkDomain === 'function') {
                     logBulkDomain('❌ Error: Please authenticate an account first');
                 }
@@ -11051,6 +11061,11 @@
             const domains = input.split('\n').map(d => d.trim()).filter(d => d);
             if (domains.length === 0) {
                 console.error('❌ No valid domains');
+                domainVerificationInProgress = false; // Reset lock on early return
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-play"></i> Start Process';
+                }
                 if (typeof logBulkDomain === 'function') {
                     logBulkDomain('❌ Error: No valid domains found');
                 }
@@ -11208,6 +11223,13 @@
                     if (typeof logBulkDomain === 'function') {
                         logBulkDomain('🛑 Process stopped by user');
                     }
+                    // Clear polling and reset state
+                    if (domainVerificationPollInterval) {
+                        clearInterval(domainVerificationPollInterval);
+                        domainVerificationPollInterval = null;
+                    }
+                    domainVerificationJobId = null;
+                    domainVerificationInProgress = false; // CRITICAL: Reset lock
                 } else {
                     alert('Failed to stop process: ' + data.error);
                 }
@@ -11220,6 +11242,12 @@
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-stop"></i> Stop Process';
+                }
+                // Also reset start button
+                const startBtn = document.getElementById('domain-verification-start-btn');
+                if (startBtn) {
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = '<i class="fas fa-play"></i> Start Process';
                 }
             });
     };
@@ -11306,6 +11334,17 @@
                             logBulkDomain('✅ All domains processed');
                             logBulkDomain(`📊 Summary: ${successCount} verified, ${failedCount} failed, ${skippedCount} skipped`);
                             logDomainVerification('✅ All domains processed');
+
+                            // CRITICAL: Reset state when job completes
+                            domainVerificationJobId = null;
+                            domainVerificationInProgress = false;
+
+                            // Re-enable start button
+                            const startBtn = document.getElementById('domain-verification-start-btn');
+                            if (startBtn) {
+                                startBtn.disabled = false;
+                                startBtn.innerHTML = '<i class="fas fa-play"></i> Start Process';
+                            }
                         }
                     } else {
                         logBulkDomain(`❌ Failed to get status: ${data.error || 'Unknown error'}`);
