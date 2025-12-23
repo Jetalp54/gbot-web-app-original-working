@@ -2472,19 +2472,130 @@ def api_retrieve_domains_for_account():
         if not account_email:
             return jsonify({'success': False, 'error': 'Account email is required'})
         
-        # Extract account name from email or use email as account name
-        # First try to find account by email
-        from database import GoogleAccount
-        account = GoogleAccount.query.filter_by(account_name=account_email).first()
+        # Try to find account - check ServiceAccount first, then GoogleAccount
+        from database import GoogleAccount, ServiceAccount
         
-        if not account:
-            # Try to find by email if account_name is different
-            account = GoogleAccount.query.filter(GoogleAccount.account_name.contains(account_email.split('@')[0])).first()
+        service_account = None
+        google_account = None
+        account_name = None
         
-        if not account:
-            return jsonify({'success': False, 'error': f'Account {account_email} not found in database'})
+        # Try to find by admin_email in ServiceAccount (most common case now)
+        service_account = ServiceAccount.query.filter_by(admin_email=account_email).first()
         
-        account_name = account.account_name
+        if not service_account:
+            # Try to find by name in ServiceAccount
+            service_account = ServiceAccount.query.filter_by(name=account_email).first()
+        
+        if not service_account:
+            # Try partial match on admin_email
+            service_account = ServiceAccount.query.filter(ServiceAccount.admin_email.contains(account_email.split('@')[0])).first()
+        
+        if service_account:
+            account_name = service_account.name
+            logging.info(f"Found ServiceAccount: {account_name} for email {account_email}")
+            
+            # Use GoogleDomainsService for Service Account
+            from services.google_domains_service import GoogleDomainsService
+            try:
+                domains_service = GoogleDomainsService(account_name)
+                admin_service = domains_service._get_admin_service()
+                
+                # Get domains using Admin SDK
+                domains_result = admin_service.domains().list(customer='my_customer').execute()
+                all_domains = domains_result.get('domains', [])
+                
+                # Get users to calculate domain usage
+                all_users = []
+                page_token = None
+                while True:
+                    try:
+                        if page_token:
+                            users_result = admin_service.users().list(
+                                customer='my_customer',
+                                maxResults=500,
+                                pageToken=page_token
+                            ).execute()
+                        else:
+                            users_result = admin_service.users().list(
+                                customer='my_customer',
+                                maxResults=500
+                            ).execute()
+                        
+                        users = users_result.get('users', [])
+                        all_users.extend(users)
+                        page_token = users_result.get('nextPageToken')
+                        if not page_token:
+                            break
+                    except Exception as users_err:
+                        logging.warning(f"Could not fetch users: {users_err}")
+                        break
+                
+                # Calculate user count per domain
+                domain_user_counts = {}
+                for user in all_users:
+                    email = user.get('primaryEmail', '')
+                    if email and '@' in email:
+                        domain = email.split('@')[1]
+                        domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
+                
+                # Format domains with status information
+                from database import UsedDomain
+                formatted_domains = []
+                for domain in all_domains:
+                    domain_name = domain.get('domainName', '')
+                    if not domain_name:
+                        continue
+                    
+                    user_count = domain_user_counts.get(domain_name, 0)
+                    domain_record = UsedDomain.query.filter_by(domain_name=domain_name).first()
+                    ever_used = getattr(domain_record, 'ever_used', False) if domain_record else False
+                    
+                    # Determine domain status
+                    if user_count > 0:
+                        status = 'in_use'
+                        status_text = 'IN USE'
+                        status_color = 'purple'
+                    elif domain_record and ever_used:
+                        status = 'used'
+                        status_text = 'USED'
+                        status_color = 'red'
+                    else:
+                        status = 'available'
+                        status_text = 'AVAILABLE'
+                        status_color = 'green'
+                    
+                    formatted_domains.append({
+                        'domain_name': domain_name,
+                        'status': status,
+                        'status_text': status_text,
+                        'status_color': status_color,
+                        'user_count': user_count,
+                        'ever_used': ever_used
+                    })
+                
+                logging.info(f"Retrieved {len(formatted_domains)} domains for ServiceAccount {account_name}")
+                
+                return jsonify({
+                    'success': True,
+                    'domains': formatted_domains,
+                    'count': len(formatted_domains)
+                })
+                
+            except Exception as sa_err:
+                logging.error(f"Error using ServiceAccount {account_name}: {sa_err}")
+                return jsonify({'success': False, 'error': f'Failed to retrieve domains: {str(sa_err)}'})
+        
+        # Fallback: try GoogleAccount (legacy OAuth)
+        google_account = GoogleAccount.query.filter_by(account_name=account_email).first()
+        
+        if not google_account:
+            google_account = GoogleAccount.query.filter(GoogleAccount.account_name.contains(account_email.split('@')[0])).first()
+        
+        if not google_account:
+            return jsonify({'success': False, 'error': f'Account {account_email} not found. Please check the email or authenticate the account first.'})
+        
+        account_name = google_account.account_name
+        logging.info(f"Found GoogleAccount: {account_name} for email {account_email}")
         
         # Authenticate with this account's tokens
         if google_api.is_token_valid(account_name):
@@ -2529,7 +2640,6 @@ def api_retrieve_domains_for_account():
                     break
         except Exception as users_err:
             logger.warning(f"Could not fetch users for domain status: {users_err}")
-            # Continue with empty user list - will use database records only
         
         # Calculate user count per domain
         domain_user_counts = {}
@@ -2547,29 +2657,26 @@ def api_retrieve_domains_for_account():
                 continue
             
             user_count = domain_user_counts.get(domain_name, 0)
-            
-            # Get domain status from database
             domain_record = UsedDomain.query.filter_by(domain_name=domain_name).first()
             
-            # Check if ever_used column exists (for backward compatibility)
             ever_used = False
             if domain_record:
                 try:
                     ever_used = getattr(domain_record, 'ever_used', False)
                 except:
-                    ever_used = False  # Column doesn't exist yet
+                    ever_used = False
             
             # Determine domain status
             if user_count > 0:
-                status = 'in_use'  # Purple - currently has users
+                status = 'in_use'
                 status_text = 'IN USE'
                 status_color = 'purple'
             elif domain_record and ever_used:
-                status = 'used'  # Red - previously used but no current users
+                status = 'used'
                 status_text = 'USED'
                 status_color = 'red'
             else:
-                status = 'available'  # Green - never been used
+                status = 'available'
                 status_text = 'AVAILABLE'
                 status_color = 'green'
             
