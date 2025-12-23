@@ -214,6 +214,9 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 return
 
             try:
+                operation.message = 'Getting verification token from Google...'
+                db.session.commit()
+                
                 logger.info(f"Job {job_id}: Step 4 - Getting verification token for {domain}")
                 if not google_service:
                     google_service = GoogleDomainsService(account_name)
@@ -229,6 +232,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     logger.warning(f"Detected double prefix in TXT value: {txt_value}. Fixing...")
                     txt_value = txt_value.replace('google-site-verification=', '', 1)
                 
+                operation.message = f'Token received, creating DNS TXT record...'
                 operation.raw_log.append(log_entry('token', 'success', f'Retrieved verification token, will use host: {txt_host}'))
                 logger.info(f"Got verification token for {domain}, will add TXT record with host: {txt_host}")
                 db.session.commit()
@@ -264,6 +268,9 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
             else:
                 try:
                     dns_result = None
+                    operation.message = f'Creating TXT record in {provider.capitalize()}...'
+                    db.session.commit()
+                    
                     if provider == 'cloudflare':
                         logger.info(f"Adding TXT record to Cloudflare: apex={apex}, host={txt_host}, value={txt_value}")
                         dns_service = CloudflareDNSService()
@@ -279,11 +286,12 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     logger.info(f"Job {job_id}: Step 5 - DNS result: {dns_result}")
                     
                     operation.dns_status = 'success'
-                    operation.message = f'TXT record created @ {txt_host}: {dns_result.get("message", "Success")}'
-                    operation.raw_log.append(log_entry('dns', 'success', f'TXT record created: {dns_result}'))
+                    operation.message = f'TXT record created! Verifying domain...'
+                    operation.raw_log.append(log_entry('dns', 'success', f'TXT record created @ {txt_host}: {dns_result}'))
                     db.session.commit()
                     
-                    # Wait for propagation (short wait)
+                    # Short wait for DNS propagation before verification
+                    logger.info(f"Job {job_id}: Waiting 5 seconds for DNS propagation...")
                     time.sleep(5)
                     
                 except Exception as e:

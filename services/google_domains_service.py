@@ -77,18 +77,22 @@ class GoogleDomainsService:
         self._admin_service = build('admin', 'directory_v1', credentials=creds)
         return self._admin_service
     
-    def _get_site_verification_service(self):
+    def _get_site_verification_service(self, force_refresh=False):
         """Get or create Site Verification API service."""
-        if self._site_verification_service:
+        if self._site_verification_service and not force_refresh:
             return self._site_verification_service
+        
+        # Clear cached service if force refresh
+        if force_refresh:
+            self._site_verification_service = None
+            logger.info("Force refreshing Site Verification service with new credentials")
         
         creds = self._get_credentials()
         if not creds:
-            raise Exception("Failed to get valid credentials")
+            raise Exception("Failed to get valid credentials for Site Verification API")
         
-        # Site Verification API requires additional scope
-        # Note: This scope should be added during OAuth flow
         self._site_verification_service = build('siteVerification', 'v1', credentials=creds)
+        logger.info("Site Verification service built successfully")
         return self._site_verification_service
     
     def ensure_domain_added(self, apex: str) -> Dict:
@@ -186,12 +190,12 @@ class GoogleDomainsService:
             logger.error(f"Error adding domain {apex}: {e}")
             raise
     
-    def get_verification_token(self, apex: str) -> Dict:
+    def get_verification_token(self, domain: str) -> Dict:
         """
         Get DNS TXT verification token from Google Site Verification API.
         
         Args:
-            apex: Apex domain to verify
+            domain: Domain to verify (can be subdomain or apex)
         
         Returns:
             Dict with 'token' (str), 'host' (str, default '@'), 'method' (str)
@@ -203,60 +207,72 @@ class GoogleDomainsService:
             verification_request = {
                 'site': {
                     'type': 'INET_DOMAIN',
-                    'identifier': apex
+                    'identifier': domain
                 },
                 'verificationMethod': 'DNS_TXT'
             }
             
-            try:
-                # Retry logic for 503 errors
-                token_response = None
-                max_retries = 10
-                for attempt in range(max_retries):
-                    try:
-                        token_response = service.webResource().getToken(body=verification_request).execute()
-                        break
-                    except HttpError as e:
-                        if e.resp.status == 503:
-                            if attempt < max_retries - 1:
-                                wait_time = (2 ** attempt) + random.uniform(0, 1)  # Exponential backoff with jitter
-                                logger.warning(f"503 error getting token, retrying in {wait_time:.2f}s... (Attempt {attempt+1}/{max_retries})")
-                                time.sleep(wait_time)
-                                continue
-                        raise e
-                
-                token = token_response.get('token', '')
-                
-                if not token:
-                    raise Exception("No token returned from Google Site Verification API")
-                
-                # Default host is '@' for apex domain
-                host = '@'
-                
-                # Check if API specifies a different host
-                # Google typically uses '@' for domain verification
-                logger.info(f"Got verification token for {apex}, host: {host}")
-                
-                return {
-                    'token': token,
-                    'host': host,
-                    'method': 'DNS_TXT',
-                    'txt_value': f'google-site-verification={token}'
-                }
+            logger.info(f"Requesting verification token for domain: {domain}")
             
-            except HttpError as e:
-                error_str = str(e)
-                logger.error(f"HTTP error getting verification token for {apex}: {error_str}")
-                
-                # Try alternative method: use the token directly if available
-                if 'token' in error_str.lower():
-                    # Some APIs return token in error message (unlikely, but handle gracefully)
-                    raise Exception(f"Failed to get verification token: {error_str}")
-                else:
-                    raise Exception(f"Site Verification API error: {error_str}")
+            # Retry logic for 503 errors with SHORTER wait times
+            token_response = None
+            max_retries = 5  # Reduced from 10
+            last_error = None
+            
+            for attempt in range(max_retries):
+                try:
+                    token_response = service.webResource().getToken(body=verification_request).execute()
+                    logger.info(f"Successfully got token response for {domain}")
+                    break
+                except HttpError as e:
+                    last_error = e
+                    if e.resp.status == 503:
+                        if attempt < max_retries - 1:
+                            # After 2 failed attempts, try refreshing the service with new credentials
+                            if attempt == 1:
+                                logger.info(f"Refreshing Site Verification service after {attempt+1} 503 errors")
+                                service = self._get_site_verification_service(force_refresh=True)
+                            
+                            # Cap wait time at 10 seconds
+                            wait_time = min(2 + (attempt * 2), 10) + random.uniform(0, 1)
+                            logger.warning(f"503 error getting token for {domain}, retrying in {wait_time:.1f}s (Attempt {attempt+1}/{max_retries})")
+                            time.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error(f"All {max_retries} retries exhausted for {domain} due to 503 errors")
+                    raise e
+            
+            if token_response is None:
+                if last_error:
+                    raise last_error
+                raise Exception("No response received from Google Site Verification API")
+            
+            token = token_response.get('token', '')
+            
+            if not token:
+                logger.error(f"Empty token returned for {domain}. Response: {token_response}")
+                raise Exception("No token returned from Google Site Verification API")
+            
+            # Default host is '@' for apex domain
+            host = '@'
+            
+            logger.info(f"Got verification token for {domain}: {token[:20]}...")
+            
+            return {
+                'token': token,
+                'host': host,
+                'method': 'DNS_TXT',
+                'txt_value': f'google-site-verification={token}'
+            }
+            
+        except HttpError as e:
+            error_str = str(e)
+            status_code = e.resp.status if hasattr(e, 'resp') else 'unknown'
+            logger.error(f"HTTP {status_code} error getting verification token for {domain}: {error_str}")
+            raise Exception(f"Google Site Verification API error (HTTP {status_code}): {error_str}")
         
         except Exception as e:
-            logger.error(f"Error getting verification token for {apex}: {e}")
+            logger.error(f"Error getting verification token for {domain}: {e}", exc_info=True)
             raise
     
     def verify_domain(self, apex: str) -> Dict:
