@@ -1527,13 +1527,51 @@ def api_bulk_create_account_users():
         
         # Step 1: Authenticate all accounts in parallel first
         def authenticate_account(account_info):
-            """Authenticate a single account"""
+            """Authenticate a single account - supports both ServiceAccount and GoogleAccount"""
             with app.app_context():
                 account_name = account_info['account']
+                domain = account_info.get('domain', '').strip()
                 try:
+                    # Try ServiceAccount first (admin_email or name)
+                    from database import ServiceAccount
+                    service_account = ServiceAccount.query.filter_by(admin_email=account_name).first()
+                    if not service_account:
+                        service_account = ServiceAccount.query.filter_by(name=account_name).first()
+                    
+                    if service_account:
+                        # Use GoogleDomainsService for Service Account
+                        from services.google_domains_service import GoogleDomainsService
+                        try:
+                            domains_service = GoogleDomainsService(service_account.name)
+                            admin_service = domains_service._get_admin_service()
+                            
+                            # Get default domain if not provided
+                            if not domain:
+                                try:
+                                    domains_result = admin_service.domains().list(customer='my_customer').execute()
+                                    domains_list = domains_result.get('domains', [])
+                                    primary_domain = next((d for d in domains_list if d.get('isPrimary', False)), None)
+                                    if primary_domain:
+                                        domain = primary_domain.get('domainName', '')
+                                    elif domains_list:
+                                        domain = domains_list[0].get('domainName', '')
+                                    account_info['domain'] = domain
+                                    app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Using domain: {domain}")
+                                except Exception as domain_err:
+                                    app.logger.error(f"[BULK ACCOUNTS] [{account_name}] Error getting domain: {domain_err}")
+                            
+                            if not domain:
+                                return {'account': account_name, 'authenticated': False, 'error': 'Could not determine domain'}
+                            
+                            return {'account': account_name, 'authenticated': True, 'service': admin_service, 'domain': domain, 'is_service_account': True}
+                        except Exception as sa_err:
+                            app.logger.error(f"[BULK ACCOUNTS] [{account_name}] ServiceAccount auth error: {sa_err}")
+                            return {'account': account_name, 'authenticated': False, 'error': f'ServiceAccount auth failed: {str(sa_err)}'}
+                    
+                    # Fallback to GoogleAccount (legacy OAuth)
                     account_db = GoogleAccount.query.filter_by(account_name=account_name).first()
                     if not account_db:
-                        return {'account': account_name, 'authenticated': False, 'error': 'Account not found in database'}
+                        return {'account': account_name, 'authenticated': False, 'error': 'Account not found in database (checked ServiceAccount and GoogleAccount)'}
                     
                     auth_success = authenticate_without_session(account_name)
                     if not auth_success:
@@ -1544,7 +1582,6 @@ def api_bulk_create_account_users():
                         return {'account': account_name, 'authenticated': False, 'error': 'Failed to get service'}
                     
                     # Get default domain if domain is empty
-                    domain = account_info.get('domain', '').strip()
                     if not domain:
                         try:
                             domains_result = service.domains().list(customer='my_customer').execute()
@@ -1773,12 +1810,30 @@ def api_bulk_delete_account_users():
         
         # Step 1: Authenticate all accounts in parallel
         def authenticate_account(account_name):
-            """Authenticate a single account"""
+            """Authenticate a single account - supports both ServiceAccount and GoogleAccount"""
             with app.app_context():
                 try:
+                    # Try ServiceAccount first (admin_email or name)
+                    from database import ServiceAccount
+                    service_account = ServiceAccount.query.filter_by(admin_email=account_name).first()
+                    if not service_account:
+                        service_account = ServiceAccount.query.filter_by(name=account_name).first()
+                    
+                    if service_account:
+                        # Use GoogleDomainsService for Service Account
+                        from services.google_domains_service import GoogleDomainsService
+                        try:
+                            domains_service = GoogleDomainsService(service_account.name)
+                            admin_service = domains_service._get_admin_service()
+                            return {'account': account_name, 'authenticated': True, 'service': admin_service, 'is_service_account': True}
+                        except Exception as sa_err:
+                            app.logger.error(f"[BULK DELETE] [{account_name}] ServiceAccount auth error: {sa_err}")
+                            return {'account': account_name, 'authenticated': False, 'error': f'ServiceAccount auth failed: {str(sa_err)}'}
+                    
+                    # Fallback to GoogleAccount (legacy OAuth)
                     account_db = GoogleAccount.query.filter_by(account_name=account_name).first()
                     if not account_db:
-                        return {'account': account_name, 'authenticated': False, 'error': 'Account not found in database'}
+                        return {'account': account_name, 'authenticated': False, 'error': 'Account not found in database (checked ServiceAccount and GoogleAccount)'}
                     
                     auth_success = authenticate_without_session(account_name)
                     if not auth_success:
@@ -1967,12 +2022,30 @@ def api_bulk_retrieve_account_users():
         
         # Step 1: Authenticate all accounts in parallel
         def authenticate_account(account_name):
-            """Authenticate a single account"""
+            """Authenticate a single account - supports both ServiceAccount and GoogleAccount"""
             with app.app_context():
                 try:
+                    # Try ServiceAccount first (admin_email or name)
+                    from database import ServiceAccount
+                    service_account = ServiceAccount.query.filter_by(admin_email=account_name).first()
+                    if not service_account:
+                        service_account = ServiceAccount.query.filter_by(name=account_name).first()
+                    
+                    if service_account:
+                        # Use GoogleDomainsService for Service Account
+                        from services.google_domains_service import GoogleDomainsService
+                        try:
+                            domains_service = GoogleDomainsService(service_account.name)
+                            admin_service = domains_service._get_admin_service()
+                            return {'account': account_name, 'authenticated': True, 'service': admin_service, 'is_service_account': True}
+                        except Exception as sa_err:
+                            app.logger.error(f"[BULK RETRIEVE] [{account_name}] ServiceAccount auth error: {sa_err}")
+                            return {'account': account_name, 'authenticated': False, 'error': f'ServiceAccount auth failed: {str(sa_err)}'}
+                    
+                    # Fallback to GoogleAccount (legacy OAuth)
                     account_db = GoogleAccount.query.filter_by(account_name=account_name).first()
                     if not account_db:
-                        return {'account': account_name, 'authenticated': False, 'error': 'Account not found in database'}
+                        return {'account': account_name, 'authenticated': False, 'error': 'Account not found in database (checked ServiceAccount and GoogleAccount)'}
                     
                     auth_success = authenticate_without_session(account_name)
                     if not auth_success:

@@ -625,12 +625,34 @@ def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
             except:
                 pass
         
-        # If we couldn't get the unique ID, use SA email as fallback
+        # If we couldn't get the unique ID, prompt user to enter it manually
         if not sa_unique_id:
-            print("WARNING: Could not retrieve Unique ID automatically. Using SA email as fallback.")
-            print("NOTE: You may need to manually get the unique ID from Cloud Shell output.")
-            print("The command 'gcloud iam service-accounts describe SA_EMAIL --format=value(uniqueId)' was executed.")
-            sa_unique_id = f"{sa_name}@{project_id}.iam.gserviceaccount.com"
+            print("\n" + "="*60)
+            print("IMPORTANT: Could not automatically extract Unique ID")
+            print("="*60)
+            print(f"\nThe Unique ID was displayed in Cloud Shell. Look for a long number")
+            print(f"(usually 18-21 digits) after this command:")
+            print(f"\ngcloud iam service-accounts describe {sa_name}@{project_id}.iam.gserviceaccount.com --format='value(uniqueId)'")
+            print("\nExample output: 107584350553680607088")
+            print("\nDO NOT use the service account email as the unique ID!")
+            print("="*60)
+            
+            # Prompt user to enter the unique ID manually
+            while True:
+                user_input = input("\nPlease enter the Unique ID from Cloud Shell (or 'q' to quit): ").strip()
+                
+                if user_input.lower() == 'q':
+                    print("Exiting...")
+                    return None
+                
+                # Validate the input is a numeric string of correct length
+                if user_input.isdigit() and 15 <= len(user_input) <= 25:
+                    sa_unique_id = user_input
+                    print(f"✓ Using Unique ID: {sa_unique_id}")
+                    break
+                else:
+                    print("Invalid input. The Unique ID should be a 18-21 digit number.")
+                    print("Example: 107584350553680607088")
         
         # Make sure we're in default content before any window operations
         try:
