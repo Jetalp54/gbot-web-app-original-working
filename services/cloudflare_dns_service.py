@@ -18,7 +18,6 @@ class CloudflareDNSService:
                 raise Exception("Cloudflare configuration not found or not configured")
             
             self._config = config
-            self._config = config
             
             # Determine Auth Headers based on API Token format
             # If it looks like a Global API Key (37 chars hex) and we have email, use X-Auth-Key

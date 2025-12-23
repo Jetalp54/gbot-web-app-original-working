@@ -69,6 +69,8 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
         db.session.add(operation)
         db.session.commit()
         
+        logger.info(f"Job {job_id}: Started processing domain {domain} (Operation {operation_id})")
+        
         log_entry = lambda step, status, msg: {
             'step': step,
             'status': status,
@@ -136,6 +138,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
 
             google_service = None
             try:
+                logger.info(f"Job {job_id}: Step 3 - Adding {domain} to Workspace")
                 google_service = GoogleDomainsService(account_name)
                 result = google_service.ensure_domain_added(domain)
                 
@@ -206,6 +209,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 return
 
             try:
+                logger.info(f"Job {job_id}: Step 4 - Getting verification token for {domain}")
                 if not google_service:
                     google_service = GoogleDomainsService(account_name)
                     
@@ -264,6 +268,8 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                         dns_service = NamecheapDNSService()
                         # Use TTL 1799 (Automatic) as requested by user and seen in logs
                         dns_result = dns_service.upsert_txt_record(apex, txt_host, txt_value, ttl=1799)
+                    
+                    logger.info(f"Job {job_id}: Step 5 - DNS result: {dns_result}")
                     
                     operation.dns_status = 'success'
                     operation.message = f'TXT record created @ {txt_host}: {dns_result.get("message", "Success")}'
@@ -463,19 +469,25 @@ def add_and_verify_domains():
                             )
                             futures.append(future)
                         
-                        # Wait for all tasks to complete
-                        # ThreadPoolExecutor context manager does this automatically on exit
+                        # Wait for all tasks to complete and check for exceptions
+                        for future in futures:
+                            try:
+                                future.result()
+                            except Exception as exc:
+                                logger.error(f"Job {job_id}: Thread generated an exception: {exc}")
                         
                     # Update final status
                     with job_lock:
                         if job_id in active_jobs:
                             if active_jobs[job_id]['stop_event'].is_set():
                                 active_jobs[job_id]['status'] = 'stopped'
+                                logger.info(f"Job {job_id}: Marked as stopped")
                             else:
                                 active_jobs[job_id]['status'] = 'completed'
+                                logger.info(f"Job {job_id}: Marked as completed")
                                 
                 except Exception as e:
-                    logger.error(f"Job {job_id}: Error in batch processing: {e}")
+                    logger.error(f"Job {job_id}: Error in batch processing: {e}", exc_info=True)
                     with job_lock:
                         if job_id in active_jobs:
                             active_jobs[job_id]['status'] = 'failed'
