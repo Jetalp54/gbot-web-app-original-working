@@ -400,17 +400,32 @@ def send_terminal_command(driver, command):
     except Exception as e:
         print(f"Error sending command: {e}")
 
-def run_prep_process(email, password, aws_session, s3_bucket):
+def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
     """Main execution function called by aws.py"""
     driver = None
     try:
+        if stop_event and stop_event.is_set():
+            return "Stopped by User"
+            
         driver = get_local_driver()
+        
+        if stop_event and stop_event.is_set():
+            if driver: driver.quit()
+            return "Stopped by User"
         
         if not login_google(driver, email, password):
             return "Login Failed"
             
+        if stop_event and stop_event.is_set():
+            if driver: driver.quit()
+            return "Stopped by User"
+            
         if not open_cloud_shell(driver):
             return "Cloud Shell Failed"
+            
+        if stop_event and stop_event.is_set():
+            if driver: driver.quit()
+            return "Stopped by User"
             
         # Generate IDs
         timestamp = str(int(time.time()))
@@ -433,11 +448,19 @@ def run_prep_process(email, password, aws_session, s3_bucket):
         send_terminal_command(driver, f"gcloud projects create {project_id} --name 'my first project'")
         time.sleep(10)
         
+        if stop_event and stop_event.is_set():
+            if driver: driver.quit()
+            return "Stopped by User"
+        
         send_terminal_command(driver, f"gcloud config set project {project_id}")
         time.sleep(5)
         
         send_terminal_command(driver, f"gcloud iam service-accounts create {sa_name} --project {project_id} --display-name 'Automation SA'")
         time.sleep(10)
+        
+        if stop_event and stop_event.is_set():
+            if driver: driver.quit()
+            return "Stopped by User"
         
         # ============================================================
         # STEP 2: Grant Organization Permissions

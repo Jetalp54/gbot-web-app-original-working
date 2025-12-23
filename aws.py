@@ -64,6 +64,10 @@ class AwsEducationApp(tk.Tk):
         
         # Initialize execution mode variable early
         self.execution_mode_var = tk.StringVar(value="single")
+        
+        # Thread management for local prep
+        self.local_prep_thread = None
+        self.stop_event = None
 
         self._build_ui()
 
@@ -401,6 +405,9 @@ class AwsEducationApp(tk.Tk):
         ttk.Separator(exec_frame, orient="horizontal").pack(fill="x", pady=5)
         ttk.Label(exec_frame, text="Alternative: Run Locally (Bypasses Lambda)").pack(anchor="w")
         ttk.Button(exec_frame, text="Run Prep Locally (Desktop)", command=self.on_prep_run_locally).pack(fill="x", pady=2)
+        
+        self.stop_button = ttk.Button(exec_frame, text="Stop Local Prep", command=self.on_stop_local_prep, state="disabled")
+        self.stop_button.pack(fill="x", pady=2)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -2462,10 +2469,29 @@ done
 
         threading.Thread(target=_run_background, daemon=True).start()
 
+    def on_stop_local_prep(self):
+        """Signal the running local prep process to stop."""
+        if self.stop_event:
+            self.log("Signal sent to stop local prep process...")
+            self.stop_event.set()
+            self.stop_button.config(state="disabled")
+
     def on_prep_run_locally(self):
-        """Run the prep process locally on the desktop."""
+        """Run the prep process locally on the desktop (Threaded)."""
+        # Check if already running
+        if self.local_prep_thread and self.local_prep_thread.is_alive():
+            if messagebox.askyesno("Running", "A process is already running. Stop it and start new?"):
+                self.on_stop_local_prep()
+                # Wait for it to stop (non-blocking wait would be better but simple join is ok for now)
+                self.log("Waiting for previous process to stop...")
+                self.local_prep_thread.join(timeout=10)
+                if self.local_prep_thread.is_alive():
+                    self.log("WARNING: Previous process did not stop gracefully.")
+            else:
+                return
+
         try:
-            # 1. Get Credentials
+            # 1. Get Credentials (UI thread)
             text_content = self.prep_users_text.get("1.0", tk.END).strip()
             if not text_content:
                 messagebox.showerror("Error", "Please enter users in the 'Execute Prep Process' box first (email:password).")
@@ -2497,25 +2523,61 @@ done
                 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
                 import prep_local
                 
-            # 4. Run for each user
+            # 4. Start Thread
+            self.stop_event = threading.Event()
+            self.stop_button.config(state="normal")
+            
             session = self.get_session()
             s3_bucket = self.s3_bucket_var.get().strip()
             
+            self.local_prep_thread = threading.Thread(
+                target=self._run_local_prep_thread,
+                args=(lines, session, s3_bucket, prep_local)
+            )
+            self.local_prep_thread.daemon = True
+            self.local_prep_thread.start()
+            
+        except Exception as e:
+            self.log(f"Error starting local prep: {e}")
+            traceback.print_exc()
+            messagebox.showerror("Error", str(e))
+
+    def _run_local_prep_thread(self, lines, session, s3_bucket, prep_module):
+        """Background thread for local prep execution."""
+        try:
             for line in lines:
+                if self.stop_event.is_set():
+                    self.log("Process stopped by user.")
+                    break
+                    
                 email, password = line.split(':', 1)
                 email = email.strip()
                 password = password.strip()
                 
                 self.log(f"Starting local prep for {email}...")
-                result = prep_local.run_prep_process(email, password, session, s3_bucket)
+                
+                # Call run_prep_process with stop_event
+                try:
+                    result = prep_module.run_prep_process(email, password, session, s3_bucket, stop_event=self.stop_event)
+                except TypeError:
+                    # Fallback if module wasn't reloaded or modified correctly
+                    self.log("WARNING: prep_local.run_prep_process does not accept stop_event yet.")
+                    result = prep_module.run_prep_process(email, password, session, s3_bucket)
+                
                 self.log(f"Result for {email}: {result}")
                 
-            messagebox.showinfo("Complete", "Local prep execution finished. Check logs.")
-            
+            if not self.stop_event.is_set():
+                self.log("Local prep execution finished.")
+                self.after(0, lambda: messagebox.showinfo("Complete", "Local prep execution finished. Check logs."))
+            else:
+                self.log("Local prep execution stopped.")
+                self.after(0, lambda: messagebox.showinfo("Stopped", "Process stopped by user."))
+                
         except Exception as e:
-            self.log(f"Error running locally: {e}")
+            self.log(f"Error in local prep thread: {e}")
             traceback.print_exc()
-            messagebox.showerror("Error", str(e))
+        finally:
+            self.after(0, lambda: self.stop_button.config(state="disabled"))
 
 # ======================================================================
 # Entry point

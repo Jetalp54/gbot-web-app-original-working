@@ -4,6 +4,7 @@ Handles domain addition, verification token retrieval, and domain verification.
 """
 import logging
 import time
+import random
 from typing import Dict, Optional
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -210,7 +211,7 @@ class GoogleDomainsService:
             try:
                 # Retry logic for 503 errors
                 token_response = None
-                max_retries = 5
+                max_retries = 10
                 for attempt in range(max_retries):
                     try:
                         token_response = service.webResource().getToken(body=verification_request).execute()
@@ -218,8 +219,8 @@ class GoogleDomainsService:
                     except HttpError as e:
                         if e.resp.status == 503:
                             if attempt < max_retries - 1:
-                                wait_time = (2 ** attempt) + 1  # Exponential backoff
-                                logger.warning(f"503 error getting token, retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})")
+                                wait_time = (2 ** attempt) + random.uniform(0, 1)  # Exponential backoff with jitter
+                                logger.warning(f"503 error getting token, retrying in {wait_time:.2f}s... (Attempt {attempt+1}/{max_retries})")
                                 time.sleep(wait_time)
                                 continue
                         raise e
