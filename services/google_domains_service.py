@@ -345,111 +345,103 @@ class GoogleDomainsService:
         raise Exception("Failed to get verification token from Google Site Verification API")
     
     
-    def verify_domain(self, apex: str) -> Dict:
+    def verify_domain(self, domain: str) -> Dict:
         """
         Verify domain in Google Workspace after DNS TXT record is created.
         
-        According to Google docs: https://docs.cloud.google.com/channel/docs/codelabs/workspace/domain-verification
-        Setting the admin user as an owner makes verification status propagate instantly.
-        
         Args:
-            apex: Apex domain to verify
+            domain: Domain to verify (can be subdomain like 'sub.example.com' or apex 'example.com')
         
         Returns:
             Dict with 'verified' (bool) and 'status' (str)
         """
-        try:
-            service = self._get_site_verification_service()
-            
-            # Get admin email from account to set as owner for instant propagation
-            # Check for Service Account first
-            service_account = ServiceAccount.query.filter_by(name=self.account_name).first()
-            admin_email = None
-            
-            if service_account:
-                admin_email = service_account.admin_email
-                logger.info(f"Using Service Account admin email for verification: {admin_email}")
-            else:
-                # Fallback to Google Account (deprecated)
-                account = GoogleAccount.query.filter_by(account_name=self.account_name).first()
-                if account:
-                    # Try to get the primary admin email
-                    try:
-                        admin_service = self._get_admin_service()
-                        users = admin_service.users().list(customer='my_customer', maxResults=1, orderBy='email').execute()
-                        if users.get('users'):
-                            admin_email = users['users'][0].get('primaryEmail')
-                    except Exception as e:
-                        logger.warning(f"Could not get admin email for owner: {e}")
-                        # Fallback: construct admin email from domain
-                        admin_email = f"admin@{apex}"
-                else:
-                    admin_email = f"admin@{apex}"
-            
-            # Create verification resource with owner for instant propagation
-            # According to Google docs, setting owners makes verification propagate instantly
-            verification_resource = {
-                'site': {
-                    'type': 'INET_DOMAIN',
-                    'identifier': apex
-                },
-                'owners': [admin_email] if admin_email else []
-            }
-            
+        # Try both delegation modes
+        for without_delegation in [False, True]:
             try:
-                # Insert verification resource
-                # According to Google docs: webResource().insert(verificationMethod='DNS_TXT', body=resource)
+                logger.info(f"Attempting verification for {domain} (without_delegation={without_delegation})")
+                service = self._get_site_verification_service(without_delegation=without_delegation)
+                
+                # Get admin email for owner field
+                service_account_row = ServiceAccount.query.filter_by(name=self.account_name).first()
+                admin_email = service_account_row.admin_email if service_account_row else None
+                
+                if admin_email:
+                    logger.info(f"Using admin email for verification owner: {admin_email}")
+                
+                # Create verification resource
+                verification_resource = {
+                    'site': {
+                        'type': 'INET_DOMAIN',
+                        'identifier': domain
+                    }
+                }
+                
+                # Only add owners if we have an admin email
+                if admin_email:
+                    verification_resource['owners'] = [admin_email]
+                
+                logger.info(f"Verification request body: {verification_resource}")
+                
                 try:
-                    result = service.webResource().insert(verificationMethod='DNS_TXT', body=verification_resource).execute()
-                    logger.info(f"Verification resource created for {apex} with owner {admin_email}")
+                    # Try to insert/verify the domain
+                    result = service.webResource().insert(
+                        verificationMethod='DNS_TXT',
+                        body=verification_resource
+                    ).execute()
                     
-                    # Check verification status
-                    verified = result.get('verified', False)
-                    if verified:
-                        logger.info(f"Domain {apex} verified successfully")
-                    else:
-                        logger.info(f"Domain {apex} verification pending (may take a few moments)")
+                    logger.info(f"Verification API response for {domain}: {result}")
+                    
+                    # Parse response
+                    site_info = result.get('site', {})
+                    verified = site_info.get('identifier') == domain
+                    owners = result.get('owners', [])
+                    
+                    # If we get a response without error, it means verification succeeded
+                    if result.get('id'):
+                        logger.info(f"Domain {domain} verified! ID: {result.get('id')}, Owners: {owners}")
+                        return {'verified': True, 'status': 'verified', 'id': result.get('id')}
                     
                     return {
                         'verified': verified,
                         'status': 'verified' if verified else 'pending'
                     }
                     
-                except HttpError as insert_error:
-                    error_str = str(insert_error)
-                    # If already exists, try to get it and check status
-                    if 'already exists' in error_str.lower() or '409' in error_str:
-                        logger.info(f"Verification resource already exists for {apex}, fetching status...")
-                        try:
-                            result = service.webResource().get(id=apex).execute()
-                            verified = result.get('verified', False)
-                            logger.info(f"Domain {apex} verification status: {verified}")
-                            return {
-                                'verified': verified,
-                                'status': 'verified' if verified else 'pending'
-                            }
-                        except HttpError as get_error:
-                            logger.warning(f"Could not get existing verification resource: {get_error}")
-                            # If we can't get it, assume it's verified (since it exists)
-                            return {'verified': True, 'status': 'verified'}
-                    elif '400' in error_str or 'bad request' in error_str.lower():
-                        # DNS TXT record may not have propagated yet
-                        logger.warning(f"DNS TXT record may not have propagated yet for {apex}: {error_str}")
+                except HttpError as e:
+                    error_str = str(e)
+                    status = e.resp.status if hasattr(e, 'resp') else 'unknown'
+                    logger.warning(f"HTTP {status} during verification for {domain}: {error_str}")
+                    
+                    # Handle specific error cases
+                    if 'already exists' in error_str.lower() or status == 409:
+                        logger.info(f"Domain {domain} verification already exists, treated as verified")
+                        return {'verified': True, 'status': 'verified'}
+                    
+                    if 'already verified' in error_str.lower():
+                        return {'verified': True, 'status': 'verified'}
+                    
+                    if status == 400:
+                        # Bad request - typically DNS not propagated
+                        logger.warning(f"DNS may not have propagated for {domain}")
                         return {'verified': False, 'status': 'pending', 'error': 'DNS not propagated yet'}
-                    else:
-                        raise
-            
+                    
+                    if status == 503:
+                        # Try other delegation mode
+                        if not without_delegation:
+                            logger.info("503 error with delegation, trying without...")
+                            continue
+                        
+                    raise e
+                    
             except HttpError as e:
-                error_str = str(e)
-                logger.error(f"HTTP error verifying domain {apex}: {error_str}")
-                if 'already verified' in error_str.lower():
-                    return {'verified': True, 'status': 'verified'}
-                else:
-                    return {'verified': False, 'status': 'failed', 'error': error_str}
+                if e.resp.status == 503 and not without_delegation:
+                    continue
+                logger.error(f"Verification failed for {domain}: {e}")
+                return {'verified': False, 'status': 'failed', 'error': str(e)}
+            except Exception as e:
+                logger.error(f"Unexpected error verifying {domain}: {e}", exc_info=True)
+                return {'verified': False, 'status': 'failed', 'error': str(e)}
         
-        except Exception as e:
-            logger.error(f"Error verifying domain {apex}: {e}")
-            return {'verified': False, 'status': 'error', 'error': str(e)}
+        return {'verified': False, 'status': 'failed', 'error': 'All verification attempts failed'}
     
     def is_verified(self, apex: str) -> bool:
         """
