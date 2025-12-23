@@ -434,21 +434,56 @@ def add_and_verify_domains():
                         job['stop_event'].set()
                     job['status'] = 'stopped'
         
-        # Start background processing
-        max_workers = min(5, len(normalized_domains))  # Cap at 5 parallel domains
-        
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            for domain in normalized_domains:
-                executor.submit(
-                    process_domain_verification,
-                    job_id,
-                    domain,
-                    account_name,
-                    dry_run,
-                    skip_verified,
-                    provider,
-                    active_jobs[job_id]['stop_event']
-                )
+        # Start background processing in a separate thread to allow immediate return
+        def run_batch():
+            # Create app context for the batch thread
+            from app import app
+            with app.app_context():
+                max_workers = min(5, len(normalized_domains))  # Cap at 5 parallel domains
+                logger.info(f"Job {job_id}: Starting batch processing with {max_workers} workers")
+                
+                try:
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        futures = []
+                        for domain in normalized_domains:
+                            # Check stop event before submitting
+                            if active_jobs[job_id]['stop_event'].is_set():
+                                logger.info(f"Job {job_id}: Stop event detected, halting submission")
+                                break
+                                
+                            future = executor.submit(
+                                process_domain_verification,
+                                job_id,
+                                domain,
+                                account_name,
+                                dry_run,
+                                skip_verified,
+                                provider,
+                                active_jobs[job_id]['stop_event']
+                            )
+                            futures.append(future)
+                        
+                        # Wait for all tasks to complete
+                        # ThreadPoolExecutor context manager does this automatically on exit
+                        
+                    # Update final status
+                    with job_lock:
+                        if job_id in active_jobs:
+                            if active_jobs[job_id]['stop_event'].is_set():
+                                active_jobs[job_id]['status'] = 'stopped'
+                            else:
+                                active_jobs[job_id]['status'] = 'completed'
+                                
+                except Exception as e:
+                    logger.error(f"Job {job_id}: Error in batch processing: {e}")
+                    with job_lock:
+                        if job_id in active_jobs:
+                            active_jobs[job_id]['status'] = 'failed'
+
+        # Start the batch thread
+        batch_thread = threading.Thread(target=run_batch)
+        batch_thread.daemon = True
+        batch_thread.start()
         
         logger.info(f"Started domain verification job {job_id} for {len(normalized_domains)} domains (Provider: {provider})")
         
