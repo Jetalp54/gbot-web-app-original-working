@@ -22,7 +22,7 @@ import traceback
 import subprocess
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
 import threading
 
 # 3rd-party libraries
@@ -224,8 +224,9 @@ def cleanup_chrome_processes():
         subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
         subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
         logger.info("[LAMBDA] Cleaned up Chrome processes")
-    except Exception as e:
-        logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
+    except Exception:
+        # Ignore errors during cleanup (e.g. pkill not found)
+        pass
 
 def get_chrome_driver():
     """
