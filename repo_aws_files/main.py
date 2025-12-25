@@ -214,16 +214,60 @@ WINDOW_SIZES = [
 
 def cleanup_chrome_processes():
     """
-    Forcefully kill any lingering Chrome or ChromeDriver processes.
+    Forcefully kill any lingering Chrome or ChromeDriver processes using pure Python.
     Crucial for Lambda environment to prevent memory leaks and zombie processes.
+    Iterates through /proc to find processes by name.
     """
     try:
-        # Kill chromedriver
-        subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True)
-        # Kill chrome/chromium
-        subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
-        subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
-        logger.info("[LAMBDA] Cleaned up Chrome processes")
+        import signal
+        
+        # Helper to kill by name pattern
+        def kill_by_pattern(pattern):
+            killed_count = 0
+            try:
+                # Iterate over all PIDs in /proc
+                for pid_str in os.listdir('/proc'):
+                    if not pid_str.isdigit():
+                        continue
+                    
+                    pid = int(pid_str)
+                    try:
+                        # Read cmdline
+                        cmdline_path = f'/proc/{pid}/cmdline'
+                        if not os.path.exists(cmdline_path):
+                            continue
+                            
+                        with open(cmdline_path, 'rb') as f:
+                            # cmdline is null-separated
+                            cmdline = f.read().replace(b'\x00', b' ').decode('utf-8', errors='ignore')
+                        
+                        if pattern in cmdline:
+                            # Don't kill ourselves or our parent (though unlikely to match chrome)
+                            if pid == os.getpid():
+                                continue
+                                
+                            logger.info(f"[LAMBDA] Killing process {pid}: {cmdline[:50]}...")
+                            os.kill(pid, signal.SIGKILL)
+                            killed_count += 1
+                    except (FileNotFoundError, ProcessLookupError, PermissionError):
+                        continue
+                    except Exception as e:
+                        # Ignore other errors during iteration
+                        continue
+            except Exception as e:
+                logger.warning(f"[LAMBDA] Error iterating /proc: {e}")
+            return killed_count
+
+        # Kill relevant processes
+        k1 = kill_by_pattern('chromedriver')
+        k2 = kill_by_pattern('chrome')
+        k3 = kill_by_pattern('chromium')
+        
+        if k1 + k2 + k3 > 0:
+            logger.info(f"[LAMBDA] Cleaned up {k1+k2+k3} Chrome/Driver processes")
+        else:
+            logger.debug("[LAMBDA] No lingering Chrome processes found")
+            
     except Exception as e:
         logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
 

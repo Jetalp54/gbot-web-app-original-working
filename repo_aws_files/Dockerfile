@@ -3,9 +3,6 @@ FROM umihico/aws-lambda-selenium-python:latest
 # Copy the Lambda handler
 COPY main.py ${LAMBDA_TASK_ROOT}/
 
-# Install system dependencies
-RUN yum install -y procps
-
 # Install required Python dependencies
 # Note: The base image already has selenium installed
 # We install additional dependencies needed for our Lambda
