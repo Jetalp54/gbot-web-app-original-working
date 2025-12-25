@@ -3,6 +3,9 @@ FROM umihico/aws-lambda-selenium-python:latest
 # Copy the Lambda handler
 COPY main.py ${LAMBDA_TASK_ROOT}/
 
+# Install system dependencies
+RUN yum install -y procps
+
 # Install required Python dependencies
 # Note: The base image already has selenium installed
 # We install additional dependencies needed for our Lambda
@@ -13,7 +16,8 @@ RUN pip install --no-cache-dir \
     selenium-stealth==1.0.6 \
     fake-useragent==1.4.0 \
     selenium-wire==5.1.0 \
-    webdriver-manager==4.0.1
+    webdriver-manager==4.0.1 \
+    blinker
 
 # The umihico base image should already have Chrome/Chromium installed
 # Let's verify what's available and log it for debugging

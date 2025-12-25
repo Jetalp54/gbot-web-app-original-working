@@ -2955,18 +2955,18 @@ def login_google(driver, email, password, known_totp_secret=None):
             password_input_xpaths = [
                 "//input[@name='Passwd']",
                 "//input[@type='password']",
-                "/html/body/div[2]/div[1]/div[1]/div[2]/c-wiz/main/div[2]/div/div/div/form/span/section[2]/div/div/div[1]/div[1]/div/div/div/div/div[1]/div/div[1]/input",  # User-provided working XPath
                 "//input[@id='password']",
                 "//input[@name='password']",
                 "//input[contains(@aria-label, 'password')]",
                 "//input[contains(@aria-label, 'Password')]",
+                # Removed brittle absolute XPath
             ]
             
             # Try to find visible and interactable password field
             for xpath in password_input_xpaths:
                 try:
                     logger.info(f"[STEP] Trying to find password input with XPath: {xpath}")
-                    password_input = wait_for_visible_and_interactable(driver, xpath, timeout=8)
+                    password_input = wait_for_visible_and_interactable(driver, xpath, timeout=3)
                     if password_input:
                         logger.info(f"[STEP] Found password input using xpath: {xpath}")
                         break
@@ -3989,13 +3989,15 @@ def setup_authenticator(driver, email):
         cant_scan_clicked = False
         
         # Try a range of div indices as the modal position can vary
-        for div_index in range(8, 18):
+        # Prioritize div[11] as observed in logs
+        div_indices = [11, 10, 12, 9, 13, 8, 14, 15, 16, 17]
+        for div_index in div_indices:
             try:
                 # Construct XPath for this index
                 xpath = f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]"
                 
                 # Check if element exists
-                if element_exists(driver, xpath, timeout=0.5):
+                if element_exists(driver, xpath, timeout=0.2):
                     logger.info(f"[STEP] Found 'Can't scan it?' button at div[{div_index}]")
                     element = driver.find_element(By.XPATH, xpath)
                     driver.execute_script("arguments[0].click();", element)
@@ -4033,12 +4035,15 @@ def setup_authenticator(driver, email):
         secret_key = None
         
         # Try the reference script's exact pattern first (most reliable)
-        for div_index in range(9, 14):
+        # Try the reference script's exact pattern first (most reliable)
+        # Prioritize div[11] as observed in logs
+        div_indices = [11, 10, 12, 9, 13]
+        for div_index in div_indices:
             try:
                 # Reference script's exact XPath
                 xpath = f"/html/body/div[{div_index}]/div/div[2]/span/div/div/ol/li[2]/div/strong"
                 logger.debug(f"[STEP] Trying XPath: {xpath}")
-                element = wait_for_xpath(driver, xpath, timeout=3)
+                element = wait_for_xpath(driver, xpath, timeout=1)
                 if element:
                     text = element.text.strip()
                     # Clean up the secret (remove spaces)
@@ -4094,12 +4099,15 @@ def setup_authenticator(driver, email):
         next_clicked = False
         
         # Try dynamic div indices for the Next button
-        for div_index in range(9, 14):
+        # Try dynamic div indices for the Next button
+        # Prioritize div[11] as observed in logs
+        div_indices = [11, 10, 12, 9, 13]
+        for div_index in div_indices:
             try:
                 # Reference script XPath for Next button
                 xpath = f"/html/body/div[{div_index}]/div/div[2]/div[3]/div/div[2]/div[2]/button"
-                if element_exists(driver, xpath, timeout=2):
-                    element = wait_for_xpath(driver, xpath, timeout=2)
+                if element_exists(driver, xpath, timeout=1):
+                    element = wait_for_xpath(driver, xpath, timeout=1)
                     if element:
                         driver.execute_script("arguments[0].scrollIntoView(true);", element)
                         driver.execute_script("arguments[0].click();", element)
@@ -4288,20 +4296,18 @@ def enable_two_step_verification(driver, email):
             return True, None, None
 
         # Try XPaths with priority on updated XPath
+        # Try XPaths with priority on robust relative XPaths
         turn_on_clicked = False
         turn_on_xpaths = [
-            '/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button',  # Priority XPath
-            '/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button',
-            '/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]',
-            '/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]',
             "//button[contains(., 'Turn on')]",
             "//button[contains(., 'TURN ON')]",
             "//span[contains(text(), 'Turn on')]/ancestor::button",
+            # Removed brittle absolute XPaths that were causing timeouts
         ]
         
         for xpath in turn_on_xpaths:
             try:
-                turn_on_button = wait_for_clickable_xpath(driver, xpath, timeout=5)
+                turn_on_button = wait_for_clickable_xpath(driver, xpath, timeout=2)
                 if turn_on_button:
                     driver.execute_script("arguments[0].click();", turn_on_button)
                     logger.info(f"[STEP] Clicked on 'Turn On 2-Step Verification' using xpath: {xpath}")
@@ -4958,7 +4964,7 @@ def handler(event, context):
         import threading
         slot_lock = threading.Lock()
         next_slot_start_time = [time.time()]  # Mutable container for closure
-        STAGGER_DELAY = 15.0  # Seconds between Chrome starts
+        STAGGER_DELAY = 10.0  # Seconds between Chrome starts (reduced for speed)
         
         def process_user_wrapper(user_data, user_idx):
             """Wrapper function to process a single user with proper error handling and staggered start"""
