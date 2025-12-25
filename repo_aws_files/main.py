@@ -214,60 +214,16 @@ WINDOW_SIZES = [
 
 def cleanup_chrome_processes():
     """
-    Forcefully kill any lingering Chrome or ChromeDriver processes using pure Python.
+    Forcefully kill any lingering Chrome or ChromeDriver processes.
     Crucial for Lambda environment to prevent memory leaks and zombie processes.
-    Iterates through /proc to find processes by name.
     """
     try:
-        import signal
-        
-        # Helper to kill by name pattern
-        def kill_by_pattern(pattern):
-            killed_count = 0
-            try:
-                # Iterate over all PIDs in /proc
-                for pid_str in os.listdir('/proc'):
-                    if not pid_str.isdigit():
-                        continue
-                    
-                    pid = int(pid_str)
-                    try:
-                        # Read cmdline
-                        cmdline_path = f'/proc/{pid}/cmdline'
-                        if not os.path.exists(cmdline_path):
-                            continue
-                            
-                        with open(cmdline_path, 'rb') as f:
-                            # cmdline is null-separated
-                            cmdline = f.read().replace(b'\x00', b' ').decode('utf-8', errors='ignore')
-                        
-                        if pattern in cmdline:
-                            # Don't kill ourselves or our parent (though unlikely to match chrome)
-                            if pid == os.getpid():
-                                continue
-                                
-                            logger.info(f"[LAMBDA] Killing process {pid}: {cmdline[:50]}...")
-                            os.kill(pid, signal.SIGKILL)
-                            killed_count += 1
-                    except (FileNotFoundError, ProcessLookupError, PermissionError):
-                        continue
-                    except Exception as e:
-                        # Ignore other errors during iteration
-                        continue
-            except Exception as e:
-                logger.warning(f"[LAMBDA] Error iterating /proc: {e}")
-            return killed_count
-
-        # Kill relevant processes
-        k1 = kill_by_pattern('chromedriver')
-        k2 = kill_by_pattern('chrome')
-        k3 = kill_by_pattern('chromium')
-        
-        if k1 + k2 + k3 > 0:
-            logger.info(f"[LAMBDA] Cleaned up {k1+k2+k3} Chrome/Driver processes")
-        else:
-            logger.debug("[LAMBDA] No lingering Chrome processes found")
-            
+        # Kill chromedriver
+        subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True)
+        # Kill chrome/chromium
+        subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+        subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
+        logger.info("[LAMBDA] Cleaned up Chrome processes")
     except Exception as e:
         logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
 
@@ -2999,18 +2955,18 @@ def login_google(driver, email, password, known_totp_secret=None):
             password_input_xpaths = [
                 "//input[@name='Passwd']",
                 "//input[@type='password']",
+                "/html/body/div[2]/div[1]/div[1]/div[2]/c-wiz/main/div[2]/div/div/div/form/span/section[2]/div/div/div[1]/div[1]/div/div/div/div/div[1]/div/div[1]/input",  # User-provided working XPath
                 "//input[@id='password']",
                 "//input[@name='password']",
                 "//input[contains(@aria-label, 'password')]",
                 "//input[contains(@aria-label, 'Password')]",
-                # Removed brittle absolute XPath
             ]
             
             # Try to find visible and interactable password field
             for xpath in password_input_xpaths:
                 try:
                     logger.info(f"[STEP] Trying to find password input with XPath: {xpath}")
-                    password_input = wait_for_visible_and_interactable(driver, xpath, timeout=3)
+                    password_input = wait_for_visible_and_interactable(driver, xpath, timeout=8)
                     if password_input:
                         logger.info(f"[STEP] Found password input using xpath: {xpath}")
                         break
@@ -4033,15 +3989,13 @@ def setup_authenticator(driver, email):
         cant_scan_clicked = False
         
         # Try a range of div indices as the modal position can vary
-        # Prioritize div[11] as observed in logs
-        div_indices = [11, 10, 12, 9, 13, 8, 14, 15, 16, 17]
-        for div_index in div_indices:
+        for div_index in range(8, 18):
             try:
                 # Construct XPath for this index
                 xpath = f"/html/body/div[{div_index}]/div/div[2]/span/div/div/div/div[2]/center/div/div/button/span[5]"
                 
                 # Check if element exists
-                if element_exists(driver, xpath, timeout=0.2):
+                if element_exists(driver, xpath, timeout=0.5):
                     logger.info(f"[STEP] Found 'Can't scan it?' button at div[{div_index}]")
                     element = driver.find_element(By.XPATH, xpath)
                     driver.execute_script("arguments[0].click();", element)
@@ -4079,15 +4033,12 @@ def setup_authenticator(driver, email):
         secret_key = None
         
         # Try the reference script's exact pattern first (most reliable)
-        # Try the reference script's exact pattern first (most reliable)
-        # Prioritize div[11] as observed in logs
-        div_indices = [11, 10, 12, 9, 13]
-        for div_index in div_indices:
+        for div_index in range(9, 14):
             try:
                 # Reference script's exact XPath
                 xpath = f"/html/body/div[{div_index}]/div/div[2]/span/div/div/ol/li[2]/div/strong"
                 logger.debug(f"[STEP] Trying XPath: {xpath}")
-                element = wait_for_xpath(driver, xpath, timeout=1)
+                element = wait_for_xpath(driver, xpath, timeout=3)
                 if element:
                     text = element.text.strip()
                     # Clean up the secret (remove spaces)
@@ -4143,15 +4094,12 @@ def setup_authenticator(driver, email):
         next_clicked = False
         
         # Try dynamic div indices for the Next button
-        # Try dynamic div indices for the Next button
-        # Prioritize div[11] as observed in logs
-        div_indices = [11, 10, 12, 9, 13]
-        for div_index in div_indices:
+        for div_index in range(9, 14):
             try:
                 # Reference script XPath for Next button
                 xpath = f"/html/body/div[{div_index}]/div/div[2]/div[3]/div/div[2]/div[2]/button"
-                if element_exists(driver, xpath, timeout=1):
-                    element = wait_for_xpath(driver, xpath, timeout=1)
+                if element_exists(driver, xpath, timeout=2):
+                    element = wait_for_xpath(driver, xpath, timeout=2)
                     if element:
                         driver.execute_script("arguments[0].scrollIntoView(true);", element)
                         driver.execute_script("arguments[0].click();", element)
@@ -4340,18 +4288,20 @@ def enable_two_step_verification(driver, email):
             return True, None, None
 
         # Try XPaths with priority on updated XPath
-        # Try XPaths with priority on robust relative XPaths
         turn_on_clicked = False
         turn_on_xpaths = [
+            '/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button',  # Priority XPath
+            '/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button',
+            '/html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]',
+            '/html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]',
             "//button[contains(., 'Turn on')]",
             "//button[contains(., 'TURN ON')]",
             "//span[contains(text(), 'Turn on')]/ancestor::button",
-            # Removed brittle absolute XPaths that were causing timeouts
         ]
         
         for xpath in turn_on_xpaths:
             try:
-                turn_on_button = wait_for_clickable_xpath(driver, xpath, timeout=2)
+                turn_on_button = wait_for_clickable_xpath(driver, xpath, timeout=5)
                 if turn_on_button:
                     driver.execute_script("arguments[0].click();", turn_on_button)
                     logger.info(f"[STEP] Clicked on 'Turn On 2-Step Verification' using xpath: {xpath}")
@@ -4992,46 +4942,33 @@ def handler(event, context):
             }
         
         # Get MAX_CONCURRENT_USERS from environment (configurable by admin)
-        MAX_CONCURRENT = int(os.environ.get('MAX_CONCURRENT_USERS', '3'))
-        logger.info(f"[LAMBDA] MAX_CONCURRENT_USERS setting: {MAX_CONCURRENT}")
+        MAX_USERS_PER_BATCH = int(os.environ.get('MAX_CONCURRENT_USERS', '3'))
+        logger.info(f"[LAMBDA] MAX_CONCURRENT_USERS setting: {MAX_USERS_PER_BATCH}")
         
         total_users = len(users_batch)
         logger.info(f"[LAMBDA] Total users to process: {total_users}")
-        logger.info(f"[LAMBDA] Using SLIDING WINDOW processing: always keep {MAX_CONCURRENT} users running")
         
         # Ensure DynamoDB table exists before processing
         table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
         logger.info(f"[LAMBDA] Ensuring DynamoDB table exists: {table_name}")
         ensure_dynamodb_table_exists(table_name)
         
-        # Track stagger timing per slot to prevent simultaneous Chrome starts
-        import threading
-        slot_lock = threading.Lock()
-        next_slot_start_time = [time.time()]  # Mutable container for closure
-        STAGGER_DELAY = 10.0  # Seconds between Chrome starts (reduced for speed)
+        # Process all users using SMART QUEUE (Sliding Window)
+        all_results = []
         
-        def process_user_wrapper(user_data, user_idx):
-            """Wrapper function to process a single user with proper error handling and staggered start"""
+        def process_user_wrapper(user_data, idx):
+            """Wrapper function to process a single user with proper error handling"""
             email = user_data.get("email", "").strip()
             password = user_data.get("password", "").strip()
-            
-            # Calculate stagger delay to prevent simultaneous Chrome starts
-            with slot_lock:
-                current_time = time.time()
-                wait_until = next_slot_start_time[0]
-                if current_time < wait_until:
-                    stagger_delay = wait_until - current_time
-                    logger.info(f"[LAMBDA] [THREAD] User {user_idx + 1}: Staggering Chrome start, waiting {stagger_delay:.1f}s")
-                    time.sleep(stagger_delay)
-                # Set next slot start time
-                next_slot_start_time[0] = time.time() + STAGGER_DELAY
             
             # Get proxy for this user (rotation happens automatically)
             proxy = get_rotated_proxy_for_user()
             if proxy:
                 logger.info(f"[PROXY] [{email}] Using proxy: {proxy['ip']}:{proxy['port']}")
+                # Set proxy in environment for this user's Chrome driver
                 os.environ['PROXY_CONFIG'] = proxy['full']
             else:
+                # Clear proxy config if not available
                 os.environ.pop('PROXY_CONFIG', None)
             
             if not email or not password:
@@ -5043,13 +4980,13 @@ def handler(event, context):
                     "secret_key": None
                 }
             
-            logger.info(f"[LAMBDA] [THREAD] Starting user {user_idx + 1}/{total_users}: {email}")
+            logger.info(f"[LAMBDA] [THREAD] Starting processing of user {idx + 1}/{total_users}: {email}")
             try:
                 user_result = process_single_user(email, password, start_time)
-                logger.info(f"[LAMBDA] [THREAD] ✓ Completed user {user_idx + 1}/{total_users}: {email} - Status: {user_result.get('status', 'unknown')}")
+                logger.info(f"[LAMBDA] [THREAD] Completed user {idx + 1}/{total_users}: {email} - Status: {user_result.get('status', 'unknown')}")
                 return user_result
             except Exception as e:
-                logger.error(f"[LAMBDA] [THREAD] ✗ Exception user {user_idx + 1}/{total_users}: {email} - {str(e)}")
+                logger.error(f"[LAMBDA] [THREAD] Exception processing user {idx + 1}/{total_users}: {email} - {str(e)}")
                 logger.error(f"[LAMBDA] [THREAD] Traceback: {traceback.format_exc()}")
                 return {
                     "email": email,
@@ -5062,71 +4999,102 @@ def handler(event, context):
         # Check for SEQUENTIAL_PROCESSING override for maximum stability
         sequential_mode = os.environ.get('SEQUENTIAL_PROCESSING', 'false').lower() == 'true'
         
-        all_results = [None] * total_users  # Pre-allocate to maintain order
-        
         if sequential_mode:
             logger.info("[LAMBDA] SEQUENTIAL_PROCESSING enabled. Processing users one by one.")
             for idx, user_data in enumerate(users_batch):
+                # Clean /tmp before each user
                 try:
                     subprocess.run(['rm', '-rf', '/tmp/chrome-data', '/tmp/data-path', '/tmp/cache-dir'], capture_output=True)
                     os.makedirs('/tmp/chrome-data', exist_ok=True)
                 except:
                     pass
+                
                 logger.info(f"[LAMBDA] Processing user {idx + 1}/{total_users} sequentially...")
-                all_results[idx] = process_user_wrapper(user_data, idx)
+                result = process_user_wrapper(user_data, idx)
+                all_results.append(result)
                 time.sleep(2)
         else:
-            # SLIDING WINDOW PROCESSING
-            # Always keep MAX_CONCURRENT workers busy
-            # When one finishes, immediately start the next user
-            logger.info(f"[LAMBDA] Using SLIDING WINDOW: {MAX_CONCURRENT} concurrent workers for {total_users} users")
-            logger.info(f"[LAMBDA] As soon as one user finishes, the next user starts immediately")
+            # SMART QUEUE LOGIC
+            logger.info(f"[LAMBDA] Starting SMART QUEUE processing with {MAX_USERS_PER_BATCH} concurrent workers")
             
-            with ThreadPoolExecutor(max_workers=MAX_CONCURRENT) as executor:
-                # Submit ALL users - the executor will manage the sliding window automatically
-                # Only MAX_CONCURRENT will run at a time, when one finishes next starts
-                future_to_idx = {
-                    executor.submit(process_user_wrapper, user_data, idx): idx
-                    for idx, user_data in enumerate(users_batch)
-                }
+            with ThreadPoolExecutor(max_workers=MAX_USERS_PER_BATCH) as executor:
+                # Map future -> (index, user_data)
+                futures = {}
+                next_user_idx = 0
                 
-                # Process results as they complete (sliding window behavior)
-                completed_count = 0
-                for future in as_completed(future_to_idx):
-                    idx = future_to_idx[future]
-                    email = users_batch[idx].get("email", "unknown")
-                    try:
-                        result = future.result()
-                        all_results[idx] = result
-                        completed_count += 1
-                        active_count = min(MAX_CONCURRENT, total_users - completed_count)
-                        logger.info(f"[LAMBDA] Progress: {completed_count}/{total_users} done, {active_count} still running")
-                    except Exception as e:
-                        logger.error(f"[LAMBDA] [THREAD] Future exception for user {idx + 1}: {email} - {str(e)}")
-                        all_results[idx] = {
-                            "email": email,
-                            "status": "failed",
-                            "error_message": f"Future exception: {str(e)}",
-                            "app_password": None,
-                            "secret_key": None
-                        }
-                        completed_count += 1
+                # 1. Fill the queue initially (up to MAX_USERS_PER_BATCH)
+                while next_user_idx < total_users and len(futures) < MAX_USERS_PER_BATCH:
+                    user_data = users_batch[next_user_idx]
+                    
+                    # Stagger start delay logic (only for initial batch or if queue was empty)
+                    # For subsequent users, the natural completion time acts as stagger
+                    if next_user_idx < MAX_USERS_PER_BATCH:
+                        delay = next_user_idx * 15.0  # 15s delay for first few users
+                        if delay > 0:
+                            logger.info(f"[LAMBDA] Staggering start for user {next_user_idx + 1}: waiting {delay}s")
+                            time.sleep(delay)
+                    
+                    future = executor.submit(process_user_wrapper, user_data, next_user_idx)
+                    futures[future] = next_user_idx
+                    next_user_idx += 1
+                
+                # 2. Process completions and add new tasks
+                completed_results_map = {}
+                
+                while futures:
+                    # Wait for the first future to complete
+                    done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
+                    
+                    for future in done:
+                        idx = futures.pop(future)
+                        
+                        # Get result
+                        try:
+                            result = future.result()
+                            completed_results_map[idx] = result
+                        except Exception as e:
+                            logger.error(f"[LAMBDA] Future exception for user {idx + 1}: {e}")
+                            completed_results_map[idx] = {"status": "failed", "error": str(e)}
+                        
+                        # Clean up resources after a user finishes
+                        try:
+                            # Only clean if we are not running max capacity to avoid deleting files in use
+                            # But since each chrome has unique data dir, we might not need to aggressive clean
+                            # Just ensure no lingering processes
+                            subprocess.run(['pkill', '-f', f'chrome_crashpad_handler'], capture_output=True)
+                        except:
+                            pass
+
+                        # 3. Add next user if available
+                        if next_user_idx < total_users:
+                            user_data = users_batch[next_user_idx]
+                            logger.info(f"[LAMBDA] Slot freed. Starting next user {next_user_idx + 1}/{total_users}")
+                            
+                            # Small delay before starting next to let system settle
+                            time.sleep(5) 
+                            
+                            new_future = executor.submit(process_user_wrapper, user_data, next_user_idx)
+                            futures[new_future] = next_user_idx
+                            next_user_idx += 1
+                
+                # Reconstruct results in original order
+                all_results = [completed_results_map[idx] for idx in sorted(completed_results_map.keys())]
             
-            logger.info(f"[LAMBDA] All {total_users} users processed with sliding window")
+            logger.info(f"[LAMBDA] All {total_users} users processed via Smart Queue")
         
         # Calculate total time
         total_time = round(time.time() - start_time, 2)
         
         # Count successes and failures
-        success_count = sum(1 for r in all_results if r and r.get("status") == "success")
-        failed_count = total_users - success_count
+        success_count = sum(1 for r in all_results if r.get("status") == "success")
+        failed_count = len(all_results) - success_count
         
         logger.info(f"[LAMBDA] Processing completed: {success_count} success, {failed_count} failed in {total_time}s")
         
         return {
             "status": "completed",
-            "total_users": total_users,
-            "max_concurrent": MAX_CONCURRENT,
+            "batch_size": total_users,
+            "mode": "smart_queue",
             "success_count": success_count,
             "failed_count": failed_count,
             "total_time": total_time,
