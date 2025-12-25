@@ -4942,38 +4942,46 @@ def handler(event, context):
             }
         
         # Get MAX_CONCURRENT_USERS from environment (configurable by admin)
-        MAX_USERS_PER_BATCH = int(os.environ.get('MAX_CONCURRENT_USERS', '3'))
-        logger.info(f"[LAMBDA] MAX_CONCURRENT_USERS setting: {MAX_USERS_PER_BATCH}")
+        MAX_CONCURRENT = int(os.environ.get('MAX_CONCURRENT_USERS', '3'))
+        logger.info(f"[LAMBDA] MAX_CONCURRENT_USERS setting: {MAX_CONCURRENT}")
         
-        if len(users_batch) > MAX_USERS_PER_BATCH:
-            logger.warning(f"[LAMBDA] ⚠️ WARNING: Batch has {len(users_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
-            logger.warning(f"[LAMBDA] Truncating batch to {MAX_USERS_PER_BATCH} users")
-            users_batch = users_batch[:MAX_USERS_PER_BATCH]
-        
-        logger.info(f"[LAMBDA] Batch processing mode: {len(users_batch)} user(s) (MAX: {MAX_USERS_PER_BATCH})")
-        logger.info(f"[LAMBDA] Starting PARALLEL processing of {len(users_batch)} user(s)")
+        total_users = len(users_batch)
+        logger.info(f"[LAMBDA] Total users to process: {total_users}")
+        logger.info(f"[LAMBDA] Using SLIDING WINDOW processing: always keep {MAX_CONCURRENT} users running")
         
         # Ensure DynamoDB table exists before processing
         table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
         logger.info(f"[LAMBDA] Ensuring DynamoDB table exists: {table_name}")
         ensure_dynamodb_table_exists(table_name)
         
-        # Process all users in PARALLEL - each user gets their own Chrome driver instance
-        results = []
+        # Track stagger timing per slot to prevent simultaneous Chrome starts
+        import threading
+        slot_lock = threading.Lock()
+        next_slot_start_time = [time.time()]  # Mutable container for closure
+        STAGGER_DELAY = 15.0  # Seconds between Chrome starts
         
-        def process_user_wrapper(user_data, idx):
-            """Wrapper function to process a single user with proper error handling"""
+        def process_user_wrapper(user_data, user_idx):
+            """Wrapper function to process a single user with proper error handling and staggered start"""
             email = user_data.get("email", "").strip()
             password = user_data.get("password", "").strip()
+            
+            # Calculate stagger delay to prevent simultaneous Chrome starts
+            with slot_lock:
+                current_time = time.time()
+                wait_until = next_slot_start_time[0]
+                if current_time < wait_until:
+                    stagger_delay = wait_until - current_time
+                    logger.info(f"[LAMBDA] [THREAD] User {user_idx + 1}: Staggering Chrome start, waiting {stagger_delay:.1f}s")
+                    time.sleep(stagger_delay)
+                # Set next slot start time
+                next_slot_start_time[0] = time.time() + STAGGER_DELAY
             
             # Get proxy for this user (rotation happens automatically)
             proxy = get_rotated_proxy_for_user()
             if proxy:
                 logger.info(f"[PROXY] [{email}] Using proxy: {proxy['ip']}:{proxy['port']}")
-                # Set proxy in environment for this user's Chrome driver
                 os.environ['PROXY_CONFIG'] = proxy['full']
             else:
-                # Clear proxy config if not available
                 os.environ.pop('PROXY_CONFIG', None)
             
             if not email or not password:
@@ -4985,22 +4993,13 @@ def handler(event, context):
                     "secret_key": None
                 }
             
-            # Stagger Chrome initialization to avoid resource contention
-            # Each thread waits a bit before starting to spread out resource usage
-            # This prevents all Chrome instances from initializing at exactly the same time
-            # CRITICAL: Increased to 15s to prevent OOM during simultaneous startups
-            stagger_delay = idx * 15.0 
-            if stagger_delay > 0:
-                logger.info(f"[LAMBDA] [THREAD] Staggering Chrome start for user {idx + 1}: waiting {stagger_delay}s")
-                time.sleep(stagger_delay)
-            
-            logger.info(f"[LAMBDA] [THREAD] Starting parallel processing of user {idx + 1}/{len(users_batch)}: {email}")
+            logger.info(f"[LAMBDA] [THREAD] Starting user {user_idx + 1}/{total_users}: {email}")
             try:
                 user_result = process_single_user(email, password, start_time)
-                logger.info(f"[LAMBDA] [THREAD] Completed user {idx + 1}/{len(users_batch)}: {email} - Status: {user_result.get('status', 'unknown')}")
+                logger.info(f"[LAMBDA] [THREAD] ✓ Completed user {user_idx + 1}/{total_users}: {email} - Status: {user_result.get('status', 'unknown')}")
                 return user_result
             except Exception as e:
-                logger.error(f"[LAMBDA] [THREAD] Exception processing user {idx + 1}/{len(users_batch)}: {email} - {str(e)}")
+                logger.error(f"[LAMBDA] [THREAD] ✗ Exception user {user_idx + 1}/{total_users}: {email} - {str(e)}")
                 logger.error(f"[LAMBDA] [THREAD] Traceback: {traceback.format_exc()}")
                 return {
                     "email": email,
@@ -5013,74 +5012,75 @@ def handler(event, context):
         # Check for SEQUENTIAL_PROCESSING override for maximum stability
         sequential_mode = os.environ.get('SEQUENTIAL_PROCESSING', 'false').lower() == 'true'
         
+        all_results = [None] * total_users  # Pre-allocate to maintain order
+        
         if sequential_mode:
-            logger.info("[LAMBDA] SEQUENTIAL_PROCESSING enabled. Processing users one by one for maximum stability.")
-            results = []
+            logger.info("[LAMBDA] SEQUENTIAL_PROCESSING enabled. Processing users one by one.")
             for idx, user_data in enumerate(users_batch):
-                # Clean /tmp before each user to prevent disk exhaustion
                 try:
                     subprocess.run(['rm', '-rf', '/tmp/chrome-data', '/tmp/data-path', '/tmp/cache-dir'], capture_output=True)
                     os.makedirs('/tmp/chrome-data', exist_ok=True)
                 except:
                     pass
-                    
-                logger.info(f"[LAMBDA] Processing user {idx + 1}/{len(users_batch)} sequentially...")
-                result = process_user_wrapper(user_data, idx)
-                results.append(result)
-                
-                # Small cool-down between users
+                logger.info(f"[LAMBDA] Processing user {idx + 1}/{total_users} sequentially...")
+                all_results[idx] = process_user_wrapper(user_data, idx)
                 time.sleep(2)
         else:
-            # Parallel Processing
-            max_concurrent = min(3, len(users_batch))
-            logger.info(f"[LAMBDA] Using {max_concurrent} concurrent workers for {len(users_batch)} users (processing all users in parallel for maximum speed)")
+            # SLIDING WINDOW PROCESSING
+            # Always keep MAX_CONCURRENT workers busy
+            # When one finishes, immediately start the next user
+            logger.info(f"[LAMBDA] Using SLIDING WINDOW: {MAX_CONCURRENT} concurrent workers for {total_users} users")
+            logger.info(f"[LAMBDA] As soon as one user finishes, the next user starts immediately")
             
-            with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-                # Submit all tasks
-                future_to_user = {
-                    executor.submit(process_user_wrapper, user_data, idx): (idx, user_data)
+            with ThreadPoolExecutor(max_workers=MAX_CONCURRENT) as executor:
+                # Submit ALL users - the executor will manage the sliding window automatically
+                # Only MAX_CONCURRENT will run at a time, when one finishes next starts
+                future_to_idx = {
+                    executor.submit(process_user_wrapper, user_data, idx): idx
                     for idx, user_data in enumerate(users_batch)
                 }
                 
-                # Collect results as they complete (maintain order)
-                completed_results = {}
-                for future in as_completed(future_to_user):
-                    idx, user_data = future_to_user[future]
+                # Process results as they complete (sliding window behavior)
+                completed_count = 0
+                for future in as_completed(future_to_idx):
+                    idx = future_to_idx[future]
+                    email = users_batch[idx].get("email", "unknown")
                     try:
                         result = future.result()
-                        completed_results[idx] = result
+                        all_results[idx] = result
+                        completed_count += 1
+                        active_count = min(MAX_CONCURRENT, total_users - completed_count)
+                        logger.info(f"[LAMBDA] Progress: {completed_count}/{total_users} done, {active_count} still running")
                     except Exception as e:
-                        email = user_data.get("email", "unknown")
                         logger.error(f"[LAMBDA] [THREAD] Future exception for user {idx + 1}: {email} - {str(e)}")
-                        completed_results[idx] = {
+                        all_results[idx] = {
                             "email": email,
                             "status": "failed",
                             "error_message": f"Future exception: {str(e)}",
                             "app_password": None,
                             "secret_key": None
                         }
-                
-                # Reconstruct results in original order
-                results = [completed_results[idx] for idx in sorted(completed_results.keys())]
+                        completed_count += 1
             
-            logger.info(f"[LAMBDA] All {len(users_batch)} users processed in parallel")
+            logger.info(f"[LAMBDA] All {total_users} users processed with sliding window")
         
         # Calculate total time
         total_time = round(time.time() - start_time, 2)
         
         # Count successes and failures
-        success_count = sum(1 for r in results if r.get("status") == "success")
-        failed_count = len(results) - success_count
+        success_count = sum(1 for r in all_results if r and r.get("status") == "success")
+        failed_count = total_users - success_count
         
-        logger.info(f"[LAMBDA] Batch processing completed: {success_count} success, {failed_count} failed in {total_time}s")
+        logger.info(f"[LAMBDA] Processing completed: {success_count} success, {failed_count} failed in {total_time}s")
         
         return {
             "status": "completed",
-            "batch_size": len(users_batch),
+            "total_users": total_users,
+            "max_concurrent": MAX_CONCURRENT,
             "success_count": success_count,
             "failed_count": failed_count,
             "total_time": total_time,
-            "results": results
+            "results": all_results
         }
     
     else:

@@ -688,51 +688,75 @@ def create_account(domain, password, admin_username, email_provider, region_code
         )
         safe_type(admin_input, admin_username, driver)
         
-        # Password fields
+        # Password fields - find all password inputs and fill them
         password_inputs = driver.find_elements(By.XPATH, '//input[@type="password"]')
         if len(password_inputs) >= 2:
             safe_type(password_inputs[0], password, driver)
             safe_type(password_inputs[1], password, driver)
+        elif len(password_inputs) == 1:
+            safe_type(password_inputs[0], password, driver)
         else:
-            password_input = WebDriverWait(driver, 15).until(
-                EC.element_to_be_clickable((By.XPATH, '/html/body/c-wiz[1]/div/div/div[2]/main/div/span[1]/div/section/div[2]/div/div[1]/span[2]/input'))
-            )
-            safe_type(password_input, password, driver)
+            # Fallback: try specific XPath
+            try:
+                password_input = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, '/html/body/c-wiz[1]/div/div/div[2]/main/div/span[1]/div/section/div[2]/div/div[1]/span[2]/input'))
+                )
+                safe_type(password_input, password, driver)
+            except:
+                logger.warning("Could not find password input")
         
         logger.info("Entered admin credentials")
+        time.sleep(2)
+        
+        # Click "Agree and continue" button - using correct XPath from user
+        logger.info("Step 13: Clicking Agree and continue...")
+        agree_clicked = False
+        
+        # Try user-provided XPath first
+        agree_xpaths = [
+            '/html/body/c-wiz[1]/div/div/div[2]/main/div/span[1]/div/section/div[6]/div/button',
+            '//button[span[contains(text(), "Agree and continue")]]',
+            '//button[span[contains(text(), "Akkoord en doorgaan")]]',
+            '//button[contains(@class, "VfPpkd-LgbsSe")]//span[contains(text(), "Agree")]/..',
+        ]
+        
+        for xpath in agree_xpaths:
+            try:
+                agree_btn = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, xpath))
+                )
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", agree_btn)
+                time.sleep(0.5)
+                driver.execute_script("arguments[0].click();", agree_btn)
+                logger.info(f"Clicked Agree button via: {xpath[:50]}...")
+                agree_clicked = True
+                break
+            except Exception as e:
+                logger.debug(f"XPath failed: {xpath[:50]}... - {e}")
+                continue
+        
+        if not agree_clicked:
+            logger.warning("Could not find Agree button with XPaths, trying button search...")
+            try:
+                buttons = driver.find_elements(By.TAG_NAME, "button")
+                for btn in buttons:
+                    try:
+                        btn_text = btn.text.lower()
+                        if "agree" in btn_text or "akkoord" in btn_text or "continue" in btn_text:
+                            driver.execute_script("arguments[0].click();", btn)
+                            logger.info(f"Clicked button with text: {btn.text}")
+                            agree_clicked = True
+                            break
+                    except:
+                        continue
+            except:
+                pass
+        
         time.sleep(3)
         
-        # Agree and continue
-        try:
-            agree_btn = driver.find_element(By.XPATH, '//button[span[contains(text(), "Agree and continue") or contains(text(), "Akkoord")]]')
-            safe_click(agree_btn, driver)
-            time.sleep(2)
-        except:
-            pass
-        
-        # Final checkbox
-        try:
-            final_checkbox = WebDriverWait(driver, 15).until(
-                EC.element_to_be_clickable((By.XPATH, '/html/body/c-wiz[1]/div/div/div[2]/main/div/span[1]/div/section/div[3]/div/div/span[1]'))
-            )
-            safe_click(final_checkbox, driver)
-        except:
-            pass
-        
-        # Final button
-        try:
-            final_btn = WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.XPATH, '/html/body/c-wiz[1]/div/div/div[2]/main/div/span[1]/div/section/div[5]/div/button/span[6]'))
-            )
-            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", final_btn)
-            try:
-                final_btn.click()
-            except:
-                driver.execute_script("arguments[0].click();", final_btn)
-        except Exception as e:
-            logger.error(f"Could not click final button: {e}")
-        
-        add_random_delay(2, 4)
+        # Wait for page to stabilize and check result
+        add_random_delay(3, 5)
+
         
         # Check result
         if is_account_denied(driver.current_url):

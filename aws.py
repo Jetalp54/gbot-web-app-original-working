@@ -1273,6 +1273,17 @@ class AwsEducationApp(QMainWindow):
         self.creation_lambda_input.setMaximumHeight(120)
         lambda_layout.addWidget(self.creation_lambda_input)
         
+        # Batch size setting
+        batch_layout = QHBoxLayout()
+        batch_layout.addWidget(QLabel("🔢 Accounts per batch:"))
+        self.creation_batch_size = QSpinBox()
+        self.creation_batch_size.setRange(1, 20)
+        self.creation_batch_size.setValue(3)
+        self.creation_batch_size.setToolTip("Number of accounts to process per batch. Waits for completion before next batch.")
+        batch_layout.addWidget(self.creation_batch_size)
+        batch_layout.addStretch()
+        lambda_layout.addLayout(batch_layout)
+        
         invoke_btn_layout = QHBoxLayout()
         
         invoke_btn = QPushButton("🚀 Invoke Creation Lambda")
@@ -1818,7 +1829,7 @@ class AwsEducationApp(QMainWindow):
             QMessageBox.critical(self, "Error", str(e))
 
     def on_creation_invoke_lambda(self):
-        """Invoke the creation Lambda for each account."""
+        """Invoke the creation Lambda for accounts in batches."""
         try:
             session = self.get_session()
             lam = session.client("lambda")
@@ -1838,30 +1849,62 @@ class AwsEducationApp(QMainWindow):
             geo_text = self.geo_combo.currentText()
             geo_code = geo_text.split(" - ")[1] if " - " in geo_text else "nl"
             
-            self.log(f"Invoking Creation Lambda for {len(pairs)} accounts...")
-            self.creation_status_label.setText(f"Invoking {len(pairs)} accounts...")
+            batch_size = self.creation_batch_size.value()
+            total_accounts = len(pairs)
+            
+            self.log(f"Processing {total_accounts} accounts in batches of {batch_size}...")
+            self.creation_status_label.setText(f"Processing {total_accounts} accounts...")
             
             success = 0
-            for domain, password in pairs:
-                event = {
-                    "domain": domain.strip(),
-                    "password": password.strip(),
-                    "admin_username": admin,
-                    "email_provider": email_prov,
-                    "region": geo_code
-                }
-                try:
-                    resp = lam.invoke(FunctionName=CREATION_LAMBDA_NAME, InvocationType="Event", Payload=json.dumps(event))
-                    if resp.get("StatusCode") == 202:
-                        self.log(f"✅ Invoked for {domain}")
-                        success += 1
-                    else:
-                        self.log(f"❌ Failed for {domain}")
-                except Exception as invoke_e:
-                    self.log(f"❌ Error invoking for {domain}: {invoke_e}")
+            failed = 0
             
-            self.log(f"✅ Invocations complete: {success}/{len(pairs)}")
-            self.creation_status_label.setText(f"Invoked {success}/{len(pairs)}")
+            # Process in batches
+            for batch_num, i in enumerate(range(0, total_accounts, batch_size), 1):
+                batch = pairs[i:i + batch_size]
+                batch_end = min(i + batch_size, total_accounts)
+                self.log(f"\n=== Batch {batch_num}: Accounts {i+1}-{batch_end} ===")
+                self.creation_status_label.setText(f"Batch {batch_num}: {i+1}-{batch_end}")
+                
+                # Invoke Lambda for each account in batch synchronously
+                for domain, password in batch:
+                    event = {
+                        "domain": domain.strip(),
+                        "password": password.strip(),
+                        "admin_username": admin,
+                        "email_provider": email_prov,
+                        "region": geo_code
+                    }
+                    try:
+                        # Use RequestResponse to wait for completion
+                        resp = lam.invoke(
+                            FunctionName=CREATION_LAMBDA_NAME, 
+                            InvocationType="RequestResponse",
+                            Payload=json.dumps(event)
+                        )
+                        if resp.get("StatusCode") == 200:
+                            payload = json.loads(resp["Payload"].read().decode())
+                            if payload.get("status") == "success":
+                                self.log(f"✅ Success: {domain}")
+                                success += 1
+                            else:
+                                self.log(f"⚠️ {domain}: {payload.get('message', 'Unknown')}")
+                                failed += 1
+                        else:
+                            self.log(f"❌ Failed for {domain}: Status {resp.get('StatusCode')}")
+                            failed += 1
+                    except Exception as invoke_e:
+                        self.log(f"❌ Error invoking for {domain}: {invoke_e}")
+                        failed += 1
+                    
+                    QApplication.processEvents()  # Keep UI responsive
+                
+                self.log(f"✅ Batch {batch_num} complete ({len(batch)} accounts)")
+                
+                if batch_end < total_accounts:
+                    self.log(f"Starting next batch...")
+            
+            self.log(f"\n✅ Completed: {success} success, {failed} failed out of {total_accounts}")
+            self.creation_status_label.setText(f"Done: {success}/{total_accounts}")
         except Exception as e:
             self.log(f"❌ Error: {e}")
 
