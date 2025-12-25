@@ -22,7 +22,7 @@ import traceback
 import subprocess
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 # 3rd-party libraries
@@ -224,9 +224,8 @@ def cleanup_chrome_processes():
         subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
         subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
         logger.info("[LAMBDA] Cleaned up Chrome processes")
-    except Exception:
-        # Ignore errors during cleanup (e.g. pkill not found)
-        pass
+    except Exception as e:
+        logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
 
 def get_chrome_driver():
     """
@@ -4946,16 +4945,21 @@ def handler(event, context):
         MAX_USERS_PER_BATCH = int(os.environ.get('MAX_CONCURRENT_USERS', '3'))
         logger.info(f"[LAMBDA] MAX_CONCURRENT_USERS setting: {MAX_USERS_PER_BATCH}")
         
-        total_users = len(users_batch)
-        logger.info(f"[LAMBDA] Total users to process: {total_users}")
+        if len(users_batch) > MAX_USERS_PER_BATCH:
+            logger.warning(f"[LAMBDA] ⚠️ WARNING: Batch has {len(users_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
+            logger.warning(f"[LAMBDA] Truncating batch to {MAX_USERS_PER_BATCH} users")
+            users_batch = users_batch[:MAX_USERS_PER_BATCH]
+        
+        logger.info(f"[LAMBDA] Batch processing mode: {len(users_batch)} user(s) (MAX: {MAX_USERS_PER_BATCH})")
+        logger.info(f"[LAMBDA] Starting PARALLEL processing of {len(users_batch)} user(s)")
         
         # Ensure DynamoDB table exists before processing
         table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
         logger.info(f"[LAMBDA] Ensuring DynamoDB table exists: {table_name}")
         ensure_dynamodb_table_exists(table_name)
         
-        # Process all users using SMART QUEUE (Sliding Window)
-        all_results = []
+        # Process all users in PARALLEL - each user gets their own Chrome driver instance
+        results = []
         
         def process_user_wrapper(user_data, idx):
             """Wrapper function to process a single user with proper error handling"""
@@ -4981,13 +4985,22 @@ def handler(event, context):
                     "secret_key": None
                 }
             
-            logger.info(f"[LAMBDA] [THREAD] Starting processing of user {idx + 1}/{total_users}: {email}")
+            # Stagger Chrome initialization to avoid resource contention
+            # Each thread waits a bit before starting to spread out resource usage
+            # This prevents all Chrome instances from initializing at exactly the same time
+            # CRITICAL: Increased to 15s to prevent OOM during simultaneous startups
+            stagger_delay = idx * 15.0 
+            if stagger_delay > 0:
+                logger.info(f"[LAMBDA] [THREAD] Staggering Chrome start for user {idx + 1}: waiting {stagger_delay}s")
+                time.sleep(stagger_delay)
+            
+            logger.info(f"[LAMBDA] [THREAD] Starting parallel processing of user {idx + 1}/{len(users_batch)}: {email}")
             try:
                 user_result = process_single_user(email, password, start_time)
-                logger.info(f"[LAMBDA] [THREAD] Completed user {idx + 1}/{total_users}: {email} - Status: {user_result.get('status', 'unknown')}")
+                logger.info(f"[LAMBDA] [THREAD] Completed user {idx + 1}/{len(users_batch)}: {email} - Status: {user_result.get('status', 'unknown')}")
                 return user_result
             except Exception as e:
-                logger.error(f"[LAMBDA] [THREAD] Exception processing user {idx + 1}/{total_users}: {email} - {str(e)}")
+                logger.error(f"[LAMBDA] [THREAD] Exception processing user {idx + 1}/{len(users_batch)}: {email} - {str(e)}")
                 logger.error(f"[LAMBDA] [THREAD] Traceback: {traceback.format_exc()}")
                 return {
                     "email": email,
@@ -5001,105 +5014,73 @@ def handler(event, context):
         sequential_mode = os.environ.get('SEQUENTIAL_PROCESSING', 'false').lower() == 'true'
         
         if sequential_mode:
-            logger.info("[LAMBDA] SEQUENTIAL_PROCESSING enabled. Processing users one by one.")
+            logger.info("[LAMBDA] SEQUENTIAL_PROCESSING enabled. Processing users one by one for maximum stability.")
+            results = []
             for idx, user_data in enumerate(users_batch):
-                # Clean /tmp before each user
+                # Clean /tmp before each user to prevent disk exhaustion
                 try:
                     subprocess.run(['rm', '-rf', '/tmp/chrome-data', '/tmp/data-path', '/tmp/cache-dir'], capture_output=True)
                     os.makedirs('/tmp/chrome-data', exist_ok=True)
                 except:
                     pass
-                
-                logger.info(f"[LAMBDA] Processing user {idx + 1}/{total_users} sequentially...")
+                    
+                logger.info(f"[LAMBDA] Processing user {idx + 1}/{len(users_batch)} sequentially...")
                 result = process_user_wrapper(user_data, idx)
-                all_results.append(result)
+                results.append(result)
+                
+                # Small cool-down between users
                 time.sleep(2)
         else:
-            # SMART QUEUE LOGIC
-            logger.info(f"[LAMBDA] Starting SMART QUEUE processing with {MAX_USERS_PER_BATCH} concurrent workers")
+            # Parallel Processing
+            max_concurrent = min(3, len(users_batch))
+            logger.info(f"[LAMBDA] Using {max_concurrent} concurrent workers for {len(users_batch)} users (processing all users in parallel for maximum speed)")
             
-            with ThreadPoolExecutor(max_workers=MAX_USERS_PER_BATCH) as executor:
-                # Map future -> (index, user_data)
-                futures = {}
-                next_user_idx = 0
+            with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+                # Submit all tasks
+                future_to_user = {
+                    executor.submit(process_user_wrapper, user_data, idx): (idx, user_data)
+                    for idx, user_data in enumerate(users_batch)
+                }
                 
-                # 1. Fill the queue initially (up to MAX_USERS_PER_BATCH)
-                while next_user_idx < total_users and len(futures) < MAX_USERS_PER_BATCH:
-                    user_data = users_batch[next_user_idx]
-                    
-                    # Stagger start delay logic (only for initial batch or if queue was empty)
-                    # For subsequent users, the natural completion time acts as stagger
-                    if next_user_idx < MAX_USERS_PER_BATCH:
-                        delay = next_user_idx * 15.0  # 15s delay for first few users
-                        if delay > 0:
-                            logger.info(f"[LAMBDA] Staggering start for user {next_user_idx + 1}: waiting {delay}s")
-                            time.sleep(delay)
-                    
-                    future = executor.submit(process_user_wrapper, user_data, next_user_idx)
-                    futures[future] = next_user_idx
-                    next_user_idx += 1
-                
-                # 2. Process completions and add new tasks
-                completed_results_map = {}
-                
-                while futures:
-                    # Wait for the first future to complete
-                    done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
-                    
-                    for future in done:
-                        idx = futures.pop(future)
-                        
-                        # Get result
-                        try:
-                            result = future.result()
-                            completed_results_map[idx] = result
-                        except Exception as e:
-                            logger.error(f"[LAMBDA] Future exception for user {idx + 1}: {e}")
-                            completed_results_map[idx] = {"status": "failed", "error": str(e)}
-                        
-                        # Clean up resources after a user finishes
-                        try:
-                            # Only clean if we are not running max capacity to avoid deleting files in use
-                            # But since each chrome has unique data dir, we might not need to aggressive clean
-                            # Just ensure no lingering processes
-                            subprocess.run(['pkill', '-f', f'chrome_crashpad_handler'], capture_output=True)
-                        except:
-                            pass
-
-                        # 3. Add next user if available
-                        if next_user_idx < total_users:
-                            user_data = users_batch[next_user_idx]
-                            logger.info(f"[LAMBDA] Slot freed. Starting next user {next_user_idx + 1}/{total_users}")
-                            
-                            # Small delay before starting next to let system settle
-                            time.sleep(5) 
-                            
-                            new_future = executor.submit(process_user_wrapper, user_data, next_user_idx)
-                            futures[new_future] = next_user_idx
-                            next_user_idx += 1
+                # Collect results as they complete (maintain order)
+                completed_results = {}
+                for future in as_completed(future_to_user):
+                    idx, user_data = future_to_user[future]
+                    try:
+                        result = future.result()
+                        completed_results[idx] = result
+                    except Exception as e:
+                        email = user_data.get("email", "unknown")
+                        logger.error(f"[LAMBDA] [THREAD] Future exception for user {idx + 1}: {email} - {str(e)}")
+                        completed_results[idx] = {
+                            "email": email,
+                            "status": "failed",
+                            "error_message": f"Future exception: {str(e)}",
+                            "app_password": None,
+                            "secret_key": None
+                        }
                 
                 # Reconstruct results in original order
-                all_results = [completed_results_map[idx] for idx in sorted(completed_results_map.keys())]
+                results = [completed_results[idx] for idx in sorted(completed_results.keys())]
             
-            logger.info(f"[LAMBDA] All {total_users} users processed via Smart Queue")
+            logger.info(f"[LAMBDA] All {len(users_batch)} users processed in parallel")
         
         # Calculate total time
         total_time = round(time.time() - start_time, 2)
         
         # Count successes and failures
-        success_count = sum(1 for r in all_results if r.get("status") == "success")
-        failed_count = len(all_results) - success_count
+        success_count = sum(1 for r in results if r.get("status") == "success")
+        failed_count = len(results) - success_count
         
-        logger.info(f"[LAMBDA] Processing completed: {success_count} success, {failed_count} failed in {total_time}s")
+        logger.info(f"[LAMBDA] Batch processing completed: {success_count} success, {failed_count} failed in {total_time}s")
         
         return {
             "status": "completed",
-            "batch_size": total_users,
-            "mode": "smart_queue",
+            "batch_size": len(users_batch),
             "success_count": success_count,
             "failed_count": failed_count,
             "total_time": total_time,
-            "results": all_results
+            "results": results
         }
     
     else:
