@@ -230,21 +230,9 @@ def cleanup_chrome_processes():
 def get_chrome_driver(user_agent=None):
     """
     Initialize Selenium Chrome driver for AWS Lambda environment.
-    Uses standard Selenium with CDP-based anti-detection (Lambda-compatible).
-    Supports proxy configuration if PROXY_ENABLED environment variable is set.
-    Integrates selenium-stealth for enhanced anti-detection.
+    Uses minimal options to prevent crashes, with manual CDP anti-detection.
     """
-    # Import selenium-stealth
-    try:
-        from selenium_stealth import stealth
-        from fake_useragent import UserAgent
-        stealth_available = True
-        logger.info("[ANTI-DETECT] selenium-stealth library loaded successfully")
-    except ImportError as e:
-        stealth_available = False
-        logger.warning(f"[ANTI-DETECT] selenium-stealth not available: {e}. Falling back to basic anti-detection.")
-    
-    # Force environment variables to prevent SeleniumManager from trying to write to read-only FS
+    # Force environment variables
     os.environ['HOME'] = '/tmp'
     os.environ['XDG_CACHE_HOME'] = '/tmp/.cache'
     os.environ['SELENIUM_MANAGER_CACHE'] = '/tmp/.cache/selenium'
@@ -252,126 +240,64 @@ def get_chrome_driver(user_agent=None):
     os.environ['SELENIUM_MANAGER'] = 'false'
     os.environ['SELENIUM_DISABLE_DRIVER_MANAGER'] = '1'
     
-    # Ensure /tmp directories exist
     os.makedirs('/tmp/.cache/selenium', exist_ok=True)
-    os.makedirs('/tmp/chrome-data', exist_ok=True)  # For user data dir
-    
-    # Locate Chrome binary and ChromeDriver
-    logger.info("[LAMBDA] Checking /opt directory contents...")
+    os.makedirs('/tmp/chrome-data', exist_ok=True)
+
+    # Locate binaries
     chrome_binary = None
     chromedriver_path = None
     
-    # Log /opt contents for debugging
-    if os.path.exists('/opt'):
-        logger.info(f"[LAMBDA] Contents of /opt: {os.listdir('/opt')}")
-        if os.path.exists('/opt/chrome'):
-            logger.info(f"[LAMBDA] Contents of /opt/chrome: {os.listdir('/opt/chrome')}")
-    
-    # Common paths for Chrome binary
+    # Find Chrome
     chrome_paths = [
         '/opt/chrome/chrome',
         '/opt/chrome/headless-chromium',
-        '/opt/chrome/chrome-wrapper',
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser',
         '/usr/bin/google-chrome',
+        '/usr/bin/chromium',
     ]
-    
     for path in chrome_paths:
         if os.path.isfile(path) and os.access(path, os.X_OK):
             chrome_binary = path
-            logger.info(f"[LAMBDA] Found Chrome binary at: {chrome_binary}")
             break
-    
-    # If not found by direct paths, try using 'which'
+            
     if not chrome_binary:
+        # Fallback to which
         try:
-            result = subprocess.run(['which', 'chrome'], capture_output=True, text=True)
-            if result.returncode == 0:
-                chrome_binary = result.stdout.strip()
-                logger.info(f"[LAMBDA] Found Chrome via which: {chrome_binary}")
-        except Exception as e:
-            logger.debug(f"[LAMBDA] 'which chrome' failed: {e}")
-    
+            chrome_binary = subprocess.check_output(['which', 'chrome']).decode().strip()
+        except:
+            pass
+            
     if not chrome_binary:
-        logger.error("[LAMBDA] Chrome binary not found! Cannot proceed without Chrome binary path.")
-        raise Exception("Chrome binary not found in Lambda environment")
-    
-    # Common paths for ChromeDriver
+        raise Exception("Chrome binary not found")
+        
+    # Find ChromeDriver
     chromedriver_paths = [
         '/opt/chromedriver',
         '/usr/bin/chromedriver',
-        '/usr/local/bin/chromedriver',
     ]
-    
     for path in chromedriver_paths:
         if os.path.isfile(path) and os.access(path, os.X_OK):
             chromedriver_path = path
-            logger.info(f"[LAMBDA] Found ChromeDriver at: {chromedriver_path}")
             break
-    
+            
     if not chromedriver_path:
         try:
-            result = subprocess.run(['which', 'chromedriver'], capture_output=True, text=True)
-            if result.returncode == 0:
-                chromedriver_path = result.stdout.strip()
-                logger.info(f"[LAMBDA] Found ChromeDriver via which: {chromedriver_path}")
-        except Exception as e:
-            logger.debug(f"[LAMBDA] 'which chromedriver' failed: {e}")
-    
+            chromedriver_path = subprocess.check_output(['which', 'chromedriver']).decode().strip()
+        except:
+            pass
+            
     if not chromedriver_path:
-        logger.error("[LAMBDA] ChromeDriver not found! This should not happen with umihico base image.")
-        raise Exception("ChromeDriver not found in Lambda environment")
+        raise Exception("ChromeDriver not found")
 
-    # Use Selenium Chrome options with anti-detection
+    # --- MINIMAL STABLE OPTIONS ---
     chrome_options = Options()
+    chrome_options.binary_location = chrome_binary
     
-    # Get proxy configuration if enabled
-    proxy_config = get_proxy_from_env()
-    seleniumwire_options = {}
-    
-    if proxy_config:
-        logger.info(f"[PROXY] Using proxy with authentication: {proxy_config['ip']}:{proxy_config['port']}")
-        seleniumwire_options = {
-            'proxy': {
-                'http': proxy_config['http'],
-                'https': proxy_config['http'],
-                'no_proxy': 'localhost,127.0.0.1'
-            }
-        }
-        logger.info(f"[PROXY] Configured selenium-wire with proxy authentication")
-    else:
-        logger.info("[PROXY] Proxy disabled or not configured")
-    
-    # Randomize User-Agent
-    if not user_agent:
-        if stealth_available:
-            try:
-                ua = UserAgent()
-                user_agent = ua.random
-                logger.info(f"[ANTI-DETECT] Using random User-Agent from fake-useragent: {user_agent}")
-            except:
-                user_agent = random.choice(USER_AGENTS)
-                logger.info(f"[ANTI-DETECT] Using User-Agent from predefined list: {user_agent}")
-        else:
-            user_agent = random.choice(USER_AGENTS)
-            logger.info(f"[ANTI-DETECT] Using User-Agent: {user_agent}")
-    
-    chrome_options.add_argument(f"--user-agent={user_agent}")
-
-    # Randomize Window Size
-    window_size = random.choice(WINDOW_SIZES)
-    chrome_options.add_argument(f"--window-size={window_size}")
-    logger.info(f"[ANTI-DETECT] Using Window Size: {window_size}")
-    
-    # --- STABLE CHROME OPTIONS FOR LAMBDA ---
-    # We use a minimal set of flags known to be stable in Lambda, 
-    # plus essential anti-detection flags.
+    # Core Lambda flags
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--single-process")  # Critical for Lambda stability
+    chrome_options.add_argument("--single-process")
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--no-zygote")
     chrome_options.add_argument("--disable-setuid-sandbox")
@@ -379,64 +305,57 @@ def get_chrome_driver(user_agent=None):
     chrome_options.add_argument("--disable-notifications")
     chrome_options.add_argument("--lang=en-US")
     
-    # Anti-detection flags
+    # Minimal Anti-Detection
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     
-    # User data directory for persistent profile (important for stealth)
-    chrome_options.add_argument("--user-data-dir=/tmp/chrome-data")
+    # User Agent
+    if not user_agent:
+        user_agent = random.choice(USER_AGENTS)
+    chrome_options.add_argument(f"--user-agent={user_agent}")
     
-    # Set binary location
-    if chrome_binary:
-        chrome_options.binary_location = chrome_binary
+    # Window Size
+    window_size = random.choice(WINDOW_SIZES)
+    chrome_options.add_argument(f"--window-size={window_size}")
+    
+    # Proxy Setup
+    proxy_config = get_proxy_from_env()
+    seleniumwire_options = {}
+    if proxy_config:
+        seleniumwire_options = {
+            'proxy': {
+                'http': proxy_config['http'],
+                'https': proxy_config['http'],
+                'no_proxy': 'localhost,127.0.0.1'
+            }
+        }
+        logger.info(f"[PROXY] Configured for {proxy_config['ip']}")
 
     try:
-        # Create Service with explicit ChromeDriver path
         service = Service(executable_path=chromedriver_path)
         
-        # Use selenium-wire ONLY if proxy is configured
+        # Try selenium-wire first if proxy needed
         if seleniumwire_options:
             try:
                 from seleniumwire import webdriver as wire_webdriver
-                logger.info("[PROXY] Using selenium-wire for proxy authentication")
                 driver = wire_webdriver.Chrome(
                     service=service,
                     options=chrome_options,
                     seleniumwire_options=seleniumwire_options
                 )
-                logger.info("[PROXY] ✓ selenium-wire driver initialized successfully with proxy")
-            except ImportError:
-                logger.error("[PROXY] ✗ selenium-wire not available! Falling back to regular selenium (proxy auth will NOT work)")
+                logger.info("[LAMBDA] Driver created with selenium-wire")
+            except Exception as e:
+                logger.error(f"[LAMBDA] selenium-wire failed: {e}. Fallback to standard.")
                 driver = webdriver.Chrome(service=service, options=chrome_options)
         else:
-            # No proxy configured, use regular selenium
             driver = webdriver.Chrome(service=service, options=chrome_options)
             
-        # Set page load timeout
         driver.set_page_load_timeout(120)
         
-        # Wait for Chrome to fully initialize
-        time.sleep(2)
-        
-        # Apply selenium-stealth (CRITICAL for anti-detection)
-        if stealth_available:
-            try:
-                stealth(
-                    driver,
-                    languages=["en-US", "en"],
-                    vendor="Google Inc.",
-                    platform="Linux x86_64",
-                    webgl_vendor="Intel Inc.",
-                    renderer="Intel Iris OpenGL Engine",
-                    fix_hairline=True,
-                    run_on_insecure_origins=False,  # Enhanced security
-                )
-                logger.info("[ANTI-DETECT] ✓ selenium-stealth patch applied successfully")
-            except Exception as e:
-                logger.warning(f"[ANTI-DETECT] Could not apply selenium-stealth: {e}")
-        
-        # MANUAL CDP OVERRIDE (Redundancy for stealth)
+        # CRITICAL: Manual CDP Override for Anti-Detection
+        # This is the most effective way to bypass "Secure Browser" checks
+        # without using heavy libraries like selenium-stealth
         try:
             driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
                 "source": """
@@ -445,44 +364,15 @@ def get_chrome_driver(user_agent=None):
                     });
                 """
             })
-            logger.info("[ANTI-DETECT] ✓ Manual CDP webdriver override applied")
+            logger.info("[ANTI-DETECT] CDP webdriver override applied")
         except Exception as e:
-            logger.debug(f"[ANTI-DETECT] CDP override failed: {e}")
-        
-        logger.info("[LAMBDA] Chrome driver created successfully")
+            logger.warning(f"[ANTI-DETECT] CDP override failed: {e}")
+
         return driver
 
     except Exception as e:
-        logger.error(f"[LAMBDA] Failed to initialize Chrome driver: {e}")
-        logger.error(traceback.format_exc())
-        
-        # Retry with ABSOLUTE MINIMAL options (fallback)
-        try:
-            logger.info("[LAMBDA] Retrying with absolute minimal options...")
-            minimal_options = Options()
-            minimal_options.add_argument("--headless=new")
-            minimal_options.add_argument("--no-sandbox")
-            minimal_options.add_argument("--disable-dev-shm-usage")
-            minimal_options.add_argument("--disable-gpu")
-            minimal_options.add_argument("--single-process")
-            
-            if chrome_binary:
-                minimal_options.binary_location = chrome_binary
-            
-            service = Service(executable_path=chromedriver_path)
-            driver = webdriver.Chrome(service=service, options=minimal_options)
-            
-            # Try to apply stealth even on retry if possible
-            if stealth_available:
-                try:
-                    stealth(driver, languages=["en-US", "en"], vendor="Google Inc.", platform="Linux x86_64", webgl_vendor="Intel Inc.", renderer="Intel Iris OpenGL Engine", fix_hairline=True)
-                except: pass
-
-            logger.info("[LAMBDA] Chrome driver created with minimal options")
-            return driver
-        except Exception as e2:
-            logger.error(f"[LAMBDA] Final retry also failed: {e2}")
-            raise Exception(f"Chrome driver initialization failed: {e2}. Chrome: {chrome_binary}, ChromeDriver: {chromedriver_path}")
+        logger.error(f"[LAMBDA] Critical driver failure: {e}")
+        raise
 
 
 # =====================================================================
