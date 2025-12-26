@@ -225,7 +225,7 @@ def cleanup_chrome_processes():
         subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
         logger.info("[LAMBDA] Cleaned up Chrome processes")
     except Exception as e:
-        logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
+        logger.debug(f"[LAMBDA] Error cleaning up processes (non-critical): {e}")
 
 def get_chrome_driver():
     """
@@ -332,7 +332,6 @@ def get_chrome_driver():
     
     if proxy_config:
         logger.info(f"[PROXY] Using proxy with authentication: {proxy_config['ip']}:{proxy_config['port']}")
-        # selenium-wire format for authenticated proxies
         seleniumwire_options = {
             'proxy': {
                 'http': proxy_config['http'],
@@ -365,27 +364,27 @@ def get_chrome_driver():
     chrome_options.add_argument(f"--window-size={window_size}")
     logger.info(f"[ANTI-DETECT] Using Window Size: {window_size}")
     
-    # Core stability options for Lambda - "Safe" Set
+    # --- STABLE CHROME OPTIONS FOR LAMBDA ---
+    # We use a minimal set of flags known to be stable in Lambda, 
+    # plus essential anti-detection flags.
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--single-process")  # Critical for Lambda
+    chrome_options.add_argument("--single-process")  # Critical for Lambda stability
     chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--disable-application-cache")
-    chrome_options.add_argument("--disk-cache-size=0")
     chrome_options.add_argument("--no-zygote")
     chrome_options.add_argument("--disable-setuid-sandbox")
     chrome_options.add_argument("--disable-infobars")
     chrome_options.add_argument("--disable-notifications")
     chrome_options.add_argument("--lang=en-US")
     
-    # Anti-detection flags that are generally safe
+    # Anti-detection flags
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     
-    # User data directory for persistent profile
+    # User data directory for persistent profile (important for stealth)
     chrome_options.add_argument("--user-data-dir=/tmp/chrome-data")
     
     # Set binary location
@@ -420,7 +419,7 @@ def get_chrome_driver():
         # Wait for Chrome to fully initialize
         time.sleep(2)
         
-        # Apply selenium-stealth if available
+        # Apply selenium-stealth (CRITICAL for anti-detection)
         if stealth_available:
             try:
                 stealth(
@@ -434,7 +433,7 @@ def get_chrome_driver():
                 )
                 logger.info("[ANTI-DETECT] ✓ selenium-stealth patch applied successfully")
             except Exception as e:
-                logger.warning(f"[ANTI-DETECT] Could not apply selenium-stealth (non-critical): {e}")
+                logger.warning(f"[ANTI-DETECT] Could not apply selenium-stealth: {e}")
         
         logger.info("[LAMBDA] Chrome driver created successfully")
         return driver
@@ -443,7 +442,7 @@ def get_chrome_driver():
         logger.error(f"[LAMBDA] Failed to initialize Chrome driver: {e}")
         logger.error(traceback.format_exc())
         
-        # Last resort: try with absolute minimal options
+        # Retry with ABSOLUTE MINIMAL options (fallback)
         try:
             logger.info("[LAMBDA] Retrying with absolute minimal options...")
             minimal_options = Options()
@@ -458,7 +457,13 @@ def get_chrome_driver():
             
             service = Service(executable_path=chromedriver_path)
             driver = webdriver.Chrome(service=service, options=minimal_options)
-            time.sleep(2)
+            
+            # Try to apply stealth even on retry if possible
+            if stealth_available:
+                try:
+                    stealth(driver, languages=["en-US", "en"], vendor="Google Inc.", platform="Linux x86_64", webgl_vendor="Intel Inc.", renderer="Intel Iris OpenGL Engine", fix_hairline=True)
+                except: pass
+
             logger.info("[LAMBDA] Chrome driver created with minimal options")
             return driver
         except Exception as e2:
