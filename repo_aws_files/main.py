@@ -379,6 +379,12 @@ def get_chrome_driver(user_agent=None):
     chrome_options.add_argument("--disable-notifications")
     chrome_options.add_argument("--lang=en-US")
     
+    # Enhanced Anti-Detection Flags
+    chrome_options.add_argument("--enable-javascript")
+    chrome_options.add_argument("--window-position=0,0")
+    chrome_options.add_argument("--disable-web-security")  # Can help with some blocks
+    chrome_options.add_argument("--allow-running-insecure-content")
+    
     # Anti-detection flags
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
@@ -430,10 +436,24 @@ def get_chrome_driver(user_agent=None):
                     webgl_vendor="Intel Inc.",
                     renderer="Intel Iris OpenGL Engine",
                     fix_hairline=True,
+                    run_on_insecure_origins=False,  # Enhanced security
                 )
                 logger.info("[ANTI-DETECT] ✓ selenium-stealth patch applied successfully")
             except Exception as e:
                 logger.warning(f"[ANTI-DETECT] Could not apply selenium-stealth: {e}")
+        
+        # MANUAL CDP OVERRIDE (Redundancy for stealth)
+        try:
+            driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+                "source": """
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined
+                    });
+                """
+            })
+            logger.info("[ANTI-DETECT] ✓ Manual CDP webdriver override applied")
+        except Exception as e:
+            logger.debug(f"[ANTI-DETECT] CDP override failed: {e}")
         
         logger.info("[LAMBDA] Chrome driver created successfully")
         return driver
