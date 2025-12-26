@@ -14,7 +14,8 @@ RUN pip install --no-cache-dir \
     fake-useragent==1.4.0 \
     selenium-wire==5.1.0 \
     blinker==1.7.0 \
-    webdriver-manager==4.0.1
+    webdriver-manager==4.0.1 \
+    setuptools
 
 # The umihico base image should already have Chrome/Chromium installed
 # Let's verify what's available and log it for debugging

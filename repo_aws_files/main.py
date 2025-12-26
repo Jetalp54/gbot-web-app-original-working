@@ -379,12 +379,6 @@ def get_chrome_driver(user_agent=None):
     chrome_options.add_argument("--disable-notifications")
     chrome_options.add_argument("--lang=en-US")
     
-    # Enhanced Anti-Detection Flags
-    chrome_options.add_argument("--enable-javascript")
-    chrome_options.add_argument("--window-position=0,0")
-    chrome_options.add_argument("--disable-web-security")  # Can help with some blocks
-    chrome_options.add_argument("--allow-running-insecure-content")
-    
     # Anti-detection flags
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
