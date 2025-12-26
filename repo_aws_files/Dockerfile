@@ -10,8 +10,7 @@ RUN pip install --no-cache-dir \
     boto3 \
     paramiko \
     pyotp \
-    selenium-stealth==1.0.6 \
-    fake-useragent==1.4.0 \
+    undetected-chromedriver \
     selenium-wire==5.1.0 \
     webdriver-manager==4.0.1
 
