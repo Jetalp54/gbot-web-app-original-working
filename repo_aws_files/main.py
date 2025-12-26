@@ -4947,8 +4947,9 @@ def handler(event, context):
         
         if len(users_batch) > MAX_USERS_PER_BATCH:
             logger.warning(f"[LAMBDA] ⚠️ WARNING: Batch has {len(users_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
-            logger.warning(f"[LAMBDA] Truncating batch to {MAX_USERS_PER_BATCH} users")
-            users_batch = users_batch[:MAX_USERS_PER_BATCH]
+            logger.info(f"[LAMBDA] Processing all {len(users_batch)} users (extras will be queued/throttled by thread pool)")
+            # No truncation - process all users
+
         
         logger.info(f"[LAMBDA] Batch processing mode: {len(users_batch)} user(s) (MAX: {MAX_USERS_PER_BATCH})")
         logger.info(f"[LAMBDA] Starting PARALLEL processing of {len(users_batch)} user(s)")

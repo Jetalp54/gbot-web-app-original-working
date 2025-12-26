@@ -76,7 +76,8 @@ def cleanup_chrome_processes():
         subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
         logger.info("[LAMBDA] Cleaned up Chrome processes")
     except Exception as e:
-        logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
+        # Ignore pkill errors (e.g. if pkill is missing)
+        logger.debug(f"[LAMBDA] Process cleanup warning (non-fatal): {e}")
 
 
 def get_chrome_driver():
@@ -822,6 +823,44 @@ def save_result_to_s3(result, s3_client=None):
 
 def handler(event, context):
     """Lambda entry point"""
+    logger.info(f"Lambda invoked with event keys: {list(event.keys())}")
+    
+    # Check for batch processing
+    accounts_batch = event.get('accounts')
+    
+    if accounts_batch:
+        logger.info(f"Batch processing mode: {len(accounts_batch)} accounts")
+        results = []
+        
+        for idx, account in enumerate(accounts_batch):
+            domain = account.get('domain')
+            password = account.get('password')
+            admin_username = account.get('admin_username', 'admin')
+            email_provider = account.get('email_provider', '@gmail.com')
+            region_code = account.get('region', REGION_CODE)
+            
+            logger.info(f"Processing account {idx+1}/{len(accounts_batch)}: {domain}")
+            
+            if not domain or not password:
+                results.append({"domain": domain, "status": "error", "message": "Missing domain or password"})
+                continue
+                
+            result = create_account(domain, password, admin_username, email_provider, region_code)
+            result["password"] = password
+            
+            # Save to S3
+            save_result_to_s3(result)
+            results.append(result)
+            
+            # Small delay between accounts
+            time.sleep(2)
+            
+        return {
+            "status": "completed",
+            "results": results
+        }
+
+    # Single account mode (backward compatible)
     domain = event.get('domain')
     password = event.get('password')
     admin_username = event.get('admin_username', 'admin')

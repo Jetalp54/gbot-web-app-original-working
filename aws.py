@@ -1488,30 +1488,42 @@ class AwsEducationApp(QMainWindow):
                 batch_end = min(i + batch_size, total_users)
                 self.log(f"\n=== Batch {batch_num}: Users {i+1}-{batch_end} ===")
                 
-                # Invoke Lambda for each user in batch synchronously to wait for completion
-                for email, password in batch:
-                    event = {"email": email.strip(), "password": password.strip()}
-                    try:
-                        # Use RequestResponse to wait for each Lambda to complete
-                        resp = lam.invoke(
-                            FunctionName=PRODUCTION_LAMBDA_NAME, 
-                            InvocationType="RequestResponse",  # Wait for completion
-                            Payload=json.dumps(event)
-                        )
-                        if resp.get("StatusCode") == 200:
-                            # Parse response to check result
-                            payload = json.loads(resp["Payload"].read().decode())
-                            if payload.get("status") == "success":
-                                self.log(f"✅ Success: {email}")
-                            else:
-                                self.log(f"⚠️ Completed: {email} - {payload.get('message', 'Unknown')}")
-                        else:
-                            self.log(f"❌ Failed for {email}: Status {resp.get('StatusCode')}")
-                    except Exception as e:
-                        self.log(f"❌ Error for {email}: {e}")
+                # Invoke Lambda for the ENTIRE batch
+                users_list = [{"email": e.strip(), "password": p.strip()} for e, p in batch]
+                event = {"users": users_list}
+                
+                try:
+                    self.log(f"Invoking Lambda for batch of {len(users_list)} users...")
+                    # Use RequestResponse to wait for the batch to complete
+                    resp = lam.invoke(
+                        FunctionName=PRODUCTION_LAMBDA_NAME, 
+                        InvocationType="RequestResponse",  # Wait for completion
+                        Payload=json.dumps(event)
+                    )
                     
-                    # Small delay between invocations in same batch
-                    QApplication.processEvents()  # Keep UI responsive
+                    if resp.get("StatusCode") == 200:
+                        # Parse response to check result
+                        payload = json.loads(resp["Payload"].read().decode())
+                        
+                        if payload.get("status") == "completed":
+                            results = payload.get("results", [])
+                            for res in results:
+                                email = res.get("email")
+                                status = res.get("status")
+                                if status == "success":
+                                    self.log(f"✅ Success: {email}")
+                                else:
+                                    self.log(f"⚠️ Failed: {email} - {res.get('error_message', 'Unknown')}")
+                        else:
+                             # Fallback for single user response or error
+                             self.log(f"⚠️ Batch response: {payload}")
+                    else:
+                        self.log(f"❌ Failed for batch {batch_num}: Status {resp.get('StatusCode')}")
+                except Exception as e:
+                    self.log(f"❌ Error for batch {batch_num}: {e}")
+                
+                # Small delay between batches
+                QApplication.processEvents()
                 
                 self.log(f"✅ Batch {batch_num} complete ({len(batch)} users)")
                 
@@ -1865,38 +1877,51 @@ class AwsEducationApp(QMainWindow):
                 self.log(f"\n=== Batch {batch_num}: Accounts {i+1}-{batch_end} ===")
                 self.creation_status_label.setText(f"Batch {batch_num}: {i+1}-{batch_end}")
                 
-                # Invoke Lambda for each account in batch synchronously
+                # Invoke Lambda for the ENTIRE batch
+                accounts_list = []
                 for domain, password in batch:
-                    event = {
+                    accounts_list.append({
                         "domain": domain.strip(),
                         "password": password.strip(),
                         "admin_username": admin,
                         "email_provider": email_prov,
                         "region": geo_code
-                    }
-                    try:
-                        # Use RequestResponse to wait for completion
-                        resp = lam.invoke(
-                            FunctionName=CREATION_LAMBDA_NAME, 
-                            InvocationType="RequestResponse",
-                            Payload=json.dumps(event)
-                        )
-                        if resp.get("StatusCode") == 200:
-                            payload = json.loads(resp["Payload"].read().decode())
-                            if payload.get("status") == "success":
-                                self.log(f"✅ Success: {domain}")
-                                success += 1
-                            else:
-                                self.log(f"⚠️ {domain}: {payload.get('message', 'Unknown')}")
-                                failed += 1
-                        else:
-                            self.log(f"❌ Failed for {domain}: Status {resp.get('StatusCode')}")
-                            failed += 1
-                    except Exception as invoke_e:
-                        self.log(f"❌ Error invoking for {domain}: {invoke_e}")
-                        failed += 1
+                    })
+                
+                event = {"accounts": accounts_list}
+                
+                try:
+                    self.log(f"Invoking Lambda for batch of {len(accounts_list)} accounts...")
+                    # Use RequestResponse to wait for the batch to complete
+                    resp = lam.invoke(
+                        FunctionName=CREATION_LAMBDA_NAME, 
+                        InvocationType="RequestResponse",
+                        Payload=json.dumps(event)
+                    )
                     
-                    QApplication.processEvents()  # Keep UI responsive
+                    if resp.get("StatusCode") == 200:
+                        payload = json.loads(resp["Payload"].read().decode())
+                        
+                        if payload.get("status") == "completed":
+                            results = payload.get("results", [])
+                            for res in results:
+                                domain = res.get("domain")
+                                status = res.get("status")
+                                if status == "success":
+                                    self.log(f"✅ Success: {domain}")
+                                    success += 1
+                                else:
+                                    self.log(f"⚠️ {domain}: {res.get('message', 'Unknown')}")
+                                    failed += 1
+                        else:
+                            # Fallback
+                            self.log(f"⚠️ Batch response: {payload}")
+                    else:
+                        self.log(f"❌ Failed for batch {batch_num}: Status {resp.get('StatusCode')}")
+                except Exception as invoke_e:
+                    self.log(f"❌ Error invoking for batch {batch_num}: {invoke_e}")
+                
+                QApplication.processEvents()
                 
                 self.log(f"✅ Batch {batch_num} complete ({len(batch)} accounts)")
                 
