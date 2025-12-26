@@ -227,7 +227,7 @@ def cleanup_chrome_processes():
     except Exception as e:
         logger.debug(f"[LAMBDA] Error cleaning up processes (non-critical): {e}")
 
-def get_chrome_driver():
+def get_chrome_driver(user_agent=None):
     """
     Initialize Selenium Chrome driver for AWS Lambda environment.
     Uses standard Selenium with CDP-based anti-detection (Lambda-compatible).
