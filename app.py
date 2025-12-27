@@ -4247,10 +4247,11 @@ def create_sqlalchemy_backup(filepath, include_data):
             f.write(f"-- Created: {datetime.now().isoformat()}\n")
             f.write("-- Database: PostgreSQL\n\n")
             
-            # Import all models
-            from database import User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword
+            # Import all models - MUST include ALL tables in the database
+            from database import User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, ServiceAccount
             
-            tables = [User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword]
+            # List of all tables to back up - ServiceAccount is critical!
+            tables = [User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, ServiceAccount]
             
             total_records = 0
             

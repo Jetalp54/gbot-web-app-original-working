@@ -241,7 +241,41 @@ sudo -u postgres psql -c "ALTER DATABASE $DB_NAME OWNER TO $DB_USER;"
 # Grant schema permissions (PostgreSQL 15+ requirement)
 sudo -u postgres psql -d "$DB_NAME" -c "GRANT ALL ON SCHEMA public TO $DB_USER;" 2>/dev/null || true
 
-print_success "PostgreSQL configured successfully"
+# Grant comprehensive permissions on all existing and future tables/sequences
+print_info "Setting up comprehensive database permissions..."
+sudo -u postgres psql -d "$DB_NAME" -c "GRANT USAGE, CREATE ON SCHEMA public TO $DB_USER;"
+sudo -u postgres psql -d "$DB_NAME" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $DB_USER;"
+sudo -u postgres psql -d "$DB_NAME" -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO $DB_USER;"
+sudo -u postgres psql -d "$DB_NAME" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $DB_USER;"
+sudo -u postgres psql -d "$DB_NAME" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $DB_USER;"
+
+# Transfer ownership of all existing tables to gbot_user (for restored backups)
+sudo -u postgres psql -d "$DB_NAME" -c "
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO $DB_USER';
+    END LOOP;
+END
+\$\$;
+" 2>/dev/null || true
+
+# Transfer ownership of all sequences
+sudo -u postgres psql -d "$DB_NAME" -c "
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
+        EXECUTE 'ALTER SEQUENCE public.' || quote_ident(r.sequence_name) || ' OWNER TO $DB_USER';
+    END LOOP;
+END
+\$\$;
+" 2>/dev/null || true
+
+print_success "PostgreSQL configured successfully with comprehensive permissions"
 
 # ============================================================================
 # STEP 4: Chrome/Chromium and ChromeDriver Installation
@@ -736,7 +770,71 @@ chown $APP_USER:$APP_USER $APP_DIR/backup.sh
 # Add backup to crontab (daily at 2 AM)
 (crontab -u $APP_USER -l 2>/dev/null | grep -v "backup.sh"; echo "0 2 * * * $APP_DIR/backup.sh >> $LOG_DIR/backup.log 2>&1") | crontab -u $APP_USER -
 
-print_success "Firewall, log rotation, and backup configured"
+# Fix permissions script (for use after restoring backups)
+print_info "Creating database permission fix script..."
+cat > $APP_DIR/fix_permissions.sh <<'FIXPERM_EOF'
+#!/bin/bash
+#
+# Fix database permissions after restoring a backup
+# Usage: sudo ./fix_permissions.sh
+#
+echo "🔧 Fixing database permissions for gbot_user..."
+
+DB_NAME="gbot_db"
+DB_USER="gbot_user"
+
+# Grant schema permissions
+sudo -u postgres psql -d "$DB_NAME" -c "GRANT ALL ON SCHEMA public TO $DB_USER;"
+sudo -u postgres psql -d "$DB_NAME" -c "GRANT USAGE, CREATE ON SCHEMA public TO $DB_USER;"
+sudo -u postgres psql -d "$DB_NAME" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $DB_USER;"
+sudo -u postgres psql -d "$DB_NAME" -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO $DB_USER;"
+sudo -u postgres psql -d "$DB_NAME" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $DB_USER;"
+sudo -u postgres psql -d "$DB_NAME" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $DB_USER;"
+
+# Transfer ownership of all tables
+echo "📋 Transferring table ownership..."
+sudo -u postgres psql -d "$DB_NAME" -c "
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO $DB_USER';
+        RAISE NOTICE 'Changed owner of table % to $DB_USER', r.tablename;
+    END LOOP;
+END
+\$\$;
+"
+
+# Transfer ownership of all sequences
+echo "📋 Transferring sequence ownership..."
+sudo -u postgres psql -d "$DB_NAME" -c "
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
+        EXECUTE 'ALTER SEQUENCE public.' || quote_ident(r.sequence_name) || ' OWNER TO $DB_USER';
+        RAISE NOTICE 'Changed owner of sequence % to $DB_USER', r.sequence_name;
+    END LOOP;
+END
+\$\$;
+"
+
+# Verify
+echo ""
+echo "📊 Current table ownership:"
+sudo -u postgres psql -d "$DB_NAME" -c "SELECT tablename, tableowner FROM pg_tables WHERE schemaname = 'public';"
+
+echo ""
+echo "✅ Database permissions fixed!"
+echo "🔄 Now restart the service: sudo systemctl restart gbot"
+FIXPERM_EOF
+
+chmod +x $APP_DIR/fix_permissions.sh
+chown $APP_USER:$APP_USER $APP_DIR/fix_permissions.sh
+
+print_success "Firewall, log rotation, backup, and permission fix scripts configured"
 
 # ============================================================================
 # Start Services
