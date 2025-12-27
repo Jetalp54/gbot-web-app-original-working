@@ -48,47 +48,50 @@
                 <div id="tab-infra" class="tab-content active">
                     <div class="section">
                         <h4 style="margin-bottom: var(--spacing-md);">Core AWS Resources</h4>
-                        
+
                         <!-- Resource Naming Configuration -->
-                        <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05)); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                            <h5 style="margin-bottom: 12px; color: var(--color-accent-fg); display: flex; align-items: center; gap: 8px;">
+                        <div
+                            style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05)); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                            <h5
+                                style="margin-bottom: 12px; color: var(--color-accent-fg); display: flex; align-items: center; gap: 8px;">
                                 <i class="fas fa-tag"></i> Resource Naming Configuration
                             </h5>
                             <small style="color: #656d76; display: block; margin-bottom: 12px;">
-                                Configure unique names for your AWS resources. Use different names to manage multiple instances.
+                                Configure unique names for your AWS resources. Use different names to manage multiple
+                                instances.
                             </small>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                                 <div class="form-group-github" style="margin-bottom: 0;">
                                     <label class="form-label-github" style="font-size: 12px;">
                                         <i class="fas fa-box"></i> ECR Repository Name
                                     </label>
-                                    <input type="text" class="form-control-github" id="ecrRepoName" value="gbot-app-password-worker"
-                                        placeholder="e.g., gbot-worker, myapp-worker">
+                                    <input type="text" class="form-control-github" id="ecrRepoName"
+                                        value="dev-app-password-worker" placeholder="e.g., dev-worker, myapp-worker">
                                 </div>
                                 <div class="form-group-github" style="margin-bottom: 0;">
                                     <label class="form-label-github" style="font-size: 12px;">
                                         <i class="fas fa-database"></i> DynamoDB Table Name
                                     </label>
-                                    <input type="text" class="form-control-github" id="dynamodbTableName" value="gbot-app-passwords"
-                                        placeholder="e.g., gbot-passwords, myapp-passwords">
+                                    <input type="text" class="form-control-github" id="dynamodbTableName"
+                                        value="dev-app-passwords" placeholder="e.g., dev-passwords, myapp-passwords">
                                 </div>
                                 <div class="form-group-github" style="margin-bottom: 0;">
                                     <label class="form-label-github" style="font-size: 12px;">
                                         <i class="fas fa-bucket"></i> S3 Bucket Name
                                     </label>
-                                    <input type="text" class="form-control-github" id="s3BucketName" value="gbot-app-passwords"
-                                        placeholder="e.g., gbot-bucket, myapp-bucket">
+                                    <input type="text" class="form-control-github" id="s3BucketName"
+                                        value="dev-app-passwords" placeholder="e.g., dev-bucket, myapp-bucket">
                                 </div>
                                 <div class="form-group-github" style="margin-bottom: 0;">
                                     <label class="form-label-github" style="font-size: 12px;">
                                         <i class="fas fa-user-shield"></i> IAM Role Prefix
                                     </label>
-                                    <input type="text" class="form-control-github" id="iamRolePrefix" value="gbot"
-                                        placeholder="e.g., gbot, myapp">
+                                    <input type="text" class="form-control-github" id="iamRolePrefix" value="dev"
+                                        placeholder="e.g., dev, myapp">
                                 </div>
                             </div>
                         </div>
-                        
+
                         <button class="btn-github btn-github-primary" onclick="createInfrastructure()"
                             style="width: 100%; margin-bottom: var(--spacing-sm);">
                             <i class="fas fa-plus-circle"></i>
@@ -224,27 +227,29 @@
                     4) Invoke Lambda → Wait → Fetch from DynamoDB
                 </div>
             </div>
-            
+
             <!-- Lambda Naming Configuration -->
-            <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05)); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+            <div
+                style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05)); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
                 <h5 style="margin-bottom: 12px; color: #10b981; display: flex; align-items: center; gap: 8px;">
                     <i class="fas fa-code"></i> Lambda Function Naming
                 </h5>
                 <small style="color: #656d76; display: block; margin-bottom: 12px;">
-                    The prefix will be used for all Lambda operations. Functions will be named: <code style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px;">{prefix}-{region}-{number}</code>
+                    The prefix will be used for all Lambda operations. Functions will be named: <code
+                        style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px;">{prefix}-{region}-{number}</code>
                 </small>
                 <div class="form-group-github" style="margin-bottom: 0;">
                     <label class="form-label-github" style="font-size: 12px;">
                         <i class="fas fa-tag"></i> Lambda Function Prefix (used for Create/Invoke/Delete)
                     </label>
-                    <input type="text" class="form-control-github" id="lambdaPrefix" value="gbot-chromium"
-                        placeholder="e.g., gbot-chromium, myapp-worker, client-a">
+                    <input type="text" class="form-control-github" id="lambdaPrefix" value="dev-chromium"
+                        placeholder="e.g., dev-chromium, myapp-worker, client-a">
                     <small style="color: #656d76; font-size: 11px;">
                         Example: With prefix "client-a", functions will be: client-a-useast1-1, client-a-useast1-2, etc.
                     </small>
                 </div>
             </div>
-            
+
             <!-- Lambda Creation Options -->
             <div class="section" style="margin-bottom: var(--spacing-md);">
                 <h5 style="margin-bottom: var(--spacing-sm);">Lambda Creation Options</h5>
@@ -264,8 +269,12 @@
                     </div>
                     <div class="form-group-github">
                         <label class="form-label-github">Users per Function (lower = less CAPTCHA, default: 10):</label>
-                        <input type="number" id="usersPerFunction" class="form-control-github" value="10" min="1" max="20" style="width: 100px;" onchange="updateLambdaCalculation()" oninput="updateLambdaCalculation()">
-                        <small style="color: var(--color-fg-muted); font-size: 12px;">Number of users to process per Lambda function. Lower values reduce CAPTCHA frequency (default: 10, recommended: 5-8 for fewer CAPTCHAs)</small>
+                        <input type="number" id="usersPerFunction" class="form-control-github" value="10" min="1"
+                            max="20" style="width: 100px;" onchange="updateLambdaCalculation()"
+                            oninput="updateLambdaCalculation()">
+                        <small style="color: var(--color-fg-muted); font-size: 12px;">Number of users to process per
+                            Lambda function. Lower values reduce CAPTCHA frequency (default: 10, recommended: 5-8 for
+                            fewer CAPTCHAs)</small>
                     </div>
                     <div id="lambdaCalculation"
                         style="margin-top: var(--spacing-sm); padding: var(--spacing-sm); background-color: var(--color-canvas-inset); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-fg-muted);">
@@ -380,36 +389,38 @@
                 <h5 style="margin-bottom: var(--spacing-sm); font-weight: 600; color: #ef4444;">
                     <i class="fas fa-exclamation-triangle"></i> Cleanup Operations (Destructive)
                 </h5>
-                
+
                 <!-- Cleanup Naming Configuration -->
-                <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(185, 28, 28, 0.05)); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                <div
+                    style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(185, 28, 28, 0.05)); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
                     <small style="color: #656d76; display: block; margin-bottom: 8px;">
-                        <i class="fas fa-info-circle"></i> Specify the resource names to delete. Leave default values to delete standard resources.
+                        <i class="fas fa-info-circle"></i> Specify the resource names to delete. Leave default values to
+                        delete standard resources.
                     </small>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                         <div class="form-group-github" style="margin-bottom: 0;">
                             <label class="form-label-github" style="font-size: 11px;">S3 Bucket to Delete</label>
-                            <input type="text" class="form-control-github" id="deleteS3BucketName" value="gbot-app-passwords"
-                                placeholder="bucket-name" style="font-size: 12px;">
+                            <input type="text" class="form-control-github" id="deleteS3BucketName"
+                                value="dev-app-passwords" placeholder="bucket-name" style="font-size: 12px;">
                         </div>
                         <div class="form-group-github" style="margin-bottom: 0;">
                             <label class="form-label-github" style="font-size: 11px;">ECR Repo to Delete</label>
-                            <input type="text" class="form-control-github" id="deleteEcrRepoName" value="gbot-app-password-worker"
-                                placeholder="repo-name" style="font-size: 12px;">
+                            <input type="text" class="form-control-github" id="deleteEcrRepoName"
+                                value="dev-app-password-worker" placeholder="repo-name" style="font-size: 12px;">
                         </div>
                         <div class="form-group-github" style="margin-bottom: 0;">
                             <label class="form-label-github" style="font-size: 11px;">CloudWatch Log Prefix</label>
-                            <input type="text" class="form-control-github" id="deleteLogGroupPrefix" value="/aws/lambda/gbot"
-                                placeholder="/aws/lambda/prefix" style="font-size: 12px;">
+                            <input type="text" class="form-control-github" id="deleteLogGroupPrefix"
+                                value="/aws/lambda/dev" placeholder="/aws/lambda/prefix" style="font-size: 12px;">
                         </div>
                         <div class="form-group-github" style="margin-bottom: 0;">
                             <label class="form-label-github" style="font-size: 11px;">DynamoDB Table to Delete</label>
-                            <input type="text" class="form-control-github" id="deleteDynamodbTableName" value="gbot-app-passwords"
-                                placeholder="table-name" style="font-size: 12px;">
+                            <input type="text" class="form-control-github" id="deleteDynamodbTableName"
+                                value="dev-app-passwords" placeholder="table-name" style="font-size: 12px;">
                         </div>
                     </div>
                 </div>
-                
+
                 <button class="btn-github" onclick="deleteS3Content()"
                     style="width: 100%; margin-bottom: var(--spacing-sm);">
                     <i class="fas fa-trash-alt"></i>
@@ -449,9 +460,10 @@
                     - Pushes it to your ECR repo as :latest
                 </div>
             </div>
-            
+
             <!-- EC2 Instance Naming -->
-            <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.05)); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+            <div
+                style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.05)); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
                 <h5 style="margin-bottom: 12px; color: #f59e0b; display: flex; align-items: center; gap: 8px;">
                     <i class="fas fa-desktop"></i> EC2 Instance Naming
                 </h5>
@@ -459,14 +471,14 @@
                     <label class="form-label-github" style="font-size: 12px;">
                         <i class="fas fa-tag"></i> EC2 Instance Name (used for Create/Terminate)
                     </label>
-                    <input type="text" class="form-control-github" id="ec2InstanceName" value="gbot-ec2-build-box"
-                        placeholder="e.g., gbot-ec2-build-box, myapp-builder">
+                    <input type="text" class="form-control-github" id="ec2InstanceName" value="dev-ec2-build-box"
+                        placeholder="e.g., dev-ec2-build-box, myapp-builder">
                     <small style="color: #656d76; font-size: 11px;">
                         This name will be used as the EC2 instance tag Name for identification.
                     </small>
                 </div>
             </div>
-            
+
             <button class="btn-github btn-github-primary" onclick="ec2CreateBuildBox()"
                 style="width: 100%; margin-bottom: var(--spacing-sm);">
                 <i class="fas fa-plus-circle"></i>
@@ -687,7 +699,7 @@
 
             if (data.success) {
                 log('Global status check completed. Populating table...');
-                
+
                 if (!data.results || data.results.length === 0) {
                     log('⚠️ No results returned from status check. This might indicate a configuration issue.');
                     alert('No results returned. Please check server logs for details.');
@@ -711,23 +723,23 @@
                     if (region.status === 'error') errorRegions++;
 
                     const tr = document.createElement('tr');
-                    
+
                     // Add helpful hints when resources aren't found
                     let errorDetails = '';
                     let lambdaHint = '';
                     let ecrHint = '';
-                    
+
                     if (region.error) {
                         errorDetails = `<br><small style="color: var(--color-danger-fg);">Error: ${region.error.substring(0, 100)}</small>`;
                     }
-                    
+
                     // Show hints if resources weren't found
                     if (region.lambda_count === 0 && region.lambda_functions_found && region.lambda_functions_found.length > 0) {
                         lambdaHint = `<br><small style="color: var(--color-accent-fg);">Found: ${region.lambda_functions_found.join(', ')}</small>`;
                     } else if (region.lambda_count === 0 && region.lambda_prefix_searched) {
                         lambdaHint = `<br><small style="color: #656d76;">Searched: ${region.lambda_prefix_searched}*</small>`;
                     }
-                    
+
                     if (!region.ecr_repo && region.ecr_repo_found) {
                         ecrHint = `<br><small style="color: var(--color-accent-fg);">Found: ${region.ecr_repo_found}</small>`;
                     } else if (!region.ecr_repo && region.ecr_repo_searched) {
@@ -785,10 +797,10 @@
                 const targetTfoot = document.getElementById('statusTableFoot') || document.querySelector('tfoot');
                 targetTfoot.innerHTML = '';
                 targetTfoot.appendChild(footerRow);
-                
+
                 // Log summary
                 log(`✓ Status check complete: ${totalRegions} regions checked, ${totalLambdas} Lambda(s), ${totalRepos} ECR repo(s), ${totalImages} image(s), ${readyRegions} ready${errorRegions > 0 ? `, ${errorRegions} error(s)` : ''}`);
-                
+
                 // Show helpful message if no resources found
                 if (totalLambdas === 0 && totalRepos === 0) {
                     log(`⚠️ No resources found. Make sure the Lambda prefix and ECR repo name in the UI match your actual resource names.`);
@@ -825,7 +837,7 @@
             region: window.awsConfig.region
         };
     }
-    
+
     // Helper function to get resource naming configuration
     function getNamingConfig() {
         return {
@@ -1226,7 +1238,7 @@
             alert('S3 Bucket name is required.');
             return;
         }
-        
+
         log(`📦 Using Lambda prefix: ${naming.lambda_prefix}`);
         log(`📦 Using S3 bucket: ${naming.s3_bucket}`);
         log(`📦 Using DynamoDB table: ${naming.dynamodb_table}`);
@@ -1265,13 +1277,13 @@
         // Get users_per_function value from input field
         const usersPerFunctionInput = document.getElementById('usersPerFunction');
         const usersPerFunctionValue = usersPerFunctionInput ? parseInt(usersPerFunctionInput.value || '10', 10) : 10;
-        
+
         // Validate the value
         if (isNaN(usersPerFunctionValue) || usersPerFunctionValue < 1 || usersPerFunctionValue > 20) {
             alert(`Invalid "Users per Function" value: ${usersPerFunctionInput ? usersPerFunctionInput.value : 'N/A'}. Must be between 1 and 20.`);
             return;
         }
-        
+
         // DEBUG: Log the value being sent
         log(`[DEBUG] users_per_function value being sent: ${usersPerFunctionValue}`);
         log(`[DEBUG] Input field value: ${usersPerFunctionInput ? usersPerFunctionInput.value : 'NOT FOUND'}`);
@@ -1282,7 +1294,7 @@
             users_per_function: usersPerFunctionValue,
             create_multiple: createMultiple
         });
-        
+
         const requestPayload = {
             access_key: accessKey,
             secret_key: secretKey,
@@ -1297,9 +1309,9 @@
             ecr_repo_name: naming.ecr_repo_name,
             dynamodb_table: naming.dynamodb_table
         };
-        
+
         log(`[DEBUG] Request payload users_per_function: ${requestPayload.users_per_function}`);
-        
+
         fetch('/api/aws/create-lambdas', {
             method: 'POST',
             headers: {
@@ -1313,14 +1325,14 @@
                     log('PRODUCTION Lambda(s) created/updated successfully.');
                     log(`Created ${data.num_functions} function(s): ${data.functions_created.join(', ')}`);
                     log(`Lambda configured using ECR image URI: ${ecrUri}`);
-                    
+
                     // Show debug info if available
                     if (data.debug_info) {
                         log(`[DEBUG] Backend received users_per_function: ${data.debug_info.users_per_function_received}`);
                         log(`[DEBUG] Backend calculated expected functions: ${data.debug_info.expected_functions}`);
                         log(`[DEBUG] Backend actual functions planned: ${data.debug_info.actual_functions_planned}`);
                     }
-                    
+
                     // Show warning if expected vs actual don't match
                     const expectedFunctions = Math.ceil(userCount / usersPerFunctionValue);
                     if (data.num_functions !== expectedFunctions) {
@@ -1333,7 +1345,7 @@
                             }
                         }
                     }
-                    
+
                     alert(`Production Lambda(s) created/updated successfully.\n\nCreated ${data.num_functions} function(s): ${data.functions_created.join(', ')}`);
                 } else {
                     log(`ERROR creating production Lambda(s): ${data.error}`);
@@ -1664,7 +1676,7 @@
         const naming = getNamingConfig();
         log(`📦 Using Lambda prefix: ${naming.lambda_prefix}`);
         log(`📦 Using DynamoDB table: ${naming.dynamodb_table}`);
-        
+
         fetch('/api/aws/bulk-generate', {
             method: 'POST',
             headers: {
