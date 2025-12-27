@@ -2966,7 +2966,7 @@ def login_google(driver, email, password, known_totp_secret=None):
                 screenshot_saved = False
                 page_source_saved = False
                 try:
-                    s3_bucket = os.environ.get("S3_DEBUG_BUCKET", "gbot-debug-screenshots")
+                    s3_bucket = os.environ.get("S3_DEBUG_BUCKET", "dev-debug-screenshots")
                     
                     # Ensure bucket exists
                     s3_region = os.environ.get("AWS_REGION", "us-east-1")
@@ -4678,7 +4678,7 @@ def get_secret_key_from_dynamodb(email):
 def save_to_dynamodb(email, app_password, secret_key=None):
     """
     Save app password to DynamoDB for reliable storage and retrieval.
-    Table: gbot-app-passwords
+    Table: dev-app-passwords
     Primary Key: email
     Attributes: email, app_password, secret_key, created_at, updated_at
     
