@@ -842,19 +842,19 @@
     function getNamingConfig() {
         return {
             // Infrastructure Tab
-            ecr_repo_name: document.getElementById('ecrRepoName')?.value?.trim() || 'gbot-app-password-worker',
-            dynamodb_table: document.getElementById('dynamodbTableName')?.value?.trim() || 'gbot-app-passwords',
-            s3_bucket: document.getElementById('s3BucketName')?.value?.trim() || 'gbot-app-passwords',
-            iam_role_prefix: document.getElementById('iamRolePrefix')?.value?.trim() || 'gbot',
+            ecr_repo_name: document.getElementById('ecrRepoName')?.value?.trim() || 'dev-app-password-worker',
+            dynamodb_table: document.getElementById('dynamodbTableName')?.value?.trim() || 'dev-app-passwords',
+            s3_bucket: document.getElementById('s3BucketName')?.value?.trim() || 'dev-app-passwords',
+            iam_role_prefix: document.getElementById('iamRolePrefix')?.value?.trim() || 'dev',
             // Lambda Tab
-            lambda_prefix: document.getElementById('lambdaPrefix')?.value?.trim() || 'gbot-chromium',
+            lambda_prefix: document.getElementById('lambdaPrefix')?.value?.trim() || 'dev-chromium',
             // EC2 Tab
-            ec2_instance_name: document.getElementById('ec2InstanceName')?.value?.trim() || 'gbot-ec2-build-box',
+            ec2_instance_name: document.getElementById('ec2InstanceName')?.value?.trim() || 'dev-ec2-build-box',
             // Cleanup Tab
-            delete_s3_bucket: document.getElementById('deleteS3BucketName')?.value?.trim() || 'gbot-app-passwords',
-            delete_ecr_repo: document.getElementById('deleteEcrRepoName')?.value?.trim() || 'gbot-app-password-worker',
-            delete_log_prefix: document.getElementById('deleteLogGroupPrefix')?.value?.trim() || '/aws/lambda/gbot',
-            delete_dynamodb_table: document.getElementById('deleteDynamodbTableName')?.value?.trim() || 'gbot-app-passwords'
+            delete_s3_bucket: document.getElementById('deleteS3BucketName')?.value?.trim() || 'dev-app-passwords',
+            delete_ecr_repo: document.getElementById('deleteEcrRepoName')?.value?.trim() || 'dev-app-password-worker',
+            delete_log_prefix: document.getElementById('deleteLogGroupPrefix')?.value?.trim() || '/aws/lambda/dev',
+            delete_dynamodb_table: document.getElementById('deleteDynamodbTableName')?.value?.trim() || 'dev-app-passwords'
         };
     }
 
@@ -940,6 +940,7 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
         // Show options dialog
         const optionsDiv = document.getElementById('ecrPushOptions');
@@ -948,8 +949,34 @@
             return; // Show options first
         }
 
-        // Get ECR URI from settings or input
-        const ecrUri = window.awsConfig?.ecr_uri || prompt('Enter ECR Image URI (e.g., account.dkr.ecr.region.amazonaws.com/repo:tag):');
+        // Get ECR URI from settings, or construct from naming config
+        let ecrUri = window.awsConfig?.ecr_uri;
+
+        // If ECR URI is not in settings or uses old gbot prefix, construct from naming config
+        if (!ecrUri || ecrUri.includes('gbot-')) {
+            // Try to construct ECR URI from naming config and region
+            // Format: {accountId}.dkr.ecr.{region}.amazonaws.com/{repoName}:latest
+            const repoName = naming.ecr_repo_name || 'dev-app-password-worker';
+            const sourceRegionSelect = document.getElementById('sourceRegionSelect');
+            const selectedRegion = sourceRegionSelect?.value || region || 'eu-west-1';
+
+            // We need the account ID - try to get from existing ECR URI or prompt
+            let accountId = '';
+            if (window.awsConfig?.ecr_uri) {
+                const match = window.awsConfig.ecr_uri.match(/^(\d+)\.dkr\.ecr/);
+                if (match) accountId = match[1];
+            }
+
+            if (accountId) {
+                ecrUri = `${accountId}.dkr.ecr.${selectedRegion}.amazonaws.com/${repoName}:latest`;
+                log(`📦 Using ECR repo from naming config: ${repoName}`);
+            }
+        }
+
+        if (!ecrUri) {
+            ecrUri = prompt('Enter ECR Image URI (e.g., account.dkr.ecr.region.amazonaws.com/repo:tag):');
+        }
+
         if (!ecrUri) {
             log('❌ ECR URI is required', 'error');
             return;
@@ -1052,9 +1079,33 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        // Get ECR URI from settings or input
-        const ecrUri = window.awsConfig?.ecr_uri || prompt('Enter ECR Image URI (e.g., account.dkr.ecr.region.amazonaws.com/repo:tag):');
+        // Get ECR URI from settings, or construct from naming config
+        let ecrUri = window.awsConfig?.ecr_uri;
+
+        // If ECR URI uses old gbot prefix, construct from naming config
+        if (!ecrUri || ecrUri.includes('gbot-')) {
+            const repoName = naming.ecr_repo_name || 'dev-app-password-worker';
+            const sourceRegionSelect = document.getElementById('sourceRegionSelect');
+            const selectedRegion = sourceRegionSelect?.value || region || 'eu-west-1';
+
+            let accountId = '';
+            if (window.awsConfig?.ecr_uri) {
+                const match = window.awsConfig.ecr_uri.match(/^(\d+)\.dkr\.ecr/);
+                if (match) accountId = match[1];
+            }
+
+            if (accountId) {
+                ecrUri = `${accountId}.dkr.ecr.${selectedRegion}.amazonaws.com/${repoName}:latest`;
+                log(`📦 Using ECR repo from naming config: ${repoName}`);
+            }
+        }
+
+        if (!ecrUri) {
+            ecrUri = prompt('Enter ECR Image URI (e.g., account.dkr.ecr.region.amazonaws.com/repo:tag):');
+        }
+
         if (!ecrUri) {
             log('❌ ECR URI is required', 'error');
             return;
