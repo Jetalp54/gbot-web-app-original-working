@@ -4930,15 +4930,86 @@ def handler(event, context):
                 logger.info(f"[LAMBDA] Preparing for next batch...")
                 time.sleep(3)  # Brief cooldown between batches
         
+        # =====================================================================
+        # RETRY MECHANISM: Retry failed users once at the end
+        # =====================================================================
+        failed_users = [(i, r) for i, r in enumerate(all_results) if r.get("status") != "success"]
+        
+        if failed_users:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"[LAMBDA] RETRY PHASE: {len(failed_users)} failed user(s) will be retried once")
+            logger.info(f"{'='*60}")
+            
+            # Clean /tmp before retry phase
+            try:
+                subprocess.run(['rm', '-rf', '/tmp/chrome-data', '/tmp/data-path', '/tmp/cache-dir'], capture_output=True)
+                os.makedirs('/tmp/chrome-data', exist_ok=True)
+            except:
+                pass
+            
+            retry_success_count = 0
+            
+            for retry_num, (original_idx, failed_result) in enumerate(failed_users, 1):
+                email = failed_result.get("email", "unknown")
+                
+                # Find the original user data from users_batch
+                original_user_data = None
+                for user_data in users_batch:
+                    if user_data.get("email", "").strip() == email:
+                        original_user_data = user_data
+                        break
+                
+                if not original_user_data:
+                    logger.warning(f"[RETRY] Could not find original user data for {email}, skipping retry")
+                    continue
+                
+                password = original_user_data.get("password", "").strip()
+                
+                logger.info(f"[RETRY] ({retry_num}/{len(failed_users)}) Retrying user: {email}")
+                
+                try:
+                    # Get a fresh proxy for retry
+                    proxy = get_rotated_proxy_for_user()
+                    if proxy:
+                        logger.info(f"[RETRY] [{email}] Using proxy: {proxy['ip']}:{proxy['port']}")
+                        os.environ['PROXY_CONFIG'] = proxy['full']
+                    else:
+                        os.environ.pop('PROXY_CONFIG', None)
+                    
+                    # Process the user again
+                    retry_result = process_single_user(email, password, start_time)
+                    
+                    if retry_result.get("status") == "success":
+                        logger.info(f"[RETRY] ✅ SUCCESS on retry: {email}")
+                        retry_success_count += 1
+                        # Update the original result in all_results
+                        all_results[original_idx] = retry_result
+                        all_results[original_idx]["retried"] = True
+                    else:
+                        logger.info(f"[RETRY] ❌ Still failed after retry: {email} - {retry_result.get('error_message', 'Unknown')}")
+                        # Update with retry attempt info
+                        all_results[original_idx]["retry_attempted"] = True
+                        all_results[original_idx]["retry_error"] = retry_result.get("error_message", "Unknown")
+                        
+                except Exception as e:
+                    logger.error(f"[RETRY] Exception during retry for {email}: {str(e)}")
+                    all_results[original_idx]["retry_attempted"] = True
+                    all_results[original_idx]["retry_error"] = str(e)
+                
+                # Brief pause between retries
+                time.sleep(2)
+            
+            logger.info(f"[RETRY] Retry phase completed: {retry_success_count}/{len(failed_users)} recovered")
+        
         # Calculate total time
         total_time = round(time.time() - start_time, 2)
         
-        # Count successes and failures
+        # Count successes and failures (after retries)
         success_count = sum(1 for r in all_results if r.get("status") == "success")
         failed_count = len(all_results) - success_count
         
         logger.info(f"\n{'='*60}")
-        logger.info(f"[LAMBDA] ALL BATCHES COMPLETED: {success_count} success, {failed_count} failed in {total_time}s")
+        logger.info(f"[LAMBDA] ALL BATCHES COMPLETED (including retries): {success_count} success, {failed_count} failed in {total_time}s")
         logger.info(f"[LAMBDA] Processed {total_users} users in {total_batches} batch(es)")
         logger.info(f"{'='*60}")
         
