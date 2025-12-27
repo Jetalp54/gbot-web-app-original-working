@@ -4583,7 +4583,7 @@ def generate_app_password(driver, email):
 # DynamoDB Storage
 # =====================================================================
 
-def ensure_dynamodb_table_exists(table_name="gbot-app-passwords"):
+def ensure_dynamodb_table_exists(table_name="dev-app-passwords"):
     """
     Ensure DynamoDB table exists. Creates it if it doesn't exist.
     Uses a fixed region (eu-west-1) so all Lambda functions use the same table.
@@ -4641,7 +4641,7 @@ def get_secret_key_from_dynamodb(email):
     Retrieve TOTP secret key from DynamoDB for the given email.
     Returns the full secret key (unmasked) if found, None otherwise.
     """
-    table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
+    table_name = os.environ.get("DYNAMODB_TABLE_NAME", "dev-app-passwords")
     
     try:
         dynamodb = get_dynamodb_resource()
@@ -4684,7 +4684,7 @@ def save_to_dynamodb(email, app_password, secret_key=None):
     
     Automatically creates the table if it doesn't exist.
     """
-    table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
+    table_name = os.environ.get("DYNAMODB_TABLE_NAME", "dev-app-passwords")
     
     try:
         # Use shared DynamoDB resource for better connection pooling and performance
@@ -4786,7 +4786,7 @@ def handler(event, context):
     users_batch = event.get("users")
     
     if users_batch:
-        # Batch processing mode (up to 10 users)
+        # Batch processing mode - UNLIMITED users, processed in sequential batches of 3
         if not isinstance(users_batch, list):
             return {
                 "status": "failed",
@@ -4794,27 +4794,24 @@ def handler(event, context):
                 "results": []
             }
         
-        # Get MAX_CONCURRENT_USERS from environment (configurable by admin)
-        MAX_USERS_PER_BATCH = int(os.environ.get('MAX_CONCURRENT_USERS', '3'))
-        logger.info(f"[LAMBDA] MAX_CONCURRENT_USERS setting: {MAX_USERS_PER_BATCH}")
+        # Get BATCH_SIZE from environment (how many users to process in parallel at once)
+        # Default is 3 for optimal Lambda memory usage
+        PARALLEL_BATCH_SIZE = int(os.environ.get('PARALLEL_BATCH_SIZE', '3'))
+        logger.info(f"[LAMBDA] PARALLEL_BATCH_SIZE setting: {PARALLEL_BATCH_SIZE}")
         
-        if len(users_batch) > MAX_USERS_PER_BATCH:
-            logger.warning(f"[LAMBDA] ⚠️ WARNING: Batch has {len(users_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
-            logger.warning(f"[LAMBDA] Truncating batch to {MAX_USERS_PER_BATCH} users")
-            users_batch = users_batch[:MAX_USERS_PER_BATCH]
-        
-        logger.info(f"[LAMBDA] Batch processing mode: {len(users_batch)} user(s) (MAX: {MAX_USERS_PER_BATCH})")
-        logger.info(f"[LAMBDA] Starting PARALLEL processing of {len(users_batch)} user(s)")
+        total_users = len(users_batch)
+        logger.info(f"[LAMBDA] Received {total_users} users to process in batches of {PARALLEL_BATCH_SIZE}")
         
         # Ensure DynamoDB table exists before processing
-        table_name = os.environ.get("DYNAMODB_TABLE_NAME", "gbot-app-passwords")
+        table_name = os.environ.get("DYNAMODB_TABLE_NAME", "dev-app-passwords")
         logger.info(f"[LAMBDA] Ensuring DynamoDB table exists: {table_name}")
         ensure_dynamodb_table_exists(table_name)
         
-        # Process all users in PARALLEL - each user gets their own Chrome driver instance
-        results = []
+        # Process ALL users in SEQUENTIAL BATCHES of PARALLEL_BATCH_SIZE
+        all_results = []
+        total_batches = (total_users + PARALLEL_BATCH_SIZE - 1) // PARALLEL_BATCH_SIZE  # Ceiling division
         
-        def process_user_wrapper(user_data, idx):
+        def process_user_wrapper(user_data, idx, batch_num, users_in_batch):
             """Wrapper function to process a single user with proper error handling"""
             email = user_data.get("email", "").strip()
             password = user_data.get("password", "").strip()
@@ -4838,23 +4835,21 @@ def handler(event, context):
                     "secret_key": None
                 }
             
-            # Stagger Chrome initialization to avoid resource contention
-            # Each thread waits a bit before starting to spread out resource usage
-            # This prevents all Chrome instances from initializing at exactly the same time
-            # CRITICAL: Increased to 15s to prevent OOM during simultaneous startups
+            # Stagger Chrome initialization within batch to avoid resource contention
+            # idx here is the index within the current batch (0, 1, 2), not global
             stagger_delay = idx * 15.0 
             if stagger_delay > 0:
-                logger.info(f"[LAMBDA] [THREAD] Staggering Chrome start for user {idx + 1}: waiting {stagger_delay}s")
+                logger.info(f"[LAMBDA] [BATCH {batch_num}] Staggering Chrome start for user {idx + 1}/{users_in_batch}: waiting {stagger_delay}s")
                 time.sleep(stagger_delay)
             
-            logger.info(f"[LAMBDA] [THREAD] Starting parallel processing of user {idx + 1}/{len(users_batch)}: {email}")
+            logger.info(f"[LAMBDA] [BATCH {batch_num}] Starting processing of user {idx + 1}/{users_in_batch}: {email}")
             try:
                 user_result = process_single_user(email, password, start_time)
-                logger.info(f"[LAMBDA] [THREAD] Completed user {idx + 1}/{len(users_batch)}: {email} - Status: {user_result.get('status', 'unknown')}")
+                logger.info(f"[LAMBDA] [BATCH {batch_num}] Completed user {idx + 1}/{users_in_batch}: {email} - Status: {user_result.get('status', 'unknown')}")
                 return user_result
             except Exception as e:
-                logger.error(f"[LAMBDA] [THREAD] Exception processing user {idx + 1}/{len(users_batch)}: {email} - {str(e)}")
-                logger.error(f"[LAMBDA] [THREAD] Traceback: {traceback.format_exc()}")
+                logger.error(f"[LAMBDA] [BATCH {batch_num}] Exception processing user {idx + 1}/{users_in_batch}: {email} - {str(e)}")
+                logger.error(f"[LAMBDA] [BATCH {batch_num}] Traceback: {traceback.format_exc()}")
                 return {
                     "email": email,
                     "status": "failed",
@@ -4866,74 +4861,96 @@ def handler(event, context):
         # Check for SEQUENTIAL_PROCESSING override for maximum stability
         sequential_mode = os.environ.get('SEQUENTIAL_PROCESSING', 'false').lower() == 'true'
         
-        if sequential_mode:
-            logger.info("[LAMBDA] SEQUENTIAL_PROCESSING enabled. Processing users one by one for maximum stability.")
-            results = []
-            for idx, user_data in enumerate(users_batch):
-                # Clean /tmp before each user to prevent disk exhaustion
-                try:
-                    subprocess.run(['rm', '-rf', '/tmp/chrome-data', '/tmp/data-path', '/tmp/cache-dir'], capture_output=True)
-                    os.makedirs('/tmp/chrome-data', exist_ok=True)
-                except:
-                    pass
+        # Process users in sequential batches
+        for batch_num in range(1, total_batches + 1):
+            batch_start_idx = (batch_num - 1) * PARALLEL_BATCH_SIZE
+            batch_end_idx = min(batch_start_idx + PARALLEL_BATCH_SIZE, total_users)
+            current_batch = users_batch[batch_start_idx:batch_end_idx]
+            users_in_batch = len(current_batch)
+            
+            logger.info(f"\n{'='*60}")
+            logger.info(f"[LAMBDA] Starting BATCH {batch_num}/{total_batches}: Users {batch_start_idx + 1}-{batch_end_idx} of {total_users}")
+            logger.info(f"{'='*60}")
+            
+            # Clean /tmp before each batch to prevent disk exhaustion
+            try:
+                subprocess.run(['rm', '-rf', '/tmp/chrome-data', '/tmp/data-path', '/tmp/cache-dir'], capture_output=True)
+                os.makedirs('/tmp/chrome-data', exist_ok=True)
+            except:
+                pass
+            
+            batch_results = []
+            
+            if sequential_mode:
+                logger.info(f"[LAMBDA] [BATCH {batch_num}] SEQUENTIAL_PROCESSING enabled. Processing {users_in_batch} users one by one.")
+                for idx, user_data in enumerate(current_batch):
+                    result = process_user_wrapper(user_data, idx, batch_num, users_in_batch)
+                    batch_results.append(result)
+                    time.sleep(2)  # Cool-down between users
+            else:
+                # Parallel Processing within this batch
+                max_concurrent = min(PARALLEL_BATCH_SIZE, users_in_batch)
+                logger.info(f"[LAMBDA] [BATCH {batch_num}] Using {max_concurrent} concurrent workers for {users_in_batch} users")
+                
+                with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+                    future_to_user = {
+                        executor.submit(process_user_wrapper, user_data, idx, batch_num, users_in_batch): (idx, user_data)
+                        for idx, user_data in enumerate(current_batch)
+                    }
                     
-                logger.info(f"[LAMBDA] Processing user {idx + 1}/{len(users_batch)} sequentially...")
-                result = process_user_wrapper(user_data, idx)
-                results.append(result)
-                
-                # Small cool-down between users
-                time.sleep(2)
-        else:
-            # Parallel Processing
-            max_concurrent = min(3, len(users_batch))
-            logger.info(f"[LAMBDA] Using {max_concurrent} concurrent workers for {len(users_batch)} users (processing all users in parallel for maximum speed)")
+                    completed_results = {}
+                    for future in as_completed(future_to_user):
+                        idx, user_data = future_to_user[future]
+                        try:
+                            result = future.result()
+                            completed_results[idx] = result
+                        except Exception as e:
+                            email = user_data.get("email", "unknown")
+                            logger.error(f"[LAMBDA] [BATCH {batch_num}] Future exception for user {idx + 1}: {email} - {str(e)}")
+                            completed_results[idx] = {
+                                "email": email,
+                                "status": "failed",
+                                "error_message": f"Future exception: {str(e)}",
+                                "app_password": None,
+                                "secret_key": None
+                            }
+                    
+                    batch_results = [completed_results[idx] for idx in sorted(completed_results.keys())]
             
-            with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-                # Submit all tasks
-                future_to_user = {
-                    executor.submit(process_user_wrapper, user_data, idx): (idx, user_data)
-                    for idx, user_data in enumerate(users_batch)
-                }
-                
-                # Collect results as they complete (maintain order)
-                completed_results = {}
-                for future in as_completed(future_to_user):
-                    idx, user_data = future_to_user[future]
-                    try:
-                        result = future.result()
-                        completed_results[idx] = result
-                    except Exception as e:
-                        email = user_data.get("email", "unknown")
-                        logger.error(f"[LAMBDA] [THREAD] Future exception for user {idx + 1}: {email} - {str(e)}")
-                        completed_results[idx] = {
-                            "email": email,
-                            "status": "failed",
-                            "error_message": f"Future exception: {str(e)}",
-                            "app_password": None,
-                            "secret_key": None
-                        }
-                
-                # Reconstruct results in original order
-                results = [completed_results[idx] for idx in sorted(completed_results.keys())]
+            # Add batch results to all results
+            all_results.extend(batch_results)
             
-            logger.info(f"[LAMBDA] All {len(users_batch)} users processed in parallel")
+            # Log batch completion
+            batch_success = sum(1 for r in batch_results if r.get("status") == "success")
+            batch_failed = len(batch_results) - batch_success
+            logger.info(f"[LAMBDA] [BATCH {batch_num}] Completed: {batch_success} success, {batch_failed} failed")
+            
+            # If more batches remain, add a brief delay
+            if batch_num < total_batches:
+                logger.info(f"[LAMBDA] Preparing for next batch...")
+                time.sleep(3)  # Brief cooldown between batches
         
         # Calculate total time
         total_time = round(time.time() - start_time, 2)
         
         # Count successes and failures
-        success_count = sum(1 for r in results if r.get("status") == "success")
-        failed_count = len(results) - success_count
+        success_count = sum(1 for r in all_results if r.get("status") == "success")
+        failed_count = len(all_results) - success_count
         
-        logger.info(f"[LAMBDA] Batch processing completed: {success_count} success, {failed_count} failed in {total_time}s")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"[LAMBDA] ALL BATCHES COMPLETED: {success_count} success, {failed_count} failed in {total_time}s")
+        logger.info(f"[LAMBDA] Processed {total_users} users in {total_batches} batch(es)")
+        logger.info(f"{'='*60}")
         
         return {
             "status": "completed",
-            "batch_size": len(users_batch),
+            "total_users": total_users,
+            "batch_count": total_batches,
+            "batch_size": PARALLEL_BATCH_SIZE,
             "success_count": success_count,
             "failed_count": failed_count,
             "total_time": total_time,
-            "results": results
+            "results": all_results
         }
     
     else:

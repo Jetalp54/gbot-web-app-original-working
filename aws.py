@@ -61,40 +61,41 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Config / Constants
 # ======================================================================
 
-APP_TITLE = "Google Workspace Automation – Production Lambda Controller"
+APP_TITLE = "Google Workspace Automation – DEV Lambda Controller"
 
-# Core resources (for Production/App Passwords)
-LAMBDA_ROLE_NAME = "edu-gw-app-password-lambda-role"
-PRODUCTION_LAMBDA_NAME = "edu-gw-chromium"
-S3_BUCKET_NAME = "edu-gw-app-passwords"
+# Core resources (for Production/App Passwords) - DEV prefix to avoid touching existing resources
+LAMBDA_ROLE_NAME = "dev-app-password-lambda-role"
+PRODUCTION_LAMBDA_NAME = "dev-chromium"
+S3_BUCKET_NAME = "dev-app-passwords"
 
 # ECR (Production)
-ECR_REPO_NAME = "edu-gw-app-password-worker-repo"
+ECR_REPO_NAME = "dev-app-password-worker-repo"
 ECR_IMAGE_TAG = "latest"
 
 # Prep Process Resources
-PREP_LAMBDA_PREFIX = "edu-gw-prep-worker"
-PREP_ECR_REPO_NAME = "edu-gw-prep-worker-repo"
+PREP_LAMBDA_PREFIX = "dev-prep-worker"
+PREP_ECR_REPO_NAME = "dev-prep-worker-repo"
 
 # ===== CREATION TAB RESOURCES (completely separate) =====
-CREATION_LAMBDA_NAME = "edu-gw-creation-worker"
-CREATION_ECR_REPO_NAME = "edu-gw-creation-repo"
-CREATION_S3_BUCKET_NAME = "edu-gw-creation-bucket"
-CREATION_LAMBDA_ROLE_NAME = "edu-gw-creation-lambda-role"
-CREATION_EC2_ROLE_NAME = "edu-gw-creation-ec2-role"
-CREATION_EC2_INSTANCE_PROFILE_NAME = "edu-gw-creation-ec2-profile"
-CREATION_EC2_INSTANCE_NAME = "edu-gw-creation-ec2-build"
-CREATION_EC2_SG_NAME = "edu-gw-creation-ec2-sg"
-CREATION_EC2_KEY_NAME = "edu-gw-creation-key"
+CREATION_LAMBDA_NAME = "dev-creation-worker"
+CREATION_ECR_REPO_NAME = "dev-creation-repo"
+CREATION_S3_BUCKET_NAME = "dev-creation-bucket"
+CREATION_LAMBDA_ROLE_NAME = "dev-creation-lambda-role"
+CREATION_EC2_ROLE_NAME = "dev-creation-ec2-role"
+CREATION_EC2_INSTANCE_PROFILE_NAME = "dev-creation-ec2-profile"
+CREATION_EC2_INSTANCE_NAME = "dev-creation-ec2-build"
+CREATION_EC2_SG_NAME = "dev-creation-ec2-sg"
+CREATION_EC2_KEY_NAME = "dev-creation-key"
 CREATION_EC2_KEY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"{CREATION_EC2_KEY_NAME}.pem")
 
 # EC2 build box configuration (for Production/App Passwords)
-EC2_INSTANCE_NAME = "edu-gw-ec2-build-box"
-EC2_ROLE_NAME = "edu-gw-ec2-build-role"
-EC2_INSTANCE_PROFILE_NAME = "edu-gw-ec2-build-instance-profile"
-EC2_SECURITY_GROUP_NAME = "edu-gw-ec2-build-sg"
-EC2_KEY_PAIR_NAME = "edu-gw-ec2-build-key"
+EC2_INSTANCE_NAME = "dev-ec2-build-box"
+EC2_ROLE_NAME = "dev-ec2-build-role"
+EC2_INSTANCE_PROFILE_NAME = "dev-ec2-build-instance-profile"
+EC2_SECURITY_GROUP_NAME = "dev-ec2-build-sg"
+EC2_KEY_PAIR_NAME = "dev-ec2-build-key"
 EC2_KEY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"{EC2_KEY_PAIR_NAME}.pem")
+
 
 # Global sets for unique generation
 _used_school_names = set()
@@ -1466,7 +1467,12 @@ class AwsEducationApp(QMainWindow):
             QMessageBox.critical(self, "Error", str(e))
 
     def on_invoke_lambda(self):
-        """Invoke Lambda for users in batches with wait between batches."""
+        """Invoke Lambda with ALL users in batches. Each Lambda processes multiple users internally (in batches of 3).
+        
+        The batch_size controls how many users to send per Lambda invocation.
+        The Lambda will internally process them in parallel batches of 3.
+        This significantly reduces costs by minimizing Lambda cold starts.
+        """
         try:
             session = self.get_session()
             lam = session.client("lambda")
@@ -1477,49 +1483,95 @@ class AwsEducationApp(QMainWindow):
                 return
             
             users = [line.strip().split(":", 1) for line in text.split("\n") if ":" in line]
-            batch_size = self.lambda_batch_size.value()
+            batch_size = self.lambda_batch_size.value()  # Users per Lambda invocation
             total_users = len(users)
             
-            self.log(f"Processing {total_users} users in batches of {batch_size}...")
+            if total_users == 0:
+                QMessageBox.warning(self, "Warning", "No valid email:password pairs found")
+                return
             
-            # Process in batches
+            # Calculate number of Lambda invocations needed
+            total_invocations = (total_users + batch_size - 1) // batch_size
+            
+            self.log(f"📊 Processing {total_users} users in {total_invocations} Lambda invocation(s)")
+            self.log(f"   Each Lambda will process up to {batch_size} users (in internal batches of 3)")
+            
+            total_success = 0
+            total_failed = 0
+            
+            # Process in batches - each batch is ONE Lambda invocation with multiple users
             for batch_num, i in enumerate(range(0, total_users, batch_size), 1):
                 batch = users[i:i + batch_size]
                 batch_end = min(i + batch_size, total_users)
-                self.log(f"\n=== Batch {batch_num}: Users {i+1}-{batch_end} ===")
                 
-                # Invoke Lambda for each user in batch synchronously to wait for completion
-                for email, password in batch:
-                    event = {"email": email.strip(), "password": password.strip()}
-                    try:
-                        # Use RequestResponse to wait for each Lambda to complete
-                        resp = lam.invoke(
-                            FunctionName=PRODUCTION_LAMBDA_NAME, 
-                            InvocationType="RequestResponse",  # Wait for completion
-                            Payload=json.dumps(event)
-                        )
-                        if resp.get("StatusCode") == 200:
-                            # Parse response to check result
-                            payload = json.loads(resp["Payload"].read().decode())
-                            if payload.get("status") == "success":
-                                self.log(f"✅ Success: {email}")
-                            else:
-                                self.log(f"⚠️ Completed: {email} - {payload.get('message', 'Unknown')}")
-                        else:
-                            self.log(f"❌ Failed for {email}: Status {resp.get('StatusCode')}")
-                    except Exception as e:
-                        self.log(f"❌ Error for {email}: {e}")
-                    
-                    # Small delay between invocations in same batch
+                self.log(f"\n{'='*50}")
+                self.log(f"🚀 Lambda Invocation {batch_num}/{total_invocations}: Users {i+1}-{batch_end}")
+                self.log(f"{'='*50}")
+                
+                # Build the batch event with ALL users for this Lambda
+                users_list = [
+                    {"email": email.strip(), "password": password.strip()}
+                    for email, password in batch
+                ]
+                
+                event = {"users": users_list}
+                
+                try:
+                    # Single Lambda invocation with multiple users
+                    self.log(f"   Invoking Lambda with {len(users_list)} users...")
                     QApplication.processEvents()  # Keep UI responsive
+                    
+                    resp = lam.invoke(
+                        FunctionName=PRODUCTION_LAMBDA_NAME, 
+                        InvocationType="RequestResponse",  # Wait for completion
+                        Payload=json.dumps(event)
+                    )
+                    
+                    if resp.get("StatusCode") == 200:
+                        payload = json.loads(resp["Payload"].read().decode())
+                        
+                        if payload.get("status") == "completed":
+                            batch_success = payload.get("success_count", 0)
+                            batch_failed = payload.get("failed_count", 0)
+                            batch_time = payload.get("total_time", "N/A")
+                            
+                            total_success += batch_success
+                            total_failed += batch_failed
+                            
+                            self.log(f"✅ Lambda completed: {batch_success} success, {batch_failed} failed in {batch_time}s")
+                            
+                            # Log individual results
+                            results = payload.get("results", [])
+                            for r in results:
+                                email = r.get("email", "unknown")
+                                status = r.get("status", "unknown")
+                                if status == "success":
+                                    self.log(f"   ✅ {email}")
+                                else:
+                                    error = r.get("error_message", "Unknown error")
+                                    self.log(f"   ❌ {email}: {error[:50]}...")
+                        else:
+                            # Single user format or other status
+                            self.log(f"⚠️ Response: {payload.get('status', 'unknown')}")
+                            if payload.get("status") == "success":
+                                total_success += 1
+                            else:
+                                total_failed += len(users_list)
+                    else:
+                        self.log(f"❌ Lambda invocation failed: Status {resp.get('StatusCode')}")
+                        total_failed += len(users_list)
+                        
+                except Exception as e:
+                    self.log(f"❌ Error invoking Lambda: {e}")
+                    total_failed += len(users_list)
                 
-                self.log(f"✅ Batch {batch_num} complete ({len(batch)} users)")
-                
-                # If there are more batches, log before continuing
-                if batch_end < total_users:
-                    self.log(f"Starting next batch...")
+                QApplication.processEvents()  # Keep UI responsive
             
-            self.log(f"\n✅ All {total_users} users processed in {batch_num} batch(es)")
+            self.log(f"\n{'='*50}")
+            self.log(f"🏁 COMPLETED: {total_success} success, {total_failed} failed out of {total_users}")
+            self.log(f"   Used {total_invocations} Lambda invocation(s)")
+            self.log(f"{'='*50}")
+            
         except Exception as e:
             self.log(f"❌ Error: {e}")
 
