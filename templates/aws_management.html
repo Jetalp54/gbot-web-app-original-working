@@ -1931,12 +1931,13 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
+        const naming = getNamingConfig();
 
-        if (!confirm('Are you sure you want to stop all running Lambda functions? This will prevent new invocations but will not delete the functions.')) {
+        if (!confirm(`Are you sure you want to stop all Lambda functions with prefix "${naming.lambda_prefix}"?\n\nThis will prevent new invocations but will not delete the functions.`)) {
             return;
         }
 
-        log('Stopping all Lambda functions across all regions...');
+        log(`Stopping all Lambda functions with prefix: ${naming.lambda_prefix}...`);
 
         fetch('/api/aws/stop-all-lambdas', {
             method: 'POST',
@@ -1946,7 +1947,8 @@
             body: JSON.stringify({
                 access_key: accessKey,
                 secret_key: secretKey,
-                region: region
+                region: region,
+                lambda_prefix: naming.lambda_prefix
             })
         })
             .then(response => response.json())

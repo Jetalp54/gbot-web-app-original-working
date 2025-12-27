@@ -1108,7 +1108,16 @@ def api_authenticate():
             service_account = ServiceAccount.query.get(account_id)
         
         if not service_account and account_name:
-             service_account = ServiceAccount.query.filter_by(name=account_name).first()
+            # Search by name first
+            service_account = ServiceAccount.query.filter_by(name=account_name).first()
+            
+            # If not found by name, try admin_email
+            if not service_account:
+                service_account = ServiceAccount.query.filter_by(admin_email=account_name).first()
+            
+            # If still not found, try client_email
+            if not service_account:
+                service_account = ServiceAccount.query.filter_by(client_email=account_name).first()
 
         if service_account:
             # Service Accounts don't need OAuth flow, just set in session

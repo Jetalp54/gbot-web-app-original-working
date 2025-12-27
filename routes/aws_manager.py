@@ -5316,9 +5316,21 @@ def stop_all_lambdas():
         access_key = data.get('access_key', '').strip()
         secret_key = data.get('secret_key', '').strip()
         region = data.get('region', '').strip()
+        
+        # Get lambda prefix from request (from UI input field)
+        lambda_prefix_from_request = data.get('lambda_prefix', '').strip()
 
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        # Use lambda prefix from request (UI input), fallback to config only if not provided
+        if lambda_prefix_from_request:
+            lambda_prefix_stop = lambda_prefix_from_request
+            logger.info(f"[STOP LAMBDA] Using lambda prefix from UI: {lambda_prefix_stop}")
+        else:
+            naming_config_stop = get_naming_config()
+            lambda_prefix_stop = naming_config_stop.get('production_lambda_name', 'dev-chromium')
+            logger.info(f"[STOP LAMBDA] Using lambda prefix from config: {lambda_prefix_stop}")
 
         # List of all AWS regions (as specified by user)
         AVAILABLE_GEO_REGIONS = [
@@ -5384,7 +5396,8 @@ def stop_all_lambdas():
                     for page in paginator.paginate():
                         for fn in page.get("Functions", []):
                             fn_name = fn["FunctionName"]
-                            if PRODUCTION_LAMBDA_NAME in fn_name or "edu-gw" in fn_name:
+                            # Use the lambda prefix from the request/UI
+                            if lambda_prefix_stop in fn_name:
                                 try:
                                     # Put reserved concurrency to 0 to stop new invocations
                                     # This effectively stops the function from accepting new requests
@@ -5465,6 +5478,9 @@ def delete_all_lambdas():
         access_key = data.get('access_key', '').strip()
         secret_key = data.get('secret_key', '').strip()
         region = data.get('region', '').strip()
+        
+        # Get lambda prefix from request (from UI input field)
+        lambda_prefix_from_request = data.get('lambda_prefix', '').strip()
 
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
@@ -5519,10 +5535,14 @@ def delete_all_lambdas():
         total_deleted = 0
         total_errors = 0
 
-        # Get configurable lambda prefix for multi-tenant support
-        naming_config_delete = get_naming_config()
-        lambda_prefix_delete = naming_config_delete['production_lambda_name']
-        instance_name_delete = naming_config_delete['instance_name']
+        # Use lambda prefix from request (UI input), fallback to config only if not provided
+        if lambda_prefix_from_request:
+            lambda_prefix_delete = lambda_prefix_from_request
+            logger.info(f"[DELETE LAMBDA] Using lambda prefix from UI: {lambda_prefix_delete}")
+        else:
+            naming_config_delete = get_naming_config()
+            lambda_prefix_delete = naming_config_delete.get('production_lambda_name', 'dev-chromium')
+            logger.info(f"[DELETE LAMBDA] Using lambda prefix from config: {lambda_prefix_delete}")
         
         def delete_region_lambdas(target_region):
             """Delete all Lambda functions in a specific region (parallel execution)"""
