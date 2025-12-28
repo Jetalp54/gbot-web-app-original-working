@@ -842,6 +842,14 @@ def start_bulk_multi_account():
                         entry['authStatus'] = 'running'
                         entry['message'] = 'Authenticating...'
                         
+                        # First, list all available accounts to help debug
+                        all_service_accounts = ServiceAccount.query.all()
+                        logger.info(f"Job {job_id}: Available Service Accounts ({len(all_service_accounts)}):")
+                        for sa in all_service_accounts:
+                            logger.info(f"  - Name: {sa.name}, Admin Email: {sa.admin_email}")
+                        
+                        logger.info(f"Job {job_id}: Looking for account with email: {admin_email}")
+                        
                         # Try exact email match first
                         service_account = ServiceAccount.query.filter(
                             ServiceAccount.admin_email == admin_email
