@@ -320,12 +320,22 @@ class GoogleDomainsService:
                 if token_response:
                     token = token_response.get('token', '')
                     if token:
-                        logger.info(f"Got verification token for {domain}: {token[:20]}...")
+                        logger.info(f"Got verification token for {domain}: {token[:40]}...")
+                        
+                        # Fix: Check if token already contains the prefix (Google sometimes returns the full value)
+                        if token.startswith('google-site-verification='):
+                            txt_value = token
+                            # Extract the actual token for the return value
+                            actual_token = token.replace('google-site-verification=', '', 1)
+                        else:
+                            txt_value = f'google-site-verification={token}'
+                            actual_token = token
+                        
                         return {
-                            'token': token,
+                            'token': actual_token,
                             'host': '@',
                             'method': 'DNS_TXT',
-                            'txt_value': f'google-site-verification={token}'
+                            'txt_value': txt_value
                         }
                     else:
                         logger.error(f"Empty token for {domain}. Response: {token_response}")
