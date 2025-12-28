@@ -817,16 +817,19 @@ def start_bulk_multi_account():
                     'message': 'Queued'
                 })
         
-        # Start background processing
+        # Start background processing with PARALLEL execution
         def process_bulk_multi():
             from app import app
-            with app.app_context():
-                job = bulk_multi_jobs[job_id]
+            from concurrent.futures import ThreadPoolExecutor
+            
+            def process_single_entry(entry_data):
+                """Process a single entry - runs in thread pool"""
+                entry_idx, entry, job, provider_name = entry_data
                 
-                for i, entry in enumerate(job['entries']):
+                with app.app_context():
                     if job['stop_event'].is_set():
                         entry['message'] = 'Stopped'
-                        continue
+                        return
                     
                     try:
                         domain = entry['domain']
@@ -835,31 +838,39 @@ def start_bulk_multi_account():
                         
                         logger.info(f"Job {job_id}: Processing entry {entry['index']}: {domain} -> {admin_email}")
                         
-                        # Step 1: Find and authenticate account by admin email domain
+                        # Step 1: Find account by EXACT admin email match
                         entry['authStatus'] = 'running'
                         entry['message'] = 'Authenticating...'
                         
-                        # Look up service account by domain
+                        # Try exact email match first
                         service_account = ServiceAccount.query.filter(
-                            ServiceAccount.admin_email.contains(account_domain)
+                            ServiceAccount.admin_email == admin_email
                         ).first()
                         
                         if not service_account:
-                            # Try by name
+                            # Try by email ending with @accountDomain
                             service_account = ServiceAccount.query.filter(
-                                ServiceAccount.name.contains(account_domain)
+                                ServiceAccount.admin_email.endswith(f'@{account_domain}')
                             ).first()
                         
                         if not service_account:
+                            # Try by name containing the account domain
+                            all_accounts = ServiceAccount.query.all()
+                            for acc in all_accounts:
+                                if account_domain in (acc.name or '') or account_domain in (acc.admin_email or ''):
+                                    service_account = acc
+                                    break
+                        
+                        if not service_account:
                             entry['authStatus'] = 'failed'
-                            entry['message'] = f'Account not found for {account_domain}'
-                            logger.warning(f"Job {job_id}: Account not found for {account_domain}")
-                            continue
+                            entry['message'] = f'Account not found for {admin_email}'
+                            logger.warning(f"Job {job_id}: Account not found for {admin_email}")
+                            return
                         
                         account_name = service_account.name
                         entry['authStatus'] = 'success'
-                        entry['message'] = f'Authenticated as {account_name}'
-                        logger.info(f"Job {job_id}: Authenticated as {account_name}")
+                        entry['message'] = f'Using account: {account_name}'
+                        logger.info(f"Job {job_id}: Using account {account_name} for {admin_email}")
                         
                         # Step 2: Add domain to Workspace
                         entry['workspaceStatus'] = 'running'
@@ -876,13 +887,19 @@ def start_bulk_multi_account():
                             entry['message'] = 'Domain added to Workspace'
                             logger.info(f"Job {job_id}: Domain {apex} added: {add_result}")
                         except Exception as e:
-                            if 'already exists' in str(e).lower() or '409' in str(e):
+                            error_str = str(e).lower()
+                            if 'already exists' in error_str or '409' in str(e):
                                 entry['workspaceStatus'] = 'success'
                                 entry['message'] = 'Domain already in Workspace'
+                            elif 'forbidden' in error_str or '403' in str(e):
+                                entry['workspaceStatus'] = 'failed'
+                                entry['message'] = f'Permission denied - check DWD scopes for {account_name}'
+                                logger.error(f"Job {job_id}: 403 for {account_name} - DWD scopes may be missing")
+                                return
                             else:
                                 entry['workspaceStatus'] = 'failed'
-                                entry['message'] = f'Workspace error: {str(e)}'
-                                continue
+                                entry['message'] = f'Workspace error: {str(e)[:100]}'
+                                return
                         
                         # Step 3: Get verification token and create DNS TXT record
                         entry['dnsStatus'] = 'running'
@@ -892,32 +909,34 @@ def start_bulk_multi_account():
                             token_result = google_service.request_verification_token(domain)
                             if not token_result.get('token'):
                                 entry['dnsStatus'] = 'failed'
-                                entry['message'] = 'Failed to get verification token'
-                                continue
+                                entry['message'] = f"Failed to get token: {token_result.get('error', 'Unknown')}"
+                                return
                             
                             txt_value = token_result['token']
                             txt_host = '@'  # Root domain
                             
                             # Create TXT record via DNS provider
-                            if provider == 'cloudflare':
+                            if provider_name == 'cloudflare':
                                 dns_service = CloudflareDNSService()
+                                ttl = 1
                             else:
                                 dns_service = NamecheapDNSService()
+                                ttl = 1799
                             
-                            dns_result = dns_service.upsert_txt_record(apex, txt_host, txt_value, ttl=1 if provider == 'cloudflare' else 1799)
+                            dns_result = dns_service.upsert_txt_record(apex, txt_host, txt_value, ttl=ttl)
                             entry['dnsStatus'] = 'success'
                             entry['message'] = 'TXT record created'
                             logger.info(f"Job {job_id}: TXT created for {apex}")
                             
                         except Exception as e:
                             entry['dnsStatus'] = 'failed'
-                            entry['message'] = f'DNS error: {str(e)}'
+                            entry['message'] = f'DNS error: {str(e)[:100]}'
                             logger.error(f"Job {job_id}: DNS error: {e}")
-                            continue
+                            return
                         
                         # Step 4: Verify domain
                         entry['verifyStatus'] = 'running'
-                        entry['message'] = 'Verifying...'
+                        entry['message'] = 'Verifying (waiting for DNS)...'
                         
                         # Wait for DNS propagation
                         import time
@@ -929,10 +948,12 @@ def start_bulk_multi_account():
                         for attempt in range(1, max_attempts + 1):
                             if job['stop_event'].is_set():
                                 entry['message'] = 'Stopped during verification'
-                                break
+                                return
                             
                             try:
+                                entry['message'] = f'Verify attempt {attempt}/{max_attempts}...'
                                 verify_result = google_service.verify_domain(domain)
+                                
                                 if verify_result.get('verified'):
                                     verified = True
                                     entry['verifyStatus'] = 'success'
@@ -940,21 +961,52 @@ def start_bulk_multi_account():
                                     logger.info(f"Job {job_id}: Domain {domain} verified on attempt {attempt}")
                                     break
                                 else:
-                                    entry['message'] = f'Attempt {attempt}/{max_attempts}: {verify_result.get("error", "Pending")}'
+                                    error_msg = verify_result.get('error', 'Pending')
+                                    entry['message'] = f'Attempt {attempt}/{max_attempts}: {error_msg[:50]}'
                                     if attempt < max_attempts:
                                         time.sleep(30)
                             except Exception as e:
-                                entry['message'] = f'Verify error: {str(e)}'
+                                entry['message'] = f'Verify error: {str(e)[:50]}'
                                 if attempt < max_attempts:
                                     time.sleep(30)
                         
                         if not verified and not job['stop_event'].is_set():
                             entry['verifyStatus'] = 'failed'
-                            entry['message'] = 'Verification timeout'
+                            entry['message'] = 'Verification timeout - DNS may need more time'
                             
                     except Exception as e:
                         logger.error(f"Job {job_id}: Error processing entry {entry.get('index')}: {e}", exc_info=True)
-                        entry['message'] = f'Error: {str(e)}'
+                        entry['message'] = f'Error: {str(e)[:100]}'
+            
+            # Main thread function
+            with app.app_context():
+                job = bulk_multi_jobs[job_id]
+                entries = job['entries']
+                
+                # Process entries in PARALLEL (max 5 concurrent)
+                max_workers = min(5, len(entries))
+                logger.info(f"Job {job_id}: Starting parallel processing with {max_workers} workers")
+                
+                try:
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        # Prepare entry data for parallel processing
+                        entry_data_list = [
+                            (i, entry, job, provider) 
+                            for i, entry in enumerate(entries)
+                        ]
+                        
+                        # Submit all tasks
+                        futures = [executor.submit(process_single_entry, data) for data in entry_data_list]
+                        
+                        # Wait for all to complete
+                        for future in futures:
+                            try:
+                                future.result(timeout=600)  # 10 min per entry max
+                            except Exception as e:
+                                logger.error(f"Job {job_id}: Thread error: {e}")
+                                
+                except Exception as e:
+                    logger.error(f"Job {job_id}: Executor error: {e}", exc_info=True)
                 
                 # Mark job complete
                 if job['stop_event'].is_set():
