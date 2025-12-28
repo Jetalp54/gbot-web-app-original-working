@@ -1286,6 +1286,10 @@
                 style="background-color: var(--color-danger-emphasis); border-color: var(--color-danger-emphasis); color: #ffffff; margin-left: 8px;">
                 <i class="fas fa-stop"></i> Stop Process
             </button>
+            <button onclick="verifyUnverifiedDomains()" class="btn-github" id="verify-unverified-btn"
+                style="background-color: #6f42c1; border-color: #6f42c1; color: #ffffff; margin-left: 8px;">
+                <i class="fas fa-check-double"></i> Verify Unverified Domains
+            </button>
         </div>
 
         <!-- Status Table -->
@@ -11251,6 +11255,104 @@
                 }
             });
     };
+
+    // Verify Unverified Domains - triggers verification for all domains that have TXT records but are not yet verified
+    window.verifyUnverifiedDomains = function () {
+        console.log('🔄 verifyUnverifiedDomains() called');
+
+        if (typeof isAuthenticated === 'undefined' || !isAuthenticated) {
+            alert('Please authenticate an account first');
+            return;
+        }
+
+        const btn = document.getElementById('verify-unverified-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+        }
+
+        // Show status table
+        const statusDiv = document.getElementById('domain-verification-status');
+        if (statusDiv) statusDiv.style.display = 'block';
+
+        // Show log container
+        const logContainer = document.getElementById('domain-verification-log-container');
+        if (logContainer) logContainer.style.display = 'block';
+
+        if (typeof logBulkDomain === 'function') {
+            logBulkDomain('🔄 Starting verification of unverified domains...');
+        }
+
+        fetch('/api/domains/verify-unverified', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_name: currentAccountName })
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log('📦 Verify unverified response:', data);
+
+                if (data.success) {
+                    if (typeof logBulkDomain === 'function') {
+                        logBulkDomain(`✅ Started verification for ${data.total_domains || 0} domains`);
+                        if (data.domains && data.domains.length > 0) {
+                            data.domains.forEach((domain, idx) => {
+                                logBulkDomain(`   ${idx + 1}. ${domain}`);
+                            });
+                        }
+                        logBulkDomain('📊 Job ID: ' + data.job_id);
+                    }
+
+                    // Start polling for verification status
+                    if (data.job_id) {
+                        domainVerificationJobId = data.job_id;
+                        startDomainVerificationPolling();
+                    }
+
+                    // Also immediately refresh the domain status table
+                    if (data.domains && data.domains.length > 0) {
+                        const tbody = document.getElementById('domain-verification-table-body');
+                        if (tbody) {
+                            data.domains.forEach(domain => {
+                                const existingRow = document.querySelector(`tr[data-domain="${domain}"]`);
+                                if (!existingRow) {
+                                    const row = document.createElement('tr');
+                                    row.setAttribute('data-domain', domain);
+                                    row.innerHTML = `
+                                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">${domain}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">PENDING</span></td>
+                                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">PENDING</span></td>
+                                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">VERIFYING</span></td>
+                                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">Verification in progress...</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">${new Date().toLocaleString()}</td>
+                                `;
+                                    tbody.appendChild(row);
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    if (typeof logBulkDomain === 'function') {
+                        logBulkDomain('❌ Error: ' + (data.error || 'Unknown error'));
+                    }
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error verifying unverified domains:', error);
+                if (typeof logBulkDomain === 'function') {
+                    logBulkDomain('❌ Error: ' + error.message);
+                }
+                alert('Error: ' + error.message);
+            })
+            .finally(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check-double"></i> Verify Unverified Domains';
+                }
+            });
+    };
+
 
     // Verify function was created IMMEDIATELY
     console.log('Function created, type:', typeof window.startDomainVerification);

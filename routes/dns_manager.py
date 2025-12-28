@@ -566,6 +566,212 @@ def stop_domain_verification():
         logger.error(f"Error stopping domain verification: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@dns_manager.route('/api/domains/verify-unverified', methods=['POST'])
+@login_required
+def verify_unverified_domains():
+    """
+    Verify all domains that are not yet verified in Google Workspace.
+    This endpoint:
+    1. Fetches all domains from Admin SDK
+    2. Filters to only unverified domains
+    3. Triggers verification for each in parallel
+    """
+    try:
+        data = request.get_json() or {}
+        
+        # Get current account name from session
+        account_name = session.get('current_account_name')
+        if not account_name:
+            return jsonify({'success': False, 'error': 'No authenticated account'}), 401
+        
+        logger.info(f"=== VERIFY UNVERIFIED DOMAINS === Account: {account_name}")
+        
+        # Verify account exists (Check Service Account first)
+        service_account = ServiceAccount.query.filter_by(name=account_name).first()
+        if not service_account:
+            account = GoogleAccount.query.filter_by(account_name=account_name).first()
+            if not account:
+                return jsonify({'success': False, 'error': 'Account not found'}), 404
+        
+        # Initialize Google Domains Service
+        google_service = GoogleDomainsService(account_name=account_name)
+        
+        # Get all domains from Admin SDK
+        try:
+            admin_service = google_service._get_admin_service()
+            response = admin_service.domains().list(customer='my_customer').execute()
+            all_domains = response.get('domains', [])
+            logger.info(f"Found {len(all_domains)} total domains in Workspace")
+        except Exception as e:
+            logger.error(f"Error fetching domains from Admin SDK: {e}")
+            return jsonify({'success': False, 'error': f'Error fetching domains: {str(e)}'}), 500
+        
+        # Filter to unverified domains only
+        unverified_domains = []
+        for domain in all_domains:
+            domain_name = domain.get('domainName', '')
+            is_verified = domain.get('verified', False)
+            logger.info(f"Domain: {domain_name} - Verified: {is_verified}")
+            if not is_verified and domain_name:
+                unverified_domains.append(domain_name)
+        
+        if not unverified_domains:
+            logger.info("No unverified domains found")
+            return jsonify({
+                'success': True,
+                'message': 'All domains are already verified!',
+                'total_domains': 0,
+                'domains': []
+            })
+        
+        logger.info(f"Found {len(unverified_domains)} unverified domains: {unverified_domains}")
+        
+        # Create job for verification
+        job_id = str(uuid.uuid4())
+        
+        with job_lock:
+            active_jobs[job_id] = {
+                'status': 'running',
+                'total': len(unverified_domains),
+                'started_at': datetime.now().isoformat(),
+                'stop_event': threading.Event()
+            }
+        
+        # Start background processing for verification
+        def verify_domains_batch():
+            from app import app
+            with app.app_context():
+                max_workers = min(5, len(unverified_domains))
+                logger.info(f"Job {job_id}: Starting parallel verification with {max_workers} workers")
+                
+                try:
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        futures = []
+                        for domain in unverified_domains:
+                            if active_jobs[job_id]['stop_event'].is_set():
+                                logger.info(f"Job {job_id}: Stop requested during submission")
+                                break
+                            
+                            # Create operation record
+                            operation = DomainVerificationOperation(
+                                job_id=job_id,
+                                domain=domain,
+                                apex_domain=domain,  # These are apex domains from Admin SDK
+                                account_name=account_name,
+                                workspace_status='skipped',  # Domain already added
+                                dns_status='skipped',  # TXT record already exists
+                                verify_status='pending',
+                                message='Starting verification...',
+                                raw_log=[]
+                            )
+                            db.session.add(operation)
+                            db.session.commit()
+                            
+                            # Submit verification task
+                            future = executor.submit(
+                                verify_single_domain,
+                                job_id,
+                                domain,
+                                account_name,
+                                active_jobs[job_id]['stop_event']
+                            )
+                            futures.append((domain, future))
+                        
+                        # Wait for all futures to complete
+                        for domain, future in futures:
+                            try:
+                                result = future.result(timeout=300)  # 5 min timeout per domain
+                                logger.info(f"Job {job_id}: Verification result for {domain}: {result}")
+                            except Exception as exc:
+                                logger.error(f"Job {job_id}: Verification error for {domain}: {exc}")
+                        
+                        # Update final status
+                        with job_lock:
+                            if job_id in active_jobs:
+                                if active_jobs[job_id]['stop_event'].is_set():
+                                    active_jobs[job_id]['status'] = 'stopped'
+                                else:
+                                    active_jobs[job_id]['status'] = 'completed'
+                                    
+                except Exception as e:
+                    logger.error(f"Job {job_id}: Error in verification batch: {e}", exc_info=True)
+                    with job_lock:
+                        if job_id in active_jobs:
+                            active_jobs[job_id]['status'] = 'failed'
+        
+        # Start the batch thread
+        batch_thread = threading.Thread(target=verify_domains_batch)
+        batch_thread.daemon = True
+        batch_thread.start()
+        
+        logger.info(f"Started verification job {job_id} for {len(unverified_domains)} domains")
+        
+        return jsonify({
+            'success': True,
+            'job_id': job_id,
+            'total_domains': len(unverified_domains),
+            'domains': unverified_domains,
+            'message': f'Started verification for {len(unverified_domains)} unverified domains'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in verify-unverified endpoint: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def verify_single_domain(job_id: str, domain: str, account_name: str, stop_event):
+    """
+    Verify a single domain - called from the parallel executor.
+    """
+    from app import app
+    with app.app_context():
+        try:
+            # Get the operation record
+            operation = DomainVerificationOperation.query.filter_by(
+                job_id=job_id, domain=domain
+            ).first()
+            
+            if not operation:
+                logger.error(f"Operation not found for {domain}")
+                return {'success': False, 'error': 'Operation not found'}
+            
+            if stop_event.is_set():
+                operation.verify_status = 'stopped'
+                operation.message = 'Stopped by user'
+                db.session.commit()
+                return {'success': False, 'error': 'Stopped by user'}
+            
+            logger.info(f"=== VERIFYING DOMAIN {domain} ===")
+            operation.message = 'Calling verification API...'
+            db.session.commit()
+            
+            # Initialize Google service and verify
+            google_service = GoogleDomainsService(account_name=account_name)
+            verify_result = google_service.verify_domain(domain)
+            
+            logger.info(f"Verification result for {domain}: {verify_result}")
+            
+            if verify_result.get('verified'):
+                operation.verify_status = 'success'
+                operation.message = 'Domain verified successfully!'
+                logger.info(f"✅ Domain {domain} verified successfully!")
+            else:
+                error_msg = verify_result.get('error', 'Verification pending')
+                operation.verify_status = 'failed'
+                operation.message = error_msg
+                logger.warning(f"❌ Domain {domain} verification failed: {error_msg}")
+            
+            db.session.commit()
+            return verify_result
+            
+        except Exception as e:
+            logger.error(f"Error verifying {domain}: {e}", exc_info=True)
+            if operation:
+                operation.verify_status = 'failed'
+                operation.message = str(e)
+                db.session.commit()
+            return {'success': False, 'error': str(e)}
+
 @dns_manager.route('/api/namecheap-domains', methods=['GET'])
 @login_required
 def get_namecheap_domains():
