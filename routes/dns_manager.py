@@ -868,9 +868,16 @@ def start_bulk_multi_account():
                             return
                         
                         account_name = service_account.name
+                        stored_admin_email = service_account.admin_email
+                        
+                        # Log the account details for debugging
+                        logger.info(f"Job {job_id}: Found Service Account:")
+                        logger.info(f"  - Account Name: {account_name}")
+                        logger.info(f"  - Input Email: {admin_email}")
+                        logger.info(f"  - Stored Admin Email (for DWD): {stored_admin_email}")
+                        
                         entry['authStatus'] = 'success'
-                        entry['message'] = f'Using account: {account_name}'
-                        logger.info(f"Job {job_id}: Using account {account_name} for {admin_email}")
+                        entry['message'] = f'Using: {account_name}'
                         
                         # Step 2: Add domain to Workspace
                         entry['workspaceStatus'] = 'running'
