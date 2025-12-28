@@ -311,6 +311,10 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 return
 
             if not dry_run:
+                # EXPLICIT LOG: Verification is starting
+                logger.info(f"=== STEP 6 START === Job {job_id}: Domain {domain} - Starting verification process")
+                logger.info(f"Job {job_id}: Current operation status - workspace: {operation.workspace_status}, dns: {operation.dns_status}")
+                
                 # Wait 10 seconds after DNS TXT record creation before first verification attempt
                 logger.info(f"Waiting 10 seconds for DNS propagation before verification...")
                 time.sleep(10)
@@ -319,24 +323,29 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 attempt = 0
                 verified = False
                 
+                logger.info(f"Job {job_id}: Starting verification loop - max {max_attempts} attempts for {domain}")
+                
                 while attempt < max_attempts and not verified:
                     if stop_event and stop_event.is_set():
                         operation.message = 'Stopped by user'
                         operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
                         db.session.commit()
+                        logger.warning(f"Job {job_id}: Verification stopped by user event")
                         return
 
                     attempt += 1
                     try:
-                        logger.info(f"Verification attempt {attempt}/{max_attempts} for {domain}")
+                        logger.info(f"=== VERIFICATION ATTEMPT {attempt}/{max_attempts} === Domain: {domain}")
                         verify_result = google_service.verify_domain(domain)
+                        
+                        logger.info(f"Job {job_id}: Verification result for {domain}: {verify_result}")
                         
                         if verify_result.get('verified'):
                             verified = True
                             operation.verify_status = 'success'
                             operation.message = 'Domain verified successfully'
                             operation.raw_log.append(log_entry('verify', 'success', f'Verified on attempt {attempt}'))
-                            logger.info(f"Domain {apex} verified successfully on attempt {attempt}")
+                            logger.info(f"=== VERIFICATION SUCCESS === Domain {apex} verified on attempt {attempt}")
                         else:
                             operation.raw_log.append(log_entry('verify', 'pending', f'Attempt {attempt}/{max_attempts}: Not yet verified'))
                             if attempt < max_attempts:

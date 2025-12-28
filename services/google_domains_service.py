@@ -359,24 +359,34 @@ class GoogleDomainsService:
         """
         Verify domain in Google Workspace after DNS TXT record is created.
         
+        This is a TWO-STEP process:
+        1. Verify domain ownership via Site Verification API (proves we own the domain)
+        2. Verify the domain in Google Workspace Admin SDK (marks it as verified for Workspace use)
+        
         Args:
             domain: Domain to verify (can be subdomain like 'sub.example.com' or apex 'example.com')
         
         Returns:
             Dict with 'verified' (bool) and 'status' (str)
         """
-        # Try both delegation modes
+        logger.info(f"Starting domain verification for {domain}")
+        
+        # Get apex domain for Workspace verification
+        from services.zone_utils import to_apex
+        apex = to_apex(domain)
+        
+        # STEP 1: Site Verification API - Verify ownership
+        site_verification_success = False
+        site_verification_error = None
+        
         for without_delegation in [False, True]:
             try:
-                logger.info(f"Attempting verification for {domain} (without_delegation={without_delegation})")
+                logger.info(f"Step 1: Site Verification for {domain} (without_delegation={without_delegation})")
                 service = self._get_site_verification_service(without_delegation=without_delegation)
                 
                 # Get admin email for owner field
                 service_account_row = ServiceAccount.query.filter_by(name=self.account_name).first()
                 admin_email = service_account_row.admin_email if service_account_row else None
-                
-                if admin_email:
-                    logger.info(f"Using admin email for verification owner: {admin_email}")
                 
                 # Create verification resource
                 verification_resource = {
@@ -386,72 +396,128 @@ class GoogleDomainsService:
                     }
                 }
                 
-                # Only add owners if we have an admin email
                 if admin_email:
                     verification_resource['owners'] = [admin_email]
+                    logger.info(f"Using admin email as owner: {admin_email}")
                 
-                logger.info(f"Verification request body: {verification_resource}")
+                # Try to insert/verify the domain
+                result = service.webResource().insert(
+                    verificationMethod='DNS_TXT',
+                    body=verification_resource
+                ).execute()
                 
-                try:
-                    # Try to insert/verify the domain
-                    result = service.webResource().insert(
-                        verificationMethod='DNS_TXT',
-                        body=verification_resource
-                    ).execute()
-                    
-                    logger.info(f"Verification API response for {domain}: {result}")
-                    
-                    # Parse response
-                    site_info = result.get('site', {})
-                    verified = site_info.get('identifier') == domain
-                    owners = result.get('owners', [])
-                    
-                    # If we get a response without error, it means verification succeeded
-                    if result.get('id'):
-                        logger.info(f"Domain {domain} verified! ID: {result.get('id')}, Owners: {owners}")
-                        return {'verified': True, 'status': 'verified', 'id': result.get('id')}
-                    
-                    return {
-                        'verified': verified,
-                        'status': 'verified' if verified else 'pending'
-                    }
-                    
-                except HttpError as e:
-                    error_str = str(e)
-                    status = e.resp.status if hasattr(e, 'resp') else 'unknown'
-                    logger.warning(f"HTTP {status} during verification for {domain}: {error_str}")
-                    
-                    # Handle specific error cases
-                    if 'already exists' in error_str.lower() or status == 409:
-                        logger.info(f"Domain {domain} verification already exists, treated as verified")
-                        return {'verified': True, 'status': 'verified'}
-                    
-                    if 'already verified' in error_str.lower():
-                        return {'verified': True, 'status': 'verified'}
-                    
-                    if status == 400:
-                        # Bad request - typically DNS not propagated
-                        logger.warning(f"DNS may not have propagated for {domain}")
-                        return {'verified': False, 'status': 'pending', 'error': 'DNS not propagated yet'}
-                    
-                    if status == 503:
-                        # Try other delegation mode
-                        if not without_delegation:
-                            logger.info("503 error with delegation, trying without...")
-                            continue
-                        
-                    raise e
+                logger.info(f"Site Verification API response for {domain}: {result}")
+                
+                # Check if we got a valid response
+                if result.get('id') or result.get('site', {}).get('identifier') == domain:
+                    logger.info(f"Site Verification succeeded for {domain}")
+                    site_verification_success = True
+                    break
                     
             except HttpError as e:
-                if e.resp.status == 503 and not without_delegation:
+                error_str = str(e)
+                status = e.resp.status if hasattr(e, 'resp') else 'unknown'
+                logger.warning(f"Site Verification HTTP {status} for {domain}: {error_str}")
+                
+                # 409 means already verified in Site Verification - that's okay
+                if status == 409 or 'already exists' in error_str.lower():
+                    logger.info(f"Site Verification already exists for {domain}")
+                    site_verification_success = True
+                    break
+                
+                # 400 means DNS not propagated - this is a real failure
+                if status == 400:
+                    error_msg = "DNS TXT record not found. Please wait for DNS propagation."
+                    if 'verification token could not be found' in error_str.lower():
+                        error_msg = "DNS TXT verification token not found on domain. Check that the TXT record was created correctly."
+                    logger.error(f"Site Verification failed for {domain}: {error_msg}")
+                    return {'verified': False, 'status': 'failed', 'error': error_msg}
+                
+                # 503 - try other mode
+                if status == 503 and not without_delegation:
+                    logger.info("503 error, trying without delegation...")
+                    site_verification_error = error_str
                     continue
-                logger.error(f"Verification failed for {domain}: {e}")
-                return {'verified': False, 'status': 'failed', 'error': str(e)}
+                
+                site_verification_error = error_str
+                
             except Exception as e:
-                logger.error(f"Unexpected error verifying {domain}: {e}", exc_info=True)
-                return {'verified': False, 'status': 'failed', 'error': str(e)}
+                site_verification_error = str(e)
+                logger.error(f"Site Verification error for {domain}: {e}")
         
-        return {'verified': False, 'status': 'failed', 'error': 'All verification attempts failed'}
+        if not site_verification_success:
+            error_msg = f"Site Verification failed: {site_verification_error or 'Unknown error'}"
+            logger.error(error_msg)
+            return {'verified': False, 'status': 'failed', 'error': error_msg}
+        
+        # STEP 2: Google Admin SDK - Verify domain in Workspace
+        try:
+            logger.info(f"Step 2: Verifying domain {apex} in Google Workspace Admin SDK")
+            admin_service = self._get_admin_service()
+            
+            # First check current verification status
+            try:
+                domain_info = admin_service.domains().get(customer='my_customer', domainName=apex).execute()
+                current_verified = domain_info.get('verified', False)
+                logger.info(f"Current Workspace verification status for {apex}: {current_verified}")
+                
+                if current_verified:
+                    logger.info(f"Domain {apex} is already verified in Workspace!")
+                    return {'verified': True, 'status': 'verified'}
+                    
+            except HttpError as e:
+                if e.resp.status == 404:
+                    logger.warning(f"Domain {apex} not found in Workspace, will try to add it")
+                    # Try to add the domain first
+                    try:
+                        add_result = self.ensure_domain_added(apex)
+                        logger.info(f"Added domain {apex} to Workspace: {add_result}")
+                    except Exception as add_error:
+                        logger.warning(f"Could not add domain {apex}: {add_error}")
+                else:
+                    logger.warning(f"Error getting domain {apex}: {e}")
+            
+            # Now try to verify the domain in Workspace
+            # The Admin SDK domains().verify() method triggers verification
+            try:
+                verify_result = admin_service.domains().get(customer='my_customer', domainName=apex).execute()
+                
+                # After Site Verification succeeds and DNS is correct,
+                # Google should automatically verify the domain on the next check
+                # Let's check the verified status
+                is_verified = verify_result.get('verified', False)
+                
+                if is_verified:
+                    logger.info(f"Domain {apex} is NOW verified in Google Workspace!")
+                    return {'verified': True, 'status': 'verified'}
+                else:
+                    # Domain exists but not verified yet
+                    # This could happen if DNS just propagated
+                    logger.warning(f"Domain {apex} exists in Workspace but not yet verified. Status: {verify_result}")
+                    return {
+                        'verified': False, 
+                        'status': 'pending', 
+                        'error': 'Domain added to Workspace but verification pending. TXT record may still be propagating.'
+                    }
+                    
+            except HttpError as e:
+                error_str = str(e)
+                status = e.resp.status if hasattr(e, 'resp') else 'unknown'
+                logger.error(f"Admin SDK verification error for {apex}: HTTP {status} - {error_str}")
+                
+                return {
+                    'verified': False,
+                    'status': 'failed',
+                    'error': f'Admin SDK error: {error_str}'
+                }
+                
+        except Exception as e:
+            logger.error(f"Workspace verification error for {apex}: {e}", exc_info=True)
+            return {
+                'verified': False,
+                'status': 'failed', 
+                'error': f'Workspace verification error: {str(e)}'
+            }
     
     def is_verified(self, apex: str) -> bool:
         """
