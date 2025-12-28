@@ -169,26 +169,43 @@ class CloudflareDNSService:
             # 3. Check for existing record
             existing_records = self.get_dns_records(zone_id, type='TXT', name=record_name)
             
-            # Check if exact match exists
+            # Prepare both quoted and unquoted versions for comparison
+            # Cloudflare stores TXT records with quotes, so we need to check both formats
+            quoted_value = f'"{value}"' if not (value.startswith('"') and value.endswith('"')) else value
+            unquoted_value = value.strip('"')
+            
+            # Check if exact match exists (with or without quotes)
             for record in existing_records:
-                if record['content'] == value:
+                record_content = record['content']
+                if record_content == value or record_content == quoted_value or record_content.strip('"') == unquoted_value:
                     logger.info(f"TXT record already exists for {record_name} with value {value}")
                     return {'success': True, 'message': 'Record already exists', 'record': record}
             
             # 4. If we are adding a Google verification token, remove any existing ones for this name
             # (Similar logic to Namecheap fix)
-            if value.startswith('google-site-verification='):
+            # Check for google-site-verification in both quoted and unquoted formats
+            is_google_verification = 'google-site-verification=' in value
+            if is_google_verification:
                 for record in existing_records:
-                    if record['content'].startswith('google-site-verification='):
+                    record_content = record['content'].strip('"')
+                    if 'google-site-verification=' in record_content:
                         logger.info(f"Deleting existing Google verification token: {record['id']}")
                         self.delete_record(zone_id, record['id'])
 
             # 5. Create new record
             url = f"{self.BASE_URL}/zones/{zone_id}/dns_records"
+            
+            # Cloudflare TXT records need the value wrapped in double quotes
+            # If value doesn't already have quotes, add them
+            if not (value.startswith('"') and value.endswith('"')):
+                quoted_value = f'"{value}"'
+            else:
+                quoted_value = value
+            
             payload = {
                 'type': 'TXT',
                 'name': record_name,
-                'content': value,
+                'content': quoted_value,
                 'ttl': ttl  # 1 = Automatic in Cloudflare
             }
             
