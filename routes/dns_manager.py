@@ -883,8 +883,9 @@ def start_bulk_multi_account():
                         entry['message'] = 'Adding to Workspace...'
                         
                         # Call existing process_domain_verification directly
-                        # Create a mini job_id for this entry (use parent job + entry index)
-                        entry_job_id = f"{job_id}_entry_{entry['index']}"
+                        # Use a proper UUID for the entry job (database column is 36 chars max)
+                        import uuid as uuid_module
+                        entry_job_id = str(uuid_module.uuid4())
                         
                         # Call the working function
                         process_domain_verification(
