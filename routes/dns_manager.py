@@ -838,35 +838,43 @@ def start_bulk_multi_account():
                         
                         logger.info(f"Job {job_id}: Processing entry {entry['index']}: {domain} -> {admin_email}")
                         
-                        # Step 1: Find account by EXACT admin email match
+                        # Step 1: Find account - try by NAME first (same as single-account feature)
+                        # Input can be: admin_email OR account_name (domain)
                         entry['authStatus'] = 'running'
                         entry['message'] = 'Authenticating...'
                         
-                        # First, list all available accounts to help debug
+                        # Log available accounts for debugging
                         all_service_accounts = ServiceAccount.query.all()
                         logger.info(f"Job {job_id}: Available Service Accounts ({len(all_service_accounts)}):")
                         for sa in all_service_accounts:
-                            logger.info(f"  - Name: {sa.name}, Admin Email: {sa.admin_email}")
+                            logger.info(f"  - Name: '{sa.name}', Admin Email: '{sa.admin_email}'")
                         
-                        logger.info(f"Job {job_id}: Looking for account with email: {admin_email}")
+                        logger.info(f"Job {job_id}: Looking for account matching: '{admin_email}'")
                         
-                        # Try exact email match first
-                        service_account = ServiceAccount.query.filter(
-                            ServiceAccount.admin_email == admin_email
-                        ).first()
+                        # 1. Try exact NAME match first (like single-account does)
+                        service_account = ServiceAccount.query.filter_by(name=admin_email).first()
+                        if service_account:
+                            logger.info(f"Job {job_id}: Found by name: {service_account.name}")
                         
+                        # 2. Try by admin_email exact match
                         if not service_account:
-                            # Try by email ending with @accountDomain
-                            service_account = ServiceAccount.query.filter(
-                                ServiceAccount.admin_email.endswith(f'@{account_domain}')
-                            ).first()
+                            service_account = ServiceAccount.query.filter_by(admin_email=admin_email).first()
+                            if service_account:
+                                logger.info(f"Job {job_id}: Found by admin_email: {service_account.name}")
                         
+                        # 3. Try by account domain (extract from admin_email)
+                        if not service_account and account_domain:
+                            # Try to find by name containing account_domain
+                            service_account = ServiceAccount.query.filter_by(name=account_domain).first()
+                            if service_account:
+                                logger.info(f"Job {job_id}: Found by account_domain name match: {service_account.name}")
+                        
+                        # 4. Fallback: search all accounts for partial match
                         if not service_account:
-                            # Try by name containing the account domain
-                            all_accounts = ServiceAccount.query.all()
-                            for acc in all_accounts:
+                            for acc in all_service_accounts:
                                 if account_domain in (acc.name or '') or account_domain in (acc.admin_email or ''):
                                     service_account = acc
+                                    logger.info(f"Job {job_id}: Found by partial match: {acc.name}")
                                     break
                         
                         if not service_account:
