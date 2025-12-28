@@ -772,6 +772,256 @@ def verify_single_domain(job_id: str, domain: str, account_name: str, stop_event
                 db.session.commit()
             return {'success': False, 'error': str(e)}
 
+# ===== BULK MULTI-ACCOUNT DOMAIN VERIFICATION =====
+bulk_multi_jobs = {}
+bulk_multi_lock = threading.Lock()
+
+@dns_manager.route('/api/domains/bulk-multi-account/start', methods=['POST'])
+@login_required
+def start_bulk_multi_account():
+    """
+    Start bulk multi-account domain verification.
+    Each entry has: domain, adminEmail, accountDomain, password
+    """
+    try:
+        data = request.get_json()
+        entries = data.get('entries', [])
+        provider = data.get('provider', 'namecheap')
+        
+        if not entries:
+            return jsonify({'success': False, 'error': 'No entries provided'}), 400
+        
+        job_id = str(uuid.uuid4())
+        logger.info(f"=== BULK MULTI-ACCOUNT START === Job: {job_id}, Entries: {len(entries)}, Provider: {provider}")
+        
+        # Initialize job state
+        with bulk_multi_lock:
+            bulk_multi_jobs[job_id] = {
+                'status': 'running',
+                'stop_event': threading.Event(),
+                'entries': [],
+                'started_at': datetime.now().isoformat()
+            }
+            
+            # Initialize entry statuses
+            for entry in entries:
+                bulk_multi_jobs[job_id]['entries'].append({
+                    'index': entry.get('index'),
+                    'domain': entry.get('domain'),
+                    'adminEmail': entry.get('adminEmail'),
+                    'accountDomain': entry.get('accountDomain'),
+                    'authStatus': 'pending',
+                    'workspaceStatus': 'pending',
+                    'dnsStatus': 'pending',
+                    'verifyStatus': 'pending',
+                    'message': 'Queued'
+                })
+        
+        # Start background processing
+        def process_bulk_multi():
+            from app import app
+            with app.app_context():
+                job = bulk_multi_jobs[job_id]
+                
+                for i, entry in enumerate(job['entries']):
+                    if job['stop_event'].is_set():
+                        entry['message'] = 'Stopped'
+                        continue
+                    
+                    try:
+                        domain = entry['domain']
+                        admin_email = entry['adminEmail']
+                        account_domain = entry['accountDomain']
+                        
+                        logger.info(f"Job {job_id}: Processing entry {entry['index']}: {domain} -> {admin_email}")
+                        
+                        # Step 1: Find and authenticate account by admin email domain
+                        entry['authStatus'] = 'running'
+                        entry['message'] = 'Authenticating...'
+                        
+                        # Look up service account by domain
+                        service_account = ServiceAccount.query.filter(
+                            ServiceAccount.admin_email.contains(account_domain)
+                        ).first()
+                        
+                        if not service_account:
+                            # Try by name
+                            service_account = ServiceAccount.query.filter(
+                                ServiceAccount.name.contains(account_domain)
+                            ).first()
+                        
+                        if not service_account:
+                            entry['authStatus'] = 'failed'
+                            entry['message'] = f'Account not found for {account_domain}'
+                            logger.warning(f"Job {job_id}: Account not found for {account_domain}")
+                            continue
+                        
+                        account_name = service_account.name
+                        entry['authStatus'] = 'success'
+                        entry['message'] = f'Authenticated as {account_name}'
+                        logger.info(f"Job {job_id}: Authenticated as {account_name}")
+                        
+                        # Step 2: Add domain to Workspace
+                        entry['workspaceStatus'] = 'running'
+                        entry['message'] = 'Adding to Workspace...'
+                        
+                        google_service = GoogleDomainsService(account_name=account_name)
+                        
+                        from services.zone_utils import to_apex
+                        apex = to_apex(domain)
+                        
+                        try:
+                            add_result = google_service.ensure_domain_added(apex)
+                            entry['workspaceStatus'] = 'success'
+                            entry['message'] = 'Domain added to Workspace'
+                            logger.info(f"Job {job_id}: Domain {apex} added: {add_result}")
+                        except Exception as e:
+                            if 'already exists' in str(e).lower() or '409' in str(e):
+                                entry['workspaceStatus'] = 'success'
+                                entry['message'] = 'Domain already in Workspace'
+                            else:
+                                entry['workspaceStatus'] = 'failed'
+                                entry['message'] = f'Workspace error: {str(e)}'
+                                continue
+                        
+                        # Step 3: Get verification token and create DNS TXT record
+                        entry['dnsStatus'] = 'running'
+                        entry['message'] = 'Creating TXT record...'
+                        
+                        try:
+                            token_result = google_service.request_verification_token(domain)
+                            if not token_result.get('token'):
+                                entry['dnsStatus'] = 'failed'
+                                entry['message'] = 'Failed to get verification token'
+                                continue
+                            
+                            txt_value = token_result['token']
+                            txt_host = '@'  # Root domain
+                            
+                            # Create TXT record via DNS provider
+                            if provider == 'cloudflare':
+                                dns_service = CloudflareDNSService()
+                            else:
+                                dns_service = NamecheapDNSService()
+                            
+                            dns_result = dns_service.upsert_txt_record(apex, txt_host, txt_value, ttl=1 if provider == 'cloudflare' else 1799)
+                            entry['dnsStatus'] = 'success'
+                            entry['message'] = 'TXT record created'
+                            logger.info(f"Job {job_id}: TXT created for {apex}")
+                            
+                        except Exception as e:
+                            entry['dnsStatus'] = 'failed'
+                            entry['message'] = f'DNS error: {str(e)}'
+                            logger.error(f"Job {job_id}: DNS error: {e}")
+                            continue
+                        
+                        # Step 4: Verify domain
+                        entry['verifyStatus'] = 'running'
+                        entry['message'] = 'Verifying...'
+                        
+                        # Wait for DNS propagation
+                        import time
+                        time.sleep(10)
+                        
+                        max_attempts = 5
+                        verified = False
+                        
+                        for attempt in range(1, max_attempts + 1):
+                            if job['stop_event'].is_set():
+                                entry['message'] = 'Stopped during verification'
+                                break
+                            
+                            try:
+                                verify_result = google_service.verify_domain(domain)
+                                if verify_result.get('verified'):
+                                    verified = True
+                                    entry['verifyStatus'] = 'success'
+                                    entry['message'] = 'Verified!'
+                                    logger.info(f"Job {job_id}: Domain {domain} verified on attempt {attempt}")
+                                    break
+                                else:
+                                    entry['message'] = f'Attempt {attempt}/{max_attempts}: {verify_result.get("error", "Pending")}'
+                                    if attempt < max_attempts:
+                                        time.sleep(30)
+                            except Exception as e:
+                                entry['message'] = f'Verify error: {str(e)}'
+                                if attempt < max_attempts:
+                                    time.sleep(30)
+                        
+                        if not verified and not job['stop_event'].is_set():
+                            entry['verifyStatus'] = 'failed'
+                            entry['message'] = 'Verification timeout'
+                            
+                    except Exception as e:
+                        logger.error(f"Job {job_id}: Error processing entry {entry.get('index')}: {e}", exc_info=True)
+                        entry['message'] = f'Error: {str(e)}'
+                
+                # Mark job complete
+                if job['stop_event'].is_set():
+                    job['status'] = 'stopped'
+                else:
+                    job['status'] = 'completed'
+                logger.info(f"Job {job_id}: Finished with status {job['status']}")
+        
+        # Start the thread
+        thread = threading.Thread(target=process_bulk_multi)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'job_id': job_id,
+            'message': f'Started processing {len(entries)} entries'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error starting bulk multi-account: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@dns_manager.route('/api/domains/bulk-multi-account/stop', methods=['POST'])
+@login_required
+def stop_bulk_multi_account():
+    """Stop a bulk multi-account job."""
+    try:
+        data = request.get_json()
+        job_id = data.get('job_id')
+        
+        with bulk_multi_lock:
+            if job_id and job_id in bulk_multi_jobs:
+                bulk_multi_jobs[job_id]['stop_event'].set()
+                bulk_multi_jobs[job_id]['status'] = 'stopped'
+                return jsonify({'success': True})
+        
+        return jsonify({'success': False, 'error': 'Job not found'})
+        
+    except Exception as e:
+        logger.error(f"Error stopping bulk multi-account: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@dns_manager.route('/api/domains/bulk-multi-account/status/<job_id>', methods=['GET'])
+@login_required
+def get_bulk_multi_account_status(job_id):
+    """Get status of a bulk multi-account job."""
+    try:
+        with bulk_multi_lock:
+            if job_id not in bulk_multi_jobs:
+                return jsonify({'success': False, 'error': 'Job not found'}), 404
+            
+            job = bulk_multi_jobs[job_id]
+            return jsonify({
+                'success': True,
+                'job_id': job_id,
+                'status': job['status'],
+                'entries': job['entries']
+            })
+            
+    except Exception as e:
+        logger.error(f"Error getting bulk multi-account status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @dns_manager.route('/api/namecheap-domains', methods=['GET'])
 @login_required
 def get_namecheap_domains():

@@ -1337,6 +1337,107 @@
         </div>
     </div>
 
+    <!-- Bulk Multi-Account Domain Verification -->
+    <div class="github-card">
+        <div class="github-card-header">
+            <h3 class="github-card-title">
+                <i class="fas fa-layer-group"></i>
+                Bulk Multi-Account Domain Verification
+            </h3>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <div class="form-group-github" style="margin-bottom: 16px;">
+                <label for="bulk-multi-account-input" class="form-label-github">
+                    <i class="fas fa-list"></i> Paste domains with accounts (one per line)
+                </label>
+                <textarea id="bulk-multi-account-input" class="form-control-github" rows="8"
+                    placeholder="Format: domain    admin@account.com,password (tab-separated)&#10;eaxi263oyz7ji6gf.lunervanexta.fun    admin@yklqssgbjeympegr.boldvisiongroup.co.uk,bemTeTKw3JU3hEja&#10;3kg4j2chiuc6fykm.lunervanexta.fun    admin@torrrimvlrojsppo.boldvisiongroup.co.uk,9zQJfBrfyBccHT2y"></textarea>
+                <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
+                    <i class="fas fa-info-circle"></i>
+                    Each line: <code>new_domain [TAB] admin_email,password</code>. Accounts must be registered as
+                    Service Accounts.
+                </small>
+            </div>
+
+            <!-- DNS Provider Selection for Bulk -->
+            <div class="form-group-github" style="margin-bottom: 16px;">
+                <label class="form-label-github">
+                    <i class="fas fa-server"></i> DNS Provider
+                </label>
+                <div style="display: flex; gap: 16px; align-items: center;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="bulk_dns_provider" value="namecheap" checked>
+                        <span>Namecheap</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="bulk_dns_provider" value="cloudflare">
+                        <span>Cloudflare</span>
+                    </label>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                <button onclick="parseBulkMultiAccountDomains()" class="btn-github btn-github-primary">
+                    <i class="fas fa-list-check"></i> Parse & Preview
+                </button>
+                <button onclick="startBulkMultiAccountVerification()" class="btn-github"
+                    style="background-color: #28a745; border-color: #28a745; color: #ffffff;" id="bulk-multi-start-btn">
+                    <i class="fas fa-play"></i> Start All
+                </button>
+                <button onclick="stopBulkMultiAccountVerification()" class="btn-github"
+                    style="background-color: var(--color-danger-emphasis); border-color: var(--color-danger-emphasis); color: #ffffff;"
+                    id="bulk-multi-stop-btn">
+                    <i class="fas fa-stop"></i> Stop
+                </button>
+                <button onclick="clearBulkMultiAccountInput()" class="btn-github">
+                    <i class="fas fa-broom"></i> Clear
+                </button>
+            </div>
+        </div>
+
+        <!-- Parsed Schedule Table -->
+        <div id="bulk-multi-schedule" style="display: none; margin-top: 24px;">
+            <h4 style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0 0 16px 0;">
+                <i class="fas fa-table"></i> Schedule (<span id="bulk-multi-count">0</span> entries)
+            </h4>
+            <div style="overflow-x: auto;">
+                <table id="bulk-multi-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <thead>
+                        <tr
+                            style="background-color: var(--color-canvas-subtle); border-bottom: 2px solid var(--color-border-default);">
+                            <th style="padding: 8px; text-align: left; font-weight: 600;">#</th>
+                            <th style="padding: 8px; text-align: left; font-weight: 600;">Domain</th>
+                            <th style="padding: 8px; text-align: left; font-weight: 600;">Account</th>
+                            <th style="padding: 8px; text-align: left; font-weight: 600;">Auth</th>
+                            <th style="padding: 8px; text-align: left; font-weight: 600;">Workspace</th>
+                            <th style="padding: 8px; text-align: left; font-weight: 600;">DNS TXT</th>
+                            <th style="padding: 8px; text-align: left; font-weight: 600;">Verify</th>
+                            <th style="padding: 8px; text-align: left; font-weight: 600;">Message</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bulk-multi-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Log Panel -->
+        <div id="bulk-multi-log-container" style="margin-top: 24px; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h4 style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0;">
+                    <i class="fas fa-file-alt"></i> Log
+                </h4>
+                <button onclick="toggleBulkMultiLog()" class="btn-github" style="padding: 4px 12px; font-size: 12px;">
+                    <i class="fas fa-chevron-down" id="bulk-multi-log-toggle-icon"></i> Toggle
+                </button>
+            </div>
+            <div id="bulk-multi-log"
+                style="background-color: var(--color-canvas-subtle); border: 1px solid var(--color-border-default); border-radius: 6px; padding: 12px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; white-space: pre-wrap;">
+            </div>
+        </div>
+    </div>
+
     <!-- Results Log (Covers Both Workflows) -->
     <div class="github-card">
         <div class="github-card-header">
@@ -11357,6 +11458,267 @@
             });
     };
 
+
+    // ===== BULK MULTI-ACCOUNT DOMAIN VERIFICATION =====
+    let bulkMultiJobId = null;
+    let bulkMultiPollInterval = null;
+    let bulkMultiParsedEntries = [];
+
+    window.parseBulkMultiAccountDomains = function () {
+        console.log('📋 parseBulkMultiAccountDomains() called');
+
+        const input = document.getElementById('bulk-multi-account-input').value.trim();
+        if (!input) {
+            alert('Please paste domain entries first');
+            return;
+        }
+
+        const lines = input.split('\n').filter(line => line.trim());
+        bulkMultiParsedEntries = [];
+
+        lines.forEach((line, idx) => {
+            // Parse format: domain [TAB or spaces] admin@account,password
+            const parts = line.split(/\t+|\s{2,}/);
+            if (parts.length >= 2) {
+                const domain = parts[0].trim();
+                const accountPart = parts[1].trim();
+                const [adminEmail, password] = accountPart.split(',');
+
+                if (domain && adminEmail) {
+                    // Extract account name from email (e.g., admin@account.com -> account.com subdomain)
+                    const emailParts = adminEmail.split('@');
+                    const accountDomain = emailParts.length > 1 ? emailParts[1] : adminEmail;
+
+                    bulkMultiParsedEntries.push({
+                        index: idx + 1,
+                        domain: domain,
+                        adminEmail: adminEmail.trim(),
+                        accountDomain: accountDomain,
+                        password: password ? password.trim() : '',
+                        authStatus: 'pending',
+                        workspaceStatus: 'pending',
+                        dnsStatus: 'pending',
+                        verifyStatus: 'pending',
+                        message: 'Ready'
+                    });
+                }
+            }
+        });
+
+        if (bulkMultiParsedEntries.length === 0) {
+            alert('No valid entries found. Use format: domain [TAB] admin@account.com,password');
+            return;
+        }
+
+        // Show table and populate it
+        const scheduleDiv = document.getElementById('bulk-multi-schedule');
+        scheduleDiv.style.display = 'block';
+        document.getElementById('bulk-multi-count').textContent = bulkMultiParsedEntries.length;
+
+        const tbody = document.getElementById('bulk-multi-table-body');
+        tbody.innerHTML = '';
+
+        bulkMultiParsedEntries.forEach(entry => {
+            const row = document.createElement('tr');
+            row.id = `bulk-multi-row-${entry.index}`;
+            row.innerHTML = `
+                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">${entry.index}</td>
+                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">${entry.domain}</td>
+                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">${entry.adminEmail}</td>
+                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">PENDING</span></td>
+                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">PENDING</span></td>
+                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">PENDING</span></td>
+                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">PENDING</span></td>
+                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">${entry.message}</td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        // Show log container
+        document.getElementById('bulk-multi-log-container').style.display = 'block';
+        logBulkMulti('📋 Parsed ' + bulkMultiParsedEntries.length + ' entries. Click "Start All" to begin processing.');
+
+        console.log('📋 Parsed entries:', bulkMultiParsedEntries);
+    };
+
+    window.startBulkMultiAccountVerification = function () {
+        console.log('🚀 startBulkMultiAccountVerification() called');
+
+        if (bulkMultiParsedEntries.length === 0) {
+            alert('Please parse entries first using "Parse & Preview"');
+            return;
+        }
+
+        const provider = document.querySelector('input[name="bulk_dns_provider"]:checked').value;
+
+        const btn = document.getElementById('bulk-multi-start-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        }
+
+        logBulkMulti('🚀 Starting bulk multi-account verification for ' + bulkMultiParsedEntries.length + ' entries...');
+        logBulkMulti('📧 DNS Provider: ' + provider);
+
+        fetch('/api/domains/bulk-multi-account/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                entries: bulkMultiParsedEntries,
+                provider: provider
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log('📦 Start response:', data);
+
+                if (data.success) {
+                    bulkMultiJobId = data.job_id;
+                    logBulkMulti('✅ Job started: ' + data.job_id);
+                    startBulkMultiPolling();
+                } else {
+                    logBulkMulti('❌ Error: ' + (data.error || 'Unknown error'));
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-play"></i> Start All';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                logBulkMulti('❌ Error: ' + error.message);
+                alert('Error: ' + error.message);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-play"></i> Start All';
+                }
+            });
+    };
+
+    window.stopBulkMultiAccountVerification = function () {
+        console.log('🛑 stopBulkMultiAccountVerification() called');
+
+        if (!bulkMultiJobId) {
+            alert('No active job to stop');
+            return;
+        }
+
+        fetch('/api/domains/bulk-multi-account/stop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_id: bulkMultiJobId })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    logBulkMulti('🛑 Job stopped');
+                    if (bulkMultiPollInterval) {
+                        clearInterval(bulkMultiPollInterval);
+                        bulkMultiPollInterval = null;
+                    }
+                    bulkMultiJobId = null;
+
+                    const btn = document.getElementById('bulk-multi-start-btn');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-play"></i> Start All';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping:', error);
+            });
+    };
+
+    window.clearBulkMultiAccountInput = function () {
+        document.getElementById('bulk-multi-account-input').value = '';
+        document.getElementById('bulk-multi-schedule').style.display = 'none';
+        document.getElementById('bulk-multi-log').innerHTML = '';
+        bulkMultiParsedEntries = [];
+    };
+
+    window.toggleBulkMultiLog = function () {
+        const log = document.getElementById('bulk-multi-log');
+        const icon = document.getElementById('bulk-multi-log-toggle-icon');
+        if (log.style.display === 'none') {
+            log.style.display = 'block';
+            icon.className = 'fas fa-chevron-up';
+        } else {
+            log.style.display = 'none';
+            icon.className = 'fas fa-chevron-down';
+        }
+    };
+
+    function logBulkMulti(message) {
+        const log = document.getElementById('bulk-multi-log');
+        if (log) {
+            const timestamp = new Date().toLocaleTimeString();
+            log.innerHTML += `[${timestamp}] ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+    }
+
+    function startBulkMultiPolling() {
+        if (bulkMultiPollInterval) clearInterval(bulkMultiPollInterval);
+
+        bulkMultiPollInterval = setInterval(() => {
+            if (!bulkMultiJobId) {
+                clearInterval(bulkMultiPollInterval);
+                return;
+            }
+
+            fetch(`/api/domains/bulk-multi-account/status/${bulkMultiJobId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.entries) {
+                        updateBulkMultiTable(data.entries);
+
+                        // Check if all complete
+                        if (data.status === 'completed' || data.status === 'stopped' || data.status === 'failed') {
+                            logBulkMulti('✅ Job ' + data.status);
+                            clearInterval(bulkMultiPollInterval);
+                            bulkMultiPollInterval = null;
+                            bulkMultiJobId = null;
+
+                            const btn = document.getElementById('bulk-multi-start-btn');
+                            if (btn) {
+                                btn.disabled = false;
+                                btn.innerHTML = '<i class="fas fa-play"></i> Start All';
+                            }
+                        }
+                    }
+                })
+                .catch(error => console.error('Poll error:', error));
+        }, 2000);
+    }
+
+    function updateBulkMultiTable(entries) {
+        entries.forEach(entry => {
+            const row = document.getElementById(`bulk-multi-row-${entry.index}`);
+            if (row) {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 8) {
+                    cells[3].innerHTML = getStatusBadge(entry.authStatus);
+                    cells[4].innerHTML = getStatusBadge(entry.workspaceStatus);
+                    cells[5].innerHTML = getStatusBadge(entry.dnsStatus);
+                    cells[6].innerHTML = getStatusBadge(entry.verifyStatus);
+                    cells[7].textContent = entry.message || '';
+                }
+            }
+        });
+    }
+
+    function getStatusBadge(status) {
+        const statusMap = {
+            'pending': '<span class="status-badge status-pending">PENDING</span>',
+            'running': '<span class="status-badge" style="background-color:#0969da;color:#fff;">RUNNING</span>',
+            'success': '<span class="status-badge status-success">SUCCESS</span>',
+            'failed': '<span class="status-badge status-failed">FAILED</span>',
+            'skipped': '<span class="status-badge" style="background-color:#6c757d;color:#fff;">SKIPPED</span>'
+        };
+        return statusMap[status] || statusMap['pending'];
+    }
 
     // Verify function was created IMMEDIATELY
     console.log('Function created, type:', typeof window.startDomainVerification);
