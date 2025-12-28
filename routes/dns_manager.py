@@ -823,7 +823,7 @@ def start_bulk_multi_account():
             from concurrent.futures import ThreadPoolExecutor
             
             def process_single_entry(entry_data):
-                """Process a single entry - runs in thread pool"""
+                """Process a single entry - calls existing process_domain_verification"""
                 entry_idx, entry, job, provider_name = entry_data
                 
                 with app.app_context():
@@ -838,43 +838,31 @@ def start_bulk_multi_account():
                         
                         logger.info(f"Job {job_id}: Processing entry {entry['index']}: {domain} -> {admin_email}")
                         
-                        # Step 1: Find account - try by NAME first (same as single-account feature)
-                        # Input can be: admin_email OR account_name (domain)
+                        # Step 1: Find account by NAME (same lookup as single-account feature)
                         entry['authStatus'] = 'running'
-                        entry['message'] = 'Authenticating...'
+                        entry['message'] = 'Finding account...'
                         
-                        # Log available accounts for debugging
-                        all_service_accounts = ServiceAccount.query.all()
-                        logger.info(f"Job {job_id}: Available Service Accounts ({len(all_service_accounts)}):")
-                        for sa in all_service_accounts:
-                            logger.info(f"  - Name: '{sa.name}', Admin Email: '{sa.admin_email}'")
-                        
-                        logger.info(f"Job {job_id}: Looking for account matching: '{admin_email}'")
-                        
-                        # 1. Try exact NAME match first (like single-account does)
+                        # Try exact NAME match first (main lookup method)
                         service_account = ServiceAccount.query.filter_by(name=admin_email).first()
-                        if service_account:
-                            logger.info(f"Job {job_id}: Found by name: {service_account.name}")
+                        lookup_method = 'name' if service_account else None
                         
-                        # 2. Try by admin_email exact match
+                        # Try by admin_email
                         if not service_account:
                             service_account = ServiceAccount.query.filter_by(admin_email=admin_email).first()
-                            if service_account:
-                                logger.info(f"Job {job_id}: Found by admin_email: {service_account.name}")
+                            lookup_method = 'admin_email' if service_account else None
                         
-                        # 3. Try by account domain (extract from admin_email)
+                        # Try by account domain name
                         if not service_account and account_domain:
-                            # Try to find by name containing account_domain
                             service_account = ServiceAccount.query.filter_by(name=account_domain).first()
-                            if service_account:
-                                logger.info(f"Job {job_id}: Found by account_domain name match: {service_account.name}")
+                            lookup_method = 'domain_name' if service_account else None
                         
-                        # 4. Fallback: search all accounts for partial match
+                        # Fallback: partial match
                         if not service_account:
-                            for acc in all_service_accounts:
+                            all_accounts = ServiceAccount.query.all()
+                            for acc in all_accounts:
                                 if account_domain in (acc.name or '') or account_domain in (acc.admin_email or ''):
                                     service_account = acc
-                                    logger.info(f"Job {job_id}: Found by partial match: {acc.name}")
+                                    lookup_method = 'partial_match'
                                     break
                         
                         if not service_account:
@@ -884,122 +872,55 @@ def start_bulk_multi_account():
                             return
                         
                         account_name = service_account.name
-                        stored_admin_email = service_account.admin_email
-                        
-                        # Log the account details for debugging
-                        logger.info(f"Job {job_id}: Found Service Account:")
-                        logger.info(f"  - Account Name: {account_name}")
-                        logger.info(f"  - Input Email: {admin_email}")
-                        logger.info(f"  - Stored Admin Email (for DWD): {stored_admin_email}")
+                        logger.info(f"Job {job_id}: Found account '{account_name}' via {lookup_method}")
                         
                         entry['authStatus'] = 'success'
                         entry['message'] = f'Using: {account_name}'
                         
-                        # Step 2: Add domain to Workspace
+                        # Step 2: CALL THE EXISTING WORKING FUNCTION
+                        # This is the key - use the same function as single-account feature!
                         entry['workspaceStatus'] = 'running'
                         entry['message'] = 'Adding to Workspace...'
                         
-                        google_service = GoogleDomainsService(account_name=account_name)
+                        # Call existing process_domain_verification directly
+                        # Create a mini job_id for this entry (use parent job + entry index)
+                        entry_job_id = f"{job_id}_entry_{entry['index']}"
                         
-                        from services.zone_utils import to_apex
-                        apex = to_apex(domain)
+                        # Call the working function
+                        process_domain_verification(
+                            job_id=entry_job_id,
+                            domain=domain,
+                            account_name=account_name,  # Same account_name session.get() would give
+                            dry_run=False,
+                            skip_verified=False,
+                            provider=provider_name,
+                            stop_event=job['stop_event']
+                        )
                         
-                        try:
-                            add_result = google_service.ensure_domain_added(apex)
+                        # Check the operation result from database
+                        from database import DomainOperation
+                        operation = DomainOperation.query.filter_by(job_id=entry_job_id).first()
+                        
+                        if operation:
+                            # Copy results to entry status
+                            entry['workspaceStatus'] = operation.workspace_status
+                            entry['dnsStatus'] = operation.dns_status
+                            entry['verifyStatus'] = operation.verify_status
+                            entry['message'] = operation.message
+                            logger.info(f"Job {job_id} Entry {entry['index']}: "
+                                       f"Workspace={operation.workspace_status}, "
+                                       f"DNS={operation.dns_status}, "
+                                       f"Verify={operation.verify_status}")
+                        else:
+                            entry['message'] = 'Processing complete (no operation record)'
                             entry['workspaceStatus'] = 'success'
-                            entry['message'] = 'Domain added to Workspace'
-                            logger.info(f"Job {job_id}: Domain {apex} added: {add_result}")
-                        except Exception as e:
-                            error_str = str(e).lower()
-                            if 'already exists' in error_str or '409' in str(e):
-                                entry['workspaceStatus'] = 'success'
-                                entry['message'] = 'Domain already in Workspace'
-                            elif 'forbidden' in error_str or '403' in str(e):
-                                entry['workspaceStatus'] = 'failed'
-                                entry['message'] = f'Permission denied - check DWD scopes for {account_name}'
-                                logger.error(f"Job {job_id}: 403 for {account_name} - DWD scopes may be missing")
-                                return
-                            else:
-                                entry['workspaceStatus'] = 'failed'
-                                entry['message'] = f'Workspace error: {str(e)[:100]}'
-                                return
-                        
-                        # Step 3: Get verification token and create DNS TXT record
-                        entry['dnsStatus'] = 'running'
-                        entry['message'] = 'Creating TXT record...'
-                        
-                        try:
-                            token_result = google_service.request_verification_token(domain)
-                            if not token_result.get('token'):
-                                entry['dnsStatus'] = 'failed'
-                                entry['message'] = f"Failed to get token: {token_result.get('error', 'Unknown')}"
-                                return
-                            
-                            txt_value = token_result['token']
-                            txt_host = '@'  # Root domain
-                            
-                            # Create TXT record via DNS provider
-                            if provider_name == 'cloudflare':
-                                dns_service = CloudflareDNSService()
-                                ttl = 1
-                            else:
-                                dns_service = NamecheapDNSService()
-                                ttl = 1799
-                            
-                            dns_result = dns_service.upsert_txt_record(apex, txt_host, txt_value, ttl=ttl)
                             entry['dnsStatus'] = 'success'
-                            entry['message'] = 'TXT record created'
-                            logger.info(f"Job {job_id}: TXT created for {apex}")
-                            
-                        except Exception as e:
-                            entry['dnsStatus'] = 'failed'
-                            entry['message'] = f'DNS error: {str(e)[:100]}'
-                            logger.error(f"Job {job_id}: DNS error: {e}")
-                            return
-                        
-                        # Step 4: Verify domain
-                        entry['verifyStatus'] = 'running'
-                        entry['message'] = 'Verifying (waiting for DNS)...'
-                        
-                        # Wait for DNS propagation
-                        import time
-                        time.sleep(10)
-                        
-                        max_attempts = 5
-                        verified = False
-                        
-                        for attempt in range(1, max_attempts + 1):
-                            if job['stop_event'].is_set():
-                                entry['message'] = 'Stopped during verification'
-                                return
-                            
-                            try:
-                                entry['message'] = f'Verify attempt {attempt}/{max_attempts}...'
-                                verify_result = google_service.verify_domain(domain)
-                                
-                                if verify_result.get('verified'):
-                                    verified = True
-                                    entry['verifyStatus'] = 'success'
-                                    entry['message'] = 'Verified!'
-                                    logger.info(f"Job {job_id}: Domain {domain} verified on attempt {attempt}")
-                                    break
-                                else:
-                                    error_msg = verify_result.get('error', 'Pending')
-                                    entry['message'] = f'Attempt {attempt}/{max_attempts}: {error_msg[:50]}'
-                                    if attempt < max_attempts:
-                                        time.sleep(30)
-                            except Exception as e:
-                                entry['message'] = f'Verify error: {str(e)[:50]}'
-                                if attempt < max_attempts:
-                                    time.sleep(30)
-                        
-                        if not verified and not job['stop_event'].is_set():
-                            entry['verifyStatus'] = 'failed'
-                            entry['message'] = 'Verification timeout - DNS may need more time'
+                            entry['verifyStatus'] = 'pending'
                             
                     except Exception as e:
                         logger.error(f"Job {job_id}: Error processing entry {entry.get('index')}: {e}", exc_info=True)
                         entry['message'] = f'Error: {str(e)[:100]}'
+                        entry['workspaceStatus'] = 'failed'
             
             # Main thread function
             with app.app_context():
