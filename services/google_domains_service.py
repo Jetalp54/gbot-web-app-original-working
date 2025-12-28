@@ -34,12 +34,15 @@ class GoogleDomainsService:
             # Try Service Account first
             service_account = ServiceAccount.query.filter_by(name=self.account_name).first()
             if service_account:
+                logger.info(f"Auth path: ServiceAccount DWD for '{self.account_name}'")
                 from services.google_service_account import GoogleServiceAccount
                 gsa = GoogleServiceAccount(service_account.id)
                 return gsa.get_credentials()
 
             # Fallback to Google Account (deprecated)
             account = GoogleAccount.query.filter_by(account_name=self.account_name).first()
+            if account and account.tokens:
+                logger.info(f"Auth path: GoogleAccount OAuth for '{self.account_name}'")
             if not account or not account.tokens:
                 logger.error(f"No tokens found for account: {self.account_name}")
                 return None
