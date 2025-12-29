@@ -295,16 +295,29 @@ def before_request():
     # Check if IP whitelist is enabled
     if app.config.get('ENABLE_IP_WHITELIST', True):  # Default to True for security
         client_ip = get_client_ip()
-        app.logger.info(f"Checking IP whitelist for {client_ip} accessing {request.endpoint}")
         
-        # Check if IP is whitelisted
-        whitelisted_ip = WhitelistedIP.query.filter_by(ip_address=client_ip).first()
+        # Normalize IP (strip whitespace, lowercase for IPv6)
+        client_ip_normalized = client_ip.strip().lower() if client_ip else ''
+        
+        app.logger.info(f"Checking IP whitelist for '{client_ip_normalized}' accessing {request.endpoint}")
+        
+        # Get all whitelisted IPs for comparison
+        all_whitelisted = WhitelistedIP.query.all()
+        whitelisted_ips = [ip.ip_address.strip().lower() for ip in all_whitelisted]
+        app.logger.info(f"Whitelisted IPs in database: {whitelisted_ips}")
+        
+        # Check if IP is whitelisted (case-insensitive, stripped)
+        whitelisted_ip = None
+        for wip in all_whitelisted:
+            if wip.ip_address.strip().lower() == client_ip_normalized:
+                whitelisted_ip = wip
+                break
         
         if not whitelisted_ip:
-            app.logger.warning(f"IP {client_ip} not whitelisted, access denied to {request.endpoint}")
+            app.logger.warning(f"IP '{client_ip}' (normalized: '{client_ip_normalized}') not whitelisted, access denied to {request.endpoint}")
             return f"Access denied. IP {client_ip} is not whitelisted. Please contact administrator or use emergency access.", 403
         else:
-            app.logger.info(f"IP {client_ip} is whitelisted, allowing access")
+            app.logger.info(f"IP '{client_ip_normalized}' is whitelisted, allowing access")
     else:
         app.logger.debug("IP whitelist disabled, allowing access")
 
