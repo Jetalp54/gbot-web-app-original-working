@@ -884,8 +884,10 @@ def api_add_whitelist_ip():
 @login_required
 def api_add_account_json():
     """Add a new Google Workspace account using Service Account JSON"""
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin access required'})
+    # Allow admin, mailer, and support roles to add accounts
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     
     try:
         email = request.form.get('email', '').strip()
