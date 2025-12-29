@@ -230,6 +230,45 @@ def login_required(f):
     wrapper.__name__ = f.__name__
     return wrapper
 
+# Role-based permissions configuration
+ROLE_PERMISSIONS = {
+    'admin': ['dashboard', 'aws_management', 'settings', 'users', 'whitelist'],
+    'mailer': ['dashboard', 'aws_management', 'settings'],
+    'support': ['dashboard', 'settings']
+}
+
+def permission_required(permission):
+    """Decorator to check if user has permission for a page/feature"""
+    def decorator(f):
+        def wrapper(*args, **kwargs):
+            user_id = session.get('user_id')
+            if not user_id:
+                return redirect(url_for('login'))
+            user = User.query.get(user_id)
+            if not user:
+                return redirect(url_for('login'))
+            user_permissions = ROLE_PERMISSIONS.get(user.role, [])
+            if permission not in user_permissions:
+                flash('Access denied: insufficient permissions', 'danger')
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        wrapper.__name__ = f.__name__
+        return wrapper
+    return decorator
+
+@app.context_processor
+def inject_user_info():
+    """Inject user role and permissions into all templates"""
+    user_id = session.get('user_id')
+    if user_id:
+        user = User.query.get(user_id)
+        if user:
+            return {
+                'user_role': user.role,
+                'user_permissions': ROLE_PERMISSIONS.get(user.role, [])
+            }
+    return {'user_role': None, 'user_permissions': []}
+
 @app.before_request
 def before_request():
     # Debug logging
@@ -293,6 +332,7 @@ def login():
             if check_password_hash(user.password, password):
                 app.logger.info(f"Password verified for user: {username}")
                 session['user'] = user.username
+                session['user_id'] = user.id
                 session['role'] = user.role
                 session.permanent = True  # Make session persistent
                 app.logger.info(f"Session set - user: {session.get('user')}, role: {session.get('role')}")
@@ -395,10 +435,8 @@ def dashboard():
 
 @app.route('/users')
 @login_required
+@permission_required('users')
 def users():
-    if session.get('role') != 'admin':
-        flash("Admin access required.", "danger")
-        return redirect(url_for('dashboard'))
     return render_template('users.html', user=session.get('user'), role=session.get('role'))
 
 @app.route('/emergency_access')
@@ -579,14 +617,26 @@ def api_debug_whitelist():
 @app.route('/whitelist')
 def whitelist():
     """Whitelist management page - accessible via emergency access or admin login"""
-    # Check if user has emergency access or is logged in as admin
-    if not session.get('emergency_access') and not session.get('user'):
+    # Emergency access bypasses normal permissions
+    if session.get('emergency_access'):
+        pass  # Allow access
+    elif not session.get('user'):
         flash("Access denied. Please use emergency access or log in.", "danger")
         return redirect(url_for('login'))
-    
-    if session.get('role') != 'admin' and not session.get('emergency_access'):
-        flash("Admin access required.", "danger")
-        return redirect(url_for('dashboard'))
+    else:
+        # Check role-based permissions
+        user_id = session.get('user_id')
+        if user_id:
+            user = User.query.get(user_id)
+            if user:
+                user_permissions = ROLE_PERMISSIONS.get(user.role, [])
+                if 'whitelist' not in user_permissions:
+                    flash("Access denied: insufficient permissions", "danger")
+                    return redirect(url_for('dashboard'))
+            else:
+                return redirect(url_for('login'))
+        else:
+            return redirect(url_for('login'))
     
     # Get all whitelisted IPs for display
     try:

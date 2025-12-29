@@ -361,7 +361,26 @@ def get_account_id(session):
 @aws_manager.route('/aws')
 @login_required
 def aws_management():
-    """AWS Management page"""
+    """AWS Management page - requires aws_management permission"""
+    from database import User
+    
+    # Check role-based permissions
+    user_id = session.get('user_id')
+    if not user_id:
+        flash("Access denied: please log in", "danger")
+        return redirect(url_for('login'))
+    
+    user = User.query.get(user_id)
+    if not user:
+        flash("Access denied: user not found", "danger")
+        return redirect(url_for('login'))
+    
+    # Define permissions for aws_management
+    allowed_roles = ['admin', 'mailer']
+    if user.role not in allowed_roles:
+        flash("Access denied: insufficient permissions", "danger")
+        return redirect(url_for('dashboard'))
+    
     # Ensure table exists to prevent 500 errors if migration wasn't run
     try:
         inspector = db.inspect(db.engine)
