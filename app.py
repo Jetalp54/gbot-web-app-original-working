@@ -924,6 +924,12 @@ def api_add_account_json():
         
         if existing_account:
             return jsonify({'success': False, 'error': f'Account already exists (Admin: {existing_account.admin_email}, Client: {existing_account.client_email})'})
+        
+        # Auto-fix sequence to avoid duplicate key errors
+        try:
+            db.session.execute(db.text("SELECT setval('service_account_id_seq', COALESCE((SELECT MAX(id) FROM service_account), 1))"))
+        except:
+            pass  # Ignore if sequence doesn't exist
             
         # Create new Service Account
         new_account = ServiceAccount(
@@ -951,16 +957,36 @@ def api_add_account_json():
 @login_required
 def api_fix_database_sequences():
     """Fix database sequences that might be out of sync"""
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin access required'})
+    # Allow all logged-in users to fix sequences (needed for account creation)
     
     try:
+        fixed = []
+        
         # Fix whitelisted_ip sequence
-        result = db.session.execute(db.text("SELECT setval('whitelisted_ip_id_seq', (SELECT MAX(id) FROM whitelisted_ip))"))
+        try:
+            db.session.execute(db.text("SELECT setval('whitelisted_ip_id_seq', COALESCE((SELECT MAX(id) FROM whitelisted_ip), 1))"))
+            fixed.append('whitelisted_ip')
+        except Exception as e:
+            app.logger.warning(f"Could not fix whitelisted_ip sequence: {e}")
+        
+        # Fix service_account sequence
+        try:
+            db.session.execute(db.text("SELECT setval('service_account_id_seq', COALESCE((SELECT MAX(id) FROM service_account), 1))"))
+            fixed.append('service_account')
+        except Exception as e:
+            app.logger.warning(f"Could not fix service_account sequence: {e}")
+        
+        # Fix google_account sequence
+        try:
+            db.session.execute(db.text("SELECT setval('google_account_id_seq', COALESCE((SELECT MAX(id) FROM google_account), 1))"))
+            fixed.append('google_account')
+        except Exception as e:
+            app.logger.warning(f"Could not fix google_account sequence: {e}")
+        
         db.session.commit()
         
-        app.logger.info("Database sequences fixed successfully")
-        return jsonify({'success': True, 'message': 'Database sequences fixed successfully'})
+        app.logger.info(f"Database sequences fixed: {fixed}")
+        return jsonify({'success': True, 'message': f'Database sequences fixed: {", ".join(fixed)}', 'fixed': fixed})
         
     except Exception as e:
         db.session.rollback()
