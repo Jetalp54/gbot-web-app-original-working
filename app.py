@@ -460,9 +460,22 @@ def dashboard():
     return render_template('dashboard.html', accounts=all_accounts, user=session.get('user'), role=session.get('role'))
 
 @app.route('/users')
-@login_required
-@permission_required('users')
 def users():
+    """Users management page - requires admin or emergency access"""
+    # Emergency access gets full access
+    if session.get('emergency_access'):
+        return render_template('users.html', user='emergency', role='admin')
+    
+    # Check if logged in
+    if not session.get('user'):
+        flash("Access denied. Please log in.", "danger")
+        return redirect(url_for('login'))
+    
+    # Only admin can access users page
+    if session.get('role') != 'admin':
+        flash("Access denied: Admin privileges required", "danger")
+        return redirect(url_for('dashboard'))
+    
     return render_template('users.html', user=session.get('user'), role=session.get('role'))
 
 @app.route('/emergency_access')
