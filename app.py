@@ -259,6 +259,13 @@ def permission_required(permission):
 @app.context_processor
 def inject_user_info():
     """Inject user role and permissions into all templates"""
+    # Emergency access gets all permissions
+    if session.get('emergency_access'):
+        return {
+            'user_role': 'admin',
+            'user_permissions': ROLE_PERMISSIONS.get('admin', [])
+        }
+    
     user_id = session.get('user_id')
     if user_id:
         user = User.query.get(user_id)
