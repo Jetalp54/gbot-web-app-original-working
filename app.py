@@ -291,6 +291,12 @@ def before_request():
         app.logger.debug(f"Allowing emergency access user to access {request.endpoint}")
         return
 
+    # Allow logged-in users to bypass IP whitelist check
+    # Once authenticated, they don't need IP whitelist anymore
+    if session.get('user'):
+        app.logger.debug(f"Allowing logged-in user {session.get('user')} to access {request.endpoint}")
+        return
+
     # IP Whitelist check - for ALL users (including logged-in users)
     # Check if IP whitelist is enabled
     if app.config.get('ENABLE_IP_WHITELIST', True):  # Default to True for security
