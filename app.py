@@ -4074,8 +4074,10 @@ def save_server_config():
 @login_required
 def get_namecheap_config():
     """Get Namecheap configuration"""
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    # Allow admin, mailer, and support to access Namecheap config
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     
     try:
         from database import NamecheapConfig
@@ -4103,8 +4105,10 @@ def get_namecheap_config():
 @login_required
 def save_namecheap_config():
     """Save Namecheap configuration"""
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    # Allow admin, mailer, and support to save Namecheap config
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     
     try:
         data = request.get_json()
