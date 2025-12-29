@@ -10109,9 +10109,52 @@ automation_tasks = {}
 def authenticate_without_session(account_name):
     """Authenticate without using Flask session - for background threads"""
     try:
-        # Get credentials directly from database
+        # First try ServiceAccount (newer approach)
+        service_account = ServiceAccount.query.filter(
+            (ServiceAccount.name == account_name) |
+            (ServiceAccount.admin_email == account_name)
+        ).first()
+        
+        if service_account and service_account.json_content:
+            import json
+            from google.oauth2 import service_account as sa
+            import google.auth.transport.requests
+            
+            # Parse the JSON content
+            json_content = json.loads(service_account.json_content)
+            
+            # Create credentials with domain-wide delegation
+            scopes = [
+                'https://www.googleapis.com/auth/admin.directory.user',
+                'https://www.googleapis.com/auth/admin.directory.domain',
+                'https://www.googleapis.com/auth/admin.directory.group',
+                'https://www.googleapis.com/auth/admin.directory.orgunit'
+            ]
+            
+            credentials = sa.Credentials.from_service_account_info(
+                json_content,
+                scopes=scopes
+            )
+            
+            # Impersonate the admin user for domain-wide delegation
+            admin_email = service_account.admin_email
+            if admin_email:
+                credentials = credentials.with_subject(admin_email)
+            
+            from googleapiclient.discovery import build
+            service = build('admin', 'directory_v1', credentials=credentials)
+            
+            # Store service in global dictionary instead of session
+            service_key = f"service_{account_name}"
+            automation_tasks[service_key] = service
+            
+            app.logger.info(f"ServiceAccount authentication successful for {account_name}")
+            return True
+        
+        # Fallback to GoogleAccount (OAuth - legacy)
         account = GoogleAccount.query.filter_by(account_name=account_name).first()
         if not account or not account.tokens:
+            app.logger.warning(f"No account found for {account_name} (checked ServiceAccount and GoogleAccount)")
             return False
         
         token = account.tokens[0]
@@ -10145,6 +10188,8 @@ def authenticate_without_session(account_name):
         
     except Exception as e:
         app.logger.error(f"Error in authenticate_without_session for {account_name}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
         return False
 
 def get_service_without_session(account_name):
