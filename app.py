@@ -4003,8 +4003,10 @@ def settings():
 @app.route('/api/get-server-config', methods=['GET'])
 @login_required
 def get_server_config():
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    # Allow admin, mailer, and support to access server config
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     
     try:
         from database import ServerConfig
@@ -4034,8 +4036,10 @@ def get_server_config():
 @app.route('/api/save-server-config', methods=['POST'])
 @login_required
 def save_server_config():
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    # Allow admin, mailer, and support to save server config
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     
     try:
         data = request.get_json()
@@ -11811,8 +11815,10 @@ def api_change_subdomain_status():
 @login_required
 def api_get_cloudflare_config():
     """Get current Cloudflare configuration"""
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    # Allow admin, mailer, and support to access Cloudflare config
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     
     try:
         from database import CloudflareConfig
@@ -11844,8 +11850,10 @@ def api_get_cloudflare_config():
 @login_required
 def api_save_cloudflare_config():
     """Save Cloudflare configuration"""
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    # Allow admin, mailer, and support to save Cloudflare config
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     
     try:
         data = request.get_json()
