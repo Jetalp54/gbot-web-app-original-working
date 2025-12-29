@@ -3941,8 +3941,10 @@ def api_force_refresh_domains():
 @app.route('/settings')
 @login_required
 def settings():
-    if session.get('role') != 'admin':
-        flash('Access denied. Admin privileges required.', 'error')
+    # Allow admin, mailer, and support roles to access settings
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        flash('Access denied. Insufficient privileges.', 'error')
         return redirect(url_for('dashboard'))
     
     # Ensure AWS config table exists
