@@ -403,10 +403,24 @@ class AwsEducationApp(tk.Tk):
         ttk.Button(exec_frame, text="Invoke Workspace Prep (Batch)", command=self.on_prep_invoke).pack(fill="x", pady=2)
     
         ttk.Separator(exec_frame, orient="horizontal").pack(fill="x", pady=5)
-        ttk.Label(exec_frame, text="Alternative: Run Locally (Bypasses Lambda)").pack(anchor="w")
-        ttk.Button(exec_frame, text="Run Prep Locally (Desktop)", command=self.on_prep_run_locally).pack(fill="x", pady=2)
+        ttk.Label(exec_frame, text="Alternative: Run Locally (Bypasses Lambda)", font=("", 9, "bold")).pack(anchor="w")
         
-        self.stop_button = ttk.Button(exec_frame, text="Stop Local Prep", command=self.on_stop_local_prep, state="disabled")
+        # Concurrency settings frame
+        concurrency_frame = ttk.Frame(exec_frame)
+        concurrency_frame.pack(fill="x", pady=5)
+        
+        ttk.Label(concurrency_frame, text="Concurrent Accounts:").pack(side="left", padx=(0, 5))
+        self.concurrent_accounts_var = tk.IntVar(value=4)
+        concurrent_spinbox = ttk.Spinbox(concurrency_frame, from_=1, to=10, width=5, 
+                                          textvariable=self.concurrent_accounts_var)
+        concurrent_spinbox.pack(side="left", padx=(0, 10))
+        
+        ttk.Label(concurrency_frame, text="(Windows will be tiled on screen)", 
+                  foreground="gray").pack(side="left")
+        
+        ttk.Button(exec_frame, text="Run Prep Locally (Desktop - Parallel)", command=self.on_prep_run_locally).pack(fill="x", pady=2)
+        
+        self.stop_button = ttk.Button(exec_frame, text="Stop All Local Prep", command=self.on_stop_local_prep, state="disabled")
         self.stop_button.pack(fill="x", pady=2)
 
     # ------------------------------------------------------------------
@@ -2523,16 +2537,26 @@ done
                 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
                 import prep_local
                 
-            # 4. Start Thread
+            # 4. Start Thread with parallel parameters
             self.stop_event = threading.Event()
             self.stop_button.config(state="normal")
             
             session = self.get_session()
             s3_bucket = self.s3_bucket_var.get().strip()
             
+            # Get concurrency setting
+            max_concurrent = self.concurrent_accounts_var.get()
+            
+            # Get screen dimensions
+            screen_width = self.winfo_screenwidth()
+            screen_height = self.winfo_screenheight()
+            
+            self.log(f"Starting parallel prep with {max_concurrent} concurrent windows")
+            self.log(f"Detected screen: {screen_width}x{screen_height}")
+            
             self.local_prep_thread = threading.Thread(
                 target=self._run_local_prep_thread,
-                args=(lines, session, s3_bucket, prep_local)
+                args=(lines, session, s3_bucket, prep_local, max_concurrent, screen_width, screen_height)
             )
             self.local_prep_thread.daemon = True
             self.local_prep_thread.start()
@@ -2542,35 +2566,89 @@ done
             traceback.print_exc()
             messagebox.showerror("Error", str(e))
 
-    def _run_local_prep_thread(self, lines, session, s3_bucket, prep_module):
-        """Background thread for local prep execution."""
+    def _run_local_prep_thread(self, lines, session, s3_bucket, prep_module, max_concurrent, screen_width, screen_height):
+        """Background thread for local prep execution - PARALLEL with window tiling."""
         try:
-            for line in lines:
+            total_accounts = len(lines)
+            self.log(f"Starting PARALLEL prep for {total_accounts} account(s) with {max_concurrent} concurrent windows")
+            self.log(f"Screen resolution: {screen_width}x{screen_height}")
+            
+            # Track results
+            results = {'success': 0, 'failed': 0, 'stopped': 0}
+            
+            def process_single_account(args):
+                """Process a single account with window positioning"""
+                window_index, line = args
+                
                 if self.stop_event.is_set():
-                    self.log("Process stopped by user.")
-                    break
-                    
+                    return ('stopped', None, None)
+                
                 email, password = line.split(':', 1)
                 email = email.strip()
                 password = password.strip()
                 
-                self.log(f"Starting local prep for {email}...")
+                self.log(f"[Window {window_index + 1}] Starting prep for {email}...")
                 
-                # Call run_prep_process with stop_event
                 try:
-                    result = prep_module.run_prep_process(email, password, session, s3_bucket, stop_event=self.stop_event)
-                except TypeError:
-                    # Fallback if module wasn't reloaded or modified correctly
-                    self.log("WARNING: prep_local.run_prep_process does not accept stop_event yet.")
-                    result = prep_module.run_prep_process(email, password, session, s3_bucket)
+                    result = prep_module.run_prep_process(
+                        email, password, session, s3_bucket,
+                        stop_event=self.stop_event,
+                        window_index=window_index,
+                        total_windows=max_concurrent,
+                        screen_width=screen_width,
+                        screen_height=screen_height
+                    )
+                    self.log(f"[Window {window_index + 1}] {email}: {result}")
+                    return ('success' if result and 'Failed' not in str(result) else 'failed', email, result)
+                except Exception as e:
+                    self.log(f"[Window {window_index + 1}] {email}: ERROR - {e}")
+                    return ('failed', email, str(e))
+            
+            # Process in batches of max_concurrent
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            
+            for batch_start in range(0, total_accounts, max_concurrent):
+                if self.stop_event.is_set():
+                    self.log("Process stopped by user.")
+                    break
                 
-                self.log(f"Result for {email}: {result}")
+                batch_end = min(batch_start + max_concurrent, total_accounts)
+                batch_lines = lines[batch_start:batch_end]
+                batch_size = len(batch_lines)
                 
+                self.log(f"\n{'='*50}")
+                self.log(f"Processing batch: accounts {batch_start + 1}-{batch_end} of {total_accounts}")
+                self.log(f"{'='*50}")
+                
+                # Create indexed tasks for this batch
+                batch_tasks = [(i, line) for i, line in enumerate(batch_lines)]
+                
+                with ThreadPoolExecutor(max_workers=batch_size) as executor:
+                    futures = {executor.submit(process_single_account, task): task for task in batch_tasks}
+                    
+                    for future in as_completed(futures):
+                        status, email, result = future.result()
+                        if status == 'success':
+                            results['success'] += 1
+                        elif status == 'stopped':
+                            results['stopped'] += 1
+                        else:
+                            results['failed'] += 1
+                
+                if batch_end < total_accounts and not self.stop_event.is_set():
+                    self.log(f"\nBatch complete. Waiting 5 seconds before next batch...")
+                    time.sleep(5)
+            
+            # Summary
+            self.log(f"\n{'='*50}")
+            self.log(f"PARALLEL PREP COMPLETE")
+            self.log(f"Success: {results['success']}, Failed: {results['failed']}, Stopped: {results['stopped']}")
+            self.log(f"{'='*50}")
+            
             if not self.stop_event.is_set():
-                self.log("Local prep execution finished.")
-                self.after(0, lambda: messagebox.showinfo("Complete", "Local prep execution finished. Check logs."))
+                self.after(0, lambda: messagebox.showinfo("Complete", 
+                    f"Parallel prep finished.\n\nSuccess: {results['success']}\nFailed: {results['failed']}"))
             else:
-                self.log("Local prep execution stopped.")
                 self.after(0, lambda: messagebox.showinfo("Stopped", "Process stopped by user."))
                 
         except Exception as e:

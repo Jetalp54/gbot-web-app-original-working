@@ -53,6 +53,10 @@
             <button onclick="openAddAccountModal()" class="btn-github btn-github-primary">
                 <i class="fas fa-plus-circle"></i> Add Account
             </button>
+            <button onclick="openS3ImportModal()" class="btn-github"
+                style="background-color: #0969da; border-color: #0969da; color: white;">
+                <i class="fas fa-cloud-download-alt"></i> Import from S3
+            </button>
             {% if session.role == 'admin' %}
             <button onclick="forceTokenStatusCheck()" class="btn-github"
                 style="background-color: var(--color-warning-emphasis); border-color: var(--color-warning-emphasis); color: #ffffff;">
@@ -256,6 +260,71 @@
                     <i class="fas fa-plus"></i> Add Account
                 </button>
                 <button onclick="closeAddAccountModal()" class="btn-github">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- S3 Import Accounts Modal -->
+    <div id="s3ImportModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-cloud-download-alt"></i> Import Accounts from S3
+                </h3>
+                <button type="button" class="btn-github" onclick="closeS3ImportModal()" style="margin-left: auto;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div
+                    style="background-color: rgba(9, 105, 218, 0.1); border: 1px solid var(--color-accent-emphasis); border-radius: 6px; padding: 12px; margin-bottom: 16px; color: var(--color-accent-fg);">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Instructions:</strong> Enter account emails (one per line). The system will fetch JSON files
+                    from S3 bucket <code>dev-app-passwords/workspace-keys/</code>.
+                </div>
+
+                <div class="form-group-github" style="margin-bottom: 16px;">
+                    <label for="s3ImportAccounts" class="form-label-github">
+                        <i class="fas fa-list"></i> Account Emails (one per line)
+                    </label>
+                    <textarea id="s3ImportAccounts" class="form-control-github" rows="10"
+                        placeholder="admin@domain1.com&#10;webmail@domain2.com&#10;support@domain3.co.uk"
+                        style="font-family: 'Courier New', monospace; font-size: 14px;"></textarea>
+                    <small style="color: #656d76; font-size: 12px; margin-top: 4px; display: block;">
+                        Each JSON file should be named <code>{email}.json</code> in the S3 bucket.
+                    </small>
+                </div>
+
+                <div id="s3ImportProgress" style="display: none; margin-bottom: 16px;">
+                    <div style="background: #f6f8fa; border-radius: 6px; padding: 16px; border: 1px solid #d0d7de;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span id="s3ImportStatus">Importing...</span>
+                            <span id="s3ImportCount">0/0</span>
+                        </div>
+                        <div style="background: #e1e4e8; border-radius: 6px; height: 8px; overflow: hidden;">
+                            <div id="s3ImportProgressBar"
+                                style="background: #0969da; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="s3ImportResults" style="display: none; margin-bottom: 16px;">
+                    <h6 style="font-weight: 600; margin-bottom: 8px; color: #24292f;">
+                        <i class="fas fa-list-check"></i> Import Results
+                    </h6>
+                    <div id="s3ImportResultsContent"
+                        style="background: #f6f8fa; padding: 12px; border-radius: 6px; border: 1px solid #d0d7de; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="executeS3Import()" class="btn-github btn-github-primary" id="s3ImportBtn">
+                    <i class="fas fa-cloud-download-alt"></i> Import from S3
+                </button>
+                <button onclick="closeS3ImportModal()" class="btn-github">
                     <i class="fas fa-times"></i> Cancel
                 </button>
             </div>
@@ -12073,6 +12142,93 @@
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="fas fa-plus"></i> Add Account';
             });
+    }
+
+    // --- S3 Import Modal Functions ---
+    function openS3ImportModal() {
+        document.getElementById('s3ImportModal').style.display = 'flex';
+        document.getElementById('s3ImportAccounts').value = '';
+        document.getElementById('s3ImportProgress').style.display = 'none';
+        document.getElementById('s3ImportResults').style.display = 'none';
+    }
+
+    function closeS3ImportModal() {
+        document.getElementById('s3ImportModal').style.display = 'none';
+    }
+
+    async function executeS3Import() {
+        const accountsText = document.getElementById('s3ImportAccounts').value.trim();
+        if (!accountsText) {
+            alert('Please enter at least one account email.');
+            return;
+        }
+
+        const accounts = accountsText.split('\n').map(a => a.trim()).filter(a => a && a.includes('@'));
+        if (accounts.length === 0) {
+            alert('No valid email addresses found.');
+            return;
+        }
+
+        const btn = document.getElementById('s3ImportBtn');
+        const progressDiv = document.getElementById('s3ImportProgress');
+        const resultsDiv = document.getElementById('s3ImportResults');
+        const resultsContent = document.getElementById('s3ImportResultsContent');
+        const progressBar = document.getElementById('s3ImportProgressBar');
+        const statusText = document.getElementById('s3ImportStatus');
+        const countText = document.getElementById('s3ImportCount');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+        progressDiv.style.display = 'block';
+        resultsDiv.style.display = 'block';
+        resultsContent.innerHTML = '';
+        progressBar.style.width = '0%';
+
+        let successCount = 0;
+        let failCount = 0;
+        const total = accounts.length;
+
+        for (let i = 0; i < accounts.length; i++) {
+            const email = accounts[i];
+            statusText.textContent = `Importing ${email}...`;
+            countText.textContent = `${i + 1}/${total}`;
+            progressBar.style.width = `${((i + 1) / total) * 100}%`;
+
+            try {
+                const response = await fetch('/api/import-account-from-s3', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    resultsContent.innerHTML += `<div style="color: #28a745;">✅ ${email}: ${data.message}</div>`;
+                    successCount++;
+                } else {
+                    resultsContent.innerHTML += `<div style="color: #dc3545;">❌ ${email}: ${data.error}</div>`;
+                    failCount++;
+                }
+            } catch (error) {
+                resultsContent.innerHTML += `<div style="color: #dc3545;">❌ ${email}: Network error - ${error.message}</div>`;
+                failCount++;
+            }
+
+            // Small delay to avoid overwhelming
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        statusText.textContent = `Complete! Success: ${successCount}, Failed: ${failCount}`;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Import from S3';
+
+        if (successCount > 0) {
+            setTimeout(() => {
+                if (confirm(`Successfully imported ${successCount} accounts. Reload page to see them?`)) {
+                    location.reload();
+                }
+            }, 500);
+        }
     }
 
 

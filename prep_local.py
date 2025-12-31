@@ -30,13 +30,60 @@ import undetected_chromedriver as uc
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
 
-def get_local_driver():
-    """Initialize local Chrome driver"""
+import math
+import tempfile
+import uuid
+
+# Global lock for driver initialization (undetected_chromedriver patches files and can't be parallel)
+_driver_init_lock = threading.Lock()
+
+def get_local_driver(window_index=0, total_windows=1, screen_width=1920, screen_height=1080):
+    """Initialize local Chrome driver with window positioning for parallel execution
+    
+    Args:
+        window_index: Index of this window (0-based)
+        total_windows: Total number of windows to tile
+        screen_width: Screen width in pixels
+        screen_height: Screen height in pixels
+    """
+    # Calculate grid layout for tiling windows
+    if total_windows <= 1:
+        cols, rows = 1, 1
+    elif total_windows == 2:
+        cols, rows = 2, 1
+    elif total_windows <= 4:
+        cols, rows = 2, 2
+    elif total_windows <= 6:
+        cols, rows = 3, 2
+    elif total_windows <= 9:
+        cols, rows = 3, 3
+    else:
+        cols, rows = 4, 3
+    
+    # Calculate window dimensions
+    win_width = screen_width // cols
+    win_height = screen_height // rows
+    
+    # Calculate position
+    col = window_index % cols
+    row = window_index // cols
+    x_pos = col * win_width
+    y_pos = row * win_height
+    
+    print(f"Window {window_index}: Position ({x_pos}, {y_pos}), Size ({win_width}x{win_height})")
+    
+    # Create unique user data directory for this instance (REQUIRED for parallel Chrome)
+    unique_id = f"{window_index}_{uuid.uuid4().hex[:8]}"
+    user_data_dir = os.path.join(tempfile.gettempdir(), f"chrome_prep_{unique_id}")
+    
     options = webdriver.ChromeOptions()
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1600,900")
+    options.add_argument(f"--window-size={win_width},{win_height}")
+    options.add_argument(f"--window-position={x_pos},{y_pos}")
     options.add_argument("--disable-gpu")
+    # Unique user data dir for parallel execution
+    options.add_argument(f"--user-data-dir={user_data_dir}")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     # Allow popups and disable popup blocking
     options.add_argument("--disable-popup-blocking")
@@ -45,34 +92,36 @@ def get_local_driver():
         "profile.default_content_settings.popups": 1
     })
     
-    print("Initializing Local Chrome Driver...")
-    try:
-        # Try with use_subprocess=True first (recommended for uc)
-        driver = uc.Chrome(options=options, use_subprocess=True)
-        
-        # Verify the driver is actually responsive and has a window
+    print(f"Initializing Chrome Driver (Window {window_index + 1}/{total_windows})...")
+    driver = None
+    
+    # Use lock to serialize driver creation (undetected_chromedriver patches files)
+    with _driver_init_lock:
+        print(f"[Window {window_index}] Acquired init lock, creating driver...")
         try:
-            _ = driver.current_window_handle
-            print("Driver initialized successfully.")
-            return driver
+            # Try with use_subprocess=True first (recommended for uc)
+            driver = uc.Chrome(options=options, use_subprocess=True)
+            print(f"[Window {window_index}] Driver created, releasing lock...")
         except Exception as e:
-            print(f"Driver started but window not found: {e}")
+            print(f"Initial driver initialization failed: {e}")
+            print("Retrying with alternative configuration...")
             try:
-                driver.quit()
-            except:
-                pass
-            raise e
-            
-    except Exception as e:
-        print(f"Initial driver initialization failed: {e}")
-        print("Retrying with alternative configuration...")
-        try:
-            # Fallback: try without use_subprocess
-            driver = uc.Chrome(options=options, use_subprocess=False)
-            return driver
-        except Exception as e2:
-            print(f"Retry failed: {e2}")
-            raise e
+                # Fallback: try without use_subprocess
+                driver = uc.Chrome(options=options, use_subprocess=False)
+                print(f"[Window {window_index}] Driver created (fallback), releasing lock...")
+            except Exception as e2:
+                print(f"Retry failed: {e2}")
+                raise e
+    
+    # SET WINDOW SIZE AND POSITION AFTER CREATION (more reliable than Chrome options)
+    try:
+        driver.set_window_position(x_pos, y_pos)
+        driver.set_window_size(win_width, win_height)
+        print(f"Driver {window_index} initialized successfully. Window set to {win_width}x{win_height} at ({x_pos}, {y_pos})")
+    except Exception as pos_err:
+        print(f"Warning: Could not set window position/size: {pos_err}")
+    
+    return driver
 
 def login_google(driver, email, password):
     """Login to Google account"""
@@ -400,14 +449,27 @@ def send_terminal_command(driver, command):
     except Exception as e:
         print(f"Error sending command: {e}")
 
-def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
-    """Main execution function called by aws.py"""
+def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None,
+                     window_index=0, total_windows=1, screen_width=1920, screen_height=1080):
+    """Main execution function called by aws.py
+    
+    Args:
+        email: Google account email
+        password: Google account password
+        aws_session: boto3 AWS session
+        s3_bucket: S3 bucket name for uploads
+        stop_event: Threading event to signal stop
+        window_index: Index of this window for tiling (0-based)
+        total_windows: Total number of parallel windows
+        screen_width: Screen width in pixels
+        screen_height: Screen height in pixels
+    """
     driver = None
     try:
         if stop_event and stop_event.is_set():
             return "Stopped by User"
             
-        driver = get_local_driver()
+        driver = get_local_driver(window_index, total_windows, screen_width, screen_height)
         
         if stop_event and stop_event.is_set():
             if driver: driver.quit()
@@ -427,11 +489,14 @@ def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
             if driver: driver.quit()
             return "Stopped by User"
             
-        # Generate IDs
+        # Generate IDs - use full email for easy identification
         timestamp = str(int(time.time()))
+        
         project_id = f"edu-gw-{timestamp}"
         sa_name = f"sa-{timestamp}"
-        key_path = f"~/edu-gw-{timestamp}.json"
+        # Name JSON file by full email address for easy filtering
+        # e.g., admin@example.com.json
+        key_path = f"~/{email}.json"
         
         # Press Enter to clear terminal
         print("Pressing Enter to clear terminal...")
@@ -454,6 +519,37 @@ def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
         
         send_terminal_command(driver, f"gcloud config set project {project_id}")
         time.sleep(5)
+        
+        # ============================================================
+        # STEP 1b: Enable Required APIs
+        # ============================================================
+        print("\n" + "="*80)
+        print("STEP 1b: Enabling Required APIs (Admin SDK, Gmail, Site Verification)")
+        print("="*80 + "\n")
+        
+        # Enable Admin SDK API
+        send_terminal_command(driver, f"gcloud services enable admin.googleapis.com --project {project_id}")
+        time.sleep(8)
+        
+        # Enable Gmail API
+        send_terminal_command(driver, f"gcloud services enable gmail.googleapis.com --project {project_id}")
+        time.sleep(8)
+        
+        # Enable Site Verification API
+        send_terminal_command(driver, f"gcloud services enable siteverification.googleapis.com --project {project_id}")
+        time.sleep(8)
+        
+        # Enable Cloud Resource Manager API (needed for org policies)
+        send_terminal_command(driver, f"gcloud services enable cloudresourcemanager.googleapis.com --project {project_id}")
+        time.sleep(8)
+        
+        # Enable IAM API
+        send_terminal_command(driver, f"gcloud services enable iam.googleapis.com --project {project_id}")
+        time.sleep(5)
+        
+        if stop_event and stop_event.is_set():
+            if driver: driver.quit()
+            return "Stopped by User"
         
         send_terminal_command(driver, f"gcloud iam service-accounts create {sa_name} --project {project_id} --display-name 'Automation SA'")
         time.sleep(10)
@@ -831,7 +927,13 @@ def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None):
                 "https://www.googleapis.com/auth/admin.directory.domain.readonly",
                 "https://www.googleapis.com/auth/admin.directory.domain",
                 "https://www.googleapis.com/auth/admin.directory.user",
-                "https://www.googleapis.com/auth/siteverification"
+                "https://www.googleapis.com/auth/siteverification",
+                # Gmail scopes
+                "https://www.googleapis.com/auth/gmail.send",
+                "https://www.googleapis.com/auth/gmail.compose",
+                "https://www.googleapis.com/auth/gmail.insert",
+                "https://www.googleapis.com/auth/gmail.modify",
+                "https://www.googleapis.com/auth/gmail.readonly"
             ]
             
             print(f"Entering {len(scopes_list)} OAuth Scopes...")

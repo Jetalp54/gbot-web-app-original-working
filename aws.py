@@ -1113,9 +1113,44 @@ class AwsEducationApp(QMainWindow):
         btn3.clicked.connect(self.on_prep_invoke)
         group_layout.addWidget(btn3)
         
-        btn4 = QPushButton("Run Prep Locally")
+        # Separator
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setStyleSheet("background-color: #444;")
+        group_layout.addWidget(separator)
+        
+        # Local prep section header
+        local_label = QLabel("🖥️ Run Locally (Parallel)")
+        local_label.setStyleSheet("font-weight: bold; font-size: 14px; margin-top: 10px;")
+        group_layout.addWidget(local_label)
+        
+        # Concurrency setting
+        conc_layout = QHBoxLayout()
+        conc_layout.addWidget(QLabel("Concurrent Accounts:"))
+        self.prep_concurrent_spin = QSpinBox()
+        self.prep_concurrent_spin.setRange(1, 10)
+        self.prep_concurrent_spin.setValue(4)
+        self.prep_concurrent_spin.setToolTip("Number of browser windows to run in parallel")
+        conc_layout.addWidget(self.prep_concurrent_spin)
+        conc_layout.addWidget(QLabel("(Windows will be tiled)"))
+        conc_layout.addStretch()
+        group_layout.addLayout(conc_layout)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        
+        btn4 = QPushButton("▶️ Run Prep Locally (Parallel)")
+        btn4.setStyleSheet("background-color: #2563eb; color: white;")
         btn4.clicked.connect(self.on_prep_local)
-        group_layout.addWidget(btn4)
+        btn_layout.addWidget(btn4)
+        
+        self.prep_stop_btn = QPushButton("⏹️ Stop All")
+        self.prep_stop_btn.setStyleSheet("background-color: #dc2626; color: white;")
+        self.prep_stop_btn.setEnabled(False)
+        self.prep_stop_btn.clicked.connect(self.on_prep_stop)
+        btn_layout.addWidget(self.prep_stop_btn)
+        
+        group_layout.addLayout(btn_layout)
         
         layout.addWidget(group)
         layout.addStretch()
@@ -2357,6 +2392,143 @@ docker push {account_id}.dkr.ecr.{region}.amazonaws.com/{ECR_REPO_NAME}:{ECR_IMA
             SecurityGroupIds=[sg_id], KeyName=EC2_KEY_PAIR_NAME, UserData=user_data,
             TagSpecifications=[{"ResourceType": "instance", "Tags": [{"Key": "Name", "Value": EC2_INSTANCE_NAME}]}]
         )
+
+    # ------------------------------------------------------------------
+    # Prep Process Local Execution (Parallel)
+    # ------------------------------------------------------------------
+    
+    def on_prep_local(self):
+        """Run prep process locally with parallel browser windows."""
+        text = self.prep_users_input.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(self, "Error", "Please enter users (email:password)")
+            return
+        
+        lines = [l.strip() for l in text.split('\n') if ':' in l]
+        if not lines:
+            QMessageBox.warning(self, "Error", "No valid users found (format: email:password)")
+            return
+        
+        # Check if already running
+        if self.local_prep_thread and self.local_prep_thread.is_alive():
+            QMessageBox.warning(self, "Running", "A prep process is already running. Stop it first.")
+            return
+        
+        # Import prep_local
+        try:
+            import prep_local
+        except ImportError:
+            self.log("ERROR: prep_local.py not found. Make sure it's in the same directory.")
+            QMessageBox.critical(self, "Error", "prep_local.py not found")
+            return
+        
+        # Get settings
+        max_concurrent = self.prep_concurrent_spin.value()
+        screen_width = QApplication.desktop().screenGeometry().width()
+        screen_height = QApplication.desktop().screenGeometry().height()
+        
+        # Get AWS session
+        try:
+            session = self.get_session()
+            s3_bucket = self.s3_bucket_input.text().strip()
+        except Exception as e:
+            self.log(f"AWS session error: {e}")
+            session = None
+            s3_bucket = ""
+        
+        self.log(f"Starting PARALLEL prep for {len(lines)} account(s)")
+        self.log(f"Concurrent windows: {max_concurrent}, Screen: {screen_width}x{screen_height}")
+        
+        # Set up stop event
+        self.stop_event = threading.Event()
+        self.prep_stop_btn.setEnabled(True)
+        
+        # Start thread
+        def run_parallel_prep():
+            try:
+                total_accounts = len(lines)
+                results = {'success': 0, 'failed': 0, 'stopped': 0}
+                
+                def process_single_account(args):
+                    window_index, line = args
+                    
+                    if self.stop_event.is_set():
+                        return ('stopped', None, None)
+                    
+                    email, password = line.split(':', 1)
+                    email = email.strip()
+                    password = password.strip()
+                    
+                    self.log(f"[Window {window_index + 1}] Starting prep for {email}...")
+                    
+                    try:
+                        result = prep_local.run_prep_process(
+                            email, password, session, s3_bucket,
+                            stop_event=self.stop_event,
+                            window_index=window_index,
+                            total_windows=max_concurrent,
+                            screen_width=screen_width,
+                            screen_height=screen_height
+                        )
+                        self.log(f"[Window {window_index + 1}] {email}: {result}")
+                        return ('success' if result and 'Failed' not in str(result) else 'failed', email, result)
+                    except Exception as e:
+                        self.log(f"[Window {window_index + 1}] {email}: ERROR - {e}")
+                        return ('failed', email, str(e))
+                
+                # Process in batches
+                for batch_start in range(0, total_accounts, max_concurrent):
+                    if self.stop_event.is_set():
+                        self.log("Process stopped by user.")
+                        break
+                    
+                    batch_end = min(batch_start + max_concurrent, total_accounts)
+                    batch_lines = lines[batch_start:batch_end]
+                    batch_size = len(batch_lines)
+                    
+                    self.log(f"\n{'='*50}")
+                    self.log(f"Processing batch: accounts {batch_start + 1}-{batch_end} of {total_accounts}")
+                    self.log(f"{'='*50}")
+                    
+                    batch_tasks = [(i, line) for i, line in enumerate(batch_lines)]
+                    
+                    with ThreadPoolExecutor(max_workers=batch_size) as executor:
+                        futures = {executor.submit(process_single_account, task): task for task in batch_tasks}
+                        
+                        for future in as_completed(futures):
+                            status, email, result = future.result()
+                            if status == 'success':
+                                results['success'] += 1
+                            elif status == 'stopped':
+                                results['stopped'] += 1
+                            else:
+                                results['failed'] += 1
+                    
+                    if batch_end < total_accounts and not self.stop_event.is_set():
+                        self.log("Batch complete. Waiting 5 seconds before next batch...")
+                        time.sleep(5)
+                
+                self.log(f"\n{'='*50}")
+                self.log(f"PARALLEL PREP COMPLETE")
+                self.log(f"Success: {results['success']}, Failed: {results['failed']}, Stopped: {results['stopped']}")
+                self.log(f"{'='*50}")
+                
+            except Exception as e:
+                self.log(f"Error in prep thread: {e}")
+                traceback.print_exc()
+            finally:
+                # Re-enable UI on main thread
+                QTimer.singleShot(0, lambda: self.prep_stop_btn.setEnabled(False))
+        
+        self.local_prep_thread = threading.Thread(target=run_parallel_prep, daemon=True)
+        self.local_prep_thread.start()
+    
+    def on_prep_stop(self):
+        """Stop all running prep processes."""
+        if self.stop_event:
+            self.log("Stopping all prep processes...")
+            self.stop_event.set()
+            self.prep_stop_btn.setEnabled(False)
 
 
 # ======================================================================

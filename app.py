@@ -966,6 +966,100 @@ def api_add_account_json():
         return jsonify({'success': False, 'error': str(e)})
 
 
+@app.route('/api/import-account-from-s3', methods=['POST'])
+@login_required
+def api_import_account_from_s3():
+    """Import a service account from S3 bucket.
+    
+    The JSON file should be stored at: s3://dev-app-passwords/workspace-keys/{email}.json
+    """
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip()
+        
+        if not email or '@' not in email:
+            return jsonify({'success': False, 'error': 'Invalid email address'})
+        
+        # Check if account already exists
+        existing_account = ServiceAccount.query.filter_by(admin_email=email).first()
+        if existing_account:
+            return jsonify({'success': False, 'error': f'Account {email} already exists'})
+        
+        # S3 configuration
+        s3_bucket = 'dev-app-passwords'
+        s3_key = f'workspace-keys/{email}.json'
+        
+        # Get AWS credentials from session or database
+        try:
+            aws_config = AwsConfig.query.first()
+            if aws_config and aws_config.access_key and aws_config.secret_key:
+                import boto3
+                session = boto3.Session(
+                    aws_access_key_id=aws_config.access_key,
+                    aws_secret_access_key=aws_config.secret_key,
+                    region_name=aws_config.region or 'eu-west-1'
+                )
+                s3_client = session.client('s3')
+            else:
+                # Try default credentials
+                import boto3
+                s3_client = boto3.client('s3', region_name='eu-west-1')
+        except Exception as aws_err:
+            app.logger.error(f"AWS session error: {aws_err}")
+            return jsonify({'success': False, 'error': f'AWS configuration error: {str(aws_err)}'})
+        
+        # Fetch JSON file from S3
+        try:
+            app.logger.info(f"Fetching s3://{s3_bucket}/{s3_key}")
+            response = s3_client.get_object(Bucket=s3_bucket, Key=s3_key)
+            json_content_str = response['Body'].read().decode('utf-8')
+            json_content = json.loads(json_content_str)
+        except s3_client.exceptions.NoSuchKey:
+            return jsonify({'success': False, 'error': f'JSON file not found in S3: {s3_key}'})
+        except Exception as s3_err:
+            app.logger.error(f"S3 fetch error: {s3_err}")
+            return jsonify({'success': False, 'error': f'S3 error: {str(s3_err)}'})
+        
+        # Validate JSON content
+        required_keys = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email']
+        missing_keys = [key for key in required_keys if key not in json_content]
+        
+        if missing_keys:
+            return jsonify({'success': False, 'error': f'Invalid service account JSON. Missing keys: {", ".join(missing_keys)}'})
+        
+        if json_content.get('type') != 'service_account':
+            return jsonify({'success': False, 'error': 'JSON file is not a service account credential'})
+        
+        # Auto-fix sequence to avoid duplicate key errors
+        try:
+            db.session.execute(db.text("SELECT setval('service_account_id_seq', COALESCE((SELECT MAX(id) FROM service_account), 1))"))
+        except:
+            pass
+        
+        # Create new Service Account
+        new_account = ServiceAccount(
+            name=email,
+            admin_email=email,
+            project_id=json_content['project_id'],
+            client_email=json_content['client_email'],
+            private_key_id=json_content['private_key_id'],
+            json_content=json_content_str,
+            is_active=True
+        )
+        
+        db.session.add(new_account)
+        db.session.commit()
+        
+        app.logger.info(f"Imported service account from S3: {email}")
+        return jsonify({'success': True, 'message': f'Account imported successfully'})
+        
+    except Exception as e:
+        app.logger.error(f"Error importing account from S3: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)})
+
+
 @app.route('/api/fix-database-sequences', methods=['POST'])
 @login_required
 def api_fix_database_sequences():
