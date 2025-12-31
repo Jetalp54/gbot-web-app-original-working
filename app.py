@@ -992,11 +992,11 @@ def api_import_account_from_s3():
         # Get AWS credentials from session or database
         try:
             aws_config = AwsConfig.query.first()
-            if aws_config and aws_config.access_key and aws_config.secret_key:
+            if aws_config and aws_config.access_key_id and aws_config.secret_access_key:
                 import boto3
                 session = boto3.Session(
-                    aws_access_key_id=aws_config.access_key,
-                    aws_secret_access_key=aws_config.secret_key,
+                    aws_access_key_id=aws_config.access_key_id,
+                    aws_secret_access_key=aws_config.secret_access_key,
                     region_name=aws_config.region or 'eu-west-1'
                 )
                 s3_client = session.client('s3')
