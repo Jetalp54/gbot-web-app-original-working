@@ -1314,20 +1314,40 @@ def run_prep_process(email, password, aws_session, s3_bucket, stop_event=None,
         # STEP 8: Upload to S3
         # ============================================================
         downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
-        downloaded_file = os.path.join(downloads_dir, f"edu-gw-{timestamp}.json")
+        # File is named by email (e.g., admin@example.com.json)
+        downloaded_file = os.path.join(downloads_dir, f"{email}.json")
+        
+        print(f"\nLooking for downloaded file: {downloaded_file}")
+        
+        # Wait a bit for download to complete
+        for i in range(5):
+            if os.path.exists(downloaded_file):
+                break
+            print(f"Waiting for download... ({i+1}/5)")
+            time.sleep(2)
         
         if os.path.exists(downloaded_file):
-            print(f"\nFound downloaded key: {downloaded_file}")
-            print(f"Uploading to S3 bucket: {s3_bucket}...")
+            print(f"\n✓ Found downloaded key: {downloaded_file}")
             
-            s3 = aws_session.client("s3")
-            s3_key = f"workspace-keys/{email}.json"
-            s3.upload_file(downloaded_file, s3_bucket, s3_key)
-            
-            print(f"SUCCESS! Key uploaded to s3://{s3_bucket}/{s3_key}")
-            return f"Success! Key uploaded to s3://{s3_bucket}/{s3_key}"
+            if aws_session and s3_bucket:
+                print(f"Uploading to S3 bucket: {s3_bucket}...")
+                
+                s3 = aws_session.client("s3")
+                s3_key = f"workspace-keys/{email}.json"
+                s3.upload_file(downloaded_file, s3_bucket, s3_key)
+                
+                print(f"SUCCESS! Key uploaded to s3://{s3_bucket}/{s3_key}")
+                return f"Success! Key uploaded to s3://{s3_bucket}/{s3_key}"
+            else:
+                print("AWS session or S3 bucket not provided - skipping S3 upload")
+                return f"Success! Key downloaded to {downloaded_file} (S3 upload skipped)"
         else:
-            print(f"File not found in {downloads_dir}")
+            print(f"✗ File not found in {downloads_dir}")
+            # List files in downloads for debugging
+            if os.path.exists(downloads_dir):
+                files = os.listdir(downloads_dir)
+                json_files = [f for f in files if f.endswith('.json')]
+                print(f"JSON files in Downloads: {json_files[:10]}")
             return "Failed to find downloaded key file"
 
     except Exception as e:
