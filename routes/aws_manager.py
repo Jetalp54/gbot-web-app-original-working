@@ -562,8 +562,10 @@ def save_aws_config():
 def get_aws_config():
     """Get AWS credentials configuration"""
     try:
-        if session.get('role') != 'admin':
-            return jsonify({'success': False, 'error': 'Admin privileges required'}), 403
+        # Allow both admin and mailer to get config (needed for UI to function)
+        allowed_roles = ['admin', 'mailer']
+        if session.get('role') not in allowed_roles:
+            return jsonify({'success': False, 'error': 'Insufficient privileges'}), 403
         
         # Ensure table exists
         try:
