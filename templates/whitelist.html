@@ -43,8 +43,8 @@
             </div>
         </div>
 
-        <div class="row g-3 align-items-end">
-            <div class="col-lg-5 col-md-6">
+        <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1 1 280px;">
                 <label class="form-label-github small text-muted mb-2">YOUR CURRENT IP</label>
                 <div class="d-flex gap-2">
                     <input type="text" id="emergency_ip" class="glass-input flex-grow-1" readonly
@@ -54,13 +54,13 @@
                     </button>
                 </div>
             </div>
-            <div class="col-lg-4 col-md-6">
+            <div style="flex: 1 1 250px;">
                 <label class="form-label-github small text-muted mb-2">EMERGENCY KEY</label>
                 <input type="password" id="emergency_key" class="glass-input w-100" placeholder="Enter your secret key">
             </div>
-            <div class="col-lg-3 col-md-12">
-                <button type="button" id="emergencyBtn"
-                    class="glass-button glass-button-warning w-100 justify-content-center">
+            <div style="flex: 0 0 auto;">
+                <button type="button" id="emergencyBtn" class="glass-button glass-button-warning justify-content-center"
+                    style="min-width: 140px;">
                     <i class="fas fa-key me-2"></i>Access
                 </button>
             </div>
@@ -68,10 +68,10 @@
     </div>
 </div>
 
-<!-- Main Content Row -->
-<div class="row g-4">
+<!-- Main Content - Side by Side Layout -->
+<div style="display: flex; gap: 24px; flex-wrap: wrap;">
     <!-- Add New IP Card -->
-    <div class="col-lg-4 col-md-5">
+    <div style="flex: 0 0 350px; min-width: 300px;">
         <div class="glass-panel h-100">
             <div class="p-4">
                 <div class="d-flex align-items-center gap-3 mb-4">
@@ -112,7 +112,7 @@
     </div>
 
     <!-- Whitelisted IPs List -->
-    <div class="col-lg-8 col-md-7">
+    <div style="flex: 1 1 500px; min-width: 400px;">
         <div class="glass-panel h-100 d-flex flex-column">
             <div class="p-4 border-bottom" style="border-color: var(--border-panel) !important;">
                 <div class="d-flex align-items-center gap-3">
