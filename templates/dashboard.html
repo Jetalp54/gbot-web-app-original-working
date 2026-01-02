@@ -37,11 +37,8 @@
                     <i class="fas fa-user-circle"></i> Select Account
                 </label>
                 <select id="account-select" class="form-control-github">
-                    <option value="">Choose an account...</option>
-                    {% for account in accounts %}
-                    <option value="{{ account.account_name }}" data-account-id="{{ account.id }}">{{
-                        account.account_name }}</option>
-                    {% endfor %}
+                    <option value="">Type to search accounts...</option>
+                    <!-- Populated dynamically via JavaScript -->
                 </select>
             </div>
             <button onclick="authenticateAccount()" class="btn-github btn-github-primary">
@@ -5821,15 +5818,19 @@
 
     function renderAccountList(accounts) {
         const listArea = document.getElementById('account-list-area');
+        const selectDropdown = document.getElementById('account-select');
 
         if (accounts.length === 0) {
             listArea.innerHTML = `
                 <div style="text-align: center; padding: 20px; color: var(--text-muted);">
                     No accounts found
                 </div>`;
+            // Clear dropdown except placeholder
+            selectDropdown.innerHTML = '<option value="">No accounts found</option>';
             return;
         }
 
+        // Populate list area
         listArea.innerHTML = '';
         accounts.forEach(account => {
             const item = document.createElement('div');
@@ -5839,6 +5840,16 @@
             item.textContent = account.account_name;
             item.onclick = () => selectAccountFromList(account.account_name, account.id);
             listArea.appendChild(item);
+        });
+
+        // Populate dropdown select
+        selectDropdown.innerHTML = '<option value="">Choose an account...</option>';
+        accounts.forEach(account => {
+            const option = document.createElement('option');
+            option.value = account.account_name;
+            option.dataset.accountId = account.id;
+            option.textContent = account.account_name;
+            selectDropdown.appendChild(option);
         });
     }
 
