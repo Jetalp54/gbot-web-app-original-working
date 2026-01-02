@@ -158,11 +158,10 @@
                     <h4 class="mb-4 glass-text-primary">Production Lambda Management</h4>
 
                     <!-- Config Box -->
-                    <div class="glass-panel p-3 mb-4"
-                        style="background: rgba(16, 185, 129, 0.05) !important; border-color: rgba(16, 185, 129, 0.2) !important;">
+                    <div class="glass-panel p-3 mb-4">
                         <div class="d-flex align-items-center mb-3">
-                            <i class="fas fa-code me-2" style="color: #10b981;"></i>
-                            <h6 class="mb-0" style="color: #10b981;">Lambda Function Naming</h6>
+                            <i class="fas fa-code me-2 glass-text-primary"></i>
+                            <h6 class="mb-0 glass-text-primary">Lambda Function Naming</h6>
                         </div>
                         <p class="small text-muted mb-2">Prefix used for all operations:
                             <code>{prefix}-{region}-{number}</code>
@@ -198,7 +197,7 @@
                             </div>
                         </div>
 
-                        <div class="d-grid gap-2 d-md-flex">
+                        <div class="d-grid gap-3 d-md-flex">
                             <button class="glass-button glass-button-primary flex-grow-1" onclick="createLambdas()">
                                 <i class="fas fa-sync-alt me-2"></i>Create / Update Prod Lambda(s)
                             </button>
@@ -224,11 +223,11 @@
                         <div id="multiStatus" class="small text-success">Ready</div>
                     </div>
 
-                    <div class="d-grid gap-2">
+                    <div class="d-grid gap-4">
                         <button class="glass-button glass-button-primary py-3" onclick="invokeProductionLambda()">
                             <i class="fas fa-play me-2"></i>Invoke Production Lambda
                         </button>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-4">
                             <button class="glass-button glass-button-danger w-50" onclick="stopAllLambdas()">
                                 <i class="fas fa-stop me-2"></i>Stop All
                             </button>
