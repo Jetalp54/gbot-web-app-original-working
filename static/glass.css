@@ -1363,12 +1363,21 @@ html body .glass-ui textarea::placeholder {
 #bulk-subdomain-results,
 #domain-info-display,
 .count-display,
+.status-box,
 .status-info {
     background: var(--bg-panel) !important;
     background-color: var(--bg-panel) !important;
     border: 1px solid var(--border-panel) !important;
     color: var(--text-primary) !important;
     backdrop-filter: blur(var(--glass-blur)) !important;
+}
+
+/* Explicit ID overrides for Authentication Section */
+#account-count-display,
+#auth-status {
+    background: var(--bg-panel) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-panel) !important;
 }
 
 /* Force input fields inside these specific containers too */
