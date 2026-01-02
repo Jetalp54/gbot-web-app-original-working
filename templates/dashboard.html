@@ -6041,6 +6041,9 @@
 
         const row = document.createElement('tr');
         row.id = rowId;
+        // Explicitly force transparent background to override any inherited white backgrounds
+        row.style.background = 'transparent';
+        row.style.backgroundColor = 'transparent';
         // Removed hardcoded white styles to allow glass theme
 
         row.innerHTML = `
