@@ -438,10 +438,17 @@
             btn.classList.remove('active');
         });
 
-        // Show selected tab
-        document.getElementById(`tab-${tabName}`).classList.add('active');
-        document.getElementById(`tab-${tabName}`).style.display = 'block';
-        document.getElementById(`tab-${tabName}-btn`).classList.add('active');
+        // Show selected tab (safely)
+        const tab = document.getElementById(`tab-${tabName}`);
+        const btn = document.getElementById(`tab-${tabName}-btn`);
+
+        if (tab) {
+            tab.classList.add('active');
+            tab.style.display = 'block';
+        }
+        if (btn) {
+            btn.classList.add('active');
+        }
     }
 
     // Global Status Check
@@ -455,8 +462,8 @@
         const tbody = document.getElementById('statusTableBody');
         const tfoot = document.getElementById('statusTableFoot');
 
-        loading.style.display = 'block';
-        tbody.innerHTML = ''; // Clear table body
+        if (loading) loading.style.display = 'block';
+        if (tbody) tbody.innerHTML = ''; // Clear table body
         if (tfoot) tfoot.innerHTML = ''; // Clear table footer
 
         log(`Initiating global AWS resource status check...`);
@@ -552,7 +559,7 @@
                         <td>${region.image_tag === 'MISSING' ? '❌ Missing' : (region.image_tag === 'ERROR' ? '❌ Error' : (region.image_tag ? '✅ ' + region.image_tag : '❌ None'))}</td>
                         <td class="${statusClass}">${statusIcon}</td>
                     `;
-                    tbody.appendChild(tr);
+                    if (tbody) tbody.appendChild(tr);
                 });
 
                 // Add Total Row
@@ -560,7 +567,8 @@
                     // Create tfoot if it doesn't exist (though we should add it to HTML)
                     const newTfoot = document.createElement('tfoot');
                     newTfoot.id = 'statusTableFoot';
-                    document.querySelector('.table').appendChild(newTfoot);
+                    const table = document.querySelector('.table');
+                    if (table) table.appendChild(newTfoot);
                 }
 
                 const footerRow = document.createElement('tr');
@@ -577,8 +585,10 @@
                 `;
 
                 const targetTfoot = document.getElementById('statusTableFoot') || document.querySelector('tfoot');
-                targetTfoot.innerHTML = '';
-                targetTfoot.appendChild(footerRow);
+                if (targetTfoot) {
+                    targetTfoot.innerHTML = '';
+                    targetTfoot.appendChild(footerRow);
+                }
 
                 // Log summary
                 log(`✓ Status check complete: ${totalRegions} regions checked, ${totalLambdas} Lambda(s), ${totalRepos} ECR repo(s), ${totalImages} image(s), ${readyRegions} ready${errorRegions > 0 ? `, ${errorRegions} error(s)` : ''}`);
@@ -603,7 +613,7 @@
             console.error('Error:', error);
             alert('Failed to check global status');
         } finally {
-            loading.style.display = 'none';
+            if (loading) loading.style.display = 'none';
         }
     }
 
@@ -620,23 +630,29 @@
         };
     }
 
+    // Helper to safely get element value
+    function getSafeValue(id, defaultValue) {
+        const el = document.getElementById(id);
+        return (el && el.value && el.value.trim()) ? el.value.trim() : defaultValue;
+    }
+
     // Helper function to get resource naming configuration
     function getNamingConfig() {
         return {
-            // Infrastructure Tab
-            ecr_repo_name: document.getElementById('ecrRepoName')?.value?.trim() || 'dev-app-password-worker',
-            dynamodb_table: document.getElementById('dynamodbTableName')?.value?.trim() || 'dev-app-passwords',
-            s3_bucket: document.getElementById('s3BucketName')?.value?.trim() || 'dev-app-passwords',
-            iam_role_prefix: document.getElementById('iamRolePrefix')?.value?.trim() || 'dev',
+            // Infrastructure Tab (Inputs might be hidden for mailers)
+            ecr_repo_name: getSafeValue('ecrRepoName', 'dev-app-password-worker'),
+            dynamodb_table: getSafeValue('dynamodbTableName', 'dev-app-passwords'),
+            s3_bucket: getSafeValue('s3BucketName', 'dev-app-passwords'),
+            iam_role_prefix: getSafeValue('iamRolePrefix', 'dev'),
             // Lambda Tab
-            lambda_prefix: document.getElementById('lambdaPrefix')?.value?.trim() || 'dev-chromium',
+            lambda_prefix: getSafeValue('lambdaPrefix', 'dev-chromium'),
             // EC2 Tab
-            ec2_instance_name: document.getElementById('ec2InstanceName')?.value?.trim() || 'dev-ec2-build-box',
+            ec2_instance_name: getSafeValue('ec2InstanceName', 'dev-ec2-build-box'),
             // Cleanup Tab
-            delete_s3_bucket: document.getElementById('deleteS3BucketName')?.value?.trim() || 'dev-app-passwords',
-            delete_ecr_repo: document.getElementById('deleteEcrRepoName')?.value?.trim() || 'dev-app-password-worker',
-            delete_log_prefix: document.getElementById('deleteLogGroupPrefix')?.value?.trim() || '/aws/lambda/dev',
-            delete_dynamodb_table: document.getElementById('deleteDynamodbTableName')?.value?.trim() || 'dev-app-passwords'
+            delete_s3_bucket: getSafeValue('deleteS3BucketName', 'dev-app-passwords'),
+            delete_ecr_repo: getSafeValue('deleteEcrRepoName', 'dev-app-password-worker'),
+            delete_log_prefix: getSafeValue('deleteLogGroupPrefix', '/aws/lambda/dev'),
+            delete_dynamodb_table: getSafeValue('deleteDynamodbTableName', 'dev-app-passwords')
         };
     }
 
