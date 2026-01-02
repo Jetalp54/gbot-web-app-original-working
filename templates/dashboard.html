@@ -6097,13 +6097,6 @@
 
         tbody.appendChild(row);
 
-        // Add hover effect
-        row.addEventListener('mouseenter', function () {
-            this.style.backgroundColor = '#f6f8fa';
-        });
-        row.addEventListener('mouseleave', function () {
-            this.style.backgroundColor = '#ffffff';
-        });
 
         // Add event listener to account email field to auto-load domains when account is entered
         const accountInput = row.querySelector('input[data-field="account"]');
