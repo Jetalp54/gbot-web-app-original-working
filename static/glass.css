@@ -1240,7 +1240,23 @@ html body .glass-ui textarea::placeholder {
 }
 
 .glass-warning-box {
-    background: rgba(220, 53, 69, 0.1) !important;
+    background: rgba(245, 158, 11, 0.1) !important;
+    border: 1px solid var(--border-panel) !important;
+    border-radius: 6px;
+    padding: 12px;
+    color: var(--text-primary) !important;
+}
+
+.glass-success-box {
+    background: rgba(16, 185, 129, 0.1) !important;
+    border: 1px solid var(--border-panel) !important;
+    border-radius: 6px;
+    padding: 12px;
+    color: var(--text-primary) !important;
+}
+
+.glass-error-box {
+    background: rgba(239, 68, 68, 0.1) !important;
     border: 1px solid var(--border-panel) !important;
     border-radius: 6px;
     padding: 12px;
