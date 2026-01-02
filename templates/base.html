@@ -6,6 +6,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}GBot Web{% endblock %}</title>
 
+    <!-- Tailwind CSS (Pinned v3.4.1) -->
+    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            800: '#1e293b',
+                            900: '#0f172a',
+                        },
+                        indigo: {
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Custom Glassmorphism Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='glass.css') }}?v=2026.1.2.06">
+
     <!-- GitHub Primer CSS -->
     <link href="https://unpkg.com/@primer/css@^21.0.0/dist/primer.css" rel="stylesheet">
 
@@ -20,51 +44,51 @@
 
     <!-- EMERGENCY MODAL FIX - Run immediately -->
     <script>
-        // Run this immediately, before any other scripts
-        (function () {
-            console.log('Emergency modal fix running immediately...');
+            // Run this immediately, before any other scripts
+            (function () {
+                console.log('Emergency modal fix running immediately...');
 
-            // Force hide problematic modals immediately
-            function emergencyHideModals() {
-                const problematicModals = ['testConnectionModal', 'deleteConfirmModal'];
-                problematicModals.forEach(function (modalId) {
-                    const modal = document.getElementById(modalId);
-                    if (modal) {
-                        modal.style.display = 'none';
-                        modal.style.visibility = 'hidden';
-                        modal.style.opacity = '0';
-                        modal.style.pointerEvents = 'none';
-                        modal.classList.remove('show');
-                    }
-                });
+                // Force hide problematic modals immediately
+                function emergencyHideModals() {
+                    const problematicModals = ['testConnectionModal', 'deleteConfirmModal'];
+                    problematicModals.forEach(function (modalId) {
+                        const modal = document.getElementById(modalId);
+                        if (modal) {
+                            modal.style.display = 'none';
+                            modal.style.visibility = 'hidden';
+                            modal.style.opacity = '0';
+                            modal.style.pointerEvents = 'none';
+                            modal.classList.remove('show');
+                        }
+                    });
 
-                // Remove modal backdrops
-                const backdrops = document.querySelectorAll('.modal-backdrop');
-                backdrops.forEach(function (backdrop) {
-                    backdrop.remove();
-                });
+                    // Remove modal backdrops
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    backdrops.forEach(function (backdrop) {
+                        backdrop.remove();
+                    });
 
-                // Fix body
-                document.body.classList.remove('modal-open');
-                document.body.style.overflow = '';
-                document.body.style.paddingRight = '';
+                    // Fix body
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
 
-                console.log('Emergency modal fix applied');
-            }
+                    console.log('Emergency modal fix applied');
+                }
 
-            // Run immediately
-            emergencyHideModals();
-
-            // Run when DOM is ready
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', emergencyHideModals);
-            } else {
+                // Run immediately
                 emergencyHideModals();
-            }
 
-            // Run periodically to catch any modals that try to show
-            setInterval(emergencyHideModals, 100);
-        })();
+                // Run when DOM is ready
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', emergencyHideModals);
+                } else {
+                    emergencyHideModals();
+                }
+
+                // Run periodically to catch any modals that try to show
+                setInterval(emergencyHideModals, 100);
+            })();
     </script>
 
     <!-- Professional GitHub Theme -->
@@ -174,11 +198,7 @@
             border-color: var(--color-border-default) !important;
         }
 
-        [data-color-mode="dark"] input,
-        [data-color-mode="dark"] select,
-        [data-color-mode="dark"] textarea,
-        [data-color-mode="dark"] .form-control,
-        [data-color-mode="dark"] .form-control-github {
+        [data-color-mode="dark"] .form-control {
             background-color: var(--color-input-bg) !important;
             border-color: var(--color-input-border) !important;
             color: var(--color-fg-default) !important;
@@ -220,8 +240,7 @@
         }
 
         [data-color-mode="dark"] .card,
-        [data-color-mode="dark"] .github-card,
-        [data-color-mode="dark"] .modal-content {
+        [data-color-mode="dark"] .github-card {
             background-color: var(--color-canvas-default) !important;
             border-color: var(--color-border-default) !important;
         }
@@ -2872,336 +2891,440 @@
 </head>
 
 <body>
-    {% if user %}
-    <!-- Left Sidebar -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <a href="/dashboard" class="sidebar-logo" title="GBot">
-                <i class="fas fa-robot"></i>
-            </a>
-            <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
-                <i class="fas fa-angle-double-left" id="sidebarToggleIcon"></i>
-            </button>
-        </div>
-
-        <nav class="sidebar-nav">
-            <div class="nav-item-wrapper {% if request.endpoint == 'dashboard' %}is-open{% endif %}">
-                <a href="/dashboard#tab1"
-                    class="nav-item has-dropdown {% if request.endpoint == 'dashboard' %}active is-open{% endif %}"
-                    onclick="if(event.target.closest('.dropdown-toggle')) { toggleDashboardDropdown(event); return false; } else { handleDashboardClick(event); }"
-                    title="Dashboard">
-                    <i class="fas fa-chart-bar"></i>
-                    <span>Dashboard</span>
-                    <i class="fas fa-chevron-down dropdown-toggle"
-                        onclick="toggleDashboardDropdown(event); event.stopPropagation();"></i>
+    <div class="glass-orb glass-orb-1"></div>
+    <div class="glass-orb glass-orb-2"></div>
+    <div class="glass-orb glass-orb-3"></div>
+    <div class="glass-ui">
+        {% if user %}
+        <!-- Left Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="/dashboard" class="sidebar-logo" title="GBot">
+                    <i class="fas fa-robot"></i>
                 </a>
-                <div class="dropdown-menu {% if request.endpoint == 'dashboard' %}is-open{% endif %}"
-                    id="dashboardDropdown">
-                    <a href="/dashboard#tab1" class="dropdown-item" onclick="handleDashboardTabClick(event, 'tab1');"
-                        title="Account & User Management">
-                        <i class="fas fa-user-friends"></i>
-                        <span>Account & User Mgmt</span>
+                <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+                    <i class="fas fa-angle-double-left" id="sidebarToggleIcon"></i>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-item-wrapper {% if request.endpoint == 'dashboard' %}is-open{% endif %}">
+                    <a href="/dashboard#tab1"
+                        class="nav-item has-dropdown {% if request.endpoint == 'dashboard' %}active is-open{% endif %}"
+                        onclick="if(event.target.closest('.dropdown-toggle')) { toggleDashboardDropdown(event); return false; } else { handleDashboardClick(event); }"
+                        title="Dashboard">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Dashboard</span>
+                        <i class="fas fa-chevron-down dropdown-toggle"
+                            onclick="toggleDashboardDropdown(event); event.stopPropagation();"></i>
                     </a>
-                    <a href="/dashboard#tab2" class="dropdown-item" onclick="handleDashboardTabClick(event, 'tab2');"
-                        title="User Create/Delete/Domain">
-                        <i class="fas fa-user-plus"></i>
-                        <span>User Create/Delete/Domain</span>
-                    </a>
-                    <a href="/dashboard#tab3" class="dropdown-item" onclick="handleDashboardTabClick(event, 'tab3');"
-                        title="DNS & SMTP">
-                        <i class="fas fa-exchange-alt"></i>
-                        <span>DNS & SMTP</span>
+                    <div class="dropdown-menu {% if request.endpoint == 'dashboard' %}is-open{% endif %}"
+                        id="dashboardDropdown">
+                        <a href="/dashboard#tab1" class="dropdown-item"
+                            onclick="handleDashboardTabClick(event, 'tab1');" title="Account & User Management">
+                            <i class="fas fa-user-friends"></i>
+                            <span>Account & User Mgmt</span>
+                        </a>
+                        <a href="/dashboard#tab2" class="dropdown-item"
+                            onclick="handleDashboardTabClick(event, 'tab2');" title="User Create/Delete/Domain">
+                            <i class="fas fa-user-plus"></i>
+                            <span>User Create/Delete/Domain</span>
+                        </a>
+                        <a href="/dashboard#tab3" class="dropdown-item"
+                            onclick="handleDashboardTabClick(event, 'tab3');" title="DNS & SMTP">
+                            <i class="fas fa-exchange-alt"></i>
+                            <span>DNS & SMTP</span>
+                        </a>
+                    </div>
+                </div>
+
+                {% if 'users' in user_permissions %}
+                <a href="/users" class="nav-item {% if request.endpoint == 'users' %}active{% endif %}" title="Users">
+                    <i class="fas fa-users"></i>
+                    <span>Users</span>
+                </a>
+                {% endif %}
+
+                {% if 'whitelist' in user_permissions %}
+                <a href="/whitelist" class="nav-item {% if request.endpoint == 'whitelist' %}active{% endif %}"
+                    title="IP Whitelist">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>IP Whitelist</span>
+                </a>
+                {% endif %}
+
+                {% if 'aws_management' in user_permissions %}
+                <a href="/aws"
+                    class="nav-item {% if request.endpoint == 'aws_manager.aws_management' %}active{% endif %}"
+                    title="AWS Management">
+                    <i class="fas fa-cloud"></i>
+                    <span>AWS Management</span>
+                </a>
+                {% endif %}
+
+                {% if 'settings' in user_permissions %}
+                <a href="/settings" class="nav-item {% if request.endpoint == 'settings' %}active{% endif %}"
+                    title="Settings">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+                {% endif %}
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user-info">
+                    <i class="fas fa-user"></i>
+                    <span>{{ user }} ({{ role }})</span>
+                </div>
+                <div class="sidebar-footer-actions">
+                    <a href="{{ url_for('logout') }}" class="btn-logout" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
                 </div>
             </div>
+        </aside>
 
-            {% if 'users' in user_permissions %}
-            <a href="/users" class="nav-item {% if request.endpoint == 'users' %}active{% endif %}" title="Users">
-                <i class="fas fa-users"></i>
-                <span>Users</span>
-            </a>
-            {% endif %}
-
-            {% if 'whitelist' in user_permissions %}
-            <a href="/whitelist" class="nav-item {% if request.endpoint == 'whitelist' %}active{% endif %}"
-                title="IP Whitelist">
-                <i class="fas fa-shield-alt"></i>
-                <span>IP Whitelist</span>
-            </a>
-            {% endif %}
-
-            {% if 'aws_management' in user_permissions %}
-            <a href="/aws" class="nav-item {% if request.endpoint == 'aws_manager.aws_management' %}active{% endif %}"
-                title="AWS Management">
-                <i class="fas fa-cloud"></i>
-                <span>AWS Management</span>
-            </a>
-            {% endif %}
-
-            {% if 'settings' in user_permissions %}
-            <a href="/settings" class="nav-item {% if request.endpoint == 'settings' %}active{% endif %}"
-                title="Settings">
-                <i class="fas fa-cog"></i>
-                <span>Settings</span>
-            </a>
-            {% endif %}
-        </nav>
-
-        <div class="sidebar-footer">
-            <div class="sidebar-user-info">
-                <i class="fas fa-user"></i>
-                <span>{{ user }} ({{ role }})</span>
-            </div>
-            <div class="sidebar-footer-actions">
-                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
-                    <i class="fas fa-adjust"></i>
-                </button>
-                <a href="{{ url_for('logout') }}" class="btn-logout" title="Logout">
-                    <i class="fas fa-sign-out-alt"></i>
-                </a>
-            </div>
-        </div>
-    </aside>
-
-    <!-- Legacy header - hidden -->
-    <header class="github-header" style="display: none;">
-    </header>
-    {% endif %}
-
-    <!-- Main Content Wrapper -->
-    <div class="main-wrapper">
-        <!-- Flash messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="main-container">
-            {% for category, message in messages %}
-            <div class="alert-github alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        </div>
+        <!-- Legacy header - hidden -->
+        <header class="github-header" style="display: none;">
+        </header>
         {% endif %}
-        {% endwith %}
 
-        <div class="main-container">
-            {% block content %}{% endblock %}
+        <!-- Main Content Wrapper -->
+        <div class="main-wrapper">
+            <!-- New Glass Header -->
+            <header class="glass-header">
+                <div class="glass-header-left">
+                    <div class="header-title">
+                        <span class="text-muted">Admin</span>
+                        <i class="fas fa-chevron-right" style="font-size: 0.75rem;"></i>
+                        <span class="active">{{ self.title() if self.title() else 'Dashboard' }}</span>
+                    </div>
+                </div>
+                <div class="glass-header-right">
+                    <!-- Search Bar -->
+                    <div class="header-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search resources..." class="glass-input">
+                    </div>
+
+                    <!-- 5-Mode Theme Palette -->
+                    <!-- 5-Mode Celestial Palette -->
+                    <div class="theme-palette">
+                        <button class="theme-btn" onclick="setTheme('nebula')" data-set-theme="nebula"
+                            title="Nebula (Cosmic Default)">
+                            <i class="fas fa-meteor"></i>
+                        </button>
+                        <button class="theme-btn" onclick="setTheme('midnight')" data-set-theme="midnight"
+                            title="Midnight (Neon Void)">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                        <button class="theme-btn" onclick="setTheme('aurora')" data-set-theme="aurora"
+                            title="Aurora (Ethereal Light)">
+                            <i class="fas fa-sun"></i>
+                        </button>
+                        <button class="theme-btn" onclick="setTheme('forest')" data-set-theme="forest"
+                            title="Forest (Bio-luminescent)">
+                            <i class="fas fa-tree"></i>
+                        </button>
+                        <button class="theme-btn" onclick="setTheme('crimson')" data-set-theme="crimson"
+                            title="Crimson (Solar Flare)">
+                            <i class="fas fa-fire"></i>
+                        </button>
+                    </div>
+
+                    <!-- Notifications -->
+                    <button class="header-icon-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge"></span>
+                    </button>
+
+                    <!-- Profile -->
+                    <div class="profile-btn" title="{{ user }}">
+                        {{ user[:2].upper() if user else 'AD' }}
+                    </div>
+                </div>
+            </header>
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="main-container">
+                {% for category, message in messages %}
+                <div class="alert-github alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <div class="main-container">
+                {% block content %}{% endblock %}
+            </div>
         </div>
-    </div>
 
-    <!-- Theme Toggle Script -->
-    <script>
-        // Sidebar Management
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const toggleIcon = document.getElementById('sidebarToggleIcon');
-            if (sidebar) {
-                const isCollapsed = sidebar.classList.contains('collapsed');
-                sidebar.classList.toggle('collapsed');
-                localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+        <!-- Theme Toggle Script -->
+        <script>
+            // Sidebar Management
+            function toggleSidebar() {
+                const sidebar = document.getElementById('sidebar');
+                const toggleIcon = document.getElementById('sidebarToggleIcon');
+                if (sidebar) {
+                    const isCollapsed = sidebar.classList.contains('collapsed');
+                    sidebar.classList.toggle('collapsed');
+                    localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
 
-                // Update icon based on state
-                if (toggleIcon) {
-                    if (sidebar.classList.contains('collapsed')) {
-                        toggleIcon.className = 'fas fa-angle-double-right';
-                    } else {
-                        toggleIcon.className = 'fas fa-angle-double-left';
-                    }
-                }
-            }
-        }
-
-        // Dashboard Dropdown Toggle - Clean Implementation
-        function toggleDashboardDropdown(event) {
-            if (event) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-
-            const wrapper = document.querySelector('aside.sidebar .nav-item-wrapper');
-            const navItem = wrapper ? wrapper.querySelector('.nav-item.has-dropdown') : null;
-            const dropdown = document.getElementById('dashboardDropdown');
-
-            if (!wrapper || !navItem || !dropdown) {
-                console.error('Sidebar dropdown elements not found', { wrapper, navItem, dropdown });
-                return;
-            }
-
-            const isOpen = wrapper.classList.contains('is-open');
-            console.log('Toggling dropdown, current state:', isOpen);
-
-            if (isOpen) {
-                // Close dropdown
-                wrapper.classList.remove('is-open');
-                navItem.classList.remove('is-open');
-                dropdown.classList.remove('is-open');
-                console.log('Dropdown closed');
-            } else {
-                // Open dropdown
-                wrapper.classList.add('is-open');
-                navItem.classList.add('is-open');
-                dropdown.classList.add('is-open');
-                console.log('Dropdown opened');
-            }
-        }
-
-        function handleDashboardClick(event) {
-            // If clicking on Dashboard link (not dropdown toggle), redirect to tab1
-            if (!event.target.closest('.dropdown-toggle')) {
-                event.preventDefault();
-                window.location.href = '/dashboard#tab1';
-            }
-        }
-
-        function handleDashboardTabClick(event, tabId) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            console.log('handleDashboardTabClick called with tabId:', tabId);
-
-            // Navigate to dashboard if not already there
-            if (window.location.pathname !== '/dashboard') {
-                console.log('Navigating to dashboard with tab:', tabId);
-                window.location.href = '/dashboard#' + tabId;
-                return;
-            }
-
-            // Update URL hash
-            window.location.hash = tabId;
-            console.log('Updated hash to:', tabId);
-
-            // Call showTab function if it exists
-            if (typeof showTab === 'function') {
-                console.log('Calling showTab directly');
-                showTab(tabId);
-            } else {
-                console.log('showTab not found, waiting...');
-                // Fallback: wait for showTab to be available
-                let attempts = 0;
-                const maxAttempts = 10;
-                const checkShowTab = setInterval(() => {
-                    attempts++;
-                    if (typeof showTab === 'function') {
-                        console.log('showTab found after', attempts * 100, 'ms');
-                        clearInterval(checkShowTab);
-                        showTab(tabId);
-                    } else if (attempts >= maxAttempts) {
-                        console.error('showTab function not found after', maxAttempts * 100, 'ms');
-                        clearInterval(checkShowTab);
-                        // Force show the tab by manipulating DOM directly
-                        const tabs = document.querySelectorAll('.tab-content');
-                        tabs.forEach(tab => {
-                            tab.classList.remove('active');
-                            tab.style.display = 'none';
-                        });
-                        const selectedTab = document.getElementById(tabId);
-                        if (selectedTab) {
-                            selectedTab.classList.add('active');
-                            selectedTab.style.display = 'block';
-                            console.log('Manually showed tab:', tabId);
+                    // Update icon based on state
+                    if (toggleIcon) {
+                        if (sidebar.classList.contains('collapsed')) {
+                            toggleIcon.className = 'fas fa-angle-double-right';
+                        } else {
+                            toggleIcon.className = 'fas fa-angle-double-left';
                         }
                     }
-                }, 100);
-            }
-
-            // Update active state in dropdown
-            const dropdownItems = document.querySelectorAll('.dropdown-item');
-            dropdownItems.forEach(item => {
-                item.classList.remove('active');
-                if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(tabId)) {
-                    item.classList.add('active');
-                }
-            });
-        }
-
-        // Initialize sidebar state
-        document.addEventListener('DOMContentLoaded', function () {
-            const sidebar = document.getElementById('sidebar');
-            const toggleIcon = document.getElementById('sidebarToggleIcon');
-            const savedState = localStorage.getItem('sidebarCollapsed');
-            if (sidebar && savedState === 'true') {
-                sidebar.classList.add('collapsed');
-                if (toggleIcon) {
-                    toggleIcon.className = 'fas fa-angle-double-right';
-                }
-            } else if (toggleIcon) {
-                toggleIcon.className = 'fas fa-angle-double-left';
-            }
-
-            // Handle hash navigation for dashboard tabs
-            if (window.location.hash) {
-                const tabId = window.location.hash.substring(1);
-                if (typeof showTab === 'function') {
-                    setTimeout(() => showTab(tabId), 100);
                 }
             }
 
-            // Auto-open dashboard dropdown if on dashboard page
-            if (window.location.pathname === '/dashboard') {
+            // Dashboard Dropdown Toggle - Clean Implementation
+            function toggleDashboardDropdown(event) {
+                if (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+
                 const wrapper = document.querySelector('aside.sidebar .nav-item-wrapper');
                 const navItem = wrapper ? wrapper.querySelector('.nav-item.has-dropdown') : null;
                 const dropdown = document.getElementById('dashboardDropdown');
 
-                if (wrapper && navItem && dropdown) {
+                if (!wrapper || !navItem || !dropdown) {
+                    console.error('Sidebar dropdown elements not found', { wrapper, navItem, dropdown });
+                    return;
+                }
+
+                const isOpen = wrapper.classList.contains('is-open');
+                console.log('Toggling dropdown, current state:', isOpen);
+
+                if (isOpen) {
+                    // Close dropdown
+                    wrapper.classList.remove('is-open');
+                    navItem.classList.remove('is-open');
+                    dropdown.classList.remove('is-open');
+                    console.log('Dropdown closed');
+                } else {
+                    // Open dropdown
                     wrapper.classList.add('is-open');
                     navItem.classList.add('is-open');
                     dropdown.classList.add('is-open');
-                    console.log('Auto-opened dashboard dropdown');
+                    console.log('Dropdown opened');
+                }
+            }
+
+            function handleDashboardClick(event) {
+                // If clicking on Dashboard link (not dropdown toggle), redirect to tab1
+                if (!event.target.closest('.dropdown-toggle')) {
+                    event.preventDefault();
+                    window.location.href = '/dashboard#tab1';
+                }
+            }
+
+            function handleDashboardTabClick(event, tabId) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                console.log('handleDashboardTabClick called with tabId:', tabId);
+
+                // Navigate to dashboard if not already there
+                if (window.location.pathname !== '/dashboard') {
+                    console.log('Navigating to dashboard with tab:', tabId);
+                    window.location.href = '/dashboard#' + tabId;
+                    return;
+                }
+
+                // Update URL hash
+                window.location.hash = tabId;
+                console.log('Updated hash to:', tabId);
+
+                // Call showTab function if it exists
+                if (typeof showTab === 'function') {
+                    console.log('Calling showTab directly');
+                    showTab(tabId);
                 } else {
-                    console.error('Could not auto-open dropdown', { wrapper, navItem, dropdown });
-                }
-            }
-
-            // Update active dropdown item based on current tab
-            if (window.location.pathname === '/dashboard') {
-                const hash = window.location.hash.substring(1);
-                if (hash) {
-                    const dropdownItems = document.querySelectorAll('.dropdown-item');
-                    dropdownItems.forEach(item => {
-                        item.classList.remove('active');
-                        if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(hash)) {
-                            item.classList.add('active');
+                    console.log('showTab not found, waiting...');
+                    // Fallback: wait for showTab to be available
+                    let attempts = 0;
+                    const maxAttempts = 10;
+                    const checkShowTab = setInterval(() => {
+                        attempts++;
+                        if (typeof showTab === 'function') {
+                            console.log('showTab found after', attempts * 100, 'ms');
+                            clearInterval(checkShowTab);
+                            showTab(tabId);
+                        } else if (attempts >= maxAttempts) {
+                            console.error('showTab function not found after', maxAttempts * 100, 'ms');
+                            clearInterval(checkShowTab);
+                            // Force show the tab by manipulating DOM directly
+                            const tabs = document.querySelectorAll('.tab-content');
+                            tabs.forEach(tab => {
+                                tab.classList.remove('active');
+                                tab.style.display = 'none';
+                            });
+                            const selectedTab = document.getElementById(tabId);
+                            if (selectedTab) {
+                                selectedTab.classList.add('active');
+                                selectedTab.style.display = 'block';
+                                console.log('Manually showed tab:', tabId);
+                            }
                         }
-                    });
+                    }, 100);
                 }
+
+                // Update active state in dropdown
+                const dropdownItems = document.querySelectorAll('.dropdown-item');
+                dropdownItems.forEach(item => {
+                    item.classList.remove('active');
+                    if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(tabId)) {
+                        item.classList.add('active');
+                    }
+                });
             }
-        });
 
-        // Theme management
-        function getPreferredTheme() {
-            const stored = localStorage.getItem('theme');
-            if (stored) return stored;
+            // Initialize sidebar state
+            document.addEventListener('DOMContentLoaded', function () {
+                const sidebar = document.getElementById('sidebar');
+                const toggleIcon = document.getElementById('sidebarToggleIcon');
+                const savedState = localStorage.getItem('sidebarCollapsed');
+                if (sidebar && savedState === 'true') {
+                    sidebar.classList.add('collapsed');
+                    if (toggleIcon) {
+                        toggleIcon.className = 'fas fa-angle-double-right';
+                    }
+                } else if (toggleIcon) {
+                    toggleIcon.className = 'fas fa-angle-double-left';
+                }
 
-            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        }
+                // Handle hash navigation for dashboard tabs
+                if (window.location.hash) {
+                    const tabId = window.location.hash.substring(1);
+                    if (typeof showTab === 'function') {
+                        setTimeout(() => showTab(tabId), 100);
+                    }
+                }
 
-        function setTheme(theme) {
-            document.documentElement.setAttribute('data-color-mode', theme);
-            localStorage.setItem('theme', theme);
+                // Auto-open dashboard dropdown if on dashboard page
+                if (window.location.pathname === '/dashboard') {
+                    const wrapper = document.querySelector('aside.sidebar .nav-item-wrapper');
+                    const navItem = wrapper ? wrapper.querySelector('.nav-item.has-dropdown') : null;
+                    const dropdown = document.getElementById('dashboardDropdown');
 
-            // Update theme toggle icon
-            const icon = document.querySelector('.theme-toggle i');
-            if (icon) {
-                icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
-            }
-        }
+                    if (wrapper && navItem && dropdown) {
+                        wrapper.classList.add('is-open');
+                        navItem.classList.add('is-open');
+                        dropdown.classList.add('is-open');
+                        console.log('Auto-opened dashboard dropdown');
+                    } else {
+                        console.error('Could not auto-open dropdown', { wrapper, navItem, dropdown });
+                    }
+                }
 
-        function toggleTheme() {
-            const current = document.documentElement.getAttribute('data-color-mode');
-            const next = current === 'dark' ? 'light' : 'dark';
-            setTheme(next);
-        }
-
-        // Initialize theme on page load
-        document.addEventListener('DOMContentLoaded', function () {
-            setTheme(getPreferredTheme());
-
-            // Listen for system theme changes
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
-                if (!localStorage.getItem('theme')) {
-                    setTheme(e.matches ? 'dark' : 'light');
+                // Update active dropdown item based on current tab
+                if (window.location.pathname === '/dashboard') {
+                    const hash = window.location.hash.substring(1);
+                    if (hash) {
+                        const dropdownItems = document.querySelectorAll('.dropdown-item');
+                        dropdownItems.forEach(item => {
+                            item.classList.remove('active');
+                            if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(hash)) {
+                                item.classList.add('active');
+                            }
+                        });
+                    }
                 }
             });
 
-            // IMMEDIATELY force close any stuck modals on page load
-            function forceCloseAllModalsImmediate() {
+            // Theme management
+            // Theme management
+            const themes = ['nebula', 'midnight', 'aurora', 'forest', 'crimson'];
+
+            function getPreferredTheme() {
+                const stored = localStorage.getItem('theme');
+                if (stored && themes.includes(stored)) return stored;
+                return 'nebula'; // Default to Antigravity Nebula
+            }
+
+            function setTheme(theme) {
+                if (!themes.includes(theme)) theme = 'nebula';
+
+                // Set the attribute for CSS to pick up
+                document.documentElement.setAttribute('data-color-mode', theme);
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('theme', theme);
+
+                // Update active state on palette buttons
+                const buttons = document.querySelectorAll('.theme-btn');
+                buttons.forEach(btn => {
+                    const btnTheme = btn.getAttribute('data-set-theme');
+                    if (btnTheme === theme) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+            }
+
+            // Initialize theme on page load
+            document.addEventListener('DOMContentLoaded', function () {
+                setTheme(getPreferredTheme());
+
+                // Listen for system theme changes
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+                    if (!localStorage.getItem('theme')) {
+                        setTheme(e.matches ? 'dark' : 'light');
+                    }
+                });
+
+                // IMMEDIATELY force close any stuck modals on page load
+                function forceCloseAllModalsImmediate() {
+                    // Close Bootstrap modals
+                    const bootstrapModals = document.querySelectorAll('.modal.show');
+                    bootstrapModals.forEach(function (modal) {
+                        const modalInstance = bootstrap.Modal.getInstance(modal);
+                        if (modalInstance) {
+                            modalInstance.hide();
+                        }
+                    });
+
+                    // Remove modal backdrops
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    backdrops.forEach(function (backdrop) {
+                        backdrop.remove();
+                    });
+
+                    // Force hide any modals with display: block
+                    const stuckModals = document.querySelectorAll('.modal[style*="display: block"]');
+                    stuckModals.forEach(function (modal) {
+                        modal.style.display = 'none';
+                    });
+
+                    // Remove any body classes that might be stuck
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+
+                    console.log('IMMEDIATELY cleared stuck modals on page load');
+                }
+
+                // Run immediately
+                forceCloseAllModalsImmediate();
+
+                // Run again after a short delay
+                setTimeout(forceCloseAllModalsImmediate, 50);
+                setTimeout(forceCloseAllModalsImmediate, 100);
+                setTimeout(forceCloseAllModalsImmediate, 200);
+                setTimeout(forceCloseAllModalsImmediate, 500);
+            });
+
+            // Make toggleTheme globally available
+            window.toggleTheme = toggleTheme;
+
+            // Global function to force close all modals
+            window.forceCloseAllModals = function () {
                 // Close Bootstrap modals
                 const bootstrapModals = document.querySelectorAll('.modal.show');
                 bootstrapModals.forEach(function (modal) {
@@ -3228,147 +3351,104 @@
                 document.body.style.overflow = '';
                 document.body.style.paddingRight = '';
 
-                console.log('IMMEDIATELY cleared stuck modals on page load');
-            }
+                console.log('Force closed all modals');
+            };
 
-            // Run immediately
-            forceCloseAllModalsImmediate();
-
-            // Run again after a short delay
-            setTimeout(forceCloseAllModalsImmediate, 50);
-            setTimeout(forceCloseAllModalsImmediate, 100);
-            setTimeout(forceCloseAllModalsImmediate, 200);
-            setTimeout(forceCloseAllModalsImmediate, 500);
-        });
-
-        // Make toggleTheme globally available
-        window.toggleTheme = toggleTheme;
-
-        // Global function to force close all modals
-        window.forceCloseAllModals = function () {
-            // Close Bootstrap modals
-            const bootstrapModals = document.querySelectorAll('.modal.show');
-            bootstrapModals.forEach(function (modal) {
-                const modalInstance = bootstrap.Modal.getInstance(modal);
-                if (modalInstance) {
-                    modalInstance.hide();
+            // Add keyboard shortcut to force close modals (Escape key)
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    window.forceCloseAllModals();
                 }
             });
 
-            // Remove modal backdrops
-            const backdrops = document.querySelectorAll('.modal-backdrop');
-            backdrops.forEach(function (backdrop) {
-                backdrop.remove();
+            // EMERGENCY FIX: Completely disable problematic modals
+            document.addEventListener('DOMContentLoaded', function () {
+                // Override Bootstrap Modal functions to prevent showing
+                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    const originalShow = bootstrap.Modal.prototype.show;
+                    bootstrap.Modal.prototype.show = function () {
+                        console.log('Modal show attempt blocked for:', this._element.id);
+                        // Don't show the modal
+                        return;
+                    };
+
+                    const originalHide = bootstrap.Modal.prototype.hide;
+                    bootstrap.Modal.prototype.hide = function () {
+                        console.log('Modal hide called for:', this._element.id);
+                        // Force hide
+                        this._element.style.display = 'none';
+                        this._element.classList.remove('show');
+                        document.body.classList.remove('modal-open');
+                        document.body.style.overflow = '';
+                        document.body.style.paddingRight = '';
+
+                        // Remove backdrop
+                        const backdrops = document.querySelectorAll('.modal-backdrop');
+                        backdrops.forEach(backdrop => backdrop.remove());
+                    };
+                }
+
+                // Override jQuery modal functions if they exist
+                if (typeof $ !== 'undefined' && $.fn.modal) {
+                    $.fn.modal = function () {
+                        console.log('jQuery modal call blocked');
+                        return this;
+                    };
+                }
+
+                // Force hide specific problematic modals
+                const problematicModals = ['testConnectionModal', 'deleteConfirmModal'];
+                problematicModals.forEach(function (modalId) {
+                    const modal = document.getElementById(modalId);
+                    if (modal) {
+                        modal.style.display = 'none';
+                        modal.style.visibility = 'hidden';
+                        modal.style.opacity = '0';
+                        modal.style.pointerEvents = 'none';
+                    }
+                });
+
+                console.log('Emergency modal blocking activated');
             });
+        </script>
 
-            // Force hide any modals with display: block
-            const stuckModals = document.querySelectorAll('.modal[style*="display: block"]');
-            stuckModals.forEach(function (modal) {
-                modal.style.display = 'none';
-            });
+        {% block scripts %}{% endblock %}
 
-            // Remove any body classes that might be stuck
-            document.body.classList.remove('modal-open');
-            document.body.style.overflow = '';
-            document.body.style.paddingRight = '';
+        <!-- Scroll to Top Button -->
+        <button class="scroll-to-top" id="scrollToTop" onclick="scrollToTop()" title="Scroll to top">
+            <i class="fas fa-arrow-up"></i>
+        </button>
 
-            console.log('Force closed all modals');
-        };
-
-        // Add keyboard shortcut to force close modals (Escape key)
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') {
-                window.forceCloseAllModals();
-            }
-        });
-
-        // EMERGENCY FIX: Completely disable problematic modals
-        document.addEventListener('DOMContentLoaded', function () {
-            // Override Bootstrap Modal functions to prevent showing
-            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-                const originalShow = bootstrap.Modal.prototype.show;
-                bootstrap.Modal.prototype.show = function () {
-                    console.log('Modal show attempt blocked for:', this._element.id);
-                    // Don't show the modal
-                    return;
-                };
-
-                const originalHide = bootstrap.Modal.prototype.hide;
-                bootstrap.Modal.prototype.hide = function () {
-                    console.log('Modal hide called for:', this._element.id);
-                    // Force hide
-                    this._element.style.display = 'none';
-                    this._element.classList.remove('show');
-                    document.body.classList.remove('modal-open');
-                    document.body.style.overflow = '';
-                    document.body.style.paddingRight = '';
-
-                    // Remove backdrop
-                    const backdrops = document.querySelectorAll('.modal-backdrop');
-                    backdrops.forEach(backdrop => backdrop.remove());
-                };
+        <script>
+            // Scroll to Top Button
+            function scrollToTop() {
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
             }
 
-            // Override jQuery modal functions if they exist
-            if (typeof $ !== 'undefined' && $.fn.modal) {
-                $.fn.modal = function () {
-                    console.log('jQuery modal call blocked');
-                    return this;
-                };
-            }
-
-            // Force hide specific problematic modals
-            const problematicModals = ['testConnectionModal', 'deleteConfirmModal'];
-            problematicModals.forEach(function (modalId) {
-                const modal = document.getElementById(modalId);
-                if (modal) {
-                    modal.style.display = 'none';
-                    modal.style.visibility = 'hidden';
-                    modal.style.opacity = '0';
-                    modal.style.pointerEvents = 'none';
+            // Show/hide scroll to top button
+            window.addEventListener('scroll', function () {
+                const scrollButton = document.getElementById('scrollToTop');
+                if (scrollButton) {
+                    if (window.pageYOffset > 300) {
+                        scrollButton.classList.add('visible');
+                    } else {
+                        scrollButton.classList.remove('visible');
+                    }
                 }
             });
 
-            console.log('Emergency modal blocking activated');
-        });
-    </script>
-
-    {% block scripts %}{% endblock %}
-
-    <!-- Scroll to Top Button -->
-    <button class="scroll-to-top" id="scrollToTop" onclick="scrollToTop()" title="Scroll to top">
-        <i class="fas fa-arrow-up"></i>
-    </button>
-
-    <script>
-        // Scroll to Top Button
-        function scrollToTop() {
-            window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
-        }
-
-        // Show/hide scroll to top button
-        window.addEventListener('scroll', function () {
-            const scrollButton = document.getElementById('scrollToTop');
-            if (scrollButton) {
-                if (window.pageYOffset > 300) {
+            // Initialize scroll button on page load
+            document.addEventListener('DOMContentLoaded', function () {
+                const scrollButton = document.getElementById('scrollToTop');
+                if (scrollButton && window.pageYOffset > 300) {
                     scrollButton.classList.add('visible');
-                } else {
-                    scrollButton.classList.remove('visible');
                 }
-            }
-        });
-
-        // Initialize scroll button on page load
-        document.addEventListener('DOMContentLoaded', function () {
-            const scrollButton = document.getElementById('scrollToTop');
-            if (scrollButton && window.pageYOffset > 300) {
-                scrollButton.classList.add('visible');
-            }
-        });
-    </script>
+            });
+        </script>
+    </div>
 </body>
 
 </html>

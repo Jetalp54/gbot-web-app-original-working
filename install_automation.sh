@@ -4,22 +4,26 @@
 # 
 # This script performs a COMPLETE installation from a fresh Ubuntu 22 server:
 #   - System updates and essential packages
+#   - Swap file creation and memory optimization
+#   - Kernel parameter tuning for production workloads
 #   - Python 3.10+, pip, and virtual environment
 #   - PostgreSQL database installation and configuration
 #   - Nginx web server installation and configuration
 #   - Chrome/Chromium + ChromeDriver for Selenium automation
 #   - AWS CLI installation
 #   - Application setup with all dependencies
-#   - Systemd service configuration
+#   - Systemd service configuration with memory limits
+#   - Memory monitoring service (auto-restart on low memory)
 #   - Firewall (UFW) configuration
 #   - Log rotation and backup system
+#   - Git repository cloning (if not present)
 #
 # Usage: 
 #   chmod +x install_automation.sh
 #   sudo ./install_automation.sh
 #
 # Author: GBot Automation
-# Last Updated: 2024
+# Last Updated: December 2024
 ################################################################################
 
 set -e  # Exit on error
@@ -131,7 +135,7 @@ echo ""
 # ============================================================================
 # STEP 1: System Updates and Essential Packages
 # ============================================================================
-print_section "STEP 1/12: System Updates and Essential Packages"
+print_section "STEP 1/15: System Updates and Essential Packages"
 
 wait_for_apt
 
@@ -176,9 +180,99 @@ apt-get install -y \
 print_success "System packages installed"
 
 # ============================================================================
-# STEP 2: Python 3.10+ Setup
+# STEP 2: Swap File and Memory Optimization
 # ============================================================================
-print_section "STEP 2/12: Python Setup"
+print_section "STEP 2/15: Swap File and Memory Optimization"
+
+# Check if swap already exists
+if [ $(swapon --show | wc -l) -eq 0 ]; then
+    # Calculate swap size (2x RAM up to 8GB, then 1x)
+    RAM_MB=$(free -m | awk '/^Mem:/{print $2}')
+    if [ $RAM_MB -lt 4096 ]; then
+        SWAP_SIZE="4G"
+    elif [ $RAM_MB -lt 8192 ]; then
+        SWAP_SIZE="8G"
+    else
+        SWAP_SIZE="8G"
+    fi
+    
+    print_info "Creating ${SWAP_SIZE} swap file..."
+    fallocate -l $SWAP_SIZE /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=${SWAP_SIZE%G}000
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    
+    # Make permanent
+    if ! grep -q "/swapfile" /etc/fstab; then
+        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    fi
+    
+    print_success "Swap file created: ${SWAP_SIZE}"
+else
+    print_info "Swap already exists:"
+    swapon --show
+fi
+
+# ============================================================================
+# STEP 3: Kernel Parameter Tuning for Production
+# ============================================================================
+print_section "STEP 3/15: Kernel Parameter Tuning"
+
+print_info "Applying production kernel optimizations..."
+
+cat > /etc/sysctl.d/99-gbot-production.conf <<'SYSCTL_EOF'
+# GBot Production Kernel Parameters
+# Prevents freezing and improves stability
+
+# Memory Management
+vm.swappiness = 10
+vm.dirty_ratio = 10
+vm.dirty_background_ratio = 5
+vm.overcommit_memory = 0
+vm.overcommit_ratio = 80
+
+# Network Performance
+net.core.somaxconn = 65535
+net.core.netdev_max_backlog = 65535
+net.ipv4.tcp_max_syn_backlog = 65535
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.tcp_keepalive_time = 300
+net.ipv4.tcp_keepalive_probes = 5
+net.ipv4.tcp_keepalive_intvl = 15
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.ip_local_port_range = 10000 65535
+
+# File Descriptors
+fs.file-max = 2097152
+fs.nr_open = 2097152
+
+# Increase inotify limits
+fs.inotify.max_user_watches = 524288
+fs.inotify.max_user_instances = 512
+
+# Prevent OOM killer issues
+vm.oom_kill_allocating_task = 1
+SYSCTL_EOF
+
+sysctl --system > /dev/null 2>&1
+
+# Increase system limits
+cat > /etc/security/limits.d/99-gbot.conf <<'LIMITS_EOF'
+# GBot System Limits
+*               soft    nofile          524288
+*               hard    nofile          524288
+root            soft    nofile          524288
+root            hard    nofile          524288
+*               soft    nproc           32768
+*               hard    nproc           32768
+LIMITS_EOF
+
+print_success "Kernel parameters optimized for production"
+
+# ============================================================================
+# STEP 4: Python 3.10+ Setup
+# ============================================================================
+print_section "STEP 4/15: Python Setup"
 
 PYTHON_VERSION=$(python3 --version 2>/dev/null | cut -d' ' -f2 | cut -d'.' -f1,2 || echo "0")
 print_info "Current Python version: $(python3 --version 2>/dev/null || echo 'Not installed')"
@@ -204,9 +298,9 @@ python3 -m pip install --upgrade pip setuptools wheel
 print_success "Python setup complete"
 
 # ============================================================================
-# STEP 3: PostgreSQL Database Installation
+# STEP 5: PostgreSQL Database Installation
 # ============================================================================
-print_section "STEP 3/12: PostgreSQL Database Installation"
+print_section "STEP 5/15: PostgreSQL Database Installation"
 
 print_info "Installing PostgreSQL..."
 wait_for_apt
@@ -278,9 +372,9 @@ END
 print_success "PostgreSQL configured successfully with comprehensive permissions"
 
 # ============================================================================
-# STEP 4: Chrome/Chromium and ChromeDriver Installation
+# STEP 6: Chrome/Chromium and ChromeDriver Installation
 # ============================================================================
-print_section "STEP 4/12: Chrome and ChromeDriver Installation"
+print_section "STEP 6/15: Chrome and ChromeDriver Installation"
 
 print_info "Installing Chromium browser and ChromeDriver..."
 wait_for_apt
@@ -304,9 +398,9 @@ print_info "ChromeDriver path: $CHROMEDRIVER_PATH"
 print_success "Chrome/ChromeDriver setup complete"
 
 # ============================================================================
-# STEP 5: AWS CLI Installation
+# STEP 7: AWS CLI Installation
 # ============================================================================
-print_section "STEP 5/12: AWS CLI Installation"
+print_section "STEP 7/15: AWS CLI Installation"
 
 if command -v aws &> /dev/null; then
     print_info "AWS CLI already installed: $(aws --version)"
@@ -322,9 +416,9 @@ fi
 print_success "AWS CLI installed: $(aws --version 2>/dev/null || echo 'Ready')"
 
 # ============================================================================
-# STEP 6: Nginx Web Server Installation
+# STEP 8: Nginx Web Server Installation
 # ============================================================================
-print_section "STEP 6/12: Nginx Web Server Installation"
+print_section "STEP 8/15: Nginx Web Server Installation"
 
 print_info "Installing Nginx..."
 wait_for_apt
@@ -431,9 +525,12 @@ systemctl restart nginx
 print_success "Nginx configured and started"
 
 # ============================================================================
-# STEP 7: Application Directory Setup
+# STEP 9: Application Directory Setup
 # ============================================================================
-print_section "STEP 7/12: Application Directory Setup"
+print_section "STEP 9/15: Application Directory Setup"
+
+# GitHub repository URL
+GITHUB_REPO="https://github.com/Jetalp54/gbot-web-app-original-working.git"
 
 # Create directories
 mkdir -p $APP_DIR
@@ -445,12 +542,28 @@ mkdir -p $APP_DIR/instance
 # Get the script's directory (where the source files are)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Copy files if not already in APP_DIR
-if [ "$SCRIPT_DIR" != "$APP_DIR" ]; then
-    print_info "Copying application files from $SCRIPT_DIR to $APP_DIR..."
-    cp -r "$SCRIPT_DIR"/* $APP_DIR/ 2>/dev/null || true
-    cp "$SCRIPT_DIR"/.env $APP_DIR/ 2>/dev/null || true
-    cp "$SCRIPT_DIR"/.gitignore $APP_DIR/ 2>/dev/null || true
+# Check if app.py exists in APP_DIR or SCRIPT_DIR
+if [ ! -f "$APP_DIR/app.py" ]; then
+    if [ -f "$SCRIPT_DIR/app.py" ] && [ "$SCRIPT_DIR" != "$APP_DIR" ]; then
+        print_info "Copying application files from $SCRIPT_DIR to $APP_DIR..."
+        cp -r "$SCRIPT_DIR"/* $APP_DIR/ 2>/dev/null || true
+        cp "$SCRIPT_DIR"/.env $APP_DIR/ 2>/dev/null || true
+        cp "$SCRIPT_DIR"/.gitignore $APP_DIR/ 2>/dev/null || true
+    else
+        print_info "Cloning application from GitHub..."
+        cd /opt
+        rm -rf gbot-web-app 2>/dev/null || true
+        git clone $GITHUB_REPO gbot-web-app
+        print_success "Repository cloned successfully"
+    fi
+else
+    print_info "Application files already exist in $APP_DIR"
+    # Update from git if .git directory exists
+    if [ -d "$APP_DIR/.git" ]; then
+        print_info "Pulling latest changes from GitHub..."
+        cd $APP_DIR
+        git pull origin master 2>/dev/null || git pull origin main 2>/dev/null || print_warning "Could not pull latest changes"
+    fi
 fi
 
 # Set ownership
@@ -460,9 +573,9 @@ chown -R $APP_USER:$APP_USER $LOG_DIR
 print_success "Application directory setup complete"
 
 # ============================================================================
-# STEP 8: Python Virtual Environment and Dependencies
+# STEP 10: Python Virtual Environment and Dependencies
 # ============================================================================
-print_section "STEP 8/12: Python Virtual Environment and Dependencies"
+print_section "STEP 10/15: Python Virtual Environment and Dependencies"
 
 cd $APP_DIR
 
@@ -511,9 +624,9 @@ pip install gunicorn psutil psycopg2-binary
 print_success "Python dependencies installed"
 
 # ============================================================================
-# STEP 9: Environment Configuration
+# STEP 11: Environment Configuration
 # ============================================================================
-print_section "STEP 9/12: Environment Configuration"
+print_section "STEP 11/15: Environment Configuration"
 
 cd $APP_DIR
 
@@ -575,9 +688,9 @@ chown $APP_USER:$APP_USER "$ENV_FILE"
 print_success "Environment configuration complete"
 
 # ============================================================================
-# STEP 10: Database Initialization
+# STEP 12: Database Initialization
 # ============================================================================
-print_section "STEP 10/12: Database Initialization"
+print_section "STEP 12/15: Database Initialization"
 
 cd $APP_DIR
 source venv/bin/activate
@@ -598,9 +711,9 @@ fi
 print_success "Database initialization complete"
 
 # ============================================================================
-# STEP 11: Systemd Service Configuration
+# STEP 13: Systemd Service Configuration
 # ============================================================================
-print_section "STEP 11/12: Systemd Service Configuration"
+print_section "STEP 13/15: Systemd Service Configuration"
 
 # Create gunicorn config if not exists
 if [ ! -f "$APP_DIR/gunicorn.conf.py" ]; then
@@ -698,9 +811,9 @@ systemctl enable $SERVICE_NAME
 print_success "Systemd service configured"
 
 # ============================================================================
-# STEP 12: Firewall, Log Rotation, and Final Setup
+# STEP 13b: Firewall, Log Rotation, and Final Setup
 # ============================================================================
-print_section "STEP 12/12: Firewall, Log Rotation, and Backup Setup"
+print_section "STEP 13/15: Firewall, Log Rotation, and Backup Setup"
 
 # Firewall
 print_info "Configuring firewall..."
@@ -837,9 +950,66 @@ chown $APP_USER:$APP_USER $APP_DIR/fix_permissions.sh
 print_success "Firewall, log rotation, backup, and permission fix scripts configured"
 
 # ============================================================================
-# Start Services
+# STEP 14: Memory Monitoring Service
 # ============================================================================
-print_section "Starting Services"
+print_section "STEP 14/15: Memory Monitoring Service"
+
+print_info "Creating memory monitoring service..."
+
+# Create memory monitor script
+cat > $APP_DIR/memory_monitor.sh <<'MEMMON_EOF'
+#!/bin/bash
+#
+# Memory Monitor for GBot
+# Auto-restarts the service if memory usage exceeds threshold
+#
+
+THRESHOLD=90
+SERVICE="gbot"
+LOG_FILE="/var/log/gbot/memory_monitor.log"
+
+while true; do
+    MEM_USED=$(free | awk '/Mem:/ {printf "%.0f", $3/$2 * 100}')
+    
+    if [ "$MEM_USED" -gt "$THRESHOLD" ]; then
+        echo "$(date): Memory at ${MEM_USED}% - restarting $SERVICE" >> $LOG_FILE
+        systemctl restart $SERVICE
+        sleep 60  # Wait before checking again
+    fi
+    
+    sleep 30
+done
+MEMMON_EOF
+
+chmod +x $APP_DIR/memory_monitor.sh
+chown $APP_USER:$APP_USER $APP_DIR/memory_monitor.sh
+
+# Create memory monitor systemd service
+cat > /etc/systemd/system/gbot-memory-monitor.service <<'MEMMONSVC_EOF'
+[Unit]
+Description=GBot Memory Monitor
+After=gbot.service
+BindsTo=gbot.service
+
+[Service]
+Type=simple
+ExecStart=/opt/gbot-web-app/memory_monitor.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+MEMMONSVC_EOF
+
+systemctl daemon-reload
+systemctl enable gbot-memory-monitor
+
+print_success "Memory monitoring service configured"
+
+# ============================================================================
+# STEP 15: Start Services
+# ============================================================================
+print_section "STEP 15/15: Starting Services"
 
 print_info "Starting GBot service..."
 systemctl start $SERVICE_NAME
@@ -852,6 +1022,16 @@ if systemctl is-active --quiet $SERVICE_NAME; then
 else
     print_warning "Service may not have started properly. Checking logs..."
     journalctl -u $SERVICE_NAME -n 20 --no-pager
+fi
+
+# Start memory monitor
+print_info "Starting memory monitoring service..."
+systemctl start gbot-memory-monitor
+
+if systemctl is-active --quiet gbot-memory-monitor; then
+    print_success "Memory monitoring service started"
+else
+    print_warning "Memory monitoring service may need manual start"
 fi
 
 # ============================================================================

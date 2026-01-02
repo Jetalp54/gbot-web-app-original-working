@@ -3,632 +3,392 @@
 {% block title %}AWS Management - GBot Web{% endblock %}
 
 {% block content %}
-<div class="main-wrapper">
-    <div class="main-container">
-        <h1 class="github-card-title" style="margin-bottom: var(--spacing-xl);">
-            <i class="fas fa-cloud"></i>
-            AWS Management
-        </h1>
+<div class="glass-ui">
+    <div class="container-fluid p-4">
+
+        <!-- Header -->
+        <div class="d-flex align-items-center justify-content-between mb-4">
+            <h1 class="glass-text-primary mb-0" style="font-size: 2rem; font-weight: 700;">
+                <i class="fas fa-cloud me-3"></i>AWS Management
+            </h1>
+            <div class="d-flex gap-2">
+                <!-- Header Actions if any -->
+            </div>
+        </div>
 
         <!-- Info Message -->
-        <div class="alert-github"
-            style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-lg);">
-            <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
-            <div>
-                <strong>Note:</strong> AWS credentials are now managed in <a href="/settings"
-                    style="color: var(--color-accent-fg); text-decoration: underline;">Settings</a>.
-                Please configure your AWS credentials there before using this page.
-            </div>
-        </div>
-
-        <!-- Tabs Section -->
-        <div class="github-card">
-            <div class="github-card-body">
-                <div
-                    style="display: flex; gap: var(--spacing-sm); margin-bottom: var(--spacing-lg); border-bottom: 1px solid var(--color-border-default);">
-                    <button class="tab-button active" onclick="switchTab('infra')" id="tab-infra-btn">
-                        <i class="fas fa-server"></i>
-                        1) Core Infrastructure
-                    </button>
-                    <button class="tab-button" onclick="switchTab('lambda')" id="tab-lambda-btn">
-                        <i class="fas fa-code"></i>
-                        2) Production Lambda
-                    </button>
-                    <button class="tab-button" onclick="switchTab('ec2')" id="tab-ec2-btn">
-                        <i class="fas fa-desktop"></i>
-                        3) EC2 Build Box (Docker)
-                    </button>
-                    <button class="tab-button" onclick="switchTab('status')" id="tab-status-btn">
-                        <i class="fas fa-chart-bar"></i>
-                        4) Global Status
-                    </button>
+        <div class="glass-panel p-4 mb-5" style="border-left: 4px solid var(--accent-secondary) !important;">
+            <div class="d-flex align-items-start gap-3">
+                <div class="glass-orb"
+                    style="position: static; width: 24px; height: 24px; background: var(--accent-secondary); filter: blur(10px); opacity: 0.8;">
                 </div>
-
-                <!-- Infrastructure Tab -->
-                <div id="tab-infra" class="tab-content active">
-                    <div class="section">
-                        <h4 style="margin-bottom: var(--spacing-md);">Core AWS Resources</h4>
-
-                        <!-- Resource Naming Configuration -->
-                        <div
-                            style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05)); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                            <h5
-                                style="margin-bottom: 12px; color: var(--color-accent-fg); display: flex; align-items: center; gap: 8px;">
-                                <i class="fas fa-tag"></i> Resource Naming Configuration
-                            </h5>
-                            <small style="color: #656d76; display: block; margin-bottom: 12px;">
-                                Configure unique names for your AWS resources. Use different names to manage multiple
-                                instances.
-                            </small>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                                <div class="form-group-github" style="margin-bottom: 0;">
-                                    <label class="form-label-github" style="font-size: 12px;">
-                                        <i class="fas fa-box"></i> ECR Repository Name
-                                    </label>
-                                    <input type="text" class="form-control-github" id="ecrRepoName"
-                                        value="dev-app-password-worker" placeholder="e.g., dev-worker, myapp-worker">
-                                </div>
-                                <div class="form-group-github" style="margin-bottom: 0;">
-                                    <label class="form-label-github" style="font-size: 12px;">
-                                        <i class="fas fa-database"></i> DynamoDB Table Name
-                                    </label>
-                                    <input type="text" class="form-control-github" id="dynamodbTableName"
-                                        value="dev-app-passwords" placeholder="e.g., dev-passwords, myapp-passwords">
-                                </div>
-                                <div class="form-group-github" style="margin-bottom: 0;">
-                                    <label class="form-label-github" style="font-size: 12px;">
-                                        <i class="fas fa-bucket"></i> S3 Bucket Name
-                                    </label>
-                                    <input type="text" class="form-control-github" id="s3BucketName"
-                                        value="dev-app-passwords" placeholder="e.g., dev-bucket, myapp-bucket">
-                                </div>
-                                <div class="form-group-github" style="margin-bottom: 0;">
-                                    <label class="form-label-github" style="font-size: 12px;">
-                                        <i class="fas fa-user-shield"></i> IAM Role Prefix
-                                    </label>
-                                    <input type="text" class="form-control-github" id="iamRolePrefix" value="dev"
-                                        placeholder="e.g., dev, myapp">
-                                </div>
-                            </div>
-                        </div>
-
-                        <button class="btn-github btn-github-primary" onclick="createInfrastructure()"
-                            style="width: 100%; margin-bottom: var(--spacing-sm);">
-                            <i class="fas fa-plus-circle"></i>
-                            Create Core Resources (IAM, ECR, S3)
-                        </button>
-                        <button class="btn-github btn-github-primary" onclick="createDynamoDBTable()"
-                            style="width: 100%; margin-bottom: var(--spacing-sm);">
-                            <i class="fas fa-database"></i>
-                            Create DynamoDB Table (Password Storage)
-                        </button>
-                        <button class="btn-github" onclick="createECRManual()"
-                            style="width: 100%; margin-bottom: var(--spacing-sm);">
-                            <i class="fas fa-box"></i>
-                            Create ECR Repository (Manual)
-                        </button>
-                        <button class="btn-github btn-github-primary" onclick="pushECRToAllRegions()"
-                            style="width: 100%; margin-bottom: var(--spacing-sm); background-color: var(--color-success-emphasis);">
-                            <i class="fas fa-globe"></i>
-                            Push ECR Image to All Regions (Auto)
-                        </button>
-                        <button class="btn-github btn-github-secondary" onclick="generateECRPushScript()"
-                            style="width: 100%; margin-bottom: var(--spacing-sm);">
-                            <i class="fas fa-file-code"></i>
-                            Generate Push Script (For EC2 Build Box)
-                        </button>
-                        <div class="alert-github"
-                            style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-sm); font-size: 12px;">
-                            <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
-                            <div>
-                                <strong>Multi-Region Lambda:</strong> Push your ECR image to all AWS regions to enable
-                                Lambda functions across geos. This creates ECR repositories in all regions and provides
-                                push instructions.
-                            </div>
-                        </div>
-                        <div id="ecrPushOptions"
-                            style="display: none; margin-bottom: var(--spacing-sm); padding: var(--spacing-md); background-color: var(--color-canvas-subtle); border-radius: var(--radius-md);">
-                            <div class="form-group-github">
-                                <label class="form-label-github">
-                                    <i class="fas fa-map-marker-alt"></i> Source Region (where ECR image exists)
-                                </label>
-                                <select id="sourceRegionSelect" class="form-control-github">
-                                    <option value="">Auto-detect from ECR URI</option>
-                                    <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
-                                    <option value="us-east-2">US East (Ohio) - us-east-2</option>
-                                    <option value="us-west-1">US West (N. California) - us-west-1</option>
-                                    <option value="us-west-2">US West (Oregon) - us-west-2</option>
-                                    <option value="af-south-1">Africa (Cape Town) - af-south-1</option>
-                                    <option value="ap-east-1">Asia Pacific (Hong Kong) - ap-east-1</option>
-                                    <option value="ap-south-1">Asia Pacific (Mumbai) - ap-south-1</option>
-                                    <option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
-                                    <option value="ap-northeast-2">Asia Pacific (Seoul) - ap-northeast-2</option>
-                                    <option value="ap-northeast-3">Asia Pacific (Osaka) - ap-northeast-3</option>
-                                    <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
-                                    <option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
-                                    <option value="ap-southeast-3">Asia Pacific (Jakarta) - ap-southeast-3</option>
-                                    <option value="ca-central-1">Canada (Central) - ca-central-1</option>
-                                    <option value="eu-central-1">Europe (Frankfurt) - eu-central-1</option>
-                                    <option value="eu-west-1" selected>Europe (Ireland) - eu-west-1</option>
-                                    <option value="eu-west-2">Europe (London) - eu-west-2</option>
-                                    <option value="eu-west-3">Europe (Paris) - eu-west-3</option>
-                                    <option value="eu-north-1">Europe (Stockholm) - eu-north-1</option>
-                                    <option value="eu-south-1">Europe (Milan) - eu-south-1</option>
-                                    <option value="me-south-1">Middle East (Bahrain) - me-south-1</option>
-                                    <option value="me-central-1">Middle East (UAE) - me-central-1</option>
-                                    <option value="sa-east-1">South America (São Paulo) - sa-east-1</option>
-                                </select>
-                                <small style="color: var(--color-fg-muted); font-size: 12px;">Select the region where
-                                    your ECR image currently exists</small>
-                            </div>
-                        </div>
-                        <button class="btn-github" onclick="inspectResources()" style="width: 100%;">
-                            <i class="fas fa-search"></i>
-                            Inspect Resources (IAM / ECR / Lambdas)
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Tab Content: Global Status -->
-                <div id="tab-status" class="tab-content" style="display: none;">
-                    <div class="card">
-                        <h3>Global Resource Status</h3>
-                        <p>Check the status of Lambda functions and ECR images across all supported regions.</p>
-
-                        <div class="form-group">
-                            <button class="btn btn-primary" onclick="checkGlobalStatus()">Refresh Global Status</button>
-                        </div>
-
-                        <div id="globalStatusLoading" style="display: none; margin: 20px 0;">
-                            <div class="loading-spinner"></div>
-                            <p>Inspecting all regions... This may take 10-20 seconds...</p>
-                        </div>
-
-                        <div class="table-container">
-                            <table class="github-table">
-                                <thead>
-                                    <tr>
-                                        <th>Region</th>
-                                        <th>Lambda Functions</th>
-                                        <th>ECR Repo</th>
-                                        <th>Image Tag</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="statusTableBody">
-                                    <!-- Populated by JS -->
-                                </tbody>
-                                <tfoot id="statusTableFoot">
-                                    <!-- Populated by JS -->
-                                </tfoot>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-
-            </div>
-        </div>
-    </div>
-
-
-    <!-- Lambda Tab -->
-    <div id="tab-lambda" class="tab-content" style="display: none;">
-        <div class="section" style="margin-bottom: var(--spacing-lg);">
-            <h4 style="margin-bottom: var(--spacing-md);">Production Lambda Management</h4>
-            <div class="alert-github"
-                style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-md);">
-                <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
                 <div>
-                    <strong>Production Workflow:</strong><br>
-                    1) Create Core Resources (IAM, ECR, S3) + DynamoDB Table<br>
-                    2) Use EC2 tab to build/push Docker image<br>
-                    3) Create/Update Production Lambda<br>
-                    4) Invoke Lambda → Wait → Fetch from DynamoDB
-                </div>
-            </div>
-
-            <!-- Lambda Naming Configuration -->
-            <div
-                style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05)); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                <h5 style="margin-bottom: 12px; color: #10b981; display: flex; align-items: center; gap: 8px;">
-                    <i class="fas fa-code"></i> Lambda Function Naming
-                </h5>
-                <small style="color: #656d76; display: block; margin-bottom: 12px;">
-                    The prefix will be used for all Lambda operations. Functions will be named: <code
-                        style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px;">{prefix}-{region}-{number}</code>
-                </small>
-                <div class="form-group-github" style="margin-bottom: 0;">
-                    <label class="form-label-github" style="font-size: 12px;">
-                        <i class="fas fa-tag"></i> Lambda Function Prefix (used for Create/Invoke/Delete)
-                    </label>
-                    <input type="text" class="form-control-github" id="lambdaPrefix" value="dev-chromium"
-                        placeholder="e.g., dev-chromium, myapp-worker, client-a">
-                    <small style="color: #656d76; font-size: 11px;">
-                        Example: With prefix "client-a", functions will be: client-a-useast1-1, client-a-useast1-2, etc.
-                    </small>
-                </div>
-            </div>
-
-            <!-- Lambda Creation Options -->
-            <div class="section" style="margin-bottom: var(--spacing-md);">
-                <h5 style="margin-bottom: var(--spacing-sm);">Lambda Creation Options</h5>
-                <div class="form-group-github">
-                    <label
-                        style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer; margin-bottom: var(--spacing-sm);">
-                        <input type="checkbox" id="createMultipleLambdas" onchange="toggleLambdaOptions()">
-                        <span>Create multiple Lambda functions based on user count</span>
-                    </label>
-                </div>
-                <div id="lambdaOptions"
-                    style="display: none; margin-top: var(--spacing-md); padding: var(--spacing-md); background-color: var(--color-canvas-subtle); border-radius: var(--radius-md);">
-                    <div
-                        style="margin-bottom: var(--spacing-md); padding: var(--spacing-sm); background-color: var(--color-success-subtle); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-success-fg);">
-                        <strong>ℹ️ Auto-calculation:</strong> Users will be automatically counted from the
-                        "Multiple Accounts" field above.
-                    </div>
-                    <div class="form-group-github">
-                        <label class="form-label-github">Users per Function (lower = less CAPTCHA, default: 10):</label>
-                        <input type="number" id="usersPerFunction" class="form-control-github" value="10" min="1"
-                            max="20" style="width: 100px;" onchange="updateLambdaCalculation()"
-                            oninput="updateLambdaCalculation()">
-                        <small style="color: var(--color-fg-muted); font-size: 12px;">Number of users to process per
-                            Lambda function. Lower values reduce CAPTCHA frequency (default: 10, recommended: 5-8 for
-                            fewer CAPTCHAs)</small>
-                    </div>
-                    <div id="lambdaCalculation"
-                        style="margin-top: var(--spacing-sm); padding: var(--spacing-sm); background-color: var(--color-canvas-inset); border-radius: var(--radius-sm); font-size: 13px; color: var(--color-fg-muted);">
-                        <strong>Calculation:</strong> <span id="lambdaCount">0</span> function(s) will be
-                        created for <span id="detectedUserCount">0</span> user(s)
-                    </div>
-                </div>
-            </div>
-            <button class="btn-github btn-github-primary" onclick="createLambdas()"
-                style="width: 100%; margin-bottom: var(--spacing-sm);">
-                <i class="fas fa-sync-alt"></i>
-                Create / Update Production Lambda(s)
-            </button>
-            <button class="btn-github" onclick="checkAWSLimits()"
-                style="width: 100%; margin-bottom: var(--spacing-sm); background-color: rgba(0, 123, 255, 0.1); border-color: #007bff;">
-                <i class="fas fa-search"></i>
-                🔍 Check AWS Limits (Diagnose 10 User Issue)
-            </button>
-            <button class="btn-github" onclick="fixLambdaConcurrency()"
-                style="width: 100%; margin-bottom: var(--spacing-sm); background-color: rgba(255, 193, 7, 0.1); border-color: #ffc107;">
-                <i class="fas fa-tachometer-alt"></i>
-                🔧 Fix Concurrency Limit (Remove 10 User Limit)
-            </button>
-            <button class="btn-github" onclick="requestQuotaIncrease()"
-                style="width: 100%; margin-bottom: var(--spacing-md); background-color: rgba(40, 167, 69, 0.1); border-color: #28a745;">
-                <i class="fas fa-arrow-up"></i>
-                🚀 Request Quota Increase (10 → 1000)
-            </button>
-
-            <!-- Execution Mode -->
-            <div class="section" style="margin-bottom: var(--spacing-lg);">
-                <h5 style="margin-bottom: var(--spacing-sm);">Execution Mode</h5>
-                <div style="display: flex; gap: var(--spacing-lg); margin-bottom: var(--spacing-md);">
-                    <label style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer;">
-                        <input type="radio" name="executionMode" value="single" checked>
-                        <span>Single Account</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer;">
-                        <input type="radio" name="executionMode" value="multiple">
-                        <span>Multiple Accounts (Parallel)</span>
-                    </label>
-                </div>
-
-                <!-- Account Input -->
-                <div class="form-group-github">
-                    <label class="form-label-github">Account Input (user:password, one per line):</label>
-                    <p style="font-size: 12px; color: var(--color-fg-muted); margin-bottom: var(--spacing-sm);">
-                        Single Account Mode: Enter one line (email:password)<br>
-                        Multiple Accounts Mode: Enter multiple lines (one per line)
+                    <h5 class="mb-1" style="color: var(--accent-secondary);">Configuration Required</h5>
+                    <p class="mb-0 text-muted">
+                        AWS credentials are managed in <a href="/settings"
+                            class="text-white text-decoration-underline">Settings</a>.
+                        Please configure them there before using this management console.
                     </p>
-                    <textarea id="multipleUsers" class="form-control-github" rows="8"
-                        placeholder="email1:password1&#10;email2:password2&#10;email3:password3"></textarea>
                 </div>
-                <div id="multiStatus"
-                    style="font-size: 13px; color: var(--color-fg-muted); margin-top: var(--spacing-sm);">
-                    Ready</div>
+            </div>
+        </div>
+
+        <!-- Main Interface -->
+        <div class="glass-panel p-0 overflow-hidden mb-5">
+            <!-- Glass Tabs -->
+            <div class="d-flex border-bottom border-white-10 p-2" style="background: rgba(0,0,0,0.2);">
+                <button class="glass-button tab-button active me-2" onclick="switchTab('infra')" id="tab-infra-btn">
+                    <i class="fas fa-server me-2"></i>Core Infrastructure
+                </button>
+                <button class="glass-button tab-button me-2" onclick="switchTab('lambda')" id="tab-lambda-btn">
+                    <i class="fas fa-code me-2"></i>Production Lambda
+                </button>
+                <button class="glass-button tab-button me-2" onclick="switchTab('ec2')" id="tab-ec2-btn">
+                    <i class="fas fa-desktop me-2"></i>EC2 Build Box
+                </button>
+                <button class="glass-button tab-button" onclick="switchTab('status')" id="tab-status-btn">
+                    <i class="fas fa-chart-bar me-2"></i>Global Status
+                </button>
             </div>
 
-            <button class="btn-github btn-github-primary" onclick="invokeProductionLambda()"
-                style="width: 100%; margin-bottom: var(--spacing-md);">
-                <i class="fas fa-play"></i>
-                Invoke Production Lambda
-            </button>
-            <button class="btn-github" onclick="stopAllLambdas()"
-                style="width: 100%; margin-bottom: var(--spacing-md); background-color: #ff6b35; border-color: #ff6b35; color: white;">
-                <i class="fas fa-stop"></i>
-                Stop All Running Lambdas
-            </button>
-            <button class="btn-github btn-github-danger" onclick="deleteAllLambdas()"
-                style="width: 100%; margin-bottom: var(--spacing-md);">
-                <i class="fas fa-trash"></i>
-                Delete All Lambdas
-            </button>
+            <div class="p-4">
 
-            <!-- Results Section -->
-            <div class="section"
-                style="margin-top: var(--spacing-lg); background-color: var(--color-canvas-subtle); border: 1px solid var(--color-border-default);">
-                <div
-                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
-                    <h5 style="margin: 0;">Generated App Passwords</h5>
-                    <div>
-                        <button class="btn-github btn-github-primary" onclick="fetchFromDynamoDB()"
-                            style="margin-right: var(--spacing-sm);">
-                            <i class="fas fa-database"></i> Fetch from DynamoDB
+                <!-- Tab: Core Infrastructure -->
+                <div id="tab-infra" class="tab-content active">
+                    <h4 class="mb-4 glass-text-primary">Core Resource Management</h4>
+
+                    <div class="row g-4">
+                        <!-- Naming Config -->
+                        <div class="col-12 mb-2">
+                            <div class="glass-panel p-3 mb-0" style="background: rgba(255,255,255,0.03) !important;">
+                                <h6 class="mb-3 text-uppercase text-muted"
+                                    style="font-size: 0.75rem; letter-spacing: 1px;">Resource Naming Configuration</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small">ECR Repository Name</label>
+                                        <input type="text" class="glass-input w-100" id="ecrRepoName"
+                                            value="dev-app-password-worker" placeholder="e.g., dev-worker">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small">DynamoDB Table Name</label>
+                                        <input type="text" class="glass-input w-100" id="dynamodbTableName"
+                                            value="dev-app-passwords" placeholder="e.g., dev-passwords">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small">S3 Bucket Name</label>
+                                        <input type="text" class="glass-input w-100" id="s3BucketName"
+                                            value="dev-app-passwords" placeholder="e.g., dev-bucket">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label text-muted small">IAM Role Prefix</label>
+                                        <input type="text" class="glass-input w-100" id="iamRolePrefix" value="dev"
+                                            placeholder="e.g., dev">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions Grid -->
+                        <div class="col-md-6">
+                            <h5 class="mb-3">Setup & Provisioning</h5>
+                            <div class="d-grid gap-3">
+                                <button class="glass-button glass-button-primary w-100"
+                                    onclick="createInfrastructure()">
+                                    <i class="fas fa-plus-circle me-2"></i>Create Core Resources (IAM, ECR, S3)
+                                </button>
+                                <button class="glass-button glass-button-primary w-100" onclick="createDynamoDBTable()">
+                                    <i class="fas fa-database me-2"></i>Create DynamoDB Table
+                                </button>
+                                <button class="glass-button w-100" onclick="createECRManual()">
+                                    <i class="fas fa-box me-2"></i>Create ECR Repository (Manual)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h5 class="mb-3">Deployment & Inspection</h5>
+                            <div class="d-grid gap-3">
+                                <button class="glass-button w-100"
+                                    style="border-color: var(--color-success-emphasis); color: var(--color-success-fg);"
+                                    onclick="pushECRToAllRegions()">
+                                    <i class="fas fa-globe me-2"></i>Push ECR Image to All Regions
+                                </button>
+                                <button class="glass-button w-100" onclick="generateECRPushScript()">
+                                    <i class="fas fa-file-code me-2"></i>Generate Push Script
+                                </button>
+                                <button class="glass-button w-100" onclick="inspectResources()">
+                                    <i class="fas fa-search me-2"></i>Inspect Resources
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ECR Push Options (Hidden by default) -->
+                        <div id="ecrPushOptions" class="col-12" style="display: none;">
+                            <div class="glass-panel p-3 border border-secondary">
+                                <label class="form-label">Source Region (where ECR image exists)</label>
+                                <select id="sourceRegionSelect" class="glass-input w-100">
+                                    <option value="">Auto-detect from ECR URI</option>
+                                    <option value="us-east-1">US East (N. Virginia)</option>
+                                    <option value="us-east-2">US East (Ohio)</option>
+                                    <option value="us-west-1">US West (N. California)</option>
+                                    <option value="us-west-2">US West (Oregon)</option>
+                                    <option value="eu-west-1" selected>Europe (Ireland)</option>
+                                    <option value="eu-central-1">Europe (Frankfurt)</option>
+                                    <!-- Add other regions as needed -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Lambda Management -->
+                <div id="tab-lambda" class="tab-content" style="display: none;">
+                    <h4 class="mb-4 glass-text-primary">Production Lambda Management</h4>
+
+                    <!-- Config Box -->
+                    <div class="glass-panel p-3 mb-4"
+                        style="background: rgba(16, 185, 129, 0.05) !important; border-color: rgba(16, 185, 129, 0.2) !important;">
+                        <div class="d-flex align-items-center mb-3">
+                            <i class="fas fa-code me-2" style="color: #10b981;"></i>
+                            <h6 class="mb-0" style="color: #10b981;">Lambda Function Naming</h6>
+                        </div>
+                        <p class="small text-muted mb-2">Prefix used for all operations:
+                            <code>{prefix}-{region}-{number}</code>
+                        </p>
+                        <input type="text" class="glass-input w-100" id="lambdaPrefix" value="dev-chromium"
+                            placeholder="e.g., dev-chromium">
+                    </div>
+
+                    <!-- Creation Options -->
+                    <div class="mb-4">
+                        <label class="glass-checkbox d-flex align-items-center gap-2 mb-3 cursor-pointer">
+                            <input type="checkbox" id="createMultipleLambdas" onchange="toggleLambdaOptions()"
+                                style="accent-color: var(--accent-primary);">
+                            <span>Create multiple Lambda functions (Parallel Processing)</span>
+                        </label>
+
+                        <div id="lambdaOptions" class="glass-panel p-3 mb-3" style="display: none;">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">Users per Function</label>
+                                    <input type="number" id="usersPerFunction" class="glass-input w-100" value="10"
+                                        min="1" max="20" onchange="updateLambdaCalculation()"
+                                        oninput="updateLambdaCalculation()">
+                                    <small class="text-muted d-block mt-1">Recommended: 5-8 for fewer CAPTCHAs</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <div id="lambdaCalculation" class="text-info small">
+                                        <i class="fas fa-calculator me-1"></i>
+                                        <span id="lambdaCount">0</span> function(s) for <span
+                                            id="detectedUserCount">0</span> user(s)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex">
+                            <button class="glass-button glass-button-primary flex-grow-1" onclick="createLambdas()">
+                                <i class="fas fa-sync-alt me-2"></i>Create / Update Prod Lambda(s)
+                            </button>
+                            <button class="glass-button" onclick="checkAWSLimits()">
+                                <i class="fas fa-search me-2"></i>Check AWS Limits
+                            </button>
+                            <button class="glass-button" onclick="fixLambdaConcurrency()">
+                                <i class="fas fa-tachometer-alt me-2"></i>Fix Concurrency
+                            </button>
+                            <button class="glass-button" onclick="requestQuotaIncrease()">
+                                <i class="fas fa-arrow-up me-2"></i>Request Quota
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Execution Mode -->
+                    <div class="mb-4 pt-3 border-top border-white-10">
+                        <h5 class="mb-3">Execution Mode</h5>
+                        <div class="d-flex gap-4 mb-3">
+                            <label class="d-flex align-items-center gap-2 cursor-pointer">
+                                <input type="radio" name="executionMode" value="single" checked
+                                    style="accent-color: var(--accent-primary);">
+                                <span>Single Account</span>
+                            </label>
+                            <label class="d-flex align-items-center gap-2 cursor-pointer">
+                                <input type="radio" name="executionMode" value="multiple"
+                                    style="accent-color: var(--accent-primary);">
+                                <span>Multiple Accounts</span>
+                            </label>
+                        </div>
+
+                        <label class="form-label text-muted small">Account Input (email:password)</label>
+                        <textarea id="multipleUsers" class="glass-input w-100 font-monospace mb-2" rows="6"
+                            placeholder="email1:password1&#10;email2:password2"></textarea>
+                        <div id="multiStatus" class="small text-success">Ready</div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button class="glass-button glass-button-primary py-3" onclick="invokeProductionLambda()">
+                            <i class="fas fa-play me-2"></i>Invoke Production Lambda
                         </button>
-                        <button class="btn-github" onclick="fetchGeneratedPasswords()">
-                            <i class="fas fa-sync"></i> Refresh (Local DB)
+                        <div class="d-flex gap-2">
+                            <button class="glass-button glass-button-danger w-50" onclick="stopAllLambdas()">
+                                <i class="fas fa-stop me-2"></i>Stop All
+                            </button>
+                            <button class="glass-button glass-button-danger w-50" onclick="deleteAllLambdas()">
+                                <i class="fas fa-trash me-2"></i>Delete All
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Results -->
+                    <div class="glass-panel p-3 mt-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">Generated App Passwords</h6>
+                            <div>
+                                <button class="glass-button btn-sm me-2" onclick="fetchFromDynamoDB()"><i
+                                        class="fas fa-cloud-download-alt me-1"></i>Fetch DB</button>
+                                <button class="glass-button btn-sm" onclick="fetchGeneratedPasswords()"><i
+                                        class="fas fa-sync me-1"></i>Refresh Local</button>
+                            </div>
+                        </div>
+                        <textarea id="resultsOutput" class="glass-input w-100 font-monospace" rows="8"
+                            readonly></textarea>
+
+                        <!-- Cleanup Section -->
+                        <div class="mt-4 pt-3 border-top border-white-10">
+                            <h6 class="text-danger mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Destructive
+                                Cleanup</h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6 col-md-3">
+                                    <input type="text" class="glass-input w-100 form-control-sm" id="deleteS3BucketName"
+                                        value="dev-app-passwords" placeholder="Bucket">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <input type="text" class="glass-input w-100 form-control-sm" id="deleteEcrRepoName"
+                                        value="dev-app-password-worker" placeholder="Repo">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <input type="text" class="glass-input w-100 form-control-sm"
+                                        id="deleteLogGroupPrefix" value="/aws/lambda/dev" placeholder="Logs">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <input type="text" class="glass-input w-100 form-control-sm"
+                                        id="deleteDynamodbTableName" value="dev-app-passwords" placeholder="Table">
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button class="glass-button glass-button-danger btn-sm flex-grow-1"
+                                    onclick="deleteS3Content()">S3 Content</button>
+                                <button class="glass-button glass-button-danger btn-sm flex-grow-1"
+                                    onclick="deleteECRRepo()">ECR Repo</button>
+                                <button class="glass-button glass-button-danger btn-sm flex-grow-1"
+                                    onclick="deleteCloudWatchLogs()">Logs</button>
+                                <button class="glass-button glass-button-danger btn-sm flex-grow-1"
+                                    onclick="deleteDynamoDBTable()">DynamoDB</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: EC2 Build Box -->
+                <div id="tab-ec2" class="tab-content" style="display: none;">
+                    <div class="glass-panel p-4 mb-4" style="border-left: 4px solid #f59e0b !important;">
+                        <h5 style="color: #f59e0b;"><i class="fas fa-info-circle me-2"></i>Hybrid Build Box</h5>
+                        <p class="text-muted small mb-0">
+                            Automatically provisions a t2.micro instance to build your Docker image and push it to ECR.
+                            This avoids local Docker requirements.
+                        </p>
+                    </div>
+
+                    <div class="glass-panel p-3 mb-4">
+                        <label class="form-label small text-muted">EC2 Instance Name</label>
+                        <input type="text" class="glass-input w-100 mb-2" id="ec2InstanceName"
+                            value="dev-ec2-build-box">
+                    </div>
+
+                    <div class="d-grid gap-3">
+                        <button class="glass-button glass-button-primary" onclick="ec2CreateBuildBox()">
+                            <i class="fas fa-hammer me-2"></i>Create & Prepare EC2 Build Box
+                        </button>
+                        <button class="glass-button" onclick="ec2ShowStatus()">
+                            <i class="fas fa-info-circle me-2"></i>Check Status
+                        </button>
+                        <button class="glass-button glass-button-danger" onclick="ec2Terminate()">
+                            <i class="fas fa-power-off me-2"></i>Terminate Instance
                         </button>
                     </div>
                 </div>
-                <div class="alert-github"
-                    style="background-color: rgba(16, 185, 129, 0.08); border-left: 3px solid #10b981; margin-bottom: var(--spacing-md);">
-                    <i class="fas fa-info-circle" style="color: #10b981;"></i>
-                    <div>
-                        <strong>How to use:</strong><br>
-                        1) Invoke Lambda → Old DynamoDB data auto-cleared<br>
-                        2) Wait 2-3 minutes for processing<br>
-                        3) Fetch from DynamoDB → Saved to local DB automatically<br>
-                        4) Next batch will clear DynamoDB again (fresh start)
+
+                <!-- Tab: Global Status -->
+                <div id="tab-status" class="tab-content" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="mb-0">Global Resource View</h4>
+                        <button class="glass-button glass-button-primary" onclick="checkGlobalStatus()">
+                            <i class="fas fa-sync me-2"></i>Refresh Status
+                        </button>
                     </div>
-                </div>
-                <div class="form-group-github">
-                    <label class="form-label-github">Result List (email:app password):</label>
-                    <textarea id="resultsOutput" class="form-control-github" rows="10" readonly
-                        style="font-family: monospace;"></textarea>
-                </div>
-            </div>
 
-            <!-- Cleanup Operations -->
-            <div
-                style="border-top: 1px solid var(--color-border-default); padding-top: var(--spacing-md); margin-top: var(--spacing-md);">
-                <h5 style="margin-bottom: var(--spacing-sm); font-weight: 600; color: #ef4444;">
-                    <i class="fas fa-exclamation-triangle"></i> Cleanup Operations (Destructive)
-                </h5>
+                    <div id="globalStatusLoading" class="text-center py-5" style="display: none;">
+                        <div class="loading-spinner mb-3 mx-auto"></div>
+                        <p class="text-muted">Scanning all supported AWS regions...</p>
+                    </div>
 
-                <!-- Cleanup Naming Configuration -->
-                <div
-                    style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(185, 28, 28, 0.05)); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-                    <small style="color: #656d76; display: block; margin-bottom: 8px;">
-                        <i class="fas fa-info-circle"></i> Specify the resource names to delete. Leave default values to
-                        delete standard resources.
-                    </small>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                        <div class="form-group-github" style="margin-bottom: 0;">
-                            <label class="form-label-github" style="font-size: 11px;">S3 Bucket to Delete</label>
-                            <input type="text" class="form-control-github" id="deleteS3BucketName"
-                                value="dev-app-passwords" placeholder="bucket-name" style="font-size: 12px;">
-                        </div>
-                        <div class="form-group-github" style="margin-bottom: 0;">
-                            <label class="form-label-github" style="font-size: 11px;">ECR Repo to Delete</label>
-                            <input type="text" class="form-control-github" id="deleteEcrRepoName"
-                                value="dev-app-password-worker" placeholder="repo-name" style="font-size: 12px;">
-                        </div>
-                        <div class="form-group-github" style="margin-bottom: 0;">
-                            <label class="form-label-github" style="font-size: 11px;">CloudWatch Log Prefix</label>
-                            <input type="text" class="form-control-github" id="deleteLogGroupPrefix"
-                                value="/aws/lambda/dev" placeholder="/aws/lambda/prefix" style="font-size: 12px;">
-                        </div>
-                        <div class="form-group-github" style="margin-bottom: 0;">
-                            <label class="form-label-github" style="font-size: 11px;">DynamoDB Table to Delete</label>
-                            <input type="text" class="form-control-github" id="deleteDynamodbTableName"
-                                value="dev-app-passwords" placeholder="table-name" style="font-size: 12px;">
-                        </div>
+                    <div class="table-container glass-panel p-0 overflow-hidden">
+                        <table class="table mb-0 text-white" style="background: transparent;">
+                            <thead>
+                                <tr
+                                    style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                    <th class="p-3">Region</th>
+                                    <th class="p-3">Lambdas</th>
+                                    <th class="p-3">ECR Repo</th>
+                                    <th class="p-3">Image Tag</th>
+                                    <th class="p-3">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="statusTableBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                            <tfoot id="statusTableFoot">
+                                <!-- Populated by JS -->
+                            </tfoot>
+                        </table>
                     </div>
                 </div>
 
-                <button class="btn-github" onclick="deleteS3Content()"
-                    style="width: 100%; margin-bottom: var(--spacing-sm);">
-                    <i class="fas fa-trash-alt"></i>
-                    Delete S3 Bucket Content
-                </button>
-                <button class="btn-github" onclick="deleteECRRepo()"
-                    style="width: 100%; margin-bottom: var(--spacing-sm);">
-                    <i class="fas fa-trash-alt"></i>
-                    Delete ECR Repository
-                </button>
-                <button class="btn-github" onclick="deleteCloudWatchLogs()"
-                    style="width: 100%; margin-bottom: var(--spacing-sm);">
-                    <i class="fas fa-trash-alt"></i>
-                    Delete CloudWatch Logs
-                </button>
-                <button class="btn-github" onclick="deleteDynamoDBTable()" style="width: 100%;">
-                    <i class="fas fa-database"></i>
-                    Delete DynamoDB Table
-                </button>
             </div>
         </div>
-    </div>
 
-    <!-- EC2 Tab -->
-    <div id="tab-ec2" class="tab-content" style="display: none;">
-        <div class="section">
-            <h4 style="margin-bottom: var(--spacing-md);">EC2 Build Box (Free Tier t2.micro, Amazon Linux 2)
-            </h4>
-            <div class="alert-github"
-                style="background-color: rgba(99, 102, 241, 0.08); border-left: 3px solid var(--color-accent-fg); margin-bottom: var(--spacing-md);">
-                <i class="fas fa-info-circle" style="color: var(--color-accent-fg);"></i>
-                <div>
-                    This EC2 instance automatically:<br>
-                    - Installs Docker + AWS CLI + git<br>
-                    - Clones docker-selenium-lambda<br>
-                    - Builds image based on umihico/aws-lambda-selenium-python<br>
-                    - Pushes it to your ECR repo as :latest
-                </div>
+        <!-- Log Output -->
+        <div class="glass-panel p-0 mt-4">
+            <div class="p-3 border-bottom border-white-10 bg-black-20">
+                <h5 class="m-0 font-monospace text-muted small text-uppercase"><i
+                        class="fas fa-terminal me-2"></i>System Log</h5>
             </div>
-
-            <!-- EC2 Instance Naming -->
-            <div
-                style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.05)); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                <h5 style="margin-bottom: 12px; color: #f59e0b; display: flex; align-items: center; gap: 8px;">
-                    <i class="fas fa-desktop"></i> EC2 Instance Naming
-                </h5>
-                <div class="form-group-github" style="margin-bottom: 0;">
-                    <label class="form-label-github" style="font-size: 12px;">
-                        <i class="fas fa-tag"></i> EC2 Instance Name (used for Create/Terminate)
-                    </label>
-                    <input type="text" class="form-control-github" id="ec2InstanceName" value="dev-ec2-build-box"
-                        placeholder="e.g., dev-ec2-build-box, myapp-builder">
-                    <small style="color: #656d76; font-size: 11px;">
-                        This name will be used as the EC2 instance tag Name for identification.
-                    </small>
-                </div>
-            </div>
-
-            <button class="btn-github btn-github-primary" onclick="ec2CreateBuildBox()"
-                style="width: 100%; margin-bottom: var(--spacing-sm);">
-                <i class="fas fa-plus-circle"></i>
-                Create / Prepare EC2 Build Box
-            </button>
-            <button class="btn-github" onclick="ec2ShowStatus()" style="width: 100%; margin-bottom: var(--spacing-sm);">
-                <i class="fas fa-info-circle"></i>
-                Show EC2 Build Box Status
-            </button>
-            <button class="btn-github btn-github-danger" onclick="ec2Terminate()" style="width: 100%;">
-                <i class="fas fa-stop"></i>
-                Terminate EC2 Build Box
-            </button>
+            <div id="logOutput" class="p-3 font-monospace small text-muted"
+                style="height: 300px; overflow-y: auto; white-space: pre-wrap;"></div>
         </div>
-    </div>
-</div>
-</div>
 
-<!-- Log Output Section -->
-<div class="github-card" style="margin-top: var(--spacing-lg);">
-    <div class="github-card-header">
-        <h3 class="github-card-title">
-            <i class="fas fa-terminal"></i>
-            Log Output
-        </h3>
     </div>
-    <div class="github-card-body">
-        <div id="logOutput"
-            style="background-color: var(--color-canvas-inset); border-radius: var(--radius-md); padding: var(--spacing-md); font-family: 'Courier New', monospace; font-size: 13px; max-height: 400px; overflow-y: auto; min-height: 200px; color: var(--color-fg-default); white-space: pre-wrap; word-wrap: break-word;">
-        </div>
-    </div>
-</div>
-</div>
 </div>
 
 <style>
-    .tab-button {
-        background: transparent;
-        border: none;
-        border-bottom: 2px solid transparent;
-        padding: var(--spacing-sm) var(--spacing-md);
-        cursor: pointer;
-        color: var(--color-fg-muted);
-        font-weight: 500;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-sm);
-        transition: all 0.2s ease;
-    }
-
-    .tab-button:hover {
-        color: var(--color-fg-default);
-        background: var(--color-canvas-subtle);
-    }
-
-    .tab-button.active {
-        color: var(--color-accent-fg);
-        border-bottom-color: var(--color-accent-fg);
-        font-weight: 600;
-    }
-
     .tab-content {
         display: none;
+        animation: fadeIn 0.3s ease-in-out;
     }
 
     .tab-content.active {
         display: block;
     }
 
-    #logOutput {
-        scrollbar-width: thin;
-        scrollbar-color: var(--color-border-muted) transparent;
-    }
-
-    #logOutput::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    #logOutput::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    #logOutput::-webkit-scrollbar-thumb {
-        background: var(--color-border-muted);
-        border-radius: 4px;
-    }
-
-    #logOutput::-webkit-scrollbar-thumb:hover {
-        background: var(--color-border-default);
-    }
-
-    /* Loading Spinner for Global Status */
-    .loading-spinner {
-        border: 4px solid var(--color-border-default);
-        border-top: 4px solid var(--color-accent-fg);
-        border-radius: 50%;
-        width: 30px;
-        height: 30px;
-        animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-        0% {
-            transform: rotate(0deg);
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(5px);
         }
 
-        100% {
-            transform: rotate(360deg);
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
-    }
-
-    .github-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: var(--spacing-md);
-        font-size: 14px;
-    }
-
-    .github-table th,
-    .github-table td {
-        border: 1px solid var(--color-border-default);
-        padding: var(--spacing-sm) var(--spacing-md);
-        text-align: left;
-    }
-
-    .github-table th {
-        background-color: var(--color-canvas-subtle);
-        font-weight: 600;
-        color: var(--color-fg-default);
-    }
-
-    .github-table tbody tr:nth-child(even) {
-        background-color: var(--color-canvas-subtle);
-    }
-
-    .github-table tbody tr:hover {
-        background-color: var(--color-neutral-muted);
-    }
-
-    .text-success {
-        color: var(--color-success-fg);
-    }
-
-    .text-warning {
-        color: var(--color-attention-fg);
-    }
-
-    .text-danger {
-        color: var(--color-danger-fg);
     }
 </style>
 

@@ -1,0 +1,1240 @@
+/* Glassmorphism UI System - Nebula Admin Theme */
+/* Strictly additive - No global overrides */
+
+:root {
+    /* 1. Geometric Foundations - The Squircle */
+    --radius-panel: 2.5rem;
+    /* 40px */
+    --radius-inner: 1rem;
+    /* 16px */
+
+    /* 2. Refractive Surfaces */
+    --glass-blur: 28px;
+    --glass-opacity: 0.55;
+
+    /* 3. Typography */
+    --font-primary: 'Inter', sans-serif;
+    --font-code: 'Fira Code', monospace;
+    --letter-spacing-header: -0.025em;
+
+    /* ANIMATION CURVES */
+    --ease-elastic: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* THEME: NEBULA (Cosmic Default) - REFINED */
+:root,
+[data-theme="nebula"] {
+    /* Background */
+    --bg-app: #020617;
+    --bg-gradient: radial-gradient(circle at 50% 0%, #020c2a 0%, #020617 100%);
+
+    /* Glass Surfaces */
+    --bg-panel: rgba(15, 23, 42, 0.55);
+    --bg-modal: rgba(15, 23, 42, 0.95);
+    --border-panel: rgba(148, 163, 184, 0.12);
+    --border-top: rgba(148, 163, 184, 0.25);
+    /* Boosted slightly for 3D effect */
+    --border-bottom: rgba(148, 163, 184, 0.05);
+    --glass-header-bg: rgba(2, 6, 23, 0.7);
+
+    /* Primary / Accent */
+    --accent-primary: #6366f1;
+    /* Indigo */
+    --accent-secondary: #22d3ee;
+    /* Cyan */
+    --accent-glow: rgba(34, 211, 238, 0.5);
+
+    /* Text (CRITICAL) */
+    --text-primary: #e5e7eb;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    /* Components */
+    --input-bg: rgba(2, 6, 23, 0.4);
+
+    /* Orbs */
+    --orb-1: rgba(99, 102, 241, 0.25);
+    --orb-2: rgba(34, 211, 238, 0.25);
+    --orb-3: rgba(15, 23, 42, 0.5);
+}
+
+/* THEME: MIDNIGHT (Neon Void) - REFINED */
+[data-theme="midnight"],
+[data-theme="dark"] {
+    /* Background */
+    --bg-app: #020202;
+    --bg-gradient: radial-gradient(circle at top right, #09090b 0%, #020202 100%);
+
+    /* Glass Surfaces */
+    --bg-panel: rgba(24, 24, 27, 0.6);
+    --bg-modal: rgba(24, 24, 27, 0.95);
+    --border-panel: rgba(168, 85, 247, 0.15);
+    --border-top: rgba(168, 85, 247, 0.3);
+    --border-bottom: rgba(168, 85, 247, 0.05);
+    --glass-header-bg: rgba(2, 2, 2, 0.8);
+
+    /* Primary / Accent */
+    --accent-primary: #e879f9;
+    /* Neon Fuchsia */
+    --accent-secondary: #8b5cf6;
+    /* Electric Violet */
+    --accent-glow: rgba(139, 92, 246, 0.5);
+
+    /* Text */
+    --text-primary: #fafafa;
+    --text-secondary: #d4d4d8;
+    --text-muted: #71717a;
+
+    /* Components */
+    --input-bg: rgba(255, 255, 255, 0.05);
+
+    /* Orbs */
+    --orb-1: rgba(232, 121, 249, 0.2);
+    --orb-2: rgba(139, 92, 246, 0.2);
+    --orb-3: rgba(0, 0, 0, 0);
+}
+
+/* THEME: AURORA (Ethereal Light) - REFINED */
+[data-theme="aurora"],
+[data-theme="light"] {
+    /* Background */
+    --bg-app: #f1f5f9;
+    --bg-gradient: radial-gradient(circle at top left, #f8fafc, #e2e8f0);
+
+    /* Glass Surfaces */
+    --bg-panel: rgba(255, 255, 255, 0.7);
+    --bg-modal: rgba(255, 255, 255, 0.95);
+    --border-panel: rgba(15, 23, 42, 0.08);
+    --border-top: rgba(255, 255, 255, 0.9);
+    --border-bottom: rgba(15, 23, 42, 0.05);
+    --glass-header-bg: rgba(255, 255, 255, 0.85);
+
+    /* Primary / Accent */
+    --accent-primary: #4f46e5;
+    /* Royal Azure */
+    --accent-secondary: #0891b2;
+    /* Teal */
+    --accent-glow: rgba(8, 145, 178, 0.25);
+
+    /* Text */
+    --text-primary: #020617;
+    --text-secondary: #334155;
+    --text-muted: #64748b;
+
+    /* Components */
+    --input-bg: rgba(255, 255, 255, 0.6);
+
+    /* Orbs */
+    --orb-1: rgba(8, 145, 178, 0.15);
+    --orb-2: rgba(79, 70, 229, 0.15);
+    --orb-3: rgba(255, 255, 255, 0.5);
+}
+
+/* THEME: FOREST (Bio-luminescent) - REFINED */
+[data-theme="forest"] {
+    /* Background */
+    --bg-app: #022c22;
+    --bg-gradient: radial-gradient(ellipse at top, #064e3b, #022c22);
+
+    /* Glass Surfaces */
+    --bg-panel: rgba(6, 78, 59, 0.55);
+    --bg-modal: rgba(6, 78, 59, 0.95);
+    --border-panel: rgba(52, 211, 153, 0.18);
+    --border-top: rgba(52, 211, 153, 0.3);
+    --border-bottom: rgba(52, 211, 153, 0.05);
+    --glass-header-bg: rgba(2, 44, 34, 0.8);
+
+    /* Primary / Accent */
+    --accent-primary: #34d399;
+    /* Emerald */
+    --accent-secondary: #2dd4bf;
+    /* Teal */
+    --accent-glow: rgba(45, 212, 191, 0.4);
+
+    /* Text */
+    --text-primary: #ecfdf5;
+    --text-secondary: #a7f3d0;
+    --text-muted: #6ee7b7;
+
+    /* Components */
+    --input-bg: rgba(0, 0, 0, 0.2);
+
+    /* Orbs */
+    --orb-1: rgba(52, 211, 153, 0.25);
+    --orb-2: rgba(45, 212, 191, 0.25);
+    --orb-3: rgba(2, 44, 34, 0.5);
+}
+
+/* THEME: CRIMSON (Solar Flare) - REFINED */
+[data-theme="crimson"] {
+    /* Background */
+    --bg-app: #2a0a0a;
+    --bg-gradient: radial-gradient(circle at bottom, #450a0a, #2a0a0a);
+
+    /* Glass Surfaces */
+    --bg-panel: rgba(127, 29, 29, 0.55);
+    --bg-modal: rgba(127, 29, 29, 0.95);
+    --border-panel: rgba(251, 146, 60, 0.2);
+    --border-top: rgba(251, 146, 60, 0.35);
+    --border-bottom: rgba(251, 146, 60, 0.05);
+    --glass-header-bg: rgba(42, 10, 10, 0.8);
+
+    /* Primary / Accent */
+    --accent-primary: #f43f5e;
+    /* Rose Red */
+    --accent-secondary: #fb923c;
+    /* Solar Orange */
+    --accent-glow: rgba(251, 146, 60, 0.4);
+
+    /* Text */
+    --text-primary: #fff1f2;
+    --text-secondary: #fecdd3;
+    --text-muted: #fda4af;
+
+    /* Components */
+    --input-bg: rgba(0, 0, 0, 0.25);
+
+    /* Orbs */
+    --orb-1: rgba(244, 63, 94, 0.25);
+    --orb-2: rgba(251, 146, 60, 0.25);
+    --orb-3: rgba(42, 10, 10, 0.5);
+}
+
+
+/* 1. Global Scope Wrapper */
+.glass-ui {
+    position: relative;
+    min-height: 100vh;
+    width: 100%;
+    min-width: 100vw;
+    box-sizing: border-box;
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    z-index: 0;
+    transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+/* 2. Ambient Orb Animations */
+.glass-orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.6;
+    animation: float-orb 20s infinite ease-in-out;
+    transition: background 1s ease;
+}
+
+.glass-orb-1 {
+    top: -10%;
+    left: -10%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, var(--orb-1) 0%, rgba(15, 23, 42, 0) 70%);
+    animation-delay: 0s;
+}
+
+.glass-orb-2 {
+    bottom: -10%;
+    right: -10%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, var(--orb-2) 0%, rgba(15, 23, 42, 0) 70%);
+    animation-delay: -5s;
+}
+
+.glass-orb-3 {
+    top: 40%;
+    left: 40%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, var(--orb-3) 0%, rgba(15, 23, 42, 0) 70%);
+    animation-delay: -10s;
+}
+
+@keyframes float-orb {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    33% {
+        transform: translate(30px, -50px) scale(1.1);
+    }
+
+    66% {
+        transform: translate(-20px, 20px) scale(0.9);
+    }
+}
+
+/* 3. Glass Panels */
+/* 3. Glass Panels - Nebula Crystalline Style */
+/* 3. Glass Panels - Nebula Crystalline Style */
+/* 3. Glass Panels - Nebula Crystalline Style */
+.glass-panel,
+.glass-ui .github-card,
+.glass-ui .card {
+    background: var(--bg-panel) !important;
+    backdrop-filter: blur(var(--glass-blur)) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+
+    /* Ghost Border: Dual-Stroke Simulation */
+    border: 1px solid transparent !important;
+    border-top-color: var(--border-top) !important;
+    border-bottom-color: var(--border-bottom) !important;
+    border-left-color: rgba(255, 255, 255, 0.05) !important;
+    border-right-color: rgba(255, 255, 255, 0.05) !important;
+
+    border-radius: var(--radius-panel) !important;
+    /* 2.5rem */
+
+    box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.5) !important;
+    position: relative;
+    z-index: 10;
+    overflow: hidden;
+    margin-bottom: 2rem !important;
+
+    /* Weightless Entrance */
+    animation: slideUp 1s var(--ease-elastic) backwards;
+    transition: transform 0.4s var(--ease-elastic), box-shadow 0.4s var(--ease-elastic), border-color 0.3s ease;
+}
+
+/* Magnetic Hover */
+.glass-panel:hover,
+.glass-ui .github-card:hover,
+.glass-ui .card:hover {
+    transform: translateY(-8px) scale(1.01) !important;
+    border-top-color: var(--accent-primary) !important;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6) !important;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(40px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Gradient border effect */
+.glass-panel-highlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, var(--accent-glow) 50%, rgba(255, 255, 255, 0) 100%);
+    pointer-events: none;
+}
+
+/* 4. Glass Inputs - Transparent & Ignite */
+.glass-input {
+    background: var(--input-bg) !important;
+    border: 1px solid var(--border-panel) !important;
+    color: var(--text-primary) !important;
+    border-radius: 0.5rem !important;
+    padding: 0.75rem 1rem !important;
+    transition: all 0.2s ease-in-out;
+}
+
+.glass-input:focus {
+    outline: none !important;
+    border-color: var(--accent-primary) !important;
+    /* "Ignite" effect */
+    background: transparent !important;
+    /* Spec says transparent */
+    box-shadow: 0 0 15px -3px var(--accent-glow) !important;
+}
+
+
+/* 5. Glass Buttons - Ultra Premium */
+.glass-button {
+    position: relative;
+    padding: 0.75rem 1.75rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.03em !important;
+    border-radius: 0.75rem !important;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    overflow: hidden;
+    z-index: 10;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    text-transform: uppercase;
+    font-size: 0.8rem;
+}
+
+/* Neutral Pro */
+.glass-button {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: var(--text-secondary) !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+.glass-button:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(200, 200, 255, 0.3), 0 0 15px rgba(255, 255, 255, 0.05) !important;
+    border-top-color: rgba(255, 255, 255, 0.5) !important;
+    color: var(--text-primary) !important;
+}
+
+.glass-button:active {
+    transform: translateY(-1px) scale(0.98);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Primary Pro (Interstellar Gradient) */
+.glass-button-primary {
+    background: linear-gradient(135deg, var(--accent-primary) 0%, #4338ca 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.4) !important;
+    color: white !important;
+    box-shadow: 0 6px 20px var(--accent-glow),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        0 0 0 1px rgba(99, 102, 241, 0.2) !important;
+}
+
+.glass-button-primary:hover {
+    transform: translateY(-3px) scale(1.02);
+    /* Neon Glow Intensifies */
+    box-shadow: 0 15px 35px var(--accent-glow),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6),
+        0 0 25px var(--accent-primary) !important;
+    filter: brightness(1.2);
+    border-top-color: white !important;
+}
+
+.glass-button-primary:active {
+    transform: translateY(1px) scale(0.98);
+    box-shadow: 0 4px 10px var(--accent-glow) !important;
+}
+
+/* Danger Pro (Solar Flare) */
+.glass-button-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #7f1d1d 100%) !important;
+    border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.3) !important;
+    color: white !important;
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+.glass-button-danger:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 15px 35px rgba(239, 68, 68, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5),
+        0 0 25px rgba(239, 68, 68, 0.4) !important;
+    filter: brightness(1.2);
+}
+
+/* Glass Sheen Animation - The "Premium" Factor */
+@keyframes glassSheen {
+    0% {
+        left: -150%;
+        opacity: 0;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        left: 150%;
+        opacity: 0;
+    }
+}
+
+.glass-button-primary::after,
+.glass-button-danger::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -150%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.2) 20%,
+            rgba(255, 255, 255, 0.6) 50%,
+            rgba(255, 255, 255, 0.2) 80%,
+            transparent 100%);
+    transform: skewX(-20deg);
+    animation: glassSheen 3s infinite cubic-bezier(0.19, 1, 0.22, 1);
+    /* Slower, more elegant */
+    pointer-events: none;
+}
+
+/* Mapped Legacy Classes (btn-github) to inherit Ultra Premium */
+.glass-ui .btn-github,
+.glass-ui .btn-github-primary,
+.glass-ui .btn-github-danger {
+    /* Reset and inherit base structure */
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
+}
+
+/* We simply apply the same styles to the mapped classes by compositing selectors above would be cleaner,
+   but for now we replicate to ensure specificity override */
+.glass-ui .btn-github {
+    /* Neutral Pro copy */
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: var(--text-secondary) !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    padding: 0.75rem 1.75rem !important;
+    font-weight: 700 !important;
+    border-radius: 0.75rem !important;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1) !important;
+}
+
+.glass-ui .btn-github:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(200, 200, 255, 0.3) !important;
+    color: var(--text-primary) !important;
+}
+
+.glass-ui .btn-github-primary {
+    background: linear-gradient(135deg, var(--accent-primary) 0%, #4338ca 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.4) !important;
+    color: white !important;
+    box-shadow: 0 6px 20px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+    padding: 0.75rem 1.75rem !important;
+    font-weight: 700 !important;
+    border-radius: 0.75rem !important;
+}
+
+.glass-ui .btn-github-primary:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 15px 35px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 25px var(--accent-primary) !important;
+    filter: brightness(1.2);
+}
+
+.glass-ui .btn-github-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #7f1d1d 100%) !important;
+    border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.3) !important;
+    color: white !important;
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    padding: 0.75rem 1.75rem !important;
+    font-weight: 700 !important;
+    border-radius: 0.75rem !important;
+}
+
+.glass-ui .btn-github-danger:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 15px 35px rgba(239, 68, 68, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 0 25px rgba(239, 68, 68, 0.4) !important;
+}
+
+
+
+
+/* 7. Modal Fixes for Glass Context */
+.glass-modal-backdrop {
+    background-color: rgba(15, 23, 42, 0.8) !important;
+    backdrop-filter: blur(8px) !important;
+}
+
+/* Scoped Overrides - Only apply inside .glass-ui to ensure safety */
+.glass-ui .table {
+    color: #f1f5f9;
+}
+
+.glass-ui .table td,
+.glass-ui .table th {
+    border-color: rgba(148, 163, 184, 0.1);
+}
+
+.glass-ui .card,
+.glass-ui .github-card {
+    background: transparent !important;
+    /* defer to glass-panel wrapper */
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Scrollbar styling */
+.glass-ui ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.glass-ui ::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.4);
+}
+
+.glass-ui ::-webkit-scrollbar-thumb {
+    background: rgba(71, 85, 105, 0.6);
+    border-radius: 4px;
+}
+
+.glass-ui ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.8);
+}
+
+/* 8. Structural Overrides for Base Template */
+/* 8. Structural Overrides for Base Template */
+.glass-ui aside.sidebar {
+    background: rgba(15, 23, 42, 0.4) !important;
+    /* Reduced from 0.6 */
+    backdrop-filter: blur(16px) !important;
+    border-right: 1px solid var(--border-panel) !important;
+}
+
+.glass-ui .main-wrapper {
+    background: transparent !important;
+}
+
+.glass-ui .main-container {
+    background: transparent !important;
+}
+
+.glass-ui .github-card,
+.glass-ui .section,
+.glass-ui .card {
+    background: var(--bg-panel) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid var(--border-panel) !important;
+    border-radius: 1.5rem !important;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
+    color: var(--text-primary) !important;
+    margin-bottom: 1.5rem !important;
+}
+
+.glass-ui .github-card-header,
+.glass-ui .card-header {
+    background: transparent !important;
+    border-bottom: 1px solid var(--border-panel) !important;
+    padding-bottom: 1rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+.glass-ui .github-card-title,
+.glass-ui h1,
+.glass-ui h2,
+.glass-ui h3,
+.glass-ui h4,
+.glass-ui h5 {
+    color: var(--text-primary) !important;
+    display: flex;
+    align-items: center;
+}
+
+.glass-ui .text-muted,
+.glass-ui .text-secondary,
+.glass-ui small {
+    color: var(--text-secondary) !important;
+}
+
+/* Tab Navigation Shim */
+.glass-ui .tab-navigation,
+.glass-ui .nav-tabs {
+    background: transparent !important;
+    border-bottom: 1px solid var(--border-panel) !important;
+    margin-bottom: 1.5rem !important;
+}
+
+.glass-ui .tab-button,
+.glass-ui .nav-link {
+    color: var(--text-secondary) !important;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    padding: 0.75rem 1.5rem !important;
+    font-weight: 500 !important;
+}
+
+.glass-ui .tab-button:hover,
+.glass-ui .nav-link:hover {
+    color: var(--text-primary) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.glass-ui .tab-button.active,
+.glass-ui .nav-link.active {
+    color: var(--accent-primary) !important;
+    border-bottom: 2px solid var(--accent-primary) !important;
+    background: transparent !important;
+    font-weight: 600 !important;
+}
+
+/* Table Shims */
+.glass-ui table {
+    color: var(--text-primary) !important;
+    border-color: var(--border-panel) !important;
+}
+
+.glass-ui th {
+    background: rgba(255, 255, 255, 0.03) !important;
+    color: var(--text-primary) !important;
+    border-bottom: 1px solid var(--border-panel) !important;
+}
+
+.glass-ui td {
+    border-bottom: 1px solid var(--border-panel) !important;
+    color: var(--text-secondary) !important;
+}
+
+
+/* 10. Top Header & Theme Palette */
+.glass-header {
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    background: var(--glass-header-bg) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-panel);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    transition: all 0.3s ease;
+}
+
+.glass-header-left,
+.glass-header-right {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+/* Search Bar */
+.header-search {
+    position: relative;
+    width: 320px;
+}
+
+.header-search input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-panel);
+    border-radius: 9999px;
+    /* Pill shape */
+    padding: 0.5rem 1rem 0.5rem 2.5rem;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.header-search i {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    pointer-events: none;
+}
+
+.header-search input:focus {
+    background: rgba(0, 0, 0, 0.4);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+    outline: none;
+}
+
+/* Theme Palette (5 Modes) */
+.theme-palette {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 4px;
+    border-radius: 9999px;
+    border: 1px solid var(--border-panel);
+}
+
+.theme-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-secondary);
+    background: transparent;
+    font-size: 0.875rem;
+    position: relative;
+}
+
+.theme-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.theme-btn.active {
+    background: var(--accent-primary);
+    color: white;
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+/* Specific button colors for better recognition */
+.theme-btn[data-set-theme="midnight"]:hover {
+    background: #6366f1;
+    color: white;
+}
+
+.theme-btn[data-set-theme="dark"]:hover {
+    background: #3f3f46;
+    color: white;
+}
+
+.theme-btn[data-set-theme="light"]:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.theme-btn[data-set-theme="aurora"]:hover {
+    background: #06b6d4;
+    color: white;
+}
+
+.theme-btn[data-set-theme="forest"]:hover {
+    background: #10b981;
+    color: white;
+}
+
+/* Notification & Profile */
+.header-icon-btn {
+    position: relative;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.header-icon-btn:hover {
+    color: var(--text-primary);
+}
+
+.notification-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    background: var(--accent-secondary);
+    border-radius: 50%;
+    box-shadow: 0 0 5px var(--accent-secondary);
+}
+
+.profile-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.2s ease;
+}
+
+.profile-btn:hover {
+    box-shadow: 0 0 15px var(--accent-glow);
+    transform: scale(1.05);
+}
+
+/* Breadcrumb / Title */
+.header-title {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+
+/* Mobile Responsiveness for Header */
+@media (max-width: 768px) {
+    .glass-header {
+        padding: 0 1rem;
+        height: auto;
+        flex-direction: column;
+        gap: 1rem;
+        padding-bottom: 1rem;
+    }
+
+    .glass-header-left,
+    .glass-header-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .header-search {
+        order: 2;
+        width: 100%;
+    }
+
+    .theme-palette {
+        order: 1;
+    }
+
+}
+
+/* END Mobile Media Query */
+
+
+/* =========================================
+   VISUAL TRANSFORMATION: UN-BOXING PROTOCOL
+   ========================================= */
+
+/* 1. Force Transparent Containers (Kill the Box) */
+/* 1. Force Transparent Containers (Nuclear Option) */
+html body .glass-ui .container,
+html body .glass-ui .container-fluid,
+html body .glass-ui .main-container,
+html body .glass-ui .main-wrapper,
+html body .glass-ui .content-wrapper,
+html body .glass-ui .row,
+html body .glass-ui .col,
+html body .glass-ui .col-12,
+html body .glass-ui .card-body,
+html body .glass-ui .tab-content,
+html body .glass-ui .modal-content,
+html body .glass-ui .modal-header,
+html body .glass-ui .modal-footer,
+html body .glass-ui [data-color-mode="dark"] .main-container,
+html body .glass-ui [data-color-mode="dark"] .tab-content,
+html body .glass-ui .log-container,
+html body .glass-ui .activity-log,
+html body .glass-ui .suspended-users-container,
+html body .glass-ui .user-management-area,
+html body .glass-ui .table-wrapper,
+html body .glass-ui div[class*="log"],
+html body .glass-ui div[class*="suspended"] {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+/* 2. Global Canvas Enforcer (Animated Gradient) */
+@keyframes nebula-flow {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+body,
+html {
+    background: var(--bg-app) !important;
+    background-image: var(--bg-gradient) !important;
+    background-size: 400% 400% !important;
+    animation: nebula-flow 20s ease infinite !important;
+    background-attachment: fixed !important;
+    min-height: 100vh;
+}
+
+/* 3. Phantom Mode (Flat & Transparent) */
+.glass-ui .card,
+.glass-ui .github-card,
+.glass-ui .list-group-item,
+.glass-ui .modal-content,
+.glass-panel {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin-bottom: 2rem !important;
+    overflow: visible !important;
+    color: var(--text-primary) !important;
+    transform: none !important;
+    transition: none !important;
+}
+
+/* Disable Hover Animations */
+.glass-ui .card:hover,
+.glass-ui .github-card:hover,
+.glass-panel:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+/* 4. Table Glazing */
+.glass-ui pre,
+.glass-ui code,
+.glass-ui .table-responsive {
+    background: rgba(0, 0, 0, 0.2) !important;
+    border-radius: var(--radius-inner) !important;
+    border: 1px solid var(--border-panel) !important;
+}
+
+/* 5. Button Glow */
+.glass-ui .btn-primary,
+.glass-ui .btn-success,
+.glass-ui .glass-button-primary {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)) !important;
+    border: none !important;
+    box-shadow: 0 0 15px var(--accent-glow) !important;
+    color: white !important;
+    transition: all 0.3s ease !important;
+}
+
+.glass-ui .btn-primary:hover,
+.glass-ui .glass-button-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 25px var(--accent-glow) !important;
+}
+
+/* 6. Typography Refinement (Theme-Aware) */
+.glass-ui h1,
+.glass-ui h2,
+.glass-ui h3,
+.glass-ui p,
+.glass-ui span,
+.glass-ui div,
+.glass-ui li,
+.glass-ui td,
+.glass-ui th,
+.glass-ui label,
+.glass-ui small,
+.glass-ui i {
+    color: var(--text-primary) !important;
+}
+
+.glass-ui .text-muted,
+.glass-ui .text-secondary {
+    color: var(--text-secondary) !important;
+}
+
+/* 7. Universal Transparency Enforcer (Inputs & Bars) */
+/* SUPER ENFORCER: Boosted specificity to override base.html inline styles */
+html body .glass-ui input,
+html body .glass-ui select,
+html body .glass-ui textarea,
+html body .glass-ui .form-control,
+html body .glass-ui .form-control-github,
+html body .glass-ui .search-input,
+html body .glass-ui .status-display,
+html body .glass-ui .data-display,
+html body .glass-ui .account-list,
+html body .glass-ui .status-database,
+html body .glass-ui .alert-github,
+/* Additionally target by attribute for max specificty */
+html body .glass-ui [type="text"],
+html body .glass-ui [type="password"],
+html body .glass-ui [type="email"],
+html body .glass-ui [type="number"] {
+    background: var(--input-bg) !important;
+    background-color: var(--input-bg) !important;
+    /* Force both properties */
+    border: 1px solid var(--border-panel) !important;
+    color: var(--text-primary) !important;
+    box-shadow: none !important;
+}
+
+/* Force Cards to be Glass too */
+html body .glass-ui .card,
+html body .glass-ui .github-card {
+    background: var(--bg-panel) !important;
+    background-color: var(--bg-panel) !important;
+    border: 1px solid var(--border-panel) !important;
+    color: var(--text-primary) !important;
+}
+
+html body .glass-ui input::placeholder,
+html body .glass-ui textarea::placeholder {
+    color: rgba(226, 232, 240, 0.5) !important;
+}
+
+.glass-ui .text-muted,
+.glass-ui .text-secondary,
+.glass-ui small {
+    color: var(--text-secondary) !important;
+}
+
+.glass-ui h1,
+.glass-ui h2,
+.glass-ui h3 {
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    margin-bottom: 1.5rem !important;
+}
+
+/* 7. Glass Modals (Universal) */
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.8) !important;
+    backdrop-filter: blur(8px) !important;
+}
+
+.modal-content,
+.modal-dialog .modal-content {
+    background: #0f172a !important;
+    /* Fallback */
+    background: var(--bg-modal) !important;
+    backdrop-filter: blur(28px) !important;
+    -webkit-backdrop-filter: blur(28px) !important;
+    border: 1px solid var(--border-panel) !important;
+    border-top: 1px solid var(--border-top) !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+    border-radius: var(--radius-panel) !important;
+    color: var(--text-primary) !important;
+}
+
+.modal-header,
+.modal-footer {
+    border-color: var(--border-panel) !important;
+    background: transparent !important;
+}
+
+.modal-header .btn-close,
+.modal-header .close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+    opacity: 0.8;
+}
+
+/* 8. Glass Utility Classes for Dashboard Modals */
+.glass-info-box {
+    background: rgba(9, 105, 218, 0.1) !important;
+    border: 1px solid var(--border-panel) !important;
+    border-radius: 6px;
+    padding: 12px;
+    color: var(--text-primary) !important;
+}
+
+.glass-warning-box {
+    background: rgba(220, 53, 69, 0.1) !important;
+    border: 1px solid var(--border-panel) !important;
+    border-radius: 6px;
+    padding: 12px;
+    color: var(--text-primary) !important;
+}
+
+.glass-code-block {
+    background: var(--input-bg) !important;
+    border: 1px solid var(--border-panel) !important;
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'Courier New', monospace;
+    color: var(--text-primary) !important;
+}
+
+.glass-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: transparent !important;
+}
+
+.glass-table th {
+    background: var(--bg-panel) !important;
+    color: var(--text-primary) !important;
+    border-bottom: 2px solid var(--border-panel) !important;
+    padding: 12px;
+    text-align: left;
+}
+
+.glass-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-panel) !important;
+    color: var(--text-secondary) !important;
+}
+
+.glass-table tr:hover td {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.glass-table-header,
+.glass-table th {
+    background: var(--bg-panel) !important;
+    color: var(--text-primary) !important;
+    border-bottom: 2px solid var(--border-panel) !important;
+    padding: 12px;
+    text-align: left;
+}
+
+/* Fix light theme close buttons */
+[data-theme="aurora"] .modal-header .btn-close,
+[data-theme="aurora"] .modal-header .close,
+[data-theme="light"] .modal-header .btn-close,
+[data-theme="light"] .modal-header .close {
+    filter: none !important;
+    opacity: 0.5;
+}
+
+.modal-title {
+    color: var(--text-primary) !important;
+    font-weight: 600;
+}
+
+.modal-body {
+    color: var(--text-secondary) !important;
+}
+
+/* Ensure inputs in modals are readable */
+.modal-body input,
+.modal-body select,
+.modal-body textarea {
+    background: var(--input-bg) !important;
+    border-color: var(--border-panel) !important;
+    color: var(--text-primary) !important;
+}
+
+/* SUPER ENFORCER LEVEL 2: Target specific ID containers that are stubborn */
+#user-display,
+#suspended-display,
+#account-list,
+#status-display,
+#csv-download-area,
+#bulk-account-results,
+#bulk-subdomain-results,
+#domain-info-display,
+.count-display,
+.status-info {
+    background: var(--bg-panel) !important;
+    background-color: var(--bg-panel) !important;
+    border: 1px solid var(--border-panel) !important;
+    color: var(--text-primary) !important;
+    backdrop-filter: blur(var(--glass-blur)) !important;
+}
+
+/* Force input fields inside these specific containers too */
+#user-display input,
+#suspended-display input,
+#account-list input,
+.github-card input,
+.github-card select,
+.github-card textarea {
+    background: var(--input-bg) !important;
+    background-color: var(--input-bg) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-panel) !important;
+}

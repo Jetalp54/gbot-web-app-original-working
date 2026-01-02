@@ -1,212 +1,231 @@
 {% extends "base.html" %}
-{% block title %}User Management - GBot Web{% endblock %}
+{% block title %}User Management - {{ session.get('user', 'Admin') }}{% endblock %}
 
 {% block content %}
-<div class="github-card">
-    <div class="github-card-header">
-        <h1 class="github-card-title">
-            <i class="fas fa-users"></i>
-            User Management
-        </h1>
+<div class="glass-container-fluid">
+    <!-- Header -->
+    <div class="glass-panel"
+        style="display: flex; justify-content: space-between; align-items: center; padding: 24px; margin-bottom: 24px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">
+                <i class="fas fa-users" style="color: var(--accent-primary); margin-right: 12px;"></i>User Management
+            </h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">Manage system access and
+                roles</p>
+        </div>
     </div>
-    
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px;">
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 24px;">
         <!-- Add New User -->
-        <div class="github-card" style="margin-bottom: 0;">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 16px;">
-                    <i class="fas fa-user-plus"></i>
-                    Add New User
-                </h3>
+        <div class="glass-panel" style="padding: 24px;">
+            <h3
+                style="margin: 0 0 24px 0; font-size: 1.125rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center;">
+                <i class="fas fa-user-plus" style="margin-right: 12px; color: var(--accent-secondary);"></i>Add New User
+            </h3>
+
+            <!-- Standardized Form -->
+            <div class="form-group-github" style="margin-bottom: 16px;">
+                <label for="new-username" class="form-label-github">Username</label>
+                <div style="position: relative;">
+                    <i class="fas fa-user"
+                        style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                    <input type="text" id="new-username" class="glass-input" style="padding-left: 36px;"
+                        placeholder="Enter username" required>
+                </div>
             </div>
-            <div class="form-group-github">
-                <label for="new-username" class="form-label-github">
-                    <i class="fas fa-user"></i> Username
-                </label>
-                <input type="text" id="new-username" class="form-control-github" placeholder="Enter username" required>
+
+            <div class="form-group-github" style="margin-bottom: 16px;">
+                <label for="new-password" class="form-label-github">Password</label>
+                <div style="position: relative;">
+                    <i class="fas fa-lock"
+                        style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                    <input type="password" id="new-password" class="glass-input" style="padding-left: 36px;"
+                        placeholder="Enter password" required>
+                </div>
             </div>
-            <div class="form-group-github">
-                <label for="new-password" class="form-label-github">
-                    <i class="fas fa-lock"></i> Password
-                </label>
-                <input type="password" id="new-password" class="form-control-github" placeholder="Enter password" required>
+
+            <div class="form-group-github" style="margin-bottom: 24px;">
+                <label for="new-role" class="form-label-github">Role</label>
+                <div style="position: relative;">
+                    <i class="fas fa-user-tag"
+                        style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                    <select id="new-role" class="glass-input" style="padding-left: 36px;">
+                        <option value="support">Support</option>
+                        <option value="mailer">Mailer</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
             </div>
-            <div class="form-group-github">
-                <label for="new-role" class="form-label-github">
-                    <i class="fas fa-user-tag"></i> Role
-                </label>
-                <select id="new-role" class="form-control-github">
-                    <option value="support">Support</option>
-                    <option value="mailer">Mailer</option>
-                    <option value="admin">Admin</option>
-                </select>
-            </div>
-            <button onclick="addUser()" class="btn-github btn-github-primary" style="width: 100%;">
-                <i class="fas fa-plus"></i>
-                Add User
+
+            <button onclick="addUser()" class="glass-button glass-button-primary"
+                style="width: 100%; justify-content: center;">
+                <i class="fas fa-plus" style="margin-right: 8px;"></i>Create User
             </button>
         </div>
-        
+
         <!-- Existing Users -->
-        <div class="github-card" style="margin-bottom: 0;">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 16px;">
-                    <i class="fas fa-list"></i>
-                    Existing Users
-                </h3>
-            </div>
-            <div id="user-list">
-                <div style="display: flex; align-items: center; justify-content: center; padding: 40px; color: #656d76;">
-                    <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i>
-                    Loading users...
+        <div class="glass-panel" style="padding: 24px; min-height: 400px; display: flex; flex-direction: column;">
+            <h3
+                style="margin: 0 0 24px 0; font-size: 1.125rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center;">
+                <i class="fas fa-list" style="margin-right: 12px; color: var(--accent-secondary);"></i>Existing Users
+            </h3>
+
+            <div id="user-list" class="glass-list-container custom-scrollbar"
+                style="flex-grow: 1; overflow-y: auto; max-height: 500px; padding-right: 8px;">
+                <div
+                    style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 12px;"></i>
+                    <span>Loading users...</span>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-
 <script>
-// User management functions
-function addUser() {
-    const username = document.getElementById('new-username').value.trim();
-    const password = document.getElementById('new-password').value.trim();
-    const role = document.getElementById('new-role').value;
-    
-    if (!username || !password) {
-        alert('Please fill in all fields');
-        return;
-    }
-    
-    fetch('/api/add-user', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username, password, role})
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('✅ User added successfully!');
-            document.getElementById('new-username').value = '';
-            document.getElementById('new-password').value = '';
-            loadUsers();
-        } else {
-            alert('❌ Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        alert('❌ Network error: ' + error);
-    });
-}
+    // User management functions
+    function addUser() {
+        const username = document.getElementById('new-username').value.trim();
+        const password = document.getElementById('new-password').value.trim();
+        const role = document.getElementById('new-role').value;
 
-function loadUsers() {
-    fetch('/api/list-users')
-    .then(response => response.json())
-    .then(data => {
-        if (data.success && Array.isArray(data.users)) {
-            const userList = document.getElementById('user-list');
-            if (data.users.length === 0) {
-                userList.innerHTML = '<p>No users found.</p>';
-                return;
-            }
-            
-            userList.innerHTML = data.users.map((user, index) => `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f6f8fa; margin-bottom: 8px; border-radius: 6px; border: 1px solid #d0d7de; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#f3f4f6'" onmouseout="this.style.backgroundColor='#f6f8fa'">
+        if (!username || !password) {
+            alert('Please fill in all fields');
+            return;
+        }
+
+        const btn = document.querySelector('button[onclick="addUser()"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+        btn.disabled = true;
+
+        fetch('/api/add-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, role })
+        })
+            .then(response => response.json())
+            .then(data => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+
+                if (data.success) {
+                    document.getElementById('new-username').value = '';
+                    document.getElementById('new-password').value = '';
+                    loadUsers();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                alert('❌ Network error: ' + error);
+            });
+    }
+
+    function loadUsers() {
+        fetch('/api/list-users')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && Array.isArray(data.users)) {
+                    const userList = document.getElementById('user-list');
+                    if (data.users.length === 0) {
+                        userList.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 32px;">No users found.</p>';
+                        return;
+                    }
+
+                    userList.innerHTML = data.users.map((user, index) => `
+                <div class="glass-list-item" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-panel); border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s ease;">
                     <div style="display: flex; align-items: center; gap: 16px;">
-                        <span style="background: #24292f; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">${index + 1}</span>
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+                            ${user.username.substring(0, 2).toUpperCase()}
+                        </div>
                         <div>
-                            <div style="font-weight: 600; font-size: 14px; color: #24292f; margin-bottom: 4px;">
-                                <i class="fas fa-user" style="margin-right: 6px; color: #656d76;"></i>
-                                ${user.username}
-                            </div>
-                            <span style="background: ${user.role === 'admin' ? '#da3633' : user.role === 'mailer' ? '#fb8500' : '#2da44e'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                            <div style="font-weight: 500; color: var(--text-primary);">${user.username}</div>
+                            <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,0.1); color: var(--text-secondary); border: 1px solid var(--border-panel);">
                                 ${user.role}
                             </span>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 8px;">
-                        <button onclick="editUser('${user.username}', '${user.role}')" class="btn-github" style="padding: 4px 12px; font-size: 12px;">
-                            <i class="fas fa-edit"></i> Edit
+                    <div class="action-buttons" style="display: flex; gap: 8px;">
+                        <button onclick="editUser('${user.username}', '${user.role}')" class="glass-button" style="padding: 6px 10px; min-width: auto;" title="Edit">
+                            <i class="fas fa-edit"></i>
                         </button>
-                        <button onclick="deleteUser('${user.username}')" class="btn-github btn-github-danger" style="padding: 4px 12px; font-size: 12px;">
-                            <i class="fas fa-trash"></i> Delete
+                        <button onclick="deleteUser('${user.username}')" class="glass-button glass-button-danger" style="padding: 6px 10px; min-width: auto;" title="Delete">
+                            <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 </div>
             `).join('');
-        } else {
-            document.getElementById('user-list').innerHTML = '<p>Error loading users.</p>';
-        }
-    })
-    .catch(error => {
-        console.error("Fetch error:", error);
-        document.getElementById('user-list').innerHTML = '<p>Network error loading users.</p>';
-    });
-}
-
-function editUser(username, currentRole) {
-    const newPassword = prompt(`Enter new password for user "${username}":`);
-    if (!newPassword) return;
-    
-    const newRole = prompt(`Enter role for "${username}" (admin/support/mailer):`, currentRole);
-    if (!newRole) return;
-    
-    if (newRole !== 'admin' && newRole !== 'support' && newRole !== 'mailer') {
-        alert('Role must be either "admin", "support", or "mailer"');
-        return;
+                } else {
+                    document.getElementById('user-list').innerHTML = '<p style="text-align: center; color: var(--text-danger);">Error loading users.</p>';
+                }
+            })
+            .catch(error => {
+                console.error("Fetch error:", error);
+            });
     }
-    
-    fetch('/api/edit-user', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username, password: newPassword, role: newRole})
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('✅ User updated successfully!');
-            loadUsers();
-        } else {
-            alert('❌ Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        alert('❌ Network error: ' + error);
-    });
-}
 
-function deleteUser(username) {
-    if (username === '{{ user }}') {
-        alert('❌ Cannot delete your own account!');
-        return;
-    }
-    
-    if (!confirm(`⚠️ Delete user "${username}"?\n\nThis action cannot be undone.`)) {
-        return;
-    }
-    
-    fetch('/api/delete-user', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username})
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('✅ User deleted successfully!');
-            loadUsers();
-        } else {
-            alert('❌ Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        alert('❌ Network error: ' + error);
-    });
-}
+    function editUser(username, currentRole) {
+        const newPassword = prompt(`Enter new password for user "${username}":`);
+        if (newPassword === null) return; // Cancelled
 
-// Load users when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    loadUsers();
-});
+        const newRole = prompt(`Enter role for "${username}" (admin/support/mailer):`, currentRole);
+        if (!newRole) return;
+
+        if (newRole !== 'admin' && newRole !== 'support' && newRole !== 'mailer') {
+            alert('Role must be either "admin", "support", or "mailer"');
+            return;
+        }
+
+        // Only send password if user entered one
+        const payload = { username, role: newRole };
+        if (newPassword) payload.password = newPassword;
+
+        fetch('/api/edit-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadUsers();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            });
+    }
+
+    function deleteUser(username) {
+        if (username === '{{ session.get("user") }}') {
+            alert('❌ Cannot delete your own account!');
+            return;
+        }
+
+        if (!confirm(`⚠️ Delete user "${username}"?\n\nThis action cannot be undone.`)) {
+            return;
+        }
+
+        fetch('/api/delete-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadUsers();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            });
+    }
+
+    // Load users when page loads
+    document.addEventListener('DOMContentLoaded', function () {
+        loadUsers();
+    });
 </script>
 {% endblock %}

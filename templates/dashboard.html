@@ -157,7 +157,8 @@
 
     <!-- OAuth Authorization Modal -->
     <div id="oauthModal" class="modal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content"
+            style="background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important;">
             <div class="modal-header">
                 <h3 class="modal-title">
                     <i class="fas fa-link"></i> OAuth Authorization Required
@@ -192,7 +193,8 @@
 
     <!-- Add Account Modal -->
     <div id="addAccountModal" class="modal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content"
+            style="background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important;">
             <div class="modal-header">
                 <h3 class="modal-title">
                     <i class="fas fa-plus-circle"></i> Add New Account
@@ -202,8 +204,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div
-                    style="background-color: rgba(9, 105, 218, 0.1); border: 1px solid var(--color-accent-emphasis); border-radius: 6px; padding: 12px; margin-bottom: 16px; color: var(--color-accent-fg);">
+                <div class="glass-info-box" style="margin-bottom: 16px;">
                     <i class="fas fa-info-circle"></i>
                     <strong>Instructions:</strong> Enter the account email and upload the service account JSON
                     credentials file to add a new account.
@@ -245,8 +246,7 @@
                     <label class="form-label-github">
                         <i class="fas fa-check-circle" style="color: #28a745;"></i> JSON File Preview
                     </label>
-                    <div
-                        style="background: #f6f8fa; padding: 12px; border-radius: 6px; border: 1px solid #d0d7de; font-family: 'Courier New', monospace; font-size: 12px; max-height: 150px; overflow-y: auto;">
+                    <div class="glass-code-block" style="max-height: 150px; overflow-y: auto;">
                         <div id="addAccountJsonContent"></div>
                     </div>
                 </div>
@@ -268,7 +268,8 @@
 
     <!-- S3 Import Accounts Modal -->
     <div id="s3ImportModal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-content"
+            style="max-width: 700px; background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important;">
             <div class="modal-header">
                 <h3 class="modal-title">
                     <i class="fas fa-cloud-download-alt"></i> Import Accounts from S3
@@ -278,8 +279,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div
-                    style="background-color: rgba(9, 105, 218, 0.1); border: 1px solid var(--color-accent-emphasis); border-radius: 6px; padding: 12px; margin-bottom: 16px; color: var(--color-accent-fg);">
+                <div class="glass-info-box" style="margin-bottom: 16px;">
                     <i class="fas fa-info-circle"></i>
                     <strong>Instructions:</strong> Enter account emails (one per line). The system will fetch JSON files
                     from S3 bucket <code>dev-app-passwords/workspace-keys/</code>.
@@ -298,15 +298,17 @@
                 </div>
 
                 <div id="s3ImportProgress" style="display: none; margin-bottom: 16px;">
-                    <div style="background: #f6f8fa; border-radius: 6px; padding: 16px; border: 1px solid #d0d7de;">
+                    <div class="glass-code-block">
                         <div
                             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <span id="s3ImportStatus">Importing...</span>
                             <span id="s3ImportCount">0/0</span>
                         </div>
-                        <div style="background: #e1e4e8; border-radius: 6px; height: 8px; overflow: hidden;">
+                        <div
+                            style="background: var(--input-bg); border-radius: 6px; height: 8px; overflow: hidden; border: 1px solid var(--border-panel);">
                             <div id="s3ImportProgressBar"
-                                style="background: #0969da; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                                style="background: var(--accent-primary); height: 100%; width: 0%; transition: width 0.3s;">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -315,8 +317,8 @@
                     <h6 style="font-weight: 600; margin-bottom: 8px; color: #24292f;">
                         <i class="fas fa-list-check"></i> Import Results
                     </h6>
-                    <div id="s3ImportResultsContent"
-                        style="background: #f6f8fa; padding: 12px; border-radius: 6px; border: 1px solid #d0d7de; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;">
+                    <div id="s3ImportResultsContent" class="glass-code-block"
+                        style="max-height: 200px; overflow-y: auto;">
                     </div>
                 </div>
             </div>
@@ -333,7 +335,8 @@
 
     <!-- Bulk Delete Accounts Modal -->
     <div id="bulkDeleteModal" class="modal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content"
+            style="background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important;">
             <div class="modal-header">
                 <h3 class="modal-title">
                     <i class="fas fa-trash-alt"></i> Bulk Delete Accounts
@@ -343,8 +346,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div
-                    style="background-color: rgba(220, 53, 69, 0.1); border: 1px solid #dc3545; border-radius: 6px; padding: 12px; margin-bottom: 16px; color: #dc3545;">
+                <div class="glass-warning-box" style="margin-bottom: 16px;">
                     <i class="fas fa-exclamation-triangle"></i>
                     <strong>Warning:</strong> This action will permanently delete the specified accounts. This cannot be
                     undone!
@@ -363,13 +365,14 @@
                 </div>
 
                 <div id="bulkDeleteProgress" style="display: none; margin-top: 16px;">
-                    <div style="background: #f6f8fa; border-radius: 6px; padding: 16px; border: 1px solid #d0d7de;">
+                    <div class="glass-code-block">
                         <div
                             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <span id="bulkDeleteStatus">Processing...</span>
                             <span id="bulkDeleteCount">0/0</span>
                         </div>
-                        <div style="background: #e1e4e8; border-radius: 6px; height: 8px; overflow: hidden;">
+                        <div
+                            style="background: var(--input-bg); border-radius: 6px; height: 8px; overflow: hidden; border: 1px solid var(--border-panel);">
                             <div id="bulkDeleteProgressBar"
                                 style="background: #dc3545; height: 100%; width: 0%; transition: width 0.3s; border-radius: 6px;">
                             </div>
@@ -381,8 +384,8 @@
                     <h6 style="font-weight: 600; margin-bottom: 8px; color: #24292f;">
                         <i class="fas fa-list-check"></i> Deletion Results
                     </h6>
-                    <div id="bulkDeleteResultsContent"
-                        style="background: #f6f8fa; padding: 12px; border-radius: 6px; border: 1px solid #d0d7de; max-height: 200px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px;">
+                    <div id="bulkDeleteResultsContent" class="glass-code-block"
+                        style="max-height: 200px; overflow-y: auto;">
                     </div>
                 </div>
             </div>
@@ -602,10 +605,9 @@
             </div>
             <div class="form-group-github">
                 <textarea id="bulk-account-results-text" class="form-control-github" rows="15" readonly
-                    style="font-family: 'Courier New', monospace; font-size: 13px; background-color: #f6f8fa;"></textarea>
+                    style="font-family: 'Courier New', monospace; font-size: 13px; background-color: var(--input-bg);"></textarea>
             </div>
-            <div id="bulk-account-summary"
-                style="margin-top: 12px; padding: 12px; background-color: #f6f8fa; border-radius: 6px;">
+            <div id="bulk-account-summary" class="glass-code-block" style="margin-top: 12px;">
                 <!-- Summary will be displayed here -->
             </div>
         </div>
@@ -613,7 +615,8 @@
 
     <!-- Bulk Account Modal -->
     <div id="bulk-account-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 1200px; width: 95%;">
+        <div class="modal-content"
+            style="max-width: 1200px; width: 95%; background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important;">
             <div class="modal-header">
                 <h3 style="margin: 0;">
                     <i class="fas fa-users-cog"></i>
@@ -629,8 +632,7 @@
                 </p>
 
                 <!-- Bulk Paste Field -->
-                <div class="form-group-github"
-                    style="margin-bottom: 16px; padding: 16px; background-color: #f6f8fa; border-radius: 6px; border: 1px solid #d0d7de;">
+                <div class="glass-code-block" style="margin-bottom: 16px;">
                     <label for="bulk-accounts-paste" class="form-label-github">
                         <i class="fas fa-paste"></i>
                         Bulk Paste Accounts (one per line)
@@ -650,27 +652,22 @@
 
                 <!-- Accounts Table -->
                 <div style="overflow-x: auto; margin-bottom: 16px;">
-                    <table id="bulk-accounts-table" style="width: 100%; border-collapse: collapse; background: white;">
+                    <table id="bulk-accounts-table" class="glass-table">
                         <thead>
-                            <tr style="background-color: #f6f8fa; border-bottom: 2px solid #d0d7de;">
-                                <th
-                                    style="padding: 12px; text-align: left; font-weight: 600; color: #24292f; border-right: 1px solid #d0d7de;">
+                            <tr>
+                                <th>
                                     <i class="fas fa-envelope"></i> Account Email
                                 </th>
-                                <th
-                                    style="padding: 12px; text-align: left; font-weight: 600; color: #24292f; border-right: 1px solid #d0d7de; width: 150px;">
+                                <th style="width: 150px;">
                                     <i class="fas fa-hashtag"></i> Users
                                 </th>
-                                <th
-                                    style="padding: 12px; text-align: left; font-weight: 600; color: #24292f; border-right: 1px solid #d0d7de;">
+                                <th>
                                     <i class="fas fa-globe"></i> Domain
                                 </th>
-                                <th
-                                    style="padding: 12px; text-align: left; font-weight: 600; color: #24292f; border-right: 1px solid #d0d7de;">
+                                <th>
                                     <i class="fas fa-lock"></i> Password
                                 </th>
-                                <th
-                                    style="padding: 12px; text-align: center; font-weight: 600; color: #24292f; width: 80px;">
+                                <th style="width: 80px; text-align: center;">
                                     <i class="fas fa-trash"></i> Action
                                 </th>
                             </tr>
@@ -738,10 +735,9 @@
                     </div>
                     <div class="form-group-github">
                         <textarea id="bulk-account-results-text-modal" class="form-control-github" rows="15" readonly
-                            style="font-family: 'Courier New', monospace; font-size: 13px; background-color: #f6f8fa;"></textarea>
+                            style="font-family: 'Courier New', monospace; font-size: 13px; background-color: var(--input-bg);"></textarea>
                     </div>
-                    <div id="bulk-account-summary-modal"
-                        style="margin-top: 12px; padding: 12px; background-color: #f6f8fa; border-radius: 6px;">
+                    <div id="bulk-account-summary-modal" class="glass-code-block" style="margin-top: 12px;">
                         <!-- Summary will be displayed here -->
                     </div>
                 </div>
@@ -977,10 +973,10 @@
                 <i class="fas fa-user-shield"></i> Create Admin Users
             </button>
         </div>
-        <div
-            style="margin-top: 12px; padding: 12px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px;">
+        <div class="glass-warning-box"
+            style="margin-top: 12px; background: rgba(255, 234, 167, 0.1) !important; border-color: rgba(255, 234, 167, 0.3) !important;">
             <i class="fas fa-info-circle" style="color: #f39c12; margin-right: 8px;"></i>
-            <span style="color: #856404; font-size: 14px;">
+            <span style="color: var(--text-primary); font-size: 14px;">
                 <strong>Note:</strong> Creates users with basic admin privileges. Specific role assignments require
                 Google Admin Console configuration.
             </span>
@@ -1373,8 +1369,7 @@
             <div style="overflow-x: auto;">
                 <table id="domain-verification-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
                     <thead>
-                        <tr
-                            style="background-color: var(--color-canvas-subtle); border-bottom: 2px solid var(--color-border-default);">
+                        <tr class="glass-table-header">
                             <th style="padding: 8px; text-align: left; font-weight: 600;">Domain</th>
                             <th style="padding: 8px; text-align: left; font-weight: 600;">Workspace Add</th>
                             <th style="padding: 8px; text-align: left; font-weight: 600;">DNS TXT</th>
@@ -1400,8 +1395,8 @@
                     <i class="fas fa-chevron-down" id="domain-verification-log-toggle-icon"></i> Toggle
                 </button>
             </div>
-            <div id="domain-verification-log"
-                style="display: none; background-color: var(--color-canvas-subtle); border: 1px solid var(--color-border-default); border-radius: 6px; padding: 12px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; white-space: pre-wrap;">
+            <div id="domain-verification-log" class="glass-code-block"
+                style="display: none; max-height: 300px; overflow-y: auto; white-space: pre-wrap;">
             </div>
         </div>
     </div>
@@ -1473,8 +1468,7 @@
             <div style="overflow-x: auto;">
                 <table id="bulk-multi-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
                     <thead>
-                        <tr
-                            style="background-color: var(--color-canvas-subtle); border-bottom: 2px solid var(--color-border-default);">
+                        <tr class="glass-table-header">
                             <th style="padding: 8px; text-align: left; font-weight: 600;">#</th>
                             <th style="padding: 8px; text-align: left; font-weight: 600;">Domain</th>
                             <th style="padding: 8px; text-align: left; font-weight: 600;">Account</th>
@@ -1501,8 +1495,8 @@
                     <i class="fas fa-chevron-down" id="bulk-multi-log-toggle-icon"></i> Toggle
                 </button>
             </div>
-            <div id="bulk-multi-log"
-                style="background-color: var(--color-canvas-subtle); border: 1px solid var(--color-border-default); border-radius: 6px; padding: 12px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; white-space: pre-wrap;">
+            <div id="bulk-multi-log" class="glass-code-block"
+                style="max-height: 300px; overflow-y: auto; white-space: pre-wrap;">
             </div>
         </div>
     </div>

@@ -954,7 +954,6 @@ class AwsEducationApp(QMainWindow):
         creds_layout.addWidget(QLabel("Region:"), 1, 0)
         self.region_input = QLineEdit("eu-west-1")
         creds_layout.addWidget(self.region_input, 1, 1)
-        
         self.connect_btn = QPushButton("🔗 Test Connection")
         self.connect_btn.clicked.connect(self.on_test_connection)
         creds_layout.addWidget(self.connect_btn, 0, 4, 2, 1)
@@ -962,6 +961,14 @@ class AwsEducationApp(QMainWindow):
         creds_layout.addWidget(QLabel("S3 Bucket:"), 1, 2)
         self.s3_bucket_input = QLineEdit(S3_BUCKET_NAME)
         creds_layout.addWidget(self.s3_bucket_input, 1, 3)
+        
+        self.save_creds_btn = QPushButton("💾 Save Credentials")
+        self.save_creds_btn.clicked.connect(self.on_save_credentials)
+        self.save_creds_btn.setStyleSheet("background-color: #28a745; color: white;")
+        creds_layout.addWidget(self.save_creds_btn, 1, 4)
+        
+        # Load saved credentials on startup
+        self._load_saved_credentials()
         
         top_layout.addWidget(creds_group)
         
@@ -993,6 +1000,39 @@ class AwsEducationApp(QMainWindow):
         self.status_label = QLabel("Ready")
         self.status_label.setStyleSheet("color: #888; padding: 5px;")
         main_layout.addWidget(self.status_label)
+
+    def _load_saved_credentials(self):
+        """Load saved AWS credentials from file."""
+        creds_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "aws_credentials.json")
+        try:
+            if os.path.exists(creds_file):
+                with open(creds_file, 'r') as f:
+                    creds = json.load(f)
+                self.access_key_input.setText(creds.get('access_key_id', ''))
+                self.secret_key_input.setText(creds.get('secret_access_key', ''))
+                self.region_input.setText(creds.get('region', 'eu-west-1'))
+                self.s3_bucket_input.setText(creds.get('s3_bucket', S3_BUCKET_NAME))
+                print("Loaded saved AWS credentials")
+        except Exception as e:
+            print(f"Could not load saved credentials: {e}")
+    
+    def on_save_credentials(self):
+        """Save AWS credentials to file."""
+        creds_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "aws_credentials.json")
+        creds = {
+            'access_key_id': self.access_key_input.text().strip(),
+            'secret_access_key': self.secret_key_input.text().strip(),
+            'region': self.region_input.text().strip(),
+            's3_bucket': self.s3_bucket_input.text().strip()
+        }
+        try:
+            with open(creds_file, 'w') as f:
+                json.dump(creds, f, indent=2)
+            self.log("✅ AWS credentials saved successfully!")
+            QMessageBox.information(self, "Saved", "AWS credentials saved successfully!")
+        except Exception as e:
+            self.log(f"❌ Failed to save credentials: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to save credentials: {e}")
 
     def _build_infra_tab(self):
         """Build Infrastructure tab."""

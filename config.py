@@ -33,14 +33,17 @@ SQLALCHEMY_ENGINE_OPTIONS = {
     'pool_pre_ping': True,  # Validate connections before use
     'max_overflow': 1000,  # Very high overflow for unlimited burst traffic (was 200)
     'pool_timeout': 300,  # Very long timeout for unlimited load (was 120)
-    'connect_args': {
+}
+
+# Add PostgreSQL-specific connection arguments if using PostgreSQL
+if 'postgresql' in SQLALCHEMY_DATABASE_URI:
+    SQLALCHEMY_ENGINE_OPTIONS['connect_args'] = {
         'connect_timeout': 120,  # Very long connection timeout (was 60)
         'application_name': 'gbot_web_app',
         'keepalives_idle': 600,
         'keepalives_interval': 30,
         'keepalives_count': 3
     }
-}
 
 # Production Settings
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
