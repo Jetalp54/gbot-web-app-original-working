@@ -36,20 +36,21 @@
         <!-- Main Interface -->
         <div class="glass-panel p-0 overflow-hidden mb-5">
             <!-- Glass Tabs -->
-            <div class="d-flex border-bottom border-white-10 p-2" style="background: rgba(0,0,0,0.2);">
+            <!-- Glass Tabs (Improved Spacing & No Background) -->
+            <div class="d-flex border-bottom border-white-10 p-3 gap-3">
                 {% if user_role == 'admin' %}
-                <button class="glass-button tab-button active me-2" onclick="switchTab('infra')" id="tab-infra-btn">
+                <button class="glass-button tab-button active" onclick="switchTab('infra')" id="tab-infra-btn">
                     <i class="fas fa-server me-2"></i>Core Infrastructure
                 </button>
                 {% endif %}
 
-                <button class="glass-button tab-button {% if user_role == 'mailer' %}active{% endif %} me-2"
+                <button class="glass-button tab-button {% if user_role == 'mailer' %}active{% endif %}"
                     onclick="switchTab('lambda')" id="tab-lambda-btn">
                     <i class="fas fa-code me-2"></i>Production Lambda
                 </button>
 
                 {% if user_role == 'admin' %}
-                <button class="glass-button tab-button me-2" onclick="switchTab('ec2')" id="tab-ec2-btn">
+                <button class="glass-button tab-button" onclick="switchTab('ec2')" id="tab-ec2-btn">
                     <i class="fas fa-desktop me-2"></i>EC2 Build Box
                 </button>
                 {% endif %}
@@ -213,21 +214,9 @@
                         </div>
                     </div>
 
-                    <!-- Execution Mode -->
+                    <!-- Execution Mode (Single Account Removed) -->
                     <div class="mb-4 pt-3 border-top border-white-10">
-                        <h5 class="mb-3">Execution Mode</h5>
-                        <div class="d-flex gap-4 mb-3">
-                            <label class="d-flex align-items-center gap-2 cursor-pointer">
-                                <input type="radio" name="executionMode" value="single" checked
-                                    style="accent-color: var(--accent-primary);">
-                                <span>Single Account</span>
-                            </label>
-                            <label class="d-flex align-items-center gap-2 cursor-pointer">
-                                <input type="radio" name="executionMode" value="multiple"
-                                    style="accent-color: var(--accent-primary);">
-                                <span>Multiple Accounts</span>
-                            </label>
-                        </div>
+                        <input type="hidden" name="executionMode" value="multiple"> <!-- Force multiple mode -->
 
                         <label class="form-label text-muted small">Account Input (email:password)</label>
                         <textarea id="multipleUsers" class="glass-input w-100 font-monospace mb-2" rows="6"
@@ -1410,7 +1399,8 @@
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
-        const executionMode = document.querySelector('input[name="executionMode"]:checked').value;
+        // Force execution mode to multiple since single mode UI was removed
+        const executionMode = 'multiple';
         const usersText = document.getElementById('multipleUsers').value.trim();
 
         if (!usersText) {
@@ -1428,25 +1418,16 @@
             return;
         }
 
-        if (executionMode === 'single') {
-            if (usersRaw.length > 1) {
-                if (!confirm(`Single Account mode selected, but ${usersRaw.length} accounts found.\n\nUsing first account only. Switch to 'Multiple Accounts' mode to process all accounts.\n\nContinue with first account only?`)) {
-                    return;
-                }
-            }
-            invokeSingleAccount(usersRaw[0]);
-        } else {
-            if (usersRaw.length > 1000) {
-                alert(`Too many users (${usersRaw.length}). Maximum is 1000. Please reduce the number of users.`);
-                return;
-            }
-            if (!confirm(`Are you sure you want to process ${usersRaw.length} accounts in parallel?\n\nThis will invoke the Lambda ${usersRaw.length} times concurrently on the server.`)) {
-                return;
-            }
-            // Set flag to prevent duplicate clicks
-            isProcessing = true;
-            invokeMultipleAccounts(usersRaw);
+        if (usersRaw.length > 1000) {
+            alert(`Too many users (${usersRaw.length}). Maximum is 1000. Please reduce the number of users.`);
+            return;
         }
+        if (!confirm(`Are you sure you want to process ${usersRaw.length} accounts in parallel?\n\nThis will invoke the Lambda ${usersRaw.length} times concurrently on the server.`)) {
+            return;
+        }
+        // Set flag to prevent duplicate clicks
+        isProcessing = true;
+        invokeMultipleAccounts(usersRaw);
     }
 
     function invokeSingleAccount(userLine) {
