@@ -682,6 +682,35 @@
     border-color: var(--border-panel) !important;
 }
 
+/* 9. Sidebar Navigation Readability Fixes */
+.glass-ui .sidebar-nav .nav-item {
+    color: var(--text-secondary) !important;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    padding: 10px 16px;
+}
+
+.glass-ui .sidebar-nav .nav-item:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    /* Semi-transparent white for drag-glass feel */
+    color: #ffffff !important;
+    /* Explicit white text */
+    transform: translateX(4px);
+}
+
+.glass-ui .sidebar-nav .nav-item.active {
+    background: linear-gradient(90deg, var(--accent-primary), transparent) !important;
+    color: #ffffff !important;
+    border-left: 3px solid #ffffff !important;
+}
+
+.glass-ui .sidebar-nav .nav-item i {
+    width: 24px;
+    text-align: center;
+    margin-right: 8px;
+}
+
 /* Fix for Bulk Account Modal Scrolling */
 #bulk-account-modal .glass-modal-content,
 #bulk-account-modal .modal-content {

@@ -655,7 +655,13 @@
                                     <i class="fas fa-hashtag"></i> Users
                                 </th>
                                 <th>
-                                    <i class="fas fa-globe"></i> Domain
+                                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                                        <span><i class="fas fa-globe"></i> Domain</span>
+                                        <button onclick="populateAllDomains()" class="btn-github"
+                                            style="padding: 2px 6px; font-size: 11px;" title="Populate All Domains">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </button>
+                                    </div>
                                 </th>
                                 <th>
                                     <i class="fas fa-lock"></i> Password
@@ -671,16 +677,11 @@
                     </table>
                 </div>
 
-                <!-- Add Account & Populate Domains Buttons -->
-                <div style="margin-bottom: 16px; display: flex; gap: 12px;">
-                    <button onclick="addBulkAccountRow()" class="btn-github" style="flex: 1;">
+                <!-- Add Account Button -->
+                <div style="margin-bottom: 16px;">
+                    <button onclick="addBulkAccountRow()" class="btn-github" style="width: 100%;">
                         <i class="fas fa-plus"></i>
                         Add Account Row
-                    </button>
-                    <button onclick="populateAllDomains()" class="btn-github"
-                        style="flex: 1; background-color: #0969da; color: white; border-color: #0969da;">
-                        <i class="fas fa-sync"></i>
-                        Populate All Domains
                     </button>
                 </div>
 
