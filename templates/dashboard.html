@@ -609,15 +609,15 @@
     <!-- Bulk Account Modal -->
     <div id="bulk-account-modal" class="modal" style="display: none;">
         <div class="modal-content"
-            style="max-width: 1200px; width: 95%; background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important;">
-            <div class="modal-header">
+            style="max-width: 1200px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important;">
+            <div class="modal-header" style="flex-shrink: 0;">
                 <h3 style="margin: 0;">
                     <i class="fas fa-users-cog"></i>
                     Bulk Account Management
                 </h3>
                 <span class="close" onclick="closeBulkAccountModal()">&times;</span>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="overflow-y: auto; flex: 1; padding-right: 10px;">
                 <p style="color: #656d76; margin-bottom: 16px;">
                     <i class="fas fa-info-circle"></i>
                     Each account can have its own number of users, domain, and password. Add accounts using the button
