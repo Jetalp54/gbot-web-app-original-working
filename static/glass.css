@@ -1436,6 +1436,15 @@ html body .glass-ui textarea::placeholder {
     overflow: hidden;
 }
 
+/* Override progress container to be glass */
+.progress-container {
+    background: var(--bg-panel) !important;
+    background-color: var(--bg-panel) !important;
+    border: 1px solid var(--border-panel) !important;
+    color: var(--text-primary) !important;
+    backdrop-filter: blur(var(--glass-blur)) !important;
+}
+
 /* Force input fields inside these specific containers too */
 #user-display input,
 #suspended-display input,
