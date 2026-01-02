@@ -313,7 +313,7 @@ def before_request():
 
     # IP Whitelist check - for ALL users (including logged-in users)
     # Check if IP whitelist is enabled
-    if app.config.get('ENABLE_IP_WHITELIST', True):  # Default to True for security
+    if app.config.get('ENABLE_IP_WHITELIST', False):  # Default to False to prevent 502 lockout
         client_ip = get_client_ip()
         
         # Normalize IP (strip whitespace, lowercase for IPv6)
