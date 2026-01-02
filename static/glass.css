@@ -1475,3 +1475,10 @@ html body .glass-ui textarea::placeholder {
     color: var(--text-primary) !important;
     border-color: var(--border-panel) !important;
 }
+
+.glass-sub-panel {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border: 1px solid var(--border-panel) !important;
+    border-radius: 8px;
+    padding: 16px;
+}
