@@ -3,380 +3,374 @@
 {% block title %}AWS Management - GBot Web{% endblock %}
 
 {% block content %}
-<div class="glass-ui">
-    <div class="container-fluid p-4">
+<div class="container-fluid p-4">
 
-        <!-- Header -->
-        <div class="d-flex align-items-center justify-content-between mb-4">
-            <h1 class="glass-text-primary mb-0" style="font-size: 2rem; font-weight: 700;">
-                <i class="fas fa-cloud me-3"></i>AWS Management
-            </h1>
-            <div class="d-flex gap-2">
-                <!-- Header Actions if any -->
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h1 class="glass-text-primary mb-0" style="font-size: 2rem; font-weight: 700;">
+            <i class="fas fa-cloud me-3"></i>AWS Management
+        </h1>
+        <div class="d-flex gap-2">
+            <!-- Header Actions if any -->
+        </div>
+    </div>
+
+    <!-- Info Message -->
+    <div class="glass-panel p-4 mb-5" style="border-left: 4px solid var(--accent-secondary) !important;">
+        <div class="d-flex align-items-start gap-3">
+            <div class="glass-orb"
+                style="position: static; width: 24px; height: 24px; background: var(--accent-secondary); filter: blur(10px); opacity: 0.8;">
+            </div>
+            <div>
+                <h5 class="mb-1" style="color: var(--accent-secondary);">Configuration Required</h5>
+                <p class="mb-0 text-muted">
+                    AWS credentials are managed in <a href="/settings"
+                        class="text-white text-decoration-underline">Settings</a>.
+                    Please configure them there before using this management console.
+                </p>
             </div>
         </div>
+    </div>
 
-        <!-- Info Message -->
-        <div class="glass-panel p-4 mb-5" style="border-left: 4px solid var(--accent-secondary) !important;">
-            <div class="d-flex align-items-start gap-3">
-                <div class="glass-orb"
-                    style="position: static; width: 24px; height: 24px; background: var(--accent-secondary); filter: blur(10px); opacity: 0.8;">
+    <!-- Main Interface -->
+    <div class="glass-panel p-0 overflow-hidden mb-5">
+        <!-- Glass Tabs -->
+        <!-- Glass Tabs (Improved Spacing & No Background) -->
+        <div class="d-flex border-bottom border-white-10 p-3 gap-3">
+            {% if user_role == 'admin' %}
+            <button class="glass-button tab-button active" onclick="switchTab('infra')" id="tab-infra-btn">
+                <i class="fas fa-server me-2"></i>Core Infrastructure
+            </button>
+            {% endif %}
+
+            <button class="glass-button tab-button {% if user_role == 'mailer' %}active{% endif %}"
+                onclick="switchTab('lambda')" id="tab-lambda-btn">
+                <i class="fas fa-code me-2"></i>Production Lambda
+            </button>
+
+            {% if user_role == 'admin' %}
+            <button class="glass-button tab-button" onclick="switchTab('ec2')" id="tab-ec2-btn">
+                <i class="fas fa-desktop me-2"></i>EC2 Build Box
+            </button>
+            {% endif %}
+
+            <button class="glass-button tab-button" onclick="switchTab('status')" id="tab-status-btn">
+                <i class="fas fa-chart-bar me-2"></i>Global Status
+            </button>
+        </div>
+
+        <div class="p-4">
+
+            <!-- Tab: Core Infrastructure -->
+            {% if user_role == 'admin' %}
+            <div id="tab-infra" class="tab-content active">
+                <h4 class="mb-4 glass-text-primary">Core Resource Management</h4>
+
+                <div class="row g-4">
+                    <!-- Naming Config -->
+                    <div class="col-12 mb-2">
+                        <div class="glass-panel p-3 mb-0" style="background: rgba(255,255,255,0.03) !important;">
+                            <h6 class="mb-3 text-uppercase text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">
+                                Resource Naming Configuration</h6>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">ECR Repository Name</label>
+                                    <input type="text" class="glass-input w-100" id="ecrRepoName"
+                                        value="dev-app-password-worker" placeholder="e.g., dev-worker">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">DynamoDB Table Name</label>
+                                    <input type="text" class="glass-input w-100" id="dynamodbTableName"
+                                        value="dev-app-passwords" placeholder="e.g., dev-passwords">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">S3 Bucket Name</label>
+                                    <input type="text" class="glass-input w-100" id="s3BucketName"
+                                        value="dev-app-passwords" placeholder="e.g., dev-bucket">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">IAM Role Prefix</label>
+                                    <input type="text" class="glass-input w-100" id="iamRolePrefix" value="dev"
+                                        placeholder="e.g., dev">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions Grid -->
+                    <div class="col-md-6">
+                        <h5 class="mb-3">Setup & Provisioning</h5>
+                        <div class="d-grid gap-3">
+                            <button class="glass-button glass-button-primary w-100" onclick="createInfrastructure()">
+                                <i class="fas fa-plus-circle me-2"></i>Create Core Resources (IAM, ECR, S3)
+                            </button>
+                            <button class="glass-button glass-button-primary w-100" onclick="createDynamoDBTable()">
+                                <i class="fas fa-database me-2"></i>Create DynamoDB Table
+                            </button>
+                            <button class="glass-button w-100" onclick="createECRManual()">
+                                <i class="fas fa-box me-2"></i>Create ECR Repository (Manual)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <h5 class="mb-3">Deployment & Inspection</h5>
+                        <div class="d-grid gap-3">
+                            <button class="glass-button w-100"
+                                style="border-color: var(--color-success-emphasis); color: var(--color-success-fg);"
+                                onclick="pushECRToAllRegions()">
+                                <i class="fas fa-globe me-2"></i>Push ECR Image to All Regions
+                            </button>
+                            <button class="glass-button w-100" onclick="generateECRPushScript()">
+                                <i class="fas fa-file-code me-2"></i>Generate Push Script
+                            </button>
+                            <button class="glass-button w-100" onclick="inspectResources()">
+                                <i class="fas fa-search me-2"></i>Inspect Resources
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ECR Push Options (Hidden by default) -->
+                    <div id="ecrPushOptions" class="col-12" style="display: none;">
+                        <div class="glass-panel p-3 border border-secondary">
+                            <label class="form-label">Source Region (where ECR image exists)</label>
+                            <select id="sourceRegionSelect" class="glass-input w-100">
+                                <option value="">Auto-detect from ECR URI</option>
+                                <option value="us-east-1">US East (N. Virginia)</option>
+                                <option value="us-east-2">US East (Ohio)</option>
+                                <option value="us-west-1">US West (N. California)</option>
+                                <option value="us-west-2">US West (Oregon)</option>
+                                <option value="eu-west-1" selected>Europe (Ireland)</option>
+                                <option value="eu-central-1">Europe (Frankfurt)</option>
+                                <!-- Add other regions as needed -->
+                            </select>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <h5 class="mb-1" style="color: var(--accent-secondary);">Configuration Required</h5>
-                    <p class="mb-0 text-muted">
-                        AWS credentials are managed in <a href="/settings"
-                            class="text-white text-decoration-underline">Settings</a>.
-                        Please configure them there before using this management console.
+            </div>
+            {% endif %}
+
+            <!-- Tab: Lambda Management -->
+            <div id="tab-lambda" class="tab-content {% if user_role == 'mailer' %}active{% endif %}"
+                style="display: {% if user_role == 'mailer' %}block{% else %}none{% endif %};">
+                <h4 class="mb-4 glass-text-primary">Production Lambda Management</h4>
+
+                <!-- Config Box -->
+                <div class="glass-panel p-3 mb-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-code me-2 glass-text-primary"></i>
+                        <h6 class="mb-0 glass-text-primary">Lambda Function Naming</h6>
+                    </div>
+                    <p class="small text-muted mb-2">Prefix used for all operations:
+                        <code>{prefix}-{region}-{number}</code>
+                    </p>
+                    <input type="text" class="glass-input w-100" id="lambdaPrefix" value="dev-chromium"
+                        placeholder="e.g., dev-chromium">
+                </div>
+
+                <!-- Creation Options -->
+                <div class="mb-4">
+                    <label class="glass-checkbox d-flex align-items-center gap-2 mb-3 cursor-pointer">
+                        <input type="checkbox" id="createMultipleLambdas" onchange="toggleLambdaOptions()"
+                            style="accent-color: var(--accent-primary);">
+                        <span>Create multiple Lambda functions (Parallel Processing)</span>
+                    </label>
+
+                    <div id="lambdaOptions" class="glass-panel p-3 mb-3" style="display: none;">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">Users per Function</label>
+                                <input type="number" id="usersPerFunction" class="glass-input w-100" value="10" min="1"
+                                    max="20" onchange="updateLambdaCalculation()" oninput="updateLambdaCalculation()">
+                                <small class="text-muted d-block mt-1">Recommended: 5-8 for fewer CAPTCHAs</small>
+                            </div>
+                            <div class="col-md-6">
+                                <div id="lambdaCalculation" class="text-info small">
+                                    <i class="fas fa-calculator me-1"></i>
+                                    <span id="lambdaCount">0</span> function(s) for <span
+                                        id="detectedUserCount">0</span> user(s)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-3 d-md-flex">
+                        <button class="glass-button glass-button-primary flex-grow-1" onclick="createLambdas()">
+                            <i class="fas fa-sync-alt me-2"></i>Create / Update Prod Lambda(s)
+                        </button>
+                        <button class="glass-button" onclick="checkAWSLimits()">
+                            <i class="fas fa-search me-2"></i>Check AWS Limits
+                        </button>
+                        <button class="glass-button" onclick="fixLambdaConcurrency()">
+                            <i class="fas fa-tachometer-alt me-2"></i>Fix Concurrency
+                        </button>
+                        <button class="glass-button" onclick="requestQuotaIncrease()">
+                            <i class="fas fa-arrow-up me-2"></i>Request Quota
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Execution Mode (Single Account Removed) -->
+                <div class="mb-4 pt-3 border-top border-white-10">
+                    <input type="hidden" name="executionMode" value="multiple"> <!-- Force multiple mode -->
+
+                    <label class="form-label text-muted small">Account Input (email:password)</label>
+                    <textarea id="multipleUsers" class="glass-input w-100 font-monospace mb-2" rows="6"
+                        placeholder="email1:password1&#10;email2:password2"></textarea>
+                    <div id="multiStatus" class="small text-success">Ready</div>
+                </div>
+
+                <div class="d-flex flex-column gap-3">
+                    <button class="glass-button glass-button-primary py-3 w-100" onclick="invokeProductionLambda()">
+                        <i class="fas fa-play me-2"></i>Invoke Production Lambda
+                    </button>
+                    <div class="d-flex gap-3">
+                        <button class="glass-button glass-button-danger flex-grow-1" onclick="stopAllLambdas()">
+                            <i class="fas fa-stop me-2"></i>Stop All
+                        </button>
+                        <button class="glass-button glass-button-danger flex-grow-1" onclick="deleteAllLambdas()">
+                            <i class="fas fa-trash me-2"></i>Delete All
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div class="glass-panel p-3 mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Generated App Passwords</h6>
+                        <div>
+                            <button class="glass-button btn-sm me-2" onclick="fetchFromDynamoDB()"><i
+                                    class="fas fa-cloud-download-alt me-1"></i>Fetch DB</button>
+                            <button class="glass-button btn-sm" onclick="fetchGeneratedPasswords()"><i
+                                    class="fas fa-sync me-1"></i>Refresh Local</button>
+                        </div>
+                    </div>
+                    <textarea id="resultsOutput" class="glass-input w-100 font-monospace" rows="8" readonly></textarea>
+
+                    <!-- Cleanup Section -->
+                    <div class="mt-4 pt-3 border-top border-white-10">
+                        <h6 class="text-danger mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Destructive
+                            Cleanup</h6>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6 col-md-3">
+                                <input type="text" class="glass-input w-100 form-control-sm" id="deleteS3BucketName"
+                                    value="dev-app-passwords" placeholder="Bucket">
+                            </div>
+                            {% if user_role == 'admin' %}
+                            <div class="col-6 col-md-3">
+                                <input type="text" class="glass-input w-100 form-control-sm" id="deleteEcrRepoName"
+                                    value="dev-app-password-worker" placeholder="Repo">
+                            </div>
+                            {% endif %}
+                            <div class="col-6 col-md-3">
+                                <input type="text" class="glass-input w-100 form-control-sm" id="deleteLogGroupPrefix"
+                                    value="/aws/lambda/dev" placeholder="Logs">
+                            </div>
+                            {% if user_role == 'admin' %}
+                            <div class="col-6 col-md-3">
+                                <input type="text" class="glass-input w-100 form-control-sm"
+                                    id="deleteDynamodbTableName" value="dev-app-passwords" placeholder="Table">
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="glass-button glass-button-danger btn-sm flex-grow-1"
+                                onclick="deleteS3Content()">S3 Content</button>
+                            {% if user_role == 'admin' %}
+                            <button class="glass-button glass-button-danger btn-sm flex-grow-1"
+                                onclick="deleteECRRepo()">ECR Repo</button>
+                            {% endif %}
+                            <button class="glass-button glass-button-danger btn-sm flex-grow-1"
+                                onclick="deleteCloudWatchLogs()">Logs</button>
+                            {% if user_role == 'admin' %}
+                            <button class="glass-button glass-button-danger btn-sm flex-grow-1"
+                                onclick="deleteDynamoDBTable()">DynamoDB</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: EC2 Build Box -->
+            {% if user_role == 'admin' %}
+            <div id="tab-ec2" class="tab-content" style="display: none;">
+                <div class="glass-panel p-4 mb-4" style="border-left: 4px solid #f59e0b !important;">
+                    <h5 style="color: #f59e0b;"><i class="fas fa-info-circle me-2"></i>Hybrid Build Box</h5>
+                    <p class="text-muted small mb-0">
+                        Automatically provisions a t2.micro instance to build your Docker image and push it to ECR.
+                        This avoids local Docker requirements.
                     </p>
                 </div>
+
+                <div class="glass-panel p-3 mb-4">
+                    <label class="form-label small text-muted">EC2 Instance Name</label>
+                    <input type="text" class="glass-input w-100 mb-2" id="ec2InstanceName" value="dev-ec2-build-box">
+                </div>
+
+                <div class="d-grid gap-3">
+                    <button class="glass-button glass-button-primary" onclick="ec2CreateBuildBox()">
+                        <i class="fas fa-hammer me-2"></i>Create & Prepare EC2 Build Box
+                    </button>
+                    <button class="glass-button" onclick="ec2ShowStatus()">
+                        <i class="fas fa-info-circle me-2"></i>Check Status
+                    </button>
+                    <button class="glass-button glass-button-danger" onclick="ec2Terminate()">
+                        <i class="fas fa-power-off me-2"></i>Terminate Instance
+                    </button>
+                </div>
             </div>
+            {% endif %}
+
+            <!-- Tab: Global Status -->
+            <div id="tab-status" class="tab-content" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="mb-0">Global Resource View</h4>
+                    <button class="glass-button glass-button-primary" onclick="checkGlobalStatus()">
+                        <i class="fas fa-sync me-2"></i>Refresh Status
+                    </button>
+                </div>
+
+                <div id="globalStatusLoading" class="text-center py-5" style="display: none;">
+                    <div class="loading-spinner mb-3 mx-auto"></div>
+                    <p class="text-muted">Scanning all supported AWS regions...</p>
+                </div>
+
+                <div class="table-container glass-panel p-0 overflow-hidden">
+                    <table class="table mb-0 text-white"
+                        style="background: transparent; width: 100%; table-layout: fixed;">
+                        <thead>
+                            <tr
+                                style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <th class="p-3" style="width: 25%;">Region</th>
+                                <th class="p-3" style="width: 20%;">Lambdas</th>
+                                <th class="p-3" style="width: 15%;">ECR Repo</th>
+                                <th class="p-3" style="width: 25%;">Image Tag</th>
+                                <th class="p-3" style="width: 15%;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="statusTableBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                        <tfoot id="statusTableFoot">
+                            <!-- Populated by JS -->
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
         </div>
-
-        <!-- Main Interface -->
-        <div class="glass-panel p-0 overflow-hidden mb-5">
-            <!-- Glass Tabs -->
-            <!-- Glass Tabs (Improved Spacing & No Background) -->
-            <div class="d-flex border-bottom border-white-10 p-3 gap-3">
-                {% if user_role == 'admin' %}
-                <button class="glass-button tab-button active" onclick="switchTab('infra')" id="tab-infra-btn">
-                    <i class="fas fa-server me-2"></i>Core Infrastructure
-                </button>
-                {% endif %}
-
-                <button class="glass-button tab-button {% if user_role == 'mailer' %}active{% endif %}"
-                    onclick="switchTab('lambda')" id="tab-lambda-btn">
-                    <i class="fas fa-code me-2"></i>Production Lambda
-                </button>
-
-                {% if user_role == 'admin' %}
-                <button class="glass-button tab-button" onclick="switchTab('ec2')" id="tab-ec2-btn">
-                    <i class="fas fa-desktop me-2"></i>EC2 Build Box
-                </button>
-                {% endif %}
-
-                <button class="glass-button tab-button" onclick="switchTab('status')" id="tab-status-btn">
-                    <i class="fas fa-chart-bar me-2"></i>Global Status
-                </button>
-            </div>
-
-            <div class="p-4">
-
-                <!-- Tab: Core Infrastructure -->
-                {% if user_role == 'admin' %}
-                <div id="tab-infra" class="tab-content active">
-                    <h4 class="mb-4 glass-text-primary">Core Resource Management</h4>
-
-                    <div class="row g-4">
-                        <!-- Naming Config -->
-                        <div class="col-12 mb-2">
-                            <div class="glass-panel p-3 mb-0" style="background: rgba(255,255,255,0.03) !important;">
-                                <h6 class="mb-3 text-uppercase text-muted"
-                                    style="font-size: 0.75rem; letter-spacing: 1px;">Resource Naming Configuration</h6>
-                                <div class="row g-3">
-                                    <div class="col-md-3">
-                                        <label class="form-label text-muted small">ECR Repository Name</label>
-                                        <input type="text" class="glass-input w-100" id="ecrRepoName"
-                                            value="dev-app-password-worker" placeholder="e.g., dev-worker">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label text-muted small">DynamoDB Table Name</label>
-                                        <input type="text" class="glass-input w-100" id="dynamodbTableName"
-                                            value="dev-app-passwords" placeholder="e.g., dev-passwords">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label text-muted small">S3 Bucket Name</label>
-                                        <input type="text" class="glass-input w-100" id="s3BucketName"
-                                            value="dev-app-passwords" placeholder="e.g., dev-bucket">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label text-muted small">IAM Role Prefix</label>
-                                        <input type="text" class="glass-input w-100" id="iamRolePrefix" value="dev"
-                                            placeholder="e.g., dev">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Actions Grid -->
-                        <div class="col-md-6">
-                            <h5 class="mb-3">Setup & Provisioning</h5>
-                            <div class="d-grid gap-3">
-                                <button class="glass-button glass-button-primary w-100"
-                                    onclick="createInfrastructure()">
-                                    <i class="fas fa-plus-circle me-2"></i>Create Core Resources (IAM, ECR, S3)
-                                </button>
-                                <button class="glass-button glass-button-primary w-100" onclick="createDynamoDBTable()">
-                                    <i class="fas fa-database me-2"></i>Create DynamoDB Table
-                                </button>
-                                <button class="glass-button w-100" onclick="createECRManual()">
-                                    <i class="fas fa-box me-2"></i>Create ECR Repository (Manual)
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <h5 class="mb-3">Deployment & Inspection</h5>
-                            <div class="d-grid gap-3">
-                                <button class="glass-button w-100"
-                                    style="border-color: var(--color-success-emphasis); color: var(--color-success-fg);"
-                                    onclick="pushECRToAllRegions()">
-                                    <i class="fas fa-globe me-2"></i>Push ECR Image to All Regions
-                                </button>
-                                <button class="glass-button w-100" onclick="generateECRPushScript()">
-                                    <i class="fas fa-file-code me-2"></i>Generate Push Script
-                                </button>
-                                <button class="glass-button w-100" onclick="inspectResources()">
-                                    <i class="fas fa-search me-2"></i>Inspect Resources
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- ECR Push Options (Hidden by default) -->
-                        <div id="ecrPushOptions" class="col-12" style="display: none;">
-                            <div class="glass-panel p-3 border border-secondary">
-                                <label class="form-label">Source Region (where ECR image exists)</label>
-                                <select id="sourceRegionSelect" class="glass-input w-100">
-                                    <option value="">Auto-detect from ECR URI</option>
-                                    <option value="us-east-1">US East (N. Virginia)</option>
-                                    <option value="us-east-2">US East (Ohio)</option>
-                                    <option value="us-west-1">US West (N. California)</option>
-                                    <option value="us-west-2">US West (Oregon)</option>
-                                    <option value="eu-west-1" selected>Europe (Ireland)</option>
-                                    <option value="eu-central-1">Europe (Frankfurt)</option>
-                                    <!-- Add other regions as needed -->
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-
-                <!-- Tab: Lambda Management -->
-                <div id="tab-lambda" class="tab-content {% if user_role == 'mailer' %}active{% endif %}"
-                    style="display: {% if user_role == 'mailer' %}block{% else %}none{% endif %};">
-                    <h4 class="mb-4 glass-text-primary">Production Lambda Management</h4>
-
-                    <!-- Config Box -->
-                    <div class="glass-panel p-3 mb-4">
-                        <div class="d-flex align-items-center mb-3">
-                            <i class="fas fa-code me-2 glass-text-primary"></i>
-                            <h6 class="mb-0 glass-text-primary">Lambda Function Naming</h6>
-                        </div>
-                        <p class="small text-muted mb-2">Prefix used for all operations:
-                            <code>{prefix}-{region}-{number}</code>
-                        </p>
-                        <input type="text" class="glass-input w-100" id="lambdaPrefix" value="dev-chromium"
-                            placeholder="e.g., dev-chromium">
-                    </div>
-
-                    <!-- Creation Options -->
-                    <div class="mb-4">
-                        <label class="glass-checkbox d-flex align-items-center gap-2 mb-3 cursor-pointer">
-                            <input type="checkbox" id="createMultipleLambdas" onchange="toggleLambdaOptions()"
-                                style="accent-color: var(--accent-primary);">
-                            <span>Create multiple Lambda functions (Parallel Processing)</span>
-                        </label>
-
-                        <div id="lambdaOptions" class="glass-panel p-3 mb-3" style="display: none;">
-                            <div class="row align-items-center">
-                                <div class="col-md-6">
-                                    <label class="form-label text-muted small">Users per Function</label>
-                                    <input type="number" id="usersPerFunction" class="glass-input w-100" value="10"
-                                        min="1" max="20" onchange="updateLambdaCalculation()"
-                                        oninput="updateLambdaCalculation()">
-                                    <small class="text-muted d-block mt-1">Recommended: 5-8 for fewer CAPTCHAs</small>
-                                </div>
-                                <div class="col-md-6">
-                                    <div id="lambdaCalculation" class="text-info small">
-                                        <i class="fas fa-calculator me-1"></i>
-                                        <span id="lambdaCount">0</span> function(s) for <span
-                                            id="detectedUserCount">0</span> user(s)
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="d-grid gap-3 d-md-flex">
-                            <button class="glass-button glass-button-primary flex-grow-1" onclick="createLambdas()">
-                                <i class="fas fa-sync-alt me-2"></i>Create / Update Prod Lambda(s)
-                            </button>
-                            <button class="glass-button" onclick="checkAWSLimits()">
-                                <i class="fas fa-search me-2"></i>Check AWS Limits
-                            </button>
-                            <button class="glass-button" onclick="fixLambdaConcurrency()">
-                                <i class="fas fa-tachometer-alt me-2"></i>Fix Concurrency
-                            </button>
-                            <button class="glass-button" onclick="requestQuotaIncrease()">
-                                <i class="fas fa-arrow-up me-2"></i>Request Quota
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Execution Mode (Single Account Removed) -->
-                    <div class="mb-4 pt-3 border-top border-white-10">
-                        <input type="hidden" name="executionMode" value="multiple"> <!-- Force multiple mode -->
-
-                        <label class="form-label text-muted small">Account Input (email:password)</label>
-                        <textarea id="multipleUsers" class="glass-input w-100 font-monospace mb-2" rows="6"
-                            placeholder="email1:password1&#10;email2:password2"></textarea>
-                        <div id="multiStatus" class="small text-success">Ready</div>
-                    </div>
-
-                    <div class="d-flex flex-column gap-3">
-                        <button class="glass-button glass-button-primary py-3 w-100" onclick="invokeProductionLambda()">
-                            <i class="fas fa-play me-2"></i>Invoke Production Lambda
-                        </button>
-                        <div class="d-flex gap-3">
-                            <button class="glass-button glass-button-danger flex-grow-1" onclick="stopAllLambdas()">
-                                <i class="fas fa-stop me-2"></i>Stop All
-                            </button>
-                            <button class="glass-button glass-button-danger flex-grow-1" onclick="deleteAllLambdas()">
-                                <i class="fas fa-trash me-2"></i>Delete All
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Results -->
-                    <div class="glass-panel p-3 mt-4">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="mb-0">Generated App Passwords</h6>
-                            <div>
-                                <button class="glass-button btn-sm me-2" onclick="fetchFromDynamoDB()"><i
-                                        class="fas fa-cloud-download-alt me-1"></i>Fetch DB</button>
-                                <button class="glass-button btn-sm" onclick="fetchGeneratedPasswords()"><i
-                                        class="fas fa-sync me-1"></i>Refresh Local</button>
-                            </div>
-                        </div>
-                        <textarea id="resultsOutput" class="glass-input w-100 font-monospace" rows="8"
-                            readonly></textarea>
-
-                        <!-- Cleanup Section -->
-                        <div class="mt-4 pt-3 border-top border-white-10">
-                            <h6 class="text-danger mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Destructive
-                                Cleanup</h6>
-                            <div class="row g-2 mb-3">
-                                <div class="col-6 col-md-3">
-                                    <input type="text" class="glass-input w-100 form-control-sm" id="deleteS3BucketName"
-                                        value="dev-app-passwords" placeholder="Bucket">
-                                </div>
-                                {% if user_role == 'admin' %}
-                                <div class="col-6 col-md-3">
-                                    <input type="text" class="glass-input w-100 form-control-sm" id="deleteEcrRepoName"
-                                        value="dev-app-password-worker" placeholder="Repo">
-                                </div>
-                                {% endif %}
-                                <div class="col-6 col-md-3">
-                                    <input type="text" class="glass-input w-100 form-control-sm"
-                                        id="deleteLogGroupPrefix" value="/aws/lambda/dev" placeholder="Logs">
-                                </div>
-                                {% if user_role == 'admin' %}
-                                <div class="col-6 col-md-3">
-                                    <input type="text" class="glass-input w-100 form-control-sm"
-                                        id="deleteDynamodbTableName" value="dev-app-passwords" placeholder="Table">
-                                </div>
-                                {% endif %}
-                            </div>
-                            <div class="d-flex gap-2 flex-wrap">
-                                <button class="glass-button glass-button-danger btn-sm flex-grow-1"
-                                    onclick="deleteS3Content()">S3 Content</button>
-                                {% if user_role == 'admin' %}
-                                <button class="glass-button glass-button-danger btn-sm flex-grow-1"
-                                    onclick="deleteECRRepo()">ECR Repo</button>
-                                {% endif %}
-                                <button class="glass-button glass-button-danger btn-sm flex-grow-1"
-                                    onclick="deleteCloudWatchLogs()">Logs</button>
-                                {% if user_role == 'admin' %}
-                                <button class="glass-button glass-button-danger btn-sm flex-grow-1"
-                                    onclick="deleteDynamoDBTable()">DynamoDB</button>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tab: EC2 Build Box -->
-                {% if user_role == 'admin' %}
-                <div id="tab-ec2" class="tab-content" style="display: none;">
-                    <div class="glass-panel p-4 mb-4" style="border-left: 4px solid #f59e0b !important;">
-                        <h5 style="color: #f59e0b;"><i class="fas fa-info-circle me-2"></i>Hybrid Build Box</h5>
-                        <p class="text-muted small mb-0">
-                            Automatically provisions a t2.micro instance to build your Docker image and push it to ECR.
-                            This avoids local Docker requirements.
-                        </p>
-                    </div>
-
-                    <div class="glass-panel p-3 mb-4">
-                        <label class="form-label small text-muted">EC2 Instance Name</label>
-                        <input type="text" class="glass-input w-100 mb-2" id="ec2InstanceName"
-                            value="dev-ec2-build-box">
-                    </div>
-
-                    <div class="d-grid gap-3">
-                        <button class="glass-button glass-button-primary" onclick="ec2CreateBuildBox()">
-                            <i class="fas fa-hammer me-2"></i>Create & Prepare EC2 Build Box
-                        </button>
-                        <button class="glass-button" onclick="ec2ShowStatus()">
-                            <i class="fas fa-info-circle me-2"></i>Check Status
-                        </button>
-                        <button class="glass-button glass-button-danger" onclick="ec2Terminate()">
-                            <i class="fas fa-power-off me-2"></i>Terminate Instance
-                        </button>
-                    </div>
-                </div>
-                {% endif %}
-
-                <!-- Tab: Global Status -->
-                <div id="tab-status" class="tab-content" style="display: none;">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h4 class="mb-0">Global Resource View</h4>
-                        <button class="glass-button glass-button-primary" onclick="checkGlobalStatus()">
-                            <i class="fas fa-sync me-2"></i>Refresh Status
-                        </button>
-                    </div>
-
-                    <div id="globalStatusLoading" class="text-center py-5" style="display: none;">
-                        <div class="loading-spinner mb-3 mx-auto"></div>
-                        <p class="text-muted">Scanning all supported AWS regions...</p>
-                    </div>
-
-                    <div class="table-container glass-panel p-0 overflow-hidden">
-                        <table class="table mb-0 text-white"
-                            style="background: transparent; width: 100%; table-layout: fixed;">
-                            <thead>
-                                <tr
-                                    style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1);">
-                                    <th class="p-3" style="width: 25%;">Region</th>
-                                    <th class="p-3" style="width: 20%;">Lambdas</th>
-                                    <th class="p-3" style="width: 15%;">ECR Repo</th>
-                                    <th class="p-3" style="width: 25%;">Image Tag</th>
-                                    <th class="p-3" style="width: 15%;">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="statusTableBody">
-                                <!-- Populated by JS -->
-                            </tbody>
-                            <tfoot id="statusTableFoot">
-                                <!-- Populated by JS -->
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- Log Output -->
-        <div class="glass-panel p-0 mt-4">
-            <div class="p-3 border-bottom border-white-10 bg-black-20">
-                <h5 class="m-0 font-monospace text-muted small text-uppercase"><i
-                        class="fas fa-terminal me-2"></i>System Log</h5>
-            </div>
-            <div id="logOutput" class="p-3 font-monospace small text-muted"
-                style="height: 300px; overflow-y: auto; white-space: pre-wrap;"></div>
-        </div>
-
     </div>
+
+    <!-- Log Output -->
+    <div class="glass-panel p-0 mt-4">
+        <div class="p-3 border-bottom border-white-10 bg-black-20">
+            <h5 class="m-0 font-monospace text-muted small text-uppercase"><i class="fas fa-terminal me-2"></i>System
+                Log</h5>
+        </div>
+        <div id="logOutput" class="p-3 font-monospace small text-muted"
+            style="height: 300px; overflow-y: auto; white-space: pre-wrap;"></div>
+    </div>
+
 </div>
 
 <style>
