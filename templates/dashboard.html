@@ -6550,7 +6550,7 @@
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
             <div>
                 <strong style="color: #0969da;">Total Accounts:</strong>
-                <div style="font-size: 24px; font-weight: bold; color: #24292f;">${data.total_accounts || 0}</div>
+                <div style="font-size: 24px; font-weight: bold; color: var(--text-primary);">${data.total_accounts || 0}</div>
             </div>
             <div>
                 <strong style="color: #1a7f37;">Users Created:</strong>
@@ -6566,8 +6566,8 @@
         // Add account-by-account breakdown
         if (accountDetails.length > 0) {
             summaryHTML += `
-            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #d0d7de;">
-                <strong style="color: #24292f; font-size: 14px;">Account Details:</strong>
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-panel);">
+                <strong style="color: var(--text-secondary); font-size: 14px;">Account Details:</strong>
                 <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
         `;
 
@@ -6575,7 +6575,7 @@
                 const statusIcon = detail.authenticated ? '✅' : '❌';
                 const statusColor = detail.authenticated ? '#1a7f37' : '#cf222e';
                 summaryHTML += `
-                <div style="padding: 8px; margin-bottom: 4px; background-color: #f6f8fa; border-radius: 4px; font-size: 13px;">
+                <div class="glass-result-item">
                     <strong>${statusIcon} ${detail.account}:</strong>
                     <span style="color: ${statusColor}; margin-left: 8px;">
                         ${detail.created} created, ${detail.failed} failed
@@ -7102,35 +7102,35 @@
 
         // Build summary
         let summaryHTML = `
-                        < div style = "display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;" >
-            <div>
-                <strong style="color: #0969da;">Total Accounts:</strong>
-                <div style="font-size: 24px; font-weight: bold; color: #24292f;">${data.total_accounts || 0}</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
+                <div>
+                    <strong style="color: #0969da;">Total Accounts:</strong>
+                    <div style="font-size: 24px; font-weight: bold; color: var(--text-primary);">${data.total_accounts || 0}</div>
+                </div>
+                <div>
+                    <strong style="color: #1a7f37;">Users Deleted:</strong>
+                    <div style="font-size: 24px; font-weight: bold; color: #1a7f37;">${data.total_deleted || 0}</div>
+                </div>
+                <div>
+                    <strong style="color: #cf222e;">Failed:</strong>
+                    <div style="font-size: 24px; font-weight: bold; color: #cf222e;">${data.total_failed || 0}</div>
+                </div>
             </div>
-            <div>
-                <strong style="color: #1a7f37;">Users Deleted:</strong>
-                <div style="font-size: 24px; font-weight: bold; color: #1a7f37;">${data.total_deleted || 0}</div>
-            </div>
-            <div>
-                <strong style="color: #cf222e;">Failed:</strong>
-                <div style="font-size: 24px; font-weight: bold; color: #cf222e;">${data.total_failed || 0}</div>
-            </div>
-        </div >
-                            `;
+        `;
 
         // Add account-by-account breakdown
         if (data.results && data.results.length > 0) {
             summaryHTML += `
-                            < div style = "margin-top: 16px; padding-top: 16px; border-top: 1px solid #d0d7de;" >
-                <strong style="color: #24292f; font-size: 14px;">Account Details:</strong>
-                <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
-        `;
+                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-panel);">
+                    <strong style="color: var(--text-secondary); font-size: 14px;">Account Details:</strong>
+                    <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
+            `;
 
             data.results.forEach(result => {
                 const statusIcon = result.authenticated ? '✅' : '❌';
                 const statusColor = result.authenticated ? '#1a7f37' : '#cf222e';
                 summaryHTML += `
-                <div style="padding: 8px; margin-bottom: 4px; background-color: #f6f8fa; border-radius: 4px; font-size: 13px;">
+                <div class="glass-result-item">
                     <strong>${statusIcon} ${result.account}:</strong>
                     <span style="color: ${statusColor}; margin-left: 8px;">
                         ${result.deleted_count || 0} deleted, ${result.failed_count || 0} failed
@@ -7142,8 +7142,8 @@
 
             summaryHTML += `
                 </div>
-            </div >
-                            `;
+            </div>
+            `;
         }
 
         summaryDiv.innerHTML = summaryHTML;
