@@ -68,18 +68,14 @@
         <!-- Search and Account List Area -->
         <div class="account-management-area">
             <div class="search-and-list">
-                <input type="text" id="account-search" placeholder="Search accounts in list..."
-                    oninput="filterAccounts()" class="search-input" autocomplete="off" autocomplete="nope" readonly
-                    onfocus="this.removeAttribute('readonly');">
+                <input type="text" id="account-search" placeholder="Search accounts..." class="search-input"
+                    autocomplete="off" oninput="debounceSearchAccounts(this.value)">
 
-                <div id="account-list-area" class="account-list">
-                    {% for account in accounts %}
-                    <div class="account-item" data-account-name="{{ account.account_name }}"
-                        data-account-id="{{ account.id }}"
-                        onclick="selectAccountFromList(this.dataset.accountName, this.dataset.accountId)">
-                        {{ account.account_name }}
+                <!-- Container for async accounts -->
+                <div id="account-list-area" class="account-list custom-scrollbar">
+                    <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                        <i class="fas fa-search"></i> Use search to find accounts
                     </div>
-                    {% endfor %}
                 </div>
             </div>
 

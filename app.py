@@ -447,31 +447,50 @@ def health_check():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # Fetch OAuth accounts
-    oauth_accounts = GoogleAccount.query.all()
+    # Pass minimal data to dashboard, accounts will be loaded via API
+    return render_template('dashboard.html', accounts=[], user=session.get('user'), role=session.get('role'))
+
+@app.route('/api/search-accounts')
+@login_required
+def search_accounts():
+    query = request.args.get('q', '').lower().strip()
+    limit = int(request.args.get('limit', 20))
     
-    # Fetch Service Accounts
-    service_accounts = ServiceAccount.query.filter_by(is_active=True).all()
+    # Base queries
+    oauth_query = GoogleAccount.query
+    service_query = ServiceAccount.query.filter_by(is_active=True)
     
-    # Merge into a unified list for the template
-    # We use a wrapper class or dict to ensure consistent attribute access (account.account_name)
-    all_accounts = []
+    if query:
+        oauth_query = oauth_query.filter(GoogleAccount.account_name.ilike(f'%{query}%'))
+        service_query = service_query.filter(ServiceAccount.name.ilike(f'%{query}%'))
+    
+    # Fetch limited results
+    oauth_accounts = oauth_query.limit(limit).all()
+    # Adjust limit for second query to avoid over-fetching if first filled it up
+    remaining_limit = max(0, limit - len(oauth_accounts))
+    service_accounts = service_query.limit(remaining_limit).all()
+    
+    results = []
     
     for acc in oauth_accounts:
-        all_accounts.append(acc)
+        results.append({
+            'id': acc.id,
+            'account_name': acc.account_name,
+            'type': 'oauth'
+        })
         
     for acc in service_accounts:
-        # Create a simple object-like structure for Service Accounts to match GoogleAccount interface
-        # using a dynamic class to allow dot notation access in Jinja2
-        class ServiceAccountWrapper:
-            def __init__(self, sa):
-                self.id = sa.id
-                self.account_name = sa.name
-                self.type = 'service_account'
+        results.append({
+            'id': acc.id,
+            'account_name': acc.name,
+            'type': 'service_account'
+        })
         
-        all_accounts.append(ServiceAccountWrapper(acc))
-        
-    return render_template('dashboard.html', accounts=all_accounts, user=session.get('user'), role=session.get('role'))
+    return jsonify({
+        'success': True,
+        'accounts': results,
+        'count': len(results)
+    })
 
 @app.route('/users')
 def users():
