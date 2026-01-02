@@ -6213,10 +6213,8 @@
                         }
 
                         const domainItem = document.createElement('div');
-                        domainItem.style.cssText = 'padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between;';
-                        domainItem.style.borderBottom = '1px solid #f0f0f0';
-                        domainItem.onmouseenter = function () { this.style.backgroundColor = '#f6f8fa'; };
-                        domainItem.onmouseleave = function () { this.style.backgroundColor = 'white'; };
+                        domainItem.className = 'glass-dropdown-item';
+                        // Removed inline JS hover effects to use CSS class instead
                         domainItem.onclick = function () {
                             domainInput.value = domainName;
                             updateDomainStatus(rowId, status, statusText, colorCode);

@@ -1294,6 +1294,29 @@ html body .glass-ui textarea::placeholder {
     color: #ffffff !important;
 }
 
+/* Glass Dropdown Items */
+.glass-dropdown-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-panel);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 0.2s ease;
+    background: transparent;
+    color: var(--text-primary);
+}
+
+.glass-dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    /* Glass hover effect */
+    color: #ffffff !important;
+}
+
+.glass-dropdown-item:last-child {
+    border-bottom: none;
+}
+
 .glass-table-header,
 .glass-table th {
     background: var(--bg-panel) !important;
