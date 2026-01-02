@@ -6,12 +6,14 @@ import os
 bind = "127.0.0.1:5000"
 backlog = 16384  # High backlog for unlimited concurrent machines
 
-# Worker processes - Optimized for unlimited concurrent machines without crashing
-workers = 16  # 4x CPU cores - safe for unlimited machines without resource exhaustion
-worker_class = "sync"
-worker_connections = 5000  # High connections per worker
-max_requests = 50000  # Very high before restart
-max_requests_jitter = 1000
+# Worker processes - Optimized for performance
+# Switched to threaded workers to handle I/O bound tasks (API calls, DB) better without blocking
+workers = 4  # Reduced from 16 to reduce database contention
+threads = 4  # Added threads to handle concurrent requests within each worker
+worker_class = "gthread"  # Async-friendly worker class
+worker_connections = 1000
+max_requests = 10000 
+max_requests_jitter = 500
 
 # Timeouts - Extended for unlimited concurrent machines
 timeout = 3600  # 1 hour for very long operations

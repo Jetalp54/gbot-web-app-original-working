@@ -127,6 +127,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                         db.session.commit()
                         return
                 except Exception as e:
+                    db.session.rollback()
                     logger.warning(f"Error checking verification status for {apex}: {e}")
                     # Continue with process
             
@@ -162,6 +163,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 # IMPORTANT: Continue to next step even if domain already exists
             
             except Exception as e:
+                db.session.rollback()
                 error_msg = str(e)
                 # Check for common error types
                 if 'insufficient' in error_msg.lower() or 'scope' in error_msg.lower():
@@ -238,6 +240,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 db.session.commit()
             
             except Exception as e:
+                db.session.rollback()
                 error_msg = str(e)
                 logger.error(f"Job {job_id}: Step 4 FAILED for {domain}: {error_msg}", exc_info=True)
                 # Check for scope/permission errors
@@ -295,6 +298,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     time.sleep(5)
                     
                 except Exception as e:
+                    db.session.rollback()
                     error_msg = f"DNS API Error ({provider}): {str(e)}"
                     logger.error(f"Job {job_id}: Step 5 FAILED: {error_msg}", exc_info=True)
                     operation.dns_status = 'failed'
@@ -381,6 +385,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 db.session.commit()
         
         except Exception as e:
+            db.session.rollback()
             logger.error(f"Error processing domain {domain}: {e}")
             operation.message = f'Unexpected error: {str(e)}'
             operation.raw_log.append(log_entry('error', 'failed', str(e)))

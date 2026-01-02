@@ -5826,64 +5826,101 @@
         let errorCount = 0;
         const errors = [];
 
-        lines.forEach((line, index) => {
-            // Split by comma
-            const parts = line.split(',').map(p => p.trim()).filter(p => p);
-
-            if (parts.length < 2) {
-                errors.push(`Line ${index + 1}: Invalid format (need at least account,password)`);
-                errorCount++;
-                return;
-            }
-
-            let account = '';
-            let domain = '';
-            let password = '';
-
-            if (parts.length === 2) {
-                // Format: account,password
-                account = parts[0];
-                password = parts[1];
-                domain = ''; // Will use default domain
-            } else if (parts.length === 3) {
-                // Format: account,domain,password
-                account = parts[0];
-                domain = parts[1];
-                password = parts[2];
-            } else {
-                errors.push(`Line ${index + 1}: Too many fields (expected 2 or 3, got ${parts.length})`);
-                errorCount++;
-                return;
-            }
-
-            // Validate account email
-            if (!account.includes('@')) {
-                errors.push(`Line ${index + 1}: Invalid account email: ${account}`);
-                errorCount++;
-                return;
-            }
-
-            // Validate password
-            if (!password || password.length < 1) {
-                errors.push(`Line ${index + 1}: Password is required`);
-                errorCount++;
-                return;
-            }
-
-            // Add row with parsed data
-            addBulkAccountRow(account, 50, domain, password); // Default 50 users
-            parsedCount++;
-        });
-
-        // Show results
-        if (errorCount > 0) {
-            alert(`Parsed ${parsedCount} account(s) successfully.\n\nErrors (${errorCount}):\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`);
-        } else {
-            alert(`✅ Successfully parsed and added ${parsedCount} account(s) to the table!`);
+        // Disable button during processing
+        const parseBtn = document.querySelector('button[onclick="parseBulkAccountsPaste()"]');
+        if (parseBtn) {
+            parseBtn.disabled = true;
+            parseBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Parsing...';
         }
 
-        // Clear paste field
-        document.getElementById('bulk-accounts-paste').value = '';
+        const BATCH_SIZE = 50;
+        let currentIndex = 0;
+
+        function processBatch() {
+            const endIndex = Math.min(currentIndex + BATCH_SIZE, lines.length);
+
+            for (let i = currentIndex; i < endIndex; i++) {
+                const line = lines[i];
+                const index = i;
+
+                // Split by comma
+                const parts = line.split(',').map(p => p.trim()).filter(p => p);
+
+                if (parts.length < 2) {
+                    errors.push(`Line ${index + 1}: Invalid format (need at least account,password)`);
+                    errorCount++;
+                    continue;
+                }
+
+                let account = '';
+                let domain = '';
+                let password = '';
+
+                if (parts.length === 2) {
+                    // Format: account,password
+                    account = parts[0];
+                    password = parts[1];
+                    domain = ''; // Will use default domain
+                } else if (parts.length === 3) {
+                    // Format: account,domain,password
+                    account = parts[0];
+                    domain = parts[1];
+                    password = parts[2];
+                } else {
+                    errors.push(`Line ${index + 1}: Too many fields (expected 2 or 3, got ${parts.length})`);
+                    errorCount++;
+                    continue;
+                }
+
+                // Validate account email
+                if (!account.includes('@')) {
+                    errors.push(`Line ${index + 1}: Invalid account email: ${account}`);
+                    errorCount++;
+                    continue;
+                }
+
+                // Validate password
+                if (!password || password.length < 1) {
+                    errors.push(`Line ${index + 1}: Password is required`);
+                    errorCount++;
+                    continue;
+                }
+
+                // Add row via existing function
+                addBulkAccountRow(account, 50, domain, password);
+                parsedCount++;
+            }
+
+            currentIndex += BATCH_SIZE;
+
+            if (currentIndex < lines.length) {
+                // Schedule next batch
+                // Update button text to show progress
+                if (parseBtn) parseBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Parsing... (${Math.round((currentIndex / lines.length) * 100)}%)`;
+                requestAnimationFrame(() => setTimeout(processBatch, 0));
+            } else {
+                // Finished
+                if (parseBtn) {
+                    parseBtn.disabled = false;
+                    parseBtn.innerHTML = '<i class="fas fa-magic"></i> Parse & Fill Table';
+                }
+
+                // Show results
+                if (errorCount > 0) {
+                    alert(`Parsed ${parsedCount} account(s) successfully.\n\nErrors (${errorCount}):\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`);
+                } else {
+                    // alert(`✅ Successfully parsed and added ${parsedCount} account(s) to the table!`);
+                    // Use a toast or log instead of alert to be less intrusive for large batches
+                    console.log(`Successfully parsed and added ${parsedCount} account(s).`);
+                }
+
+                // Clear paste field
+                document.getElementById('bulk-accounts-paste').value = '';
+            }
+        }
+
+        // Start processing
+        processBatch();
     }
 
     function closeBulkAccountModal() {

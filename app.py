@@ -13,6 +13,7 @@ import tempfile
 import time
 import sqlite3
 import traceback
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 import logging.handlers
 import threading
@@ -211,6 +212,19 @@ with app.app_context():
         else:
             logging.debug("Column 'ever_used' already exists")
             
+        # Enable WAL mode for SQLite to improve concurrency
+        if 'sqlite' in str(db.engine.url):
+            try:
+                # db.session.execute(text("PRAGMA journal_mode=WAL"))
+                # Execution of PRAGMA via session might not work for all drivers, 
+                # but standard SQLAlchemy execution for SQLite usually works.
+                # using engine.connect() is safer for PRAGMAs
+                with db.engine.connect() as con:
+                    con.execute(text("PRAGMA journal_mode=WAL"))
+                logging.info("✅ Enabled SQLite Write-Ahead Logging (WAL) mode")
+            except Exception as e:
+                logging.warning(f"⚠️ Could not enable SQLite WAL mode: {e}")
+                
     except Exception as e:
         logging.warning(f"Could not auto-migrate ever_used column: {e}")
         try:
