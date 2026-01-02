@@ -272,28 +272,36 @@
                                     <input type="text" class="glass-input w-100 form-control-sm" id="deleteS3BucketName"
                                         value="dev-app-passwords" placeholder="Bucket">
                                 </div>
+                                {% if user_role == 'admin' %}
                                 <div class="col-6 col-md-3">
                                     <input type="text" class="glass-input w-100 form-control-sm" id="deleteEcrRepoName"
                                         value="dev-app-password-worker" placeholder="Repo">
                                 </div>
+                                {% endif %}
                                 <div class="col-6 col-md-3">
                                     <input type="text" class="glass-input w-100 form-control-sm"
                                         id="deleteLogGroupPrefix" value="/aws/lambda/dev" placeholder="Logs">
                                 </div>
+                                {% if user_role == 'admin' %}
                                 <div class="col-6 col-md-3">
                                     <input type="text" class="glass-input w-100 form-control-sm"
                                         id="deleteDynamodbTableName" value="dev-app-passwords" placeholder="Table">
                                 </div>
+                                {% endif %}
                             </div>
                             <div class="d-flex gap-2 flex-wrap">
                                 <button class="glass-button glass-button-danger btn-sm flex-grow-1"
                                     onclick="deleteS3Content()">S3 Content</button>
+                                {% if user_role == 'admin' %}
                                 <button class="glass-button glass-button-danger btn-sm flex-grow-1"
                                     onclick="deleteECRRepo()">ECR Repo</button>
+                                {% endif %}
                                 <button class="glass-button glass-button-danger btn-sm flex-grow-1"
                                     onclick="deleteCloudWatchLogs()">Logs</button>
+                                {% if user_role == 'admin' %}
                                 <button class="glass-button glass-button-danger btn-sm flex-grow-1"
                                     onclick="deleteDynamoDBTable()">DynamoDB</button>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
