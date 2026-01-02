@@ -1126,6 +1126,49 @@ html body .glass-ui [type="number"] {
     box-shadow: none !important;
 }
 
+/* AUTOFILL FIX: Override browser default autofill colors */
+html body .glass-ui input:-webkit-autofill,
+html body .glass-ui input:-webkit-autofill:hover,
+html body .glass-ui input:-webkit-autofill:focus,
+html body .glass-ui input:-webkit-autofill:active,
+html body .glass-ui textarea:-webkit-autofill,
+html body .glass-ui textarea:-webkit-autofill:hover,
+html body .glass-ui textarea:-webkit-autofill:focus,
+html body .glass-ui select:-webkit-autofill,
+html body .glass-ui select:-webkit-autofill:hover,
+html body .glass-ui select:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--text-primary) !important;
+    -webkit-box-shadow: 0 0 0px 1000px #0f172a inset !important;
+    /* Fallback dark */
+    box-shadow: 0 0 0px 1000px #0f172a inset !important;
+    background-color: transparent !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Specific theme overrides for autofill to match glass background */
+[data-theme="nebula"] input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0.9) inset !important;
+}
+
+[data-theme="midnight"] input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0px 1000px rgba(24, 24, 27, 0.9) inset !important;
+}
+
+[data-theme="forest"] input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0px 1000px rgba(6, 78, 59, 0.9) inset !important;
+}
+
+[data-theme="crimson"] input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0px 1000px rgba(127, 29, 29, 0.9) inset !important;
+}
+
+[data-theme="aurora"] input:-webkit-autofill,
+[data-theme="light"] input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0px 1000px rgba(255, 255, 255, 0.9) inset !important;
+    -webkit-text-fill-color: #020617 !important;
+}
+
+
 /* Force Cards to be Glass too */
 html body .glass-ui .card,
 html body .glass-ui .github-card {
