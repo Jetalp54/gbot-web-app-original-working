@@ -1278,6 +1278,22 @@ html body .glass-ui textarea::placeholder {
     background: rgba(255, 255, 255, 0.05) !important;
 }
 
+/* NUCLEAR OVERRIDE for Bulk Account Modal Rows on Hover */
+#bulk-account-modal table tr:hover,
+#bulk-account-modal table tr:hover td,
+#bulk-account-modal tr:hover,
+#bulk-account-modal tr:hover td {
+    background: transparent !important;
+    background-color: transparent !important;
+    color: #ffffff !important;
+}
+
+#bulk-account-modal input:hover,
+#bulk-account-modal input:focus {
+    background: var(--input-bg) !important;
+    color: #ffffff !important;
+}
+
 .glass-table-header,
 .glass-table th {
     background: var(--bg-panel) !important;
