@@ -6041,23 +6041,23 @@
 
         const row = document.createElement('tr');
         row.id = rowId;
-        row.style.borderBottom = '1px solid #d0d7de';
-        row.style.backgroundColor = '#ffffff';
+        // Removed hardcoded white styles to allow glass theme
+
         row.innerHTML = `
-        <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle;">
-            <input type="email" class="form-control-github" style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px;" 
+        <td style="padding: 12px; vertical-align: middle;">
+            <input type="email" class="form-control-github" style="width: 100%; margin: 0; padding: 8px;" 
                    placeholder="account@domain.com" value="${accountEmail}" 
                    data-field="account">
         </td>
-        <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle;">
-            <input type="number" class="form-control-github" style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px;" 
+        <td style="padding: 12px; vertical-align: middle;">
+            <input type="number" class="form-control-github" style="width: 100%; margin: 0; padding: 8px;" 
                    min="1" max="1000" placeholder="50" value="${users}" 
                    data-field="users">
         </td>
-        <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle; position: relative;">
+        <td style="padding: 12px; vertical-align: middle; position: relative;">
             <div style="position: relative;">
                 <input type="text" class="form-control-github domain-combobox" 
-                       style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px; padding-right: 60px;" 
+                       style="width: 100%; margin: 0; padding: 8px; padding-right: 60px;" 
                        placeholder="example.com" value="${domain}" 
                        data-field="domain" 
                        data-row-id="${rowId}"
@@ -6074,13 +6074,13 @@
                     <i class="fas fa-sync-alt"></i>
                 </button>
                 <div id="domain-dropdown-${rowId}" 
-                     style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d0d7de; border-radius: 6px; max-height: 200px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-top: 2px;">
+                     style="position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-modal); border: 1px solid var(--border-panel); border-radius: 6px; max-height: 200px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); margin-top: 2px;">
                     <!-- Domains will be populated here -->
                 </div>
             </div>
         </td>
-        <td style="padding: 12px; border-right: 1px solid #d0d7de; vertical-align: middle;">
-            <input type="text" class="form-control-github" style="width: 100%; margin: 0; border: 1px solid #d0d7de; padding: 8px;" 
+        <td style="padding: 12px; vertical-align: middle;">
+            <input type="text" class="form-control-github" style="width: 100%; margin: 0; padding: 8px;" 
                    placeholder="Password" value="${password}" 
                    data-field="password">
         </td>
