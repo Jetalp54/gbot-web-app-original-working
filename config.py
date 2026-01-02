@@ -8,7 +8,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 WHITELIST_TOKEN = os.environ.get('WHITELIST_TOKEN')
 
 # IP Whitelist Configuration
-ENABLE_IP_WHITELIST = os.environ.get('ENABLE_IP_WHITELIST', 'True').lower() == 'true'  # Default to True for security
+ENABLE_IP_WHITELIST = os.environ.get('ENABLE_IP_WHITELIST', 'False').lower() == 'true'  # Default to False to fix 502 Loop
 ALLOW_ALL_IPS_IN_DEV = os.environ.get('ALLOW_ALL_IPS_IN_DEV', 'False').lower() == 'true'  # Default to False for security
 
 # Database Configuration
