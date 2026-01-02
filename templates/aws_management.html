@@ -332,15 +332,16 @@
                     </div>
 
                     <div class="table-container glass-panel p-0 overflow-hidden">
-                        <table class="table mb-0 text-white" style="background: transparent;">
+                        <table class="table mb-0 text-white"
+                            style="background: transparent; width: 100%; table-layout: fixed;">
                             <thead>
                                 <tr
                                     style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1);">
-                                    <th class="p-3">Region</th>
-                                    <th class="p-3">Lambdas</th>
-                                    <th class="p-3">ECR Repo</th>
-                                    <th class="p-3">Image Tag</th>
-                                    <th class="p-3">Status</th>
+                                    <th class="p-3" style="width: 25%;">Region</th>
+                                    <th class="p-3" style="width: 20%;">Lambdas</th>
+                                    <th class="p-3" style="width: 15%;">ECR Repo</th>
+                                    <th class="p-3" style="width: 25%;">Image Tag</th>
+                                    <th class="p-3" style="width: 15%;">Status</th>
                                 </tr>
                             </thead>
                             <tbody id="statusTableBody">
@@ -538,20 +539,20 @@
                     // Create tfoot if it doesn't exist (though we should add it to HTML)
                     const newTfoot = document.createElement('tfoot');
                     newTfoot.id = 'statusTableFoot';
-                    document.querySelector('.github-table').appendChild(newTfoot);
+                    document.querySelector('.table').appendChild(newTfoot);
                 }
 
                 const footerRow = document.createElement('tr');
-                footerRow.style.backgroundColor = 'var(--color-canvas-subtle)';
+                footerRow.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; // Glass effect
                 footerRow.style.fontWeight = 'bold';
-                footerRow.style.borderTop = '2px solid var(--color-border-default)';
+                footerRow.style.borderTop = '2px solid rgba(255, 255, 255, 0.2)';
 
                 footerRow.innerHTML = `
-                    <td style="padding: 12px;">TOTAL (${totalRegions} Regions)${errorRegions > 0 ? ` - ${errorRegions} Error(s)` : ''}</td>
-                    <td style="padding: 12px;">${totalLambdas} function(s)</td>
-                    <td style="padding: 12px;">${totalRepos} Repo(s)</td>
-                    <td style="padding: 12px;">${totalImages} Image(s)</td>
-                    <td style="padding: 12px;">${readyRegions}/${totalRegions} Ready${errorRegions > 0 ? `, ${errorRegions} Error(s)` : ''}</td>
+                    <td style="padding: 12px; color: white;">TOTAL (${totalRegions} Regions)${errorRegions > 0 ? ` - ${errorRegions} Error(s)` : ''}</td>
+                    <td style="padding: 12px; color: white;">${totalLambdas} function(s)</td>
+                    <td style="padding: 12px; color: white;">${totalRepos} Repo(s)</td>
+                    <td style="padding: 12px; color: white;">${totalImages} Image(s)</td>
+                    <td style="padding: 12px; color: white;">${readyRegions}/${totalRegions} Ready${errorRegions > 0 ? `, ${errorRegions} Error(s)` : ''}</td>
                 `;
 
                 const targetTfoot = document.getElementById('statusTableFoot') || document.querySelector('tfoot');
