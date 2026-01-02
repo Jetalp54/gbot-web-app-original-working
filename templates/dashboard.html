@@ -31,33 +31,37 @@
             </h3>
         </div>
 
-        <div class="d-flex flex-wrap gap-3 align-items-end mb-4">
-            <div class="flex-grow-1" style="min-width: 250px;">
+        <div class="row g-3 align-items-end mb-4">
+            <div class="col-md-8">
                 <label for="account-select" class="form-label-github">
                     <i class="fas fa-user-circle"></i> Select Account
                 </label>
-                <select id="account-select" class="form-control-github w-100">
-                    <option value="">Type to search accounts...</option>
-                    <!-- Populated dynamically via JavaScript -->
-                </select>
+                <div class="d-flex gap-2">
+                    <select id="account-select" class="form-control-github flex-grow-1">
+                        <option value="">Type to search accounts...</option>
+                        <!-- Populated dynamically via JavaScript -->
+                    </select>
+                    <button onclick="authenticateAccount()" class="glass-button glass-button-primary">
+                        <i class="fas fa-key me-2"></i> Authenticate
+                    </button>
+                </div>
             </div>
-            <button onclick="authenticateAccount()" class="btn-github btn-github-primary">
-                <i class="fas fa-key"></i> Authenticate Selected
-            </button>
+            <div class="col-md-4">
+                <!-- Spacing or Info -->
+            </div>
         </div>
 
-        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
-            <button onclick="openAddAccountModal()" class="btn-github btn-github-primary">
-                <i class="fas fa-plus-circle"></i> Add Account
+        <div class="d-flex flex-wrap gap-3 mb-4">
+            <button onclick="openAddAccountModal()" class="glass-button glass-button-primary">
+                <i class="fas fa-plus-circle me-2"></i> Add Account
             </button>
-            <button onclick="openS3ImportModal()" class="btn-github"
-                style="background-color: #0969da; border-color: #0969da; color: white;">
-                <i class="fas fa-cloud-download-alt"></i> Import from S3
+            <button onclick="openS3ImportModal()" class="glass-button">
+                <i class="fas fa-cloud-download-alt me-2"></i> Import from S3
             </button>
             {% if session.role == 'admin' %}
-            <button onclick="forceTokenStatusCheck()" class="btn-github"
-                style="background-color: var(--color-warning-emphasis); border-color: var(--color-warning-emphasis); color: #ffffff;">
-                <i class="fas fa-search"></i> Check Token Status Now (Admin)
+            <button onclick="forceTokenStatusCheck()" class="glass-button"
+                style="border-color: var(--color-warning-emphasis); color: var(--color-warning-fg);">
+                <i class="fas fa-search me-2"></i> Check Token Status
             </button>
             {% endif %}
         </div>
@@ -76,19 +80,19 @@
                 </div>
             </div>
 
-            <div class="account-actions">
-                <button onclick="authenticateFromList()" class="action-button" style="height: 50px; font-size: 12px;">
-                    <i class="fas fa-key"></i> Authenticate<br>(List Selection)
+            <div class="account-actions d-grid gap-2">
+                <button onclick="authenticateFromList()" class="glass-button w-100 justify-content-center">
+                    <i class="fas fa-key me-2"></i> Authenticate Selected
                 </button>
                 {% if session.role == 'admin' %}
-                <button onclick="openBulkDeleteModal()" class="action-button delete-button"
-                    style="background-color: #dc3545; border-color: #dc3545; height: 50px; font-size: 12px;">
-                    <i class="fas fa-trash"></i> Bulk Delete<br>(Admin Only)
+                <button onclick="openBulkDeleteModal()"
+                    class="glass-button glass-button-danger w-100 justify-content-center">
+                    <i class="fas fa-trash me-2"></i> Bulk Delete (Admin)
                 </button>
                 {% endif %}
-                <button onclick="deleteFromList()" class="action-button delete-button"
-                    style="height: 50px; font-size: 12px;">
-                    <i class="fas fa-trash"></i> Delete Account<br>(List Selection)
+                <button onclick="deleteFromList()"
+                    class="glass-button glass-button-danger w-100 justify-content-center">
+                    <i class="fas fa-trash me-2"></i> Delete Selected
                 </button>
             </div>
         </div>
@@ -100,32 +104,34 @@
         </div>
 
         <!-- OTP Generator -->
-        <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #d0d7de;">
-            <h4 style="color: #24292f; margin-bottom: 16px; font-size: 16px;">
+        <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-panel);">
+            <h4 style="color: var(--text-primary); margin-bottom: 16px; font-size: 16px;">
                 <i class="fas fa-key"></i> OTP Generator
             </h4>
 
-            <div class="d-flex flex-wrap gap-3 align-items-end">
-                <div class="flex-grow-1" style="min-width: 250px;">
-                    <label class="d-flex align-items-center gap-2 mb-2 small text-muted">
-                        <input type="checkbox" id="otp-lowercase-toggle">
-                        Force lowercase before generating OTP
-                    </label>
-                    <label for="otp-account-input" class="form-label-github">
-                        <i class="fas fa-user"></i> Account Name
-                    </label>
-                    <input type="text" id="otp-account-input" class="form-control-github w-100"
-                        placeholder="Enter account name (e.g., email address)" autocapitalize="none" autocorrect="off"
-                        spellcheck="false">
-                </div>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-8">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <label for="otp-account-input" class="form-label-github mb-0">
+                            <i class="fas fa-user"></i> Account Name
+                        </label>
+                        <label class="d-flex align-items-center gap-2 small text-muted">
+                            <input type="checkbox" id="otp-lowercase-toggle">
+                            Force lowercase
+                        </label>
+                    </div>
 
-                <div class="d-flex gap-2">
-                    <button onclick="generateOTP()" class="btn-github btn-github-primary">
-                        <i class="fas fa-key"></i> Generate OTP
-                    </button>
-                    <button onclick="copyOTP()" class="btn-github" id="copy-otp-btn" disabled>
-                        <i class="fas fa-copy"></i>
-                    </button>
+                    <div class="d-flex gap-2">
+                        <input type="text" id="otp-account-input" class="form-control-github flex-grow-1"
+                            placeholder="Enter account name (e.g., email address)" autocapitalize="none"
+                            autocorrect="off" spellcheck="false">
+                        <button onclick="generateOTP()" class="glass-button glass-button-primary">
+                            <i class="fas fa-play me-2"></i> Generate
+                        </button>
+                        <button onclick="copyOTP()" class="glass-button" id="copy-otp-btn" disabled>
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
