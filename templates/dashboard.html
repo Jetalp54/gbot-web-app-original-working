@@ -671,11 +671,16 @@
                     </table>
                 </div>
 
-                <!-- Add Account Button -->
-                <div style="margin-bottom: 16px;">
-                    <button onclick="addBulkAccountRow()" class="btn-github" style="width: 100%;">
+                <!-- Add Account & Populate Domains Buttons -->
+                <div style="margin-bottom: 16px; display: flex; gap: 12px;">
+                    <button onclick="addBulkAccountRow()" class="btn-github" style="flex: 1;">
                         <i class="fas fa-plus"></i>
                         Add Account Row
+                    </button>
+                    <button onclick="populateAllDomains()" class="btn-github"
+                        style="flex: 1; background-color: #0969da; color: white; border-color: #0969da;">
+                        <i class="fas fa-sync"></i>
+                        Populate All Domains
                     </button>
                 </div>
 
@@ -5996,6 +6001,37 @@
 
     function closeBulkAccountModal() {
         document.getElementById('bulk-account-modal').style.display = 'none';
+    }
+
+    function populateAllDomains() {
+        const tbody = document.getElementById('bulk-accounts-tbody');
+        const rows = tbody.querySelectorAll('tr');
+
+        if (rows.length === 0) {
+            alert('No accounts in the list to populate domains for.');
+            return;
+        }
+
+        let count = 0;
+        rows.forEach(row => {
+            const rowId = row.id;
+            // Check if there is an account email entered
+            const accountInput = row.querySelector('input[data-field="account"]');
+            if (accountInput && accountInput.value.trim()) {
+                // Add a small staggered delay to avoid overwhelming the server/API if there are many rows
+                setTimeout(() => {
+                    loadDomainsForAccount(rowId);
+                }, count * 300); // 300ms delay between each call
+                count++;
+            }
+        });
+
+        if (count === 0) {
+            alert('Please enter account emails first.');
+        } else {
+            // Optional: Show a toast or small notification that the process started
+            console.log(`Started loading domains for ${count} accounts...`);
+        }
     }
 
     function addBulkAccountRow(accountEmail = '', users = 50, domain = '', password = '') {
