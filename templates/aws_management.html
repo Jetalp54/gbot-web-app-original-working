@@ -223,15 +223,15 @@
                         <div id="multiStatus" class="small text-success">Ready</div>
                     </div>
 
-                    <div class="d-grid gap-4">
-                        <button class="glass-button glass-button-primary py-3" onclick="invokeProductionLambda()">
+                    <div class="d-flex flex-column gap-3">
+                        <button class="glass-button glass-button-primary py-3 w-100" onclick="invokeProductionLambda()">
                             <i class="fas fa-play me-2"></i>Invoke Production Lambda
                         </button>
-                        <div class="d-flex gap-4">
-                            <button class="glass-button glass-button-danger w-50" onclick="stopAllLambdas()">
+                        <div class="d-flex gap-3">
+                            <button class="glass-button glass-button-danger flex-grow-1" onclick="stopAllLambdas()">
                                 <i class="fas fa-stop me-2"></i>Stop All
                             </button>
-                            <button class="glass-button glass-button-danger w-50" onclick="deleteAllLambdas()">
+                            <button class="glass-button glass-button-danger flex-grow-1" onclick="deleteAllLambdas()">
                                 <i class="fas fa-trash me-2"></i>Delete All
                             </button>
                         </div>
