@@ -37,15 +37,23 @@
         <div class="glass-panel p-0 overflow-hidden mb-5">
             <!-- Glass Tabs -->
             <div class="d-flex border-bottom border-white-10 p-2" style="background: rgba(0,0,0,0.2);">
+                {% if user_role == 'admin' %}
                 <button class="glass-button tab-button active me-2" onclick="switchTab('infra')" id="tab-infra-btn">
                     <i class="fas fa-server me-2"></i>Core Infrastructure
                 </button>
-                <button class="glass-button tab-button me-2" onclick="switchTab('lambda')" id="tab-lambda-btn">
+                {% endif %}
+
+                <button class="glass-button tab-button {% if user_role == 'mailer' %}active{% endif %} me-2"
+                    onclick="switchTab('lambda')" id="tab-lambda-btn">
                     <i class="fas fa-code me-2"></i>Production Lambda
                 </button>
+
+                {% if user_role == 'admin' %}
                 <button class="glass-button tab-button me-2" onclick="switchTab('ec2')" id="tab-ec2-btn">
                     <i class="fas fa-desktop me-2"></i>EC2 Build Box
                 </button>
+                {% endif %}
+
                 <button class="glass-button tab-button" onclick="switchTab('status')" id="tab-status-btn">
                     <i class="fas fa-chart-bar me-2"></i>Global Status
                 </button>
@@ -54,6 +62,7 @@
             <div class="p-4">
 
                 <!-- Tab: Core Infrastructure -->
+                {% if user_role == 'admin' %}
                 <div id="tab-infra" class="tab-content active">
                     <h4 class="mb-4 glass-text-primary">Core Resource Management</h4>
 
@@ -140,9 +149,11 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
 
                 <!-- Tab: Lambda Management -->
-                <div id="tab-lambda" class="tab-content" style="display: none;">
+                <div id="tab-lambda" class="tab-content {% if user_role == 'mailer' %}active{% endif %}"
+                    style="display: {% if user_role == 'mailer' %}block{% else %}none{% endif %};">
                     <h4 class="mb-4 glass-text-primary">Production Lambda Management</h4>
 
                     <!-- Config Box -->
@@ -289,6 +300,7 @@
                 </div>
 
                 <!-- Tab: EC2 Build Box -->
+                {% if user_role == 'admin' %}
                 <div id="tab-ec2" class="tab-content" style="display: none;">
                     <div class="glass-panel p-4 mb-4" style="border-left: 4px solid #f59e0b !important;">
                         <h5 style="color: #f59e0b;"><i class="fas fa-info-circle me-2"></i>Hybrid Build Box</h5>
@@ -316,6 +328,7 @@
                         </button>
                     </div>
                 </div>
+                {% endif %}
 
                 <!-- Tab: Global Status -->
                 <div id="tab-status" class="tab-content" style="display: none;">
