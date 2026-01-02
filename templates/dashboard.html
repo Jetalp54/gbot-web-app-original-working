@@ -3829,7 +3829,7 @@
             <p>Retrieving user data from Google Admin API...</p>
             <p><small>This may take up to 2 minutes for large user bases (10k+ users).</small></p>
             <div style="margin-top: 10px;">
-                <div class="progress-bar" style="width: 100%; background-color: #f0f0f0; border-radius: 5px; overflow: hidden;">
+                <div class="progress-bar glass-progress-track">
                     <div class="progress-fill" style="width: 0%; height: 20px; background-color: #007bff; transition: width 0.3s ease;"></div>
                 </div>
                 <p style="margin-top: 5px; font-size: 12px; color: #666;">Please wait while we retrieve all users...</p>
@@ -4057,7 +4057,7 @@
             <p>Retrieving domain data from Google Admin API...</p>
             <p><small>This may take a moment for large domain lists (500+ domains).</small></p>
             <div style="margin-top: 10px;">
-                <div class="progress-bar" style="width: 100%; background-color: #f0f0f0; border-radius: 5px; overflow: hidden;">
+                <div class="progress-bar glass-progress-track">
                     <div class="progress-fill" style="width: 0%; height: 20px; background-color: #007bff; transition: width 0.3s ease;"></div>
                 </div>
                 <p style="margin-top: 5px; font-size: 12px; color: #666;">Please wait while we retrieve all domains...</p>
@@ -6893,7 +6893,7 @@
                             const statusIcon = detail.authenticated ? '✅' : '❌';
                             const statusColor = detail.authenticated ? '#1a7f37' : '#cf222e';
                             summaryHTML += `
-                        <div style="padding: 8px; margin-bottom: 4px; background-color: #f6f8fa; border-radius: 4px; font-size: 13px;">
+                        <div class="glass-result-item">
                             <strong>${statusIcon} ${detail.account}:</strong>
                             <span style="color: ${statusColor}; margin-left: 8px;">
                                 ${detail.users} user(s)
@@ -6904,9 +6904,9 @@
                         });
 
                         summaryHTML += `
-                        </div>
-                    </div>
-                `;
+                        </div >
+                    </div >
+                                `;
                     }
 
                     if (mainSummary) {
@@ -6942,15 +6942,15 @@
                             navigator.clipboard.writeText(mainTextarea.value).then(() => {
                                 alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s) and copied to clipboard!`);
                             }).catch(() => {
-                                alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s). Please copy manually.`);
+                                alert(`✅ Retrieved ${totalUsers} user(s) from ${data.total_accounts} account(s).Please copy manually.`);
                             });
                         }
                     }
                 } else {
-                    alert(`Error: ${data.error || 'Failed to retrieve users'}`);
+                    alert(`Error: ${data.error || 'Failed to retrieve users'} `);
                     const mainTextarea = document.getElementById('bulk-account-results-text');
                     if (mainTextarea) {
-                        mainTextarea.value = `❌ Error: ${data.error || 'Failed to retrieve users'}`;
+                        mainTextarea.value = `❌ Error: ${data.error || 'Failed to retrieve users'} `;
                     }
 
                     // Re-enable button if provided
@@ -6962,10 +6962,10 @@
             })
             .catch(error => {
                 console.error('Retrieve users error:', error);
-                alert(`Network error: ${error.message}`);
+                alert(`Network error: ${error.message} `);
                 const mainTextarea = document.getElementById('bulk-account-results-text');
                 if (mainTextarea) {
-                    mainTextarea.value = `❌ Network error: ${error.message}`;
+                    mainTextarea.value = `❌ Network error: ${error.message} `;
                 }
 
                 // Re-enable button if provided
@@ -7102,7 +7102,7 @@
 
         // Build summary
         let summaryHTML = `
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
+                        < div style = "display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;" >
             <div>
                 <strong style="color: #0969da;">Total Accounts:</strong>
                 <div style="font-size: 24px; font-weight: bold; color: #24292f;">${data.total_accounts || 0}</div>
@@ -7115,13 +7115,13 @@
                 <strong style="color: #cf222e;">Failed:</strong>
                 <div style="font-size: 24px; font-weight: bold; color: #cf222e;">${data.total_failed || 0}</div>
             </div>
-        </div>
-    `;
+        </div >
+                            `;
 
         // Add account-by-account breakdown
         if (data.results && data.results.length > 0) {
             summaryHTML += `
-            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #d0d7de;">
+                            < div style = "margin-top: 16px; padding-top: 16px; border-top: 1px solid #d0d7de;" >
                 <strong style="color: #24292f; font-size: 14px;">Account Details:</strong>
                 <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
         `;
@@ -7142,8 +7142,8 @@
 
             summaryHTML += `
                 </div>
-            </div>
-        `;
+            </div >
+                            `;
         }
 
         summaryDiv.innerHTML = summaryHTML;
@@ -7178,10 +7178,10 @@
                     let html = '';
                     if (data.domains.length > 0) {
                         data.domains.forEach(domain => {
-                            html += `<div class="domain-item">
+                            html += `< div class= "domain-item" >
                         <span>${domain.domainName}</span>
                         <button class="delete-button" onclick="deleteDomain('${domain.domainName}')">Delete</button>
-                    </div>`;
+                    </div > `;
                         });
                     } else {
                         html = '<p>No domains found.</p>';
@@ -7189,12 +7189,12 @@
                     display.innerHTML = html;
                     logResult(`✅ Domain info retrieved successfully.`);
                 } else {
-                    display.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
+                    display.innerHTML = `< p style = "color: red;" > Error: ${data.error}</p > `;
                     logResult(`❌ Failed to retrieve domain info: ${data.error}`);
                 }
             })
             .catch(error => {
-                display.innerHTML = `<p style="color: red;">Network error: ${error}</p>`;
+                display.innerHTML = `< p style = "color: red;" > Network error: ${error}</p > `;
                 logResult(`❌ Network error: ${error}`);
             });
     }
@@ -7234,7 +7234,7 @@
     }
 
     function deleteDomain(domainName) {
-        if (!confirm(`Are you sure you want to delete the domain: ${domainName}?`)) {
+        if (!confirm(`Are you sure you want to delete the domain: ${domainName} ? `)) {
             return;
         }
 
@@ -7285,7 +7285,7 @@
             return;
         }
 
-        if (!confirm(`Are you sure you want to delete ${subdomains.length} subdomains? This action cannot be undone.`)) {
+        if (!confirm(`Are you sure you want to delete ${subdomains.length} subdomains ? This action cannot be undone.`)) {
             return;
         }
 

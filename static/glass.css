@@ -1416,6 +1416,26 @@ html body .glass-ui textarea::placeholder {
     font-weight: 700;
 }
 
+/* 11. Bulk Account Result Items */
+.glass-result-item {
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    background: var(--bg-panel) !important;
+    background-color: var(--bg-panel) !important;
+    border: 1px solid var(--border-panel) !important;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    backdrop-filter: blur(var(--glass-blur));
+}
+
+.glass-progress-track {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid var(--border-panel);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
 /* Force input fields inside these specific containers too */
 #user-display input,
 #suspended-display input,
