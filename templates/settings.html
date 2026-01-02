@@ -28,45 +28,45 @@
         </p>
 
         <form id="server-config-form">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="server_host" class="form-label-github">
                         <i class="fas fa-globe"></i> Server Host/IP
                     </label>
-                    <input type="text" class="form-control-github" id="server_host"
+                    <input type="text" class="form-control-github w-100" id="server_host"
                         placeholder="192.168.1.100 or server.domain.com" required>
                     <small style="color: #656d76; font-size: 12px;">
                         IP address or hostname of the server
                     </small>
                 </div>
-                <div class="form-group-github">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="server_port" class="form-label-github">
                         <i class="fas fa-plug"></i> Port
                     </label>
-                    <input type="number" class="form-control-github" id="server_port" value="22" min="1" max="65535"
-                        required>
+                    <input type="number" class="form-control-github w-100" id="server_port" value="22" min="1"
+                        max="65535" required>
                     <small style="color: #656d76; font-size: 12px;">
                         SSH port (default: 22)
                     </small>
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="server_username" class="form-label-github">
                         <i class="fas fa-user"></i> Username
                     </label>
-                    <input type="text" class="form-control-github" id="server_username" placeholder="ubuntu or root"
-                        required>
+                    <input type="text" class="form-control-github w-100" id="server_username"
+                        placeholder="ubuntu or root" required>
                     <small style="color: #656d76; font-size: 12px;">
                         SSH username for server access
                     </small>
                 </div>
-                <div class="form-group-github">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="server_auth_method" class="form-label-github">
                         <i class="fas fa-lock"></i> Authentication Method
                     </label>
-                    <select class="form-control-github" id="server_auth_method" required>
+                    <select class="form-control-github w-100" id="server_auth_method" required>
                         <option value="password">Password</option>
                         <option value="key">SSH Key</option>
                     </select>
@@ -76,22 +76,22 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github" id="password-field">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" id="password-field" style="min-width: 250px;">
                     <label for="server_password" class="form-label-github">
                         <i class="fas fa-key"></i> Password
                     </label>
-                    <input type="password" class="form-control-github" id="server_password"
+                    <input type="password" class="form-control-github w-100" id="server_password"
                         placeholder="Server password">
                     <small style="color: #656d76; font-size: 12px;">
                         SSH password (if using password auth)
                     </small>
                 </div>
-                <div class="form-group-github" id="key-field" style="display: none;">
+                <div class="flex-grow-1" id="key-field" style="display: none; min-width: 250px;">
                     <label for="server_private_key" class="form-label-github">
                         <i class="fas fa-key"></i> Private Key
                     </label>
-                    <textarea class="form-control-github" id="server_private_key" rows="4"
+                    <textarea class="form-control-github w-100" id="server_private_key" rows="4"
                         placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
                         style="resize: vertical; font-family: 'Courier New', monospace; font-size: 12px;"></textarea>
                     <small style="color: #656d76; font-size: 12px;">
@@ -140,22 +140,22 @@
         </p>
 
         <form id="namecheap-config-form">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="namecheap_api_user" class="form-label-github">
                         <i class="fas fa-user"></i> API User
                     </label>
-                    <input type="text" class="form-control-github" id="namecheap_api_user" placeholder="your_api_user"
-                        required>
+                    <input type="text" class="form-control-github w-100" id="namecheap_api_user"
+                        placeholder="your_api_user" required>
                     <small style="color: #656d76; font-size: 12px;">
                         Your Namecheap API username
                     </small>
                 </div>
-                <div class="form-group-github">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="namecheap_username" class="form-label-github">
                         <i class="fas fa-user-circle"></i> Account Username
                     </label>
-                    <input type="text" class="form-control-github" id="namecheap_username"
+                    <input type="text" class="form-control-github w-100" id="namecheap_username"
                         placeholder="your_namecheap_username" required>
                     <small style="color: #656d76; font-size: 12px;">
                         Your Namecheap account username
@@ -163,22 +163,22 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="namecheap_api_key" class="form-label-github">
                         <i class="fas fa-key"></i> API Key
                     </label>
-                    <input type="password" class="form-control-github" id="namecheap_api_key" placeholder="your_api_key"
-                        required>
+                    <input type="password" class="form-control-github w-100" id="namecheap_api_key"
+                        placeholder="your_api_key" required>
                     <small style="color: #656d76; font-size: 12px;">
                         Your Namecheap API key (found in your account settings)
                     </small>
                 </div>
-                <div class="form-group-github">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="namecheap_client_ip" class="form-label-github">
                         <i class="fas fa-network-wired"></i> Client IP
                     </label>
-                    <input type="text" class="form-control-github" id="namecheap_client_ip" placeholder="1.2.3.4"
+                    <input type="text" class="form-control-github w-100" id="namecheap_client_ip" placeholder="1.2.3.4"
                         required>
                     <small style="color: #656d76; font-size: 12px;">
                         Your server's public IP (must be whitelisted in Namecheap)
@@ -213,22 +213,22 @@
         </p>
 
         <form id="cloudflare-config-form">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="cloudflare_api_token" class="form-label-github">
                         <i class="fas fa-key"></i> API Token
                     </label>
-                    <input type="password" class="form-control-github" id="cloudflare_api_token"
+                    <input type="password" class="form-control-github w-100" id="cloudflare_api_token"
                         placeholder="your_api_token" required>
                     <small style="color: #656d76; font-size: 12px;">
                         Your Cloudflare API Token (Edit Zone DNS permissions required)
                     </small>
                 </div>
-                <div class="form-group-github">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="cloudflare_email" class="form-label-github">
                         <i class="fas fa-envelope"></i> Email Address
                     </label>
-                    <input type="email" class="form-control-github" id="cloudflare_email"
+                    <input type="email" class="form-control-github w-100" id="cloudflare_email"
                         placeholder="your_email@example.com" required>
                     <small style="color: #656d76; font-size: 12px;">
                         Your Cloudflare account email address
@@ -364,22 +364,22 @@
         </p>
 
         <form id="aws-config-form">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="aws_access_key_id" class="form-label-github">
                         <i class="fas fa-key"></i> Access Key ID
                     </label>
-                    <input type="text" class="form-control-github" id="aws_access_key_id"
+                    <input type="text" class="form-control-github w-100" id="aws_access_key_id"
                         placeholder="Enter AWS Access Key ID" required>
                     <small style="color: #656d76; font-size: 12px;">
                         Your AWS Access Key ID
                     </small>
                 </div>
-                <div class="form-group-github">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="aws_secret_access_key" class="form-label-github">
                         <i class="fas fa-lock"></i> Secret Access Key
                     </label>
-                    <input type="password" class="form-control-github" id="aws_secret_access_key"
+                    <input type="password" class="form-control-github w-100" id="aws_secret_access_key"
                         placeholder="Enter AWS Secret Access Key" required>
                     <small style="color: #656d76; font-size: 12px;">
                         Your AWS Secret Access Key
@@ -387,12 +387,12 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="aws_region" class="form-label-github">
                         <i class="fas fa-globe"></i> AWS Region
                     </label>
-                    <select class="form-control-github" id="aws_region" required>
+                    <select class="form-control-github w-100" id="aws_region" required>
                         <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
                         <option value="us-east-2">US East (Ohio) - us-east-2</option>
                         <option value="us-west-1">US West (N. California) - us-west-1</option>
@@ -421,11 +421,11 @@
                         Select your AWS region
                     </small>
                 </div>
-                <div class="form-group-github">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="aws_s3_bucket" class="form-label-github">
                         <i class="fas fa-bucket"></i> S3 Bucket (App Passwords)
                     </label>
-                    <input type="text" class="form-control-github" id="aws_s3_bucket" value="gbot-app-passwords"
+                    <input type="text" class="form-control-github w-100" id="aws_s3_bucket" value="gbot-app-passwords"
                         placeholder="gbot-app-passwords">
                     <small style="color: #656d76; font-size: 12px;">
                         S3 bucket name for app password storage
@@ -470,44 +470,45 @@
         </p>
 
         <form id="otp-ssh-config-form">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="otp_server_host" class="form-label-github">
                         <i class="fas fa-globe"></i> Server Host/IP
                     </label>
-                    <input type="text" class="form-control-github" id="otp_server_host" placeholder="91.98.224.35"
+                    <input type="text" class="form-control-github w-100" id="otp_server_host" placeholder="91.98.224.35"
                         required>
                     <small style="color: #656d76; font-size: 12px;">
                         IP address or hostname of the OTP server
                     </small>
                 </div>
-                <div class="form-group-github">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="otp_server_port" class="form-label-github">
                         <i class="fas fa-plug"></i> Port
                     </label>
-                    <input type="number" class="form-control-github" id="otp_server_port" value="22" min="1" max="65535"
-                        required>
+                    <input type="number" class="form-control-github w-100" id="otp_server_port" value="22" min="1"
+                        max="65535" required>
                     <small style="color: #656d76; font-size: 12px;">
                         SSH port (default: 22)
                     </small>
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="otp_server_username" class="form-label-github">
                         <i class="fas fa-user"></i> Username
                     </label>
-                    <input type="text" class="form-control-github" id="otp_server_username" placeholder="root" required>
+                    <input type="text" class="form-control-github w-100" id="otp_server_username" placeholder="root"
+                        required>
                     <small style="color: #656d76; font-size: 12px;">
                         SSH username for server access
                     </small>
                 </div>
-                <div class="form-group-github">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="otp_server_auth_method" class="form-label-github">
                         <i class="fas fa-lock"></i> Authentication Method
                     </label>
-                    <select class="form-control-github" id="otp_server_auth_method" required>
+                    <select class="form-control-github w-100" id="otp_server_auth_method" required>
                         <option value="password">Password</option>
                         <option value="key">SSH Key</option>
                     </select>
@@ -517,22 +518,22 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group-github" id="otp_password_field">
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="flex-grow-1" id="otp_password_field" style="min-width: 250px;">
                     <label for="otp_server_password" class="form-label-github">
                         <i class="fas fa-key"></i> Password
                     </label>
-                    <input type="password" class="form-control-github" id="otp_server_password"
+                    <input type="password" class="form-control-github w-100" id="otp_server_password"
                         placeholder="Server password">
                     <small style="color: #656d76; font-size: 12px;">
                         SSH password (if using password auth)
                     </small>
                 </div>
-                <div class="form-group-github" id="otp_key_field" style="display: none;">
+                <div class="flex-grow-1" id="otp_key_field" style="display: none; min-width: 250px;">
                     <label for="otp_server_private_key" class="form-label-github">
                         <i class="fas fa-key"></i> Private Key
                     </label>
-                    <textarea class="form-control-github" id="otp_server_private_key" rows="4"
+                    <textarea class="form-control-github w-100" id="otp_server_private_key" rows="4"
                         placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
                         style="resize: vertical; font-family: 'Courier New', monospace; font-size: 12px;"></textarea>
                     <small style="color: #656d76; font-size: 12px;">
@@ -580,12 +581,12 @@
             accounts, tokens, and configurations.
         </p>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 mb-4">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="backup_format" class="form-label-github">
                     <i class="fas fa-file-code"></i> Backup Format
                 </label>
-                <select class="form-control-github" id="backup_format">
+                <select class="form-control-github w-100" id="backup_format">
                     <option value="sql">SQL Dump (.sql)</option>
                     <option value="json">JSON Export (.json)</option>
                     <option value="csv">CSV Export (.csv)</option>
@@ -594,11 +595,11 @@
                     Choose the format for your database backup
                 </small>
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="backup_include_data" class="form-label-github">
                     <i class="fas fa-check-square"></i> Include Data
                 </label>
-                <select class="form-control-github" id="backup_include_data">
+                <select class="form-control-github w-100" id="backup_include_data">
                     <option value="full">Full Backup (Schema + Data)</option>
                     <option value="schema">Schema Only</option>
                     <option value="data">Data Only</option>

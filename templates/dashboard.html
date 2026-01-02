@@ -31,12 +31,12 @@
             </h3>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; margin-bottom: 20px;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 align-items-end mb-4">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="account-select" class="form-label-github">
                     <i class="fas fa-user-circle"></i> Select Account
                 </label>
-                <select id="account-select" class="form-control-github">
+                <select id="account-select" class="form-control-github w-100">
                     <option value="">Type to search accounts...</option>
                     <!-- Populated dynamically via JavaScript -->
                 </select>
@@ -105,28 +105,28 @@
                 <i class="fas fa-key"></i> OTP Generator
             </h4>
 
-            <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: end;">
-                <div class="form-group-github">
-                    <label
-                        style="display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:#57606a;">
+            <div class="d-flex flex-wrap gap-3 align-items-end">
+                <div class="flex-grow-1" style="min-width: 250px;">
+                    <label class="d-flex align-items-center gap-2 mb-2 small text-muted">
                         <input type="checkbox" id="otp-lowercase-toggle">
                         Force lowercase before generating OTP
                     </label>
                     <label for="otp-account-input" class="form-label-github">
                         <i class="fas fa-user"></i> Account Name
                     </label>
-                    <input type="text" id="otp-account-input" class="form-control-github"
+                    <input type="text" id="otp-account-input" class="form-control-github w-100"
                         placeholder="Enter account name (e.g., email address)" autocapitalize="none" autocorrect="off"
                         spellcheck="false">
                 </div>
 
-                <button onclick="generateOTP()" class="btn-github btn-github-primary">
-                    <i class="fas fa-key"></i> Generate OTP
-                </button>
-
-                <button onclick="copyOTP()" class="btn-github" id="copy-otp-btn" disabled>
-                    <i class="fas fa-copy"></i> Copy OTP
-                </button>
+                <div class="d-flex gap-2">
+                    <button onclick="generateOTP()" class="btn-github btn-github-primary">
+                        <i class="fas fa-key"></i> Generate OTP
+                    </button>
+                    <button onclick="copyOTP()" class="btn-github" id="copy-otp-btn" disabled>
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
             </div>
 
             <div id="otp-status" class="status-box" style="margin-top: 12px; display: none;">
@@ -424,20 +424,22 @@
         </div>
 
         <!-- Individual User Actions -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; align-items: end; margin-top: 16px;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 align-items-end mt-4">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="suspend-user-email" class="form-label-github">
                     <i class="fas fa-user-slash"></i> Suspend User
                 </label>
-                <input type="email" id="suspend-user-email" class="form-control-github" placeholder="user@domain.com">
+                <input type="email" id="suspend-user-email" class="form-control-github w-100"
+                    placeholder="user@domain.com">
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="unsuspend-user-email" class="form-label-github">
                     <i class="fas fa-user-check"></i> Unsuspend User
                 </label>
-                <input type="email" id="unsuspend-user-email" class="form-control-github" placeholder="user@domain.com">
+                <input type="email" id="unsuspend-user-email" class="form-control-github w-100"
+                    placeholder="user@domain.com">
             </div>
-            <div style="display: flex; gap: 8px;">
+            <div class="d-flex gap-2">
                 <button onclick="suspendUser()" class="btn-github btn-github-warning">
                     <i class="fas fa-user-slash"></i> Suspend
                 </button>
@@ -450,12 +452,12 @@
 
         <div id="user-count" class="count-display">Total Users: 0</div>
 
-        <div style="display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; margin-top: 16px;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 align-items-end mt-4">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="new-password" class="form-label-github">
                     <i class="fas fa-lock"></i> New Password for All Users
                 </label>
-                <input type="password" id="new-password" class="form-control-github"
+                <input type="password" id="new-password" class="form-control-github w-100"
                     placeholder="Enter new password for all users" autocomplete="new-password" readonly
                     onfocus="this.removeAttribute('readonly');">
             </div>
@@ -752,32 +754,35 @@
                 Create Single User
             </h3>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 mb-3">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="new-user-first-name" class="form-label-github">
                     <i class="fas fa-user"></i> First Name
                 </label>
-                <input type="text" id="new-user-first-name" class="form-control-github" placeholder="Enter first name">
+                <input type="text" id="new-user-first-name" class="form-control-github w-100"
+                    placeholder="Enter first name">
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="new-user-last-name" class="form-label-github">
                     <i class="fas fa-user"></i> Last Name
                 </label>
-                <input type="text" id="new-user-last-name" class="form-control-github" placeholder="Enter last name">
+                <input type="text" id="new-user-last-name" class="form-control-github w-100"
+                    placeholder="Enter last name">
             </div>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 mb-4">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="new-user-email" class="form-label-github">
                     <i class="fas fa-envelope"></i> Email Address
                 </label>
-                <input type="email" id="new-user-email" class="form-control-github" placeholder="user@domain.com">
+                <input type="email" id="new-user-email" class="form-control-github w-100" placeholder="user@domain.com">
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="new-user-password" class="form-label-github">
                     <i class="fas fa-lock"></i> Password
                 </label>
-                <input type="password" id="new-user-password" class="form-control-github" placeholder="Enter password">
+                <input type="password" id="new-user-password" class="form-control-github w-100"
+                    placeholder="Enter password">
             </div>
         </div>
         <button onclick="createSingleUser()" class="btn-github btn-github-primary">
@@ -815,12 +820,12 @@
                 <p>Click "Retrieve Domains" to view domains here...</p>
             </div>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; margin-top: 16px;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 align-items-end mt-3">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="new-domain-alias" class="form-label-github">
                     <i class="fas fa-plus"></i> New Domain Alias
                 </label>
-                <input type="text" id="new-domain-alias" class="form-control-github"
+                <input type="text" id="new-domain-alias" class="form-control-github w-100"
                     placeholder="Enter new domain alias">
             </div>
             <button onclick="addDomainAlias()" class="btn-github btn-github-primary">
@@ -878,12 +883,12 @@
                 Create Users from CSV File
             </h3>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="csv-file-input" class="form-label-github">
                     <i class="fas fa-file-upload"></i> Select CSV File
                 </label>
-                <input type="file" id="csv-file-input" class="form-control-github" accept=".csv">
+                <input type="file" id="csv-file-input" class="form-control-github w-100" accept=".csv">
             </div>
             <button onclick="createUsersFromCSV()" class="btn-github btn-github-primary">
                 <i class="fas fa-upload"></i> Create Users from CSV
@@ -899,25 +904,25 @@
                 Create Random Users
             </h3>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 16px; align-items: end;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+            <div class="flex-grow-1" style="min-width: 150px;">
                 <label for="random-user-count" class="form-label-github">
                     <i class="fas fa-hashtag"></i> Number of Users
                 </label>
-                <input type="number" id="random-user-count" class="form-control-github" min="1" max="100"
+                <input type="number" id="random-user-count" class="form-control-github w-100" min="1" max="100"
                     placeholder="e.g., 10">
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="random-user-domain" class="form-label-github">
                     <i class="fas fa-globe"></i> Domain
                 </label>
-                <input type="text" id="random-user-domain" class="form-control-github" placeholder="example.com">
+                <input type="text" id="random-user-domain" class="form-control-github w-100" placeholder="example.com">
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="random-user-password" class="form-label-github">
                     <i class="fas fa-lock"></i> Password
                 </label>
-                <input type="text" id="random-user-password" class="form-control-github"
+                <input type="text" id="random-user-password" class="form-control-github w-100"
                     placeholder="Password for all users">
             </div>
             <button onclick="createRandomUsers()" class="btn-github btn-github-primary">
@@ -934,32 +939,32 @@
                 Create Random Admin Users
             </h3>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 16px; align-items: end;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+            <div class="flex-grow-1" style="min-width: 150px;">
                 <label for="random-admin-count" class="form-label-github">
                     <i class="fas fa-hashtag"></i> Number of Admins
                 </label>
-                <input type="number" id="random-admin-count" class="form-control-github" min="1" max="50"
+                <input type="number" id="random-admin-count" class="form-control-github w-100" min="1" max="50"
                     placeholder="e.g., 5">
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 200px;">
                 <label for="random-admin-domain" class="form-label-github">
                     <i class="fas fa-globe"></i> Domain
                 </label>
-                <input type="text" id="random-admin-domain" class="form-control-github" placeholder="example.com">
+                <input type="text" id="random-admin-domain" class="form-control-github w-100" placeholder="example.com">
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 200px;">
                 <label for="random-admin-password" class="form-label-github">
                     <i class="fas fa-lock"></i> Password
                 </label>
-                <input type="text" id="random-admin-password" class="form-control-github"
+                <input type="text" id="random-admin-password" class="form-control-github w-100"
                     placeholder="Password for all admins">
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="admin-role" class="form-label-github">
                     <i class="fas fa-crown"></i> Admin Role
                 </label>
-                <select id="admin-role" class="form-control-github">
+                <select id="admin-role" class="form-control-github w-100">
                     <option value="SUPER_ADMIN">Super Admin (Full Access)</option>
                     <option value="USER_MANAGEMENT_ADMIN">User Management Admin</option>
                     <option value="HELP_DESK_ADMIN">Help Desk Admin</option>
@@ -990,23 +995,23 @@
                 Update Passwords for Specific Users
             </h3>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; align-items: end;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="password-update-users" class="form-label-github">
                     <i class="fas fa-users"></i> Users (one per line)
                 </label>
-                <textarea id="password-update-users" class="form-control-github" rows="4"
-                    placeholder="user1@domain.com&#10;user2@domain.com&#10;user3@domain.com"></textarea>
+                <textarea id="password-update-users" class="form-control-github w-100" rows="4"
+                    placeholder="user1@example.com&#10;user2@example.com"></textarea>
             </div>
-            <div class="form-group-github">
-                <label for="password-update-new-password" class="form-label-github">
+            <div class="flex-grow-1" style="min-width: 250px;">
+                <label for="password-update-new" class="form-label-github">
                     <i class="fas fa-lock"></i> New Password
                 </label>
-                <input type="text" id="password-update-new-password" class="form-control-github"
-                    placeholder="New password for all users">
+                <input type="text" id="password-update-new" class="form-control-github w-100"
+                    placeholder="New password for these users">
             </div>
-            <button onclick="updateUserPasswords()" class="btn-github btn-github-primary">
-                <i class="fas fa-key"></i> Update Passwords
+            <button onclick="updateSpecificUserPasswords()" class="btn-github btn-github-primary">
+                <i class="fas fa-save"></i> Update Passwords
             </button>
         </div>
     </div>
@@ -1019,18 +1024,18 @@
                 Change Domain for Specific Users
             </h3>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 mb-3">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="old-domain" class="form-label-github">
                     <i class="fas fa-globe"></i> Current Domain
                 </label>
-                <input type="text" id="old-domain" class="form-control-github" placeholder="old.com">
+                <input type="text" id="old-domain" class="form-control-github w-100" placeholder="old.com">
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="new-domain" class="form-label-github">
                     <i class="fas fa-globe"></i> New Domain
                 </label>
-                <input type="text" id="new-domain" class="form-control-github" placeholder="new.com">
+                <input type="text" id="new-domain" class="form-control-github w-100" placeholder="new.com">
             </div>
         </div>
         <div class="form-group-github" style="margin-bottom: 20px;">
@@ -1162,13 +1167,12 @@
                 <i class="fas fa-cogs" style="color: var(--color-accent-fg);"></i>
                 Step 1.3: Process Domain Changes from Modified CSV
             </h4>
-            <div
-                style="display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; margin-bottom: 16px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
+                <div class="flex-grow-1" style="min-width: 250px;">
                     <label for="csv-file-path" class="form-label-github">
                         <i class="fas fa-file-csv"></i> CSV File Path
                     </label>
-                    <input type="text" id="csv-file-path" class="form-control-github"
+                    <input type="text" id="csv-file-path" class="form-control-github w-100"
                         placeholder="CSV file path will appear here after download/apply, or browse manually..."
                         readonly>
                 </div>
@@ -1252,18 +1256,20 @@
             </h3>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-            <div class="form-group-github">
+        <div class="d-flex flex-wrap gap-3 mb-4">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="current-domain-suffix" class="form-label-github">
                     <i class="fas fa-globe"></i> Current Domain Suffix
                 </label>
-                <input type="text" id="current-domain-suffix" class="form-control-github" placeholder="old-domain.com">
+                <input type="text" id="current-domain-suffix" class="form-control-github w-100"
+                    placeholder="old-domain.com">
             </div>
-            <div class="form-group-github">
+            <div class="flex-grow-1" style="min-width: 250px;">
                 <label for="new-domain-suffix" class="form-label-github">
                     <i class="fas fa-globe"></i> New Domain Suffix
                 </label>
-                <input type="text" id="new-domain-suffix" class="form-control-github" placeholder="new-domain.com">
+                <input type="text" id="new-domain-suffix" class="form-control-github w-100"
+                    placeholder="new-domain.com">
             </div>
         </div>
 

@@ -41,9 +41,8 @@
             <p style="text-align: center; color: rgba(253, 186, 116, 0.8); margin-bottom: 24px; font-size: 0.875rem;">
                 If you're locked out due to IP restrictions, use this emergency access method
             </p>
-            <div
-                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 24px;">
-                <div class="form-group-github">
+            <div class="d-flex flex-wrap gap-4 mb-4">
+                <div class="form-group-github flex-grow-1" style="min-width: 300px;">
                     <label class="form-label-github"
                         style="color: rgba(253, 186, 116, 0.7); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em;">Your
                         Current IP</label>
@@ -61,7 +60,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="form-group-github">
+                <div class="form-group-github flex-grow-1" style="min-width: 300px;">
                     <label class="form-label-github"
                         style="color: rgba(253, 186, 116, 0.7); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em;">Emergency
                         Key</label>
@@ -84,9 +83,9 @@
     </div>
 
     <!-- Main Management Section -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+    <div class="d-flex flex-wrap gap-4">
         <!-- Add IP Section -->
-        <div class="glass-panel" style="padding: 24px;">
+        <div class="glass-panel flex-grow-1" style="padding: 24px; min-width: 300px;">
             <h3
                 style="margin: 0 0 24px 0; font-size: 1.125rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center;">
                 <i class="fas fa-plus" style="margin-right: 12px; color: var(--accent-secondary);"></i>Add IP to
@@ -110,7 +109,7 @@
         </div>
 
         <!-- Whitelisted IPs Section -->
-        <div class="glass-panel" style="padding: 24px; grid-column: span 2;">
+        <div class="glass-panel flex-grow-1" style="padding: 24px; min-width: 300px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                 <h3
                     style="margin: 0; font-size: 1.125rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center;">

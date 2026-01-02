@@ -15,9 +15,9 @@
         </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 24px;">
+    <div class="d-flex flex-wrap gap-4">
         <!-- Add New User -->
-        <div class="glass-panel" style="padding: 24px;">
+        <div class="glass-panel flex-grow-1" style="padding: 24px; min-width: 300px;">
             <h3
                 style="margin: 0 0 24px 0; font-size: 1.125rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center;">
                 <i class="fas fa-user-plus" style="margin-right: 12px; color: var(--accent-secondary);"></i>Add New User
@@ -64,7 +64,8 @@
         </div>
 
         <!-- Existing Users -->
-        <div class="glass-panel" style="padding: 24px; min-height: 400px; display: flex; flex-direction: column;">
+        <div class="glass-panel flex-grow-1"
+            style="padding: 24px; min-height: 400px; display: flex; flex-direction: column; min-width: 300px;">
             <h3
                 style="margin: 0 0 24px 0; font-size: 1.125rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center;">
                 <i class="fas fa-list" style="margin-right: 12px; color: var(--accent-secondary);"></i>Existing Users
