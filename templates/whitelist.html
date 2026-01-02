@@ -3,132 +3,167 @@
 {% block title %}IP Whitelist Management{% endblock %}
 
 {% block content %}
-<div class="container-fluid p-4">
-    <!-- Header -->
-    <div class="d-flex align-items-center justify-content-between mb-4">
-        <div>
-            <h1 class="glass-text-primary mb-1">
-                <i class="fas fa-shield-alt text-primary me-3"></i>IP Whitelist Management
-            </h1>
-            <p class="text-muted mb-0">Manage access control for your application</p>
+<div class="glass-ui">
+    <!-- Page Header -->
+    <div class="glass-panel mb-4">
+        <div class="d-flex align-items-center justify-content-between p-4">
+            <div class="d-flex align-items-center gap-3">
+                <div class="d-flex align-items-center justify-content-center rounded-3"
+                    style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));">
+                    <i class="fas fa-shield-alt text-white fa-lg"></i>
+                </div>
+                <div>
+                    <h2 class="mb-0 text-white fw-bold">IP Whitelist Management</h2>
+                    <p class="mb-0 text-muted small">Control which IP addresses can access your application</p>
+                </div>
+            </div>
+            {% if session.get('emergency_access') %}
+            <div class="d-flex align-items-center gap-3 px-3 py-2 rounded-3"
+                style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3);">
+                <i class="fas fa-exclamation-triangle text-warning"></i>
+                <span class="text-warning fw-semibold small">Emergency Access Active</span>
+                <a href="/logout" class="glass-button glass-button-danger py-1 px-2">
+                    <i class="fas fa-sign-out-alt"></i>
+                </a>
+            </div>
+            {% endif %}
         </div>
-        {% if session.get('emergency_access') %}
-        <div class="glass-warning-box d-flex align-items-center gap-3">
-            <span class="text-warning fw-bold">
-                <i class="fas fa-exclamation-triangle me-2"></i> Emergency Access Active
-            </span>
-            <a href="/logout" class="glass-button glass-button-danger py-1 px-3 text-sm">
-                <i class="fas fa-sign-out-alt me-2"></i> Exit
-            </a>
-        </div>
-        {% endif %}
     </div>
 
-    <!-- Emergency Access Section (Restored & Fixed) -->
-    <div class="glass-panel mb-4" style="border: 1px solid rgba(245, 158, 11, 0.3);">
-        <div class="d-flex align-items-center gap-3 p-3"
-            style="background: rgba(245, 158, 11, 0.1); border-bottom: 1px solid rgba(245, 158, 11, 0.2);">
-            <i class="fas fa-exclamation-triangle text-warning"></i>
-            <h5 class="mb-0 text-warning">Emergency Access</h5>
-        </div>
+    <!-- Emergency Access Card -->
+    <div class="glass-panel mb-4" style="border-left: 4px solid #f59e0b;">
         <div class="p-4">
-            <p class="text-center text-warning opacity-75 mb-4 small">
-                Locked out? Use this to regain access immediately.
-            </p>
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <div class="d-flex align-items-center justify-content-center rounded-circle"
+                    style="width: 40px; height: 40px; background: rgba(245, 158, 11, 0.15);">
+                    <i class="fas fa-unlock-alt text-warning"></i>
+                </div>
+                <div>
+                    <h5 class="mb-0 text-warning fw-bold">Emergency Access</h5>
+                    <p class="mb-0 text-muted small">Locked out? Use your emergency key to regain access</p>
+                </div>
+            </div>
 
             <div class="row g-3 align-items-end">
-                <div class="col-md-5">
-                    <label class="form-label-github mb-2 text-warning opacity-75">Your Current IP</label>
-                    <div class="d-flex gap-2">
-                        <input type="text" id="emergency_ip" class="glass-input flex-grow-1"
-                            style="border-color: rgba(245, 158, 11, 0.3);" readonly placeholder="Detecting...">
-                        <button id="detectBtn" class="glass-button"
-                            style="border-color: rgba(245, 158, 11, 0.3); color: #fbbf24;">
-                            <i class="fas fa-search"></i>
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label-github small text-muted mb-2">YOUR CURRENT IP</label>
+                    <div class="input-group">
+                        <input type="text" id="emergency_ip" class="glass-input" readonly placeholder="Detecting...">
+                        <button id="detectBtn" class="glass-button" type="button" title="Detect IP">
+                            <i class="fas fa-crosshairs"></i>
                         </button>
                     </div>
                 </div>
-                <div class="col-md-5">
-                    <label class="form-label-github mb-2 text-warning opacity-75">Emergency Key</label>
-                    <input type="text" id="emergency_key" class="glass-input w-100"
-                        style="border-color: rgba(245, 158, 11, 0.3);" placeholder="Enter Secret Key">
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label-github small text-muted mb-2">EMERGENCY KEY</label>
+                    <input type="password" id="emergency_key" class="glass-input w-100"
+                        placeholder="Enter your secret key">
                 </div>
-                <div class="col-md-2">
+                <div class="col-lg-4 col-md-12">
                     <button type="button" id="emergencyBtn"
-                        class="glass-button glass-button-danger w-100 justify-content-center">
-                        Access
+                        class="glass-button glass-button-warning w-100 justify-content-center">
+                        <i class="fas fa-key me-2"></i>Grant Emergency Access
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Main Management Section -->
+    <!-- Main Content Row -->
     <div class="row g-4">
-        <!-- Add IP Section -->
-        <div class="col-lg-5">
-            <div class="glass-panel p-4 h-100">
-                <h4 class="mb-4 glass-text-primary d-flex align-items-center gap-2">
-                    <i class="fas fa-plus-circle text-success"></i> Add IP to Whitelist
-                </h4>
+        <!-- Add New IP Card -->
+        <div class="col-lg-4">
+            <div class="glass-panel h-100">
+                <div class="p-4">
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <div class="d-flex align-items-center justify-content-center rounded-circle"
+                            style="width: 40px; height: 40px; background: rgba(16, 185, 129, 0.15);">
+                            <i class="fas fa-plus text-success"></i>
+                        </div>
+                        <h5 class="mb-0 text-white fw-bold">Add New IP</h5>
+                    </div>
 
-                <form id="add-ip-form">
-                    <div class="d-flex flex-column gap-2">
-                        <label for="ip_address" class="form-label-github mb-0">IP Address</label>
-                        <div class="d-flex gap-2">
-                            <input type="text" id="ip_address" name="ip_address" class="glass-input flex-grow-1"
+                    <form id="add-ip-form">
+                        <div class="mb-3">
+                            <label for="ip_address" class="form-label-github small text-muted mb-2">IP ADDRESS</label>
+                            <input type="text" id="ip_address" name="ip_address" class="glass-input w-100"
                                 placeholder="e.g., 192.168.1.100" required>
-                            <button type="submit" class="glass-button glass-button-primary">
-                                <i class="fas fa-plus"></i>
+                        </div>
+                        <button type="submit" class="glass-button glass-button-primary w-100 justify-content-center">
+                            <i class="fas fa-plus-circle me-2"></i>Add to Whitelist
+                        </button>
+                    </form>
+
+                    <hr class="my-4" style="border-color: var(--border-panel);">
+
+                    <div class="text-center">
+                        <p class="text-muted small mb-2">Quick Actions</p>
+                        <div class="d-flex gap-2 justify-content-center">
+                            <button id="refreshBtn" class="glass-button flex-grow-1 justify-content-center">
+                                <i class="fas fa-sync-alt me-2"></i>Refresh
+                            </button>
+                            <button id="deleteAllBtn"
+                                class="glass-button glass-button-danger flex-grow-1 justify-content-center">
+                                <i class="fas fa-trash-alt me-2"></i>Clear All
                             </button>
                         </div>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
 
-        <!-- Whitelisted IPs Section -->
-        <div class="col-lg-7">
-            <div class="glass-panel p-4 h-100 d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="mb-0 glass-text-primary d-flex align-items-center gap-2">
-                        <i class="fas fa-list text-info"></i> Whitelisted IPs
-                    </h4>
-                    <div class="d-flex gap-2">
-                        <button id="refreshBtn" class="glass-button">
-                            <i class="fas fa-sync-alt"></i>
-                        </button>
-                        <button id="deleteAllBtn" class="glass-button glass-button-danger">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
+        <!-- Whitelisted IPs List -->
+        <div class="col-lg-8">
+            <div class="glass-panel h-100 d-flex flex-column">
+                <div class="p-4 border-bottom" style="border-color: var(--border-panel) !important;">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex align-items-center justify-content-center rounded-circle"
+                                style="width: 40px; height: 40px; background: rgba(59, 130, 246, 0.15);">
+                                <i class="fas fa-list-ul text-info"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0 text-white fw-bold">Whitelisted IPs</h5>
+                                <p class="mb-0 text-muted small">
+                                    {% if whitelisted_ips %}{{ whitelisted_ips|length }} address(es) allowed{% else %}No
+                                    addresses configured{% endif %}
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div id="ip-loading" class="text-center py-5 text-muted">
+                <div id="ip-loading" class="text-center py-5 text-muted" style="display: none;">
                     <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
                     <p>Loading addresses...</p>
                 </div>
 
-                <div id="ip-list-container" class="custom-scrollbar flex-grow-1"
-                    style="max-height: 400px; overflow-y: auto;">
+                <div id="ip-list-container" class="flex-grow-1 p-3" style="max-height: 450px; overflow-y: auto;">
                     {% if whitelisted_ips %}
                     {% for ip in whitelisted_ips %}
-                    <div class="d-flex justify-content-between align-items-center p-3 mb-2 rounded"
-                        style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-panel);">
+                    <div class="d-flex align-items-center justify-content-between p-3 mb-2 rounded-3 ip-list-item"
+                        style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-panel); transition: all 0.2s ease;">
                         <div class="d-flex align-items-center gap-3">
-                            <i class="fas fa-check-circle text-success"></i>
-                            <span class="font-monospace text-light">{{ ip }}</span>
+                            <div class="d-flex align-items-center justify-content-center rounded-circle"
+                                style="width: 32px; height: 32px; background: rgba(16, 185, 129, 0.15);">
+                                <i class="fas fa-check text-success small"></i>
+                            </div>
+                            <code class="text-light" style="font-size: 0.95rem;">{{ ip }}</code>
                         </div>
                         <button class="glass-button glass-button-danger delete-ip-btn py-1 px-3" data-ip="{{ ip }}"
-                            title="Remove IP">
-                            <i class="fas fa-trash"></i>
+                            title="Remove this IP">
+                            <i class="fas fa-times"></i>
                         </button>
                     </div>
                     {% endfor %}
                     {% else %}
-                    <div class="text-center py-5 text-muted opacity-50">
-                        <i class="fas fa-shield-alt fa-3x mb-3"></i>
-                        <p>No IPs found.</p>
+                    <div class="text-center py-5">
+                        <div class="d-flex align-items-center justify-content-center rounded-circle mx-auto mb-3"
+                            style="width: 80px; height: 80px; background: rgba(255,255,255,0.03); border: 2px dashed var(--border-panel);">
+                            <i class="fas fa-shield-alt fa-2x text-muted"></i>
+                        </div>
+                        <h5 class="text-muted mb-2">No IPs Whitelisted</h5>
+                        <p class="text-muted small">Add your first IP address using the form on the left</p>
                     </div>
                     {% endif %}
                 </div>
