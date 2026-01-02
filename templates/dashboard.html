@@ -5778,13 +5778,78 @@
             });
     }
 
-    // ===== Bulk Account Management Functions =====
+    // Async Account Search Logic
+    let searchTimeout;
 
+    function debounceSearchAccounts(query) {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            searchAccounts(query);
+        }, 300);
+    }
+
+    function searchAccounts(query) {
+        const listArea = document.getElementById('account-list-area');
+
+        if (!query) {
+            listArea.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                    <i class="fas fa-search"></i> Use search to find accounts
+                </div>`;
+            return;
+        }
+
+        listArea.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                <i class="fas fa-spinner fa-spin"></i> Searching...
+            </div>`;
+
+        fetch(`/api/search-accounts?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderAccountList(data.accounts);
+                } else {
+                    listArea.innerHTML = `<div style="padding: 10px; color: #dc3545;">Error searching accounts</div>`;
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                listArea.innerHTML = `<div style="padding: 10px; color: #dc3545;">Network error</div>`;
+            });
+    }
+
+    function renderAccountList(accounts) {
+        const listArea = document.getElementById('account-list-area');
+
+        if (accounts.length === 0) {
+            listArea.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                    No accounts found
+                </div>`;
+            return;
+        }
+
+        listArea.innerHTML = '';
+        accounts.forEach(account => {
+            const item = document.createElement('div');
+            item.className = 'account-item';
+            item.dataset.accountName = account.account_name;
+            item.dataset.accountId = account.id;
+            item.textContent = account.account_name;
+            item.onclick = () => selectAccountFromList(account.account_name, account.id);
+            listArea.appendChild(item);
+        });
+    }
+
+    // Initialize with empty state or recent accounts
+    searchAccounts('');
+
+    // Optimized Bulk Parsing
     let bulkAccountRowCounter = 0;
 
     function openBulkAccountModal() {
         document.getElementById('bulk-account-modal').style.display = 'block';
-        // Clear previous inputs
         document.getElementById('bulk-accounts-tbody').innerHTML = '';
         const pasteField = document.getElementById('bulk-accounts-paste');
         if (pasteField) pasteField.value = '';
@@ -5792,7 +5857,6 @@
         const resultsSection = document.getElementById('bulk-account-results');
         if (resultsSection) resultsSection.style.display = 'none';
         bulkAccountRowCounter = 0;
-        // Add one empty row by default
         addBulkAccountRow();
     }
 
@@ -5829,7 +5893,7 @@
             parseBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Parsing...';
         }
 
-        const BATCH_SIZE = 50;
+        const BATCH_SIZE = 10;
         let currentIndex = 0;
 
         function processBatch() {

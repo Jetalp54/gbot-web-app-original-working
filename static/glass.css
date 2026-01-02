@@ -682,6 +682,40 @@
     border-color: var(--border-panel) !important;
 }
 
+/* Fix for Bulk Account Modal Scrolling */
+#bulk-account-modal .glass-modal-content,
+#bulk-account-modal .modal-content {
+    max-height: 85vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+}
+
+#bulk-account-modal .glass-modal-body,
+#bulk-account-modal .modal-body {
+    overflow-y: auto !important;
+    flex: 1 1 auto !important;
+    max-height: calc(85vh - 120px) !important;
+    padding-right: 10px !important;
+}
+
+/* Ensure the table header stays visible */
+#bulk-account-modal .table-responsive {
+    overflow-y: visible !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+/* Fix for buttons */
+#bulk-account-modal .glass-modal-footer,
+#bulk-account-modal .modal-footer {
+    flex-shrink: 0 !important;
+    background: var(--bg-panel) !important;
+    z-index: 10 !important;
+    position: sticky !important;
+    bottom: 0 !important;
+}
+
 .glass-ui th {
     background: rgba(255, 255, 255, 0.03) !important;
     color: var(--text-primary) !important;
