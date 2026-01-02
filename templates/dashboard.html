@@ -136,7 +136,7 @@
             <div id="otp-result" class="data-display" style="margin-top: 12px; display: none;">
                 <h4>Generated OTP:</h4>
                 <div id="otp-code-display"
-                    style="font-family: monospace; font-size: 18px; font-weight: bold; color: #0969da; text-align: center; padding: 12px; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px;">
+                    style="font-family: monospace; font-size: 18px; font-weight: bold; color: var(--text-primary); text-align: center; padding: 12px; background-color: var(--input-bg); border: 1px solid var(--border-panel); border-radius: 6px;">
                 </div>
             </div>
         </div>
@@ -3824,7 +3824,7 @@
         }
 
         document.getElementById('user-display').innerHTML = `
-        <div class="status-info" style="background: #fff3cd; border-color: #ffeaa7;">
+        <div class="status-info">
             <p><strong>📊 Loading Users</strong></p>
             <p>Retrieving user data from Google Admin API...</p>
             <p><small>This may take up to 2 minutes for large user bases (10k+ users).</small></p>
@@ -3906,14 +3906,14 @@
                 if (error.message && error.message.startsWith('SERVER_HTML:')) {
                     const snippet = error.message.replace('SERVER_HTML:', '');
                     document.getElementById('user-display').innerHTML = `
-                <div class="status-info" style="background: #f8d7da; border-color: #f5c6cb;">
+                <div class="status-info error">
                     <p><strong>❌ Server Error</strong></p>
                     <p>The server returned an HTML error page instead of JSON. This usually means a timeout or crash upstream.</p>
                     <pre style="white-space: pre-wrap; max-height: 160px; overflow:auto; background:#fff; padding:8px; border:1px solid #eee;">${snippet}</pre>
                 </div>`;
                 } else {
                     document.getElementById('user-display').innerHTML = `
-            <div class="status-info" style="background: #f8d7da; border-color: #f5c6cb;">
+            <div class="status-info error">
                     <p><strong>❌ ${errorMessage}</strong></p>
                     <p>${errorDetails}</p>
                     <p><small>If you have a very large user base (10k+ users), this may be a timeout. We've raised server timeouts to handle this.</small></p>

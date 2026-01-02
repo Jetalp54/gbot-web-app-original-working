@@ -1380,6 +1380,42 @@ html body .glass-ui textarea::placeholder {
     border-color: var(--border-panel) !important;
 }
 
+/* 10. User Listing Status Box Fixes */
+.status-summary {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.status-item {
+    background: var(--bg-panel) !important;
+    background-color: var(--bg-panel) !important;
+    border: 1px solid var(--border-panel) !important;
+    padding: 10px 16px;
+    border-radius: 8px;
+    flex: 1;
+    min-width: 150px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(var(--glass-blur));
+    color: var(--text-primary) !important;
+    box-shadow: none !important;
+}
+
+.status-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.status-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
 /* Force input fields inside these specific containers too */
 #user-display input,
 #suspended-display input,
