@@ -39,6 +39,9 @@
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
+    <!-- SortableJS (for Drag & Drop) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
     <!-- Bootstrap JS (for modal compatibility) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -3465,6 +3468,130 @@
         });
     </script>
     </div>
+    <!-- GLOBAL FLOATING DOMAIN MANAGER -->
+    <div class="domain-fab-container">
+        <!-- Main Toggle Icon -->
+        <div class="domain-fab-main" onclick="toggleDomainFab()">
+            <i class="fas fa-globe"></i>
+        </div>
+
+        <!-- Options Menu -->
+        <div class="domain-fab-options" id="domain-fab-options">
+            <!-- Cloudflare Option -->
+            <div class="domain-fab-option fab-cloudflare" onclick="openCloudflareDomainsModal()"
+                data-tooltip="Cloudflare Domains">
+                <i class="fas fa-cloud"></i>
+            </div>
+            <!-- Namecheap Option -->
+            <div class="domain-fab-option fab-namecheap" onclick="openNamecheapDomainsModal()"
+                data-tooltip="Namecheap Domains">
+                <i class="fas fa-cubes"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- GLOBAL DOMAIN MODALS -->
+    <!-- Cloudflare Domains Modal -->
+    <div id="cloudflareDomainsModal" class="modal domain-modal-global" style="display: none;">
+        <div class="modal-content"
+            style="max-width: 800px; width: 90%; background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important;">
+            <div class="modal-header">
+                <h2><i class="fas fa-cloud"></i> Cloudflare Domains</h2>
+                <span class="close" onclick="closeCloudflareDomainsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="cloudflare-domains-loading" style="text-align: center; padding: 40px; display: none;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 48px; color: #0969da;"></i>
+                    <p style="margin-top: 16px; color: var(--text-muted);">Fetching domains from Cloudflare...</p>
+                </div>
+
+                <div id="cloudflare-domains-content" style="display: none;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <span id="cloudflare-domains-count"
+                            style="font-weight: 600; color: var(--text-primary);"></span>
+                        <button onclick="copyCloudflareDomains()" class="btn-github">
+                            <i class="fas fa-copy"></i> Copy All
+                        </button>
+                    </div>
+
+                    <div
+                        style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: 6px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead style="background: var(--bg-panel); position: sticky; top: 0;">
+                                <tr>
+                                    <th
+                                        style="padding: 12px; text-align: left; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary);">
+                                        Domain</th>
+                                    <th
+                                        style="padding: 12px; text-align: left; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary);">
+                                        Status</th>
+                                    <th
+                                        style="padding: 12px; text-align: left; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary);">
+                                        ID
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="cloudflare-domains-list"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="cloudflare-domains-error"
+                    style="display: none; padding: 16px; background-color: rgba(207, 34, 46, 0.1); border: 1px solid rgba(207, 34, 46, 0.4); border-radius: 6px; color: #cf222e;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Namecheap Domains Modal -->
+    <div id="namecheapDomainsModal" class="modal domain-modal-global" style="display: none;">
+        <div class="modal-content"
+            style="max-width: 800px; width: 90%; background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important;">
+            <div class="modal-header">
+                <h2><i class="fas fa-globe"></i> Namecheap Domains</h2>
+                <span class="close" onclick="closeNamecheapDomainsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="namecheap-domains-loading" style="text-align: center; padding: 40px; display: none;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 48px; color: #0969da;"></i>
+                    <p style="margin-top: 16px; color: var(--text-muted);">Fetching domains from Namecheap...</p>
+                </div>
+                <div id="namecheap-domains-content" style="display: none;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <p style="margin: 0; color: var(--text-muted);">
+                            <strong id="namecheap-domains-count" style="color: var(--text-primary);">0</strong>
+                            domain(s)
+                            found
+                        </p>
+                        <button onclick="copyAllNamecheapDomains()" class="btn-github"
+                            style="padding: 6px 12px; font-size: 13px;">
+                            <i class="fas fa-copy"></i> Copy All
+                        </button>
+                    </div>
+                    <div id="namecheap-domains-list"
+                        style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: 6px;">
+                    </div>
+                </div>
+
+                <div id="namecheap-domains-error" style="display: none; margin-top: 16px;">
+                    <div
+                        style="padding: 12px; background-color: rgba(207, 34, 46, 0.1); border: 1px solid rgba(207, 34, 46, 0.4); border-radius: 6px; color: #cf222e; font-size: 13px;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span id="namecheap-domains-error-message"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid var(--border-panel); padding: 16px;">
+                <button onclick="closeNamecheapDomainsModal()" class="btn-github">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Domain Manager Script -->
+    <script src="{{ url_for('static', filename='js/domain_manager.js') }}"></script>
+
 </body>
 
 </html>

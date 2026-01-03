@@ -248,7 +248,7 @@ def login_required(f):
 ROLE_PERMISSIONS = {
     'admin': ['dashboard', 'aws_management', 'settings', 'users', 'whitelist'],
     'mailer': ['dashboard', 'aws_management', 'settings'],
-    'support': ['dashboard', 'settings']
+    'support': ['dashboard']
 }
 
 def permission_required(permission):
@@ -306,8 +306,20 @@ def before_request():
         return
 
     # Allow logged-in users to bypass IP whitelist check
-    # Once authenticated, they don't need IP whitelist anymore
+    # But FIRST, enforce Role-Based Access Control (RBAC) for critical routes
     if session.get('user'):
+        # Restricted Routes Check
+        if request.path == '/settings':
+            user_role = session.get('role')
+            # Get allowed permissions, defaulting to empty list
+            # Note: ROLE_PERMISSIONS is defined above
+            allowed_perms = ROLE_PERMISSIONS.get(user_role, [])
+            
+            if 'settings' not in allowed_perms:
+                app.logger.warning(f"Access denied to /settings for user {session.get('user')} (role: {user_role})")
+                flash("Access denied: You do not have permission to view Settings.", "danger")
+                return redirect(url_for('dashboard'))
+
         app.logger.debug(f"Allowing logged-in user {session.get('user')} to access {request.endpoint}")
         return
 

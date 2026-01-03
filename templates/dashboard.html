@@ -23,8 +23,8 @@
 <!-- Tab 1: Account & User Management (existing content) -->
 <div id="tab1" class="tab-content active">
     <!-- Account Selection & Authentication -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="account-selection">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-user-friends"></i>
                 Account Selection & Authentication
@@ -103,12 +103,17 @@
             <p>No account authenticated</p>
         </div>
 
-        <!-- OTP Generator -->
-        <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-panel);">
-            <h4 style="color: var(--text-primary); margin-bottom: 16px; font-size: 16px;">
-                <i class="fas fa-key"></i> OTP Generator
-            </h4>
+    </div>
 
+    <!-- OTP Generator -->
+    <div class="github-card draggable-card" data-id="otp-generator">
+        <div class="github-card-header" style="cursor: move;">
+            <h3 class="github-card-title">
+                <i class="fas fa-key"></i> OTP Generator
+            </h3>
+        </div>
+
+        <div style="padding-top: 16px;">
             <div class="row g-3 align-items-end">
                 <div class="col-md-8">
                     <div class="d-flex align-items-center justify-content-between mb-2">
@@ -575,8 +580,9 @@
 <div id="tab2" class="tab-content">
 
     <!-- Bulk Account Management -->
-    <div class="github-card" style="margin-bottom: 24px; border: 2px solid #0969da;">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="bulk-management"
+        style="margin-bottom: 24px; border: 2px solid #0969da;">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-users-cog"></i>
                 Bulk Account Management
@@ -586,20 +592,24 @@
             Create users for multiple accounts in bulk. All accounts will be authenticated using saved Authenticators in
             parallel.
         </p>
-        <button onclick="openBulkAccountModal()" class="btn-github btn-github-primary" style="width: 100%;">
-            <i class="fas fa-layer-group"></i>
-            Manage Bulk Accounts
-        </button>
+        <!-- Fix: Removed width: 100% and wrapped in responsive div -->
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <button onclick="openBulkAccountModal()" class="btn-github btn-github-primary">
+                <i class="fas fa-layer-group"></i>
+                Manage Bulk Accounts
+            </button>
+        </div>
 
         <!-- Results Display Section -->
         <div id="bulk-account-results"
             style="display: none; margin-top: 24px; padding-top: 24px; border-top: 1px solid #d0d7de;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
                 <h4 style="color: #24292f; margin: 0; font-size: 16px;">
                     <i class="fas fa-list"></i>
                     Created Users (user:password format)
                 </h4>
-                <button onclick="copyBulkAccountResults()" class="btn-github" style="margin-left: 8px;">
+                <button onclick="copyBulkAccountResults()" class="btn-github">
                     <i class="fas fa-sync-alt"></i>
                     Retrieve & Copy All Users
                 </button>
@@ -645,7 +655,7 @@
                         Format: <code>account,password</code> or <code>account,domain,password</code> (one per line).
                         Default: 50 users per account.
                     </small>
-                    <button onclick="parseBulkAccountsPaste()" class="btn-github" style="margin-top: 8px; width: 100%;">
+                    <button onclick="parseBulkAccountsPaste()" class="btn-github" style="margin-top: 8px;">
                         <i class="fas fa-magic"></i>
                         Parse & Fill Table
                     </button>
@@ -686,30 +696,29 @@
                 </div>
 
                 <!-- Add Account Button -->
-                <div style="margin-bottom: 16px;">
-                    <button onclick="addBulkAccountRow()" class="btn-github" style="width: 100%;">
+                <div style="margin-bottom: 16px;" class="d-flex">
+                    <button onclick="addBulkAccountRow()" class="btn-github">
                         <i class="fas fa-plus"></i>
                         Add Account Row
                     </button>
                 </div>
 
-                <div style="display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;">
-                    <button onclick="executeBulkAccountCreation()" class="btn-github btn-github-primary"
-                        style="flex: 1; min-width: 150px;">
+                <div class="d-flex flex-wrap gap-2 mt-4">
+                    <button onclick="executeBulkAccountCreation()" class="btn-github btn-github-primary">
                         <i class="fas fa-play"></i>
                         Start Bulk Creation
                     </button>
                     <button onclick="retrieveUsersFromTableAccounts(event)" class="btn-github"
-                        style="flex: 1; min-width: 150px; background-color: #0969da; border-color: #0969da; color: white;">
+                        style="background-color: #0969da; border-color: #0969da; color: white;">
                         <i class="fas fa-sync-alt"></i>
                         Auth + Retrieve Bulk Users
                     </button>
                     <button onclick="executeBulkAccountDeletion(event)" class="btn-github"
-                        style="flex: 1; min-width: 150px; background-color: #d73a49; border-color: #d73a49; color: white;">
+                        style="background-color: #d73a49; border-color: #d73a49; color: white;">
                         <i class="fas fa-trash"></i>
                         Authenticate & Delete All Users
                     </button>
-                    <button onclick="closeBulkAccountModal()" class="btn-github" style="flex: 1; min-width: 150px;">
+                    <button onclick="closeBulkAccountModal()" class="btn-github">
                         <i class="fas fa-times"></i>
                         Cancel
                     </button>
@@ -753,8 +762,8 @@
     </div>
 
     <!-- Create Single User -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="create-single-user">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-user-plus"></i>
                 Create Single User
@@ -797,8 +806,8 @@
     </div>
 
     <!-- Domain Management -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="domain-management">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-globe"></i>
                 Domain Management
@@ -882,8 +891,8 @@
     </div>
 
     <!-- Create Users from CSV File -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="create-csv">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-file-csv"></i>
                 Create Users from CSV File
@@ -896,15 +905,17 @@
                 </label>
                 <input type="file" id="csv-file-input" class="form-control-github w-100" accept=".csv">
             </div>
-            <button onclick="createUsersFromCSV()" class="btn-github btn-github-primary">
-                <i class="fas fa-upload"></i> Create Users from CSV
-            </button>
+            <div style="flex-grow: 0;">
+                <button onclick="createUsersFromCSV()" class="btn-github btn-github-primary" style="width: auto;">
+                    <i class="fas fa-upload"></i> Create Users from CSV
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- Create Random Users -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="create-random">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-random"></i>
                 Create Random Users
@@ -931,15 +942,15 @@
                 <input type="text" id="random-user-password" class="form-control-github w-100"
                     placeholder="Password for all users">
             </div>
-            <button onclick="createRandomUsers()" class="btn-github btn-github-primary">
+            <button onclick="createRandomUsers()" class="btn-github btn-github-primary" style="width: auto;">
                 <i class="fas fa-random"></i> Create Random Users
             </button>
         </div>
     </div>
 
     <!-- Create Random Admin Users -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="create-admin">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-user-shield"></i>
                 Create Random Admin Users
@@ -979,7 +990,7 @@
                     <option value="SECURITY_ADMIN">Security Admin</option>
                 </select>
             </div>
-            <button onclick="createRandomAdminUsers()" class="btn-github btn-github-warning">
+            <button onclick="createRandomAdminUsers()" class="btn-github btn-github-warning" style="width: auto;">
                 <i class="fas fa-user-shield"></i> Create Admin Users
             </button>
         </div>
@@ -994,8 +1005,8 @@
     </div>
 
     <!-- Update Passwords for Specific Users -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="update-passwords">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-key"></i>
                 Update Passwords for Specific Users
@@ -1016,15 +1027,18 @@
                 <input type="text" id="password-update-new" class="form-control-github w-100"
                     placeholder="New password for these users">
             </div>
-            <button onclick="updateSpecificUserPasswords()" class="btn-github btn-github-primary">
-                <i class="fas fa-save"></i> Update Passwords
-            </button>
+            <div style="align-self: flex-end;">
+                <button onclick="updateSpecificUserPasswords()" class="btn-github btn-github-primary"
+                    style="width: auto;">
+                    <i class="fas fa-save"></i> Update Passwords
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- Change Domain for Specific Users -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="change-domain-specific">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-exchange-alt"></i>
                 Change Domain for Specific Users
@@ -1057,8 +1071,8 @@
     </div>
 
     <!-- Delete Specific Users -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="delete-specific">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-user-times"></i>
                 Delete Specific Users
@@ -1077,8 +1091,8 @@
     </div>
 
     <!-- Results Log -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="results-log">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-file-alt"></i>
                 Results Log
@@ -1099,8 +1113,8 @@
 <div id="tab3" class="tab-content">
 
     <!-- Workflow 1: Change Domain using CSV File -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="workflow-1-csv-domain">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-file-csv"></i>
                 Workflow 1: Change Domain using CSV File
@@ -1193,8 +1207,8 @@
     </div>
 
     <!-- Subdomain Status Management -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="subdomain-status-mgmt">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-toggle-on"></i>
                 Subdomain Status Management
@@ -1254,8 +1268,8 @@
     </div>
 
     <!-- Workflow 2: Change Domain for All Users (Non-CSV, Excludes Admin) -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="workflow-2-change-all">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-exchange-alt"></i>
                 Workflow 2: Change Domain for All Users (Non-CSV, Excludes Admin)
@@ -1311,8 +1325,8 @@
 
 
     <!-- Domain Addition & Verification -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="domain-addition-verification">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-check-circle"></i>
                 Domain Addition & Verification
@@ -1413,8 +1427,8 @@
     </div>
 
     <!-- Bulk Multi-Account Domain Verification -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="bulk-multi-account-verification">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-layer-group"></i>
                 Bulk Multi-Account Domain Verification
@@ -1513,8 +1527,8 @@
     </div>
 
     <!-- Results Log (Covers Both Workflows) -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="results-log-combined">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-file-alt"></i>
                 Results Log (Covers Both Workflows)
@@ -1536,8 +1550,8 @@
     </div>
 
     <!-- SMTP Credential Tester -->
-    <div class="github-card" style="margin-top: 32px;">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="smtp-credential-tester" style="margin-top: 32px;">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-envelope"></i>
                 SMTP Credential Tester
@@ -1618,8 +1632,8 @@
     </div>
 
     <!-- Generate Sample CSV for User Creation -->
-    <div class="github-card" style="margin-top: 24px;">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="generate-sample-csv" style="margin-top: 24px;">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-file-csv"></i>
                 Generate Sample CSV for User Creation
@@ -1664,8 +1678,8 @@
     </div>
 
     <!-- Mega Upgrade: Single Account Workflow -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="mega-upgrade-workflow">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-rocket"></i>
                 Mega Upgrade: Single Account Workflow
@@ -1684,8 +1698,8 @@
     </div>
 
     <!-- App Password Management -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="app-password-mgmt">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-key"></i>
                 App Password Management
@@ -1777,8 +1791,8 @@
     </div>
 
     <!-- Automation Authentication Process -->
-    <div class="github-card">
-        <div class="github-card-header">
+    <div class="github-card draggable-card" data-id="automation-auth-process">
+        <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
                 <i class="fas fa-robot"></i>
                 Automation Authentication Process
@@ -12382,5 +12396,73 @@
         const provider = document.querySelector('input[name="dns-provider"]:checked').value;
         console.log("Selected provider:", provider);
     }
+</script>
+
+<!-- SortableJS Initialization -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Init Tab 1 Sortable (Account & OTP)
+        var elTab1 = document.getElementById('tab1');
+        if (elTab1) {
+            Sortable.create(elTab1, {
+                animation: 150,
+                handle: '.github-card-header',
+                draggable: '.draggable-card',
+                ghostClass: 'sortable-ghost',
+                store: {
+                    get: function (sortable) {
+                        var order = localStorage.getItem('tab1-order');
+                        return order ? order.split('|') : [];
+                    },
+                    set: function (sortable) {
+                        var order = sortable.toArray();
+                        localStorage.setItem('tab1-order', order.join('|'));
+                    }
+                }
+            });
+        }
+
+        // Init Tab 2 Sortable
+        var elTab2 = document.getElementById('tab2');
+        if (elTab2) {
+            Sortable.create(elTab2, {
+                animation: 150,
+                handle: '.github-card-header',
+                draggable: '.draggable-card',
+                ghostClass: 'sortable-ghost',
+                store: {
+                    get: function (sortable) {
+                        var order = localStorage.getItem('tab2-order');
+                        return order ? order.split('|') : [];
+                    },
+                    set: function (sortable) {
+                        var order = sortable.toArray();
+                        localStorage.setItem('tab2-order', order.join('|'));
+                    }
+                }
+            });
+        }
+
+        // Init Tab 3 Sortable (DNS & SMTP)
+        var elTab3 = document.getElementById('tab3');
+        if (elTab3) {
+            Sortable.create(elTab3, {
+                animation: 150,
+                handle: '.github-card-header',
+                draggable: '.draggable-card',
+                ghostClass: 'sortable-ghost',
+                store: {
+                    get: function (sortable) {
+                        var order = localStorage.getItem('tab3-order');
+                        return order ? order.split('|') : [];
+                    },
+                    set: function (sortable) {
+                        var order = sortable.toArray();
+                        localStorage.setItem('tab3-order', order.join('|'));
+                    }
+                }
+            });
+        }
+    });
 </script>
 {% endblock %}

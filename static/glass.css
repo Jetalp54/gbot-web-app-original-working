@@ -205,63 +205,78 @@
 }
 
 /* Aurora Theme (Light Mode Mapping) */
-/* Aurora Theme (Light Mode Mapping) - REFINED VERCEL LIGHT */
+/* Aurora Theme (Monday.com Style) */
 [data-theme="aurora"],
 [data-theme="light"] {
-    --bg-app: #ffffff;
+    --bg-app: #f5f6f8;
+    /* Soft blue-gray background common in monday.com */
     --bg-modal: #ffffff;
     --bg-panel: #ffffff;
     --bg-gradient: none;
-    /* Flat white for cleaner look */
 
-    /* Darker borders for crisp definition */
-    --border-panel: #e5e5e5;
-    --border-top: #e5e5e5;
-    --border-bottom: #e5e5e5;
+    /* Crisp borders */
+    --border-panel: #d0d4e4;
+    --border-top: #d0d4e4;
+    --border-bottom: #d0d4e4;
 
-    /* High contrast text */
-    --text-primary: #171717;
-    /* Near black */
-    --text-secondary: #666666;
-    --text-muted: #888888;
+    /* Monday.com text colors */
+    --text-primary: #323338;
+    /* Dark gray, almost black */
+    --text-secondary: #676879;
+    /* Muted gray */
+    --text-muted: #9699a6;
 
     /* Inputs */
-    --input-bg: #fafafa;
-    --input-border: #d4d4d4;
-    /* Darker border for visibility */
+    --input-bg: #ffffff;
+    --input-border: #c3c6d4;
 
-    /* Buttons */
-    --accent-primary: #171717;
-    /* Strong Black CTA */
-    --accent-secondary: #f3f3f3;
-    /* Light gray base for secondary */
+    /* Monday.com Branding Colors */
+    --accent-primary: #0073ea;
+    /* Monday Blue (Primary Action) */
+    --accent-secondary: #f0f3ff;
+    /* Very light blue for secondary buttons */
+
+    /* Semantic Colors */
+    --color-success: #00ca72;
+    /* Monday Green */
+    --color-danger: #fb275d;
+    /* Monday Red */
+    --color-warning: #ffcb00;
+    /* Monday Yellow */
 
     /* Specific overrides for light mode components */
-    --glass-header-bg: rgba(255, 255, 255, 0.9);
+    --glass-header-bg: #ffffff;
     --glass-blur: 0px;
-    /* Remove blur for crispness in light mode */
+    --panel-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    /* Subtle shadow for panels */
 }
 
 /* Light Mode Specific Overrides */
 [data-theme="aurora"] .glass-sidebar,
 [data-theme="light"] .glass-sidebar {
-    background: #fafafa;
-    /* Distinct sidebar background */
-    border-right: 1px solid #e5e5e5;
+    background: #ffffff;
+    /* Clean white sidebar */
+    border-right: 1px solid #d0d4e4;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.04);
+    /* Subtle depth */
 }
 
+/* Light mode buttons - Monday Style */
 [data-theme="aurora"] .glass-button:not(.glass-button-primary):not(.glass-button-danger),
 [data-theme="light"] .glass-button:not(.glass-button-primary):not(.glass-button-danger) {
     background: #ffffff;
-    border: 1px solid #e5e5e5;
-    color: #171717;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    border: 1px solid #c3c6d4;
+    color: #323338;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    /* Slight lift */
 }
 
 [data-theme="aurora"] .glass-button:hover:not(.glass-button-primary):not(.glass-button-danger),
 [data-theme="light"] .glass-button:hover:not(.glass-button-primary):not(.glass-button-danger) {
-    background: #f5f5f5;
-    border-color: #d4d4d4;
+    background: #f0f3ff;
+    /* Soft blue hover */
+    border-color: #0073ea;
+    color: #0073ea;
 }
 
 /* 3. Glass Panels */
@@ -648,6 +663,156 @@
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
     color: var(--text-primary) !important;
     margin-bottom: 1.5rem !important;
+}
+
+.draggable-card .github-card-header:active {
+    cursor: grabbing;
+}
+
+/* =========================================
+   GLOBAL FLOATING DOMAIN MANAGER (FAB)
+   ========================================= */
+
+.domain-fab-container {
+    position: fixed;
+    /* Auto-Hide Logic:
+       Width is 56px.
+       -42px hides 75% of it, leaving a 14px "peek" area.
+       User hovers -> it slides out.
+    */
+    right: -42px;
+    transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+    top: 50%;
+    transform: translateY(-50%);
+    bottom: auto;
+    z-index: 10000;
+
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 12px;
+
+    /* Increase hit area to the left so mouse doesn't slip off easily */
+    padding-left: 24px;
+}
+
+/* Slide out on hover */
+.domain-fab-container:hover {
+    right: 16px;
+}
+
+/* Main Toggle Button */
+.domain-fab-main {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    /* Use theme variable for background to match selected color */
+    background: var(--accent-primary, rgba(99, 102, 241, 0.9));
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    /* Keep icon white for contrast */
+    font-size: 24px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.domain-fab-main:hover {
+    transform: scale(1.1);
+    /* Slight brightness increase on hover */
+    filter: brightness(1.2);
+}
+
+.domain-fab-main:active {
+    transform: scale(0.95);
+}
+
+/* Option Buttons Container */
+.domain-fab-options {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(20px) scale(0.8);
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.domain-fab-options.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateY(0) scale(1);
+}
+
+/* Individual Option Buttons */
+.domain-fab-option {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--bg-panel);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border-panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.domain-fab-option:hover {
+    transform: scale(1.1);
+    background: var(--bg-modal);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* Tooltips */
+.domain-fab-option::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    right: 60px;
+    top: 50%;
+    transform: translateY(-50%) translateX(10px);
+    background: var(--bg-modal);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-panel);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.domain-fab-option:hover::before {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+}
+
+/* Icon specific colors */
+.fab-cloudflare {
+    color: #F38020;
+}
+
+.fab-namecheap {
+    color: #DE3723;
+}
+
+/* Modal Global Overrides */
+.domain-modal-global {
+    z-index: 10001 !important;
 }
 
 .glass-ui .github-card-header,
@@ -1657,4 +1822,86 @@ html body .glass-ui textarea::placeholder {
     border: 1px solid var(--border-panel) !important;
     border-radius: 8px;
     padding: 16px;
+}
+
+/* Responsive Button Row */
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: center;
+}
+
+/* Ensure buttons inside don't shrink too much but aren't huge */
+.button-row .btn-github,
+.button-row .glass-button {
+    flex: 0 1 auto;
+    min-width: max-content;
+}
+
+/* Mobile check: On very small screens, let them stretch */
+@media (max-width: 600px) {
+
+    .button-row .btn-github,
+    .button-row .glass-button {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+}
+
+/* Button Fixes */
+.btn-github {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    line-height: 20px !important;
+    border-radius: 6px !important;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    height: auto !important;
+    /* Force auto height */
+    min-height: 32px;
+}
+
+/* Primary Button Style */
+.btn-github-primary {
+    background-color: #1f883d;
+    color: #ffffff;
+    border: 1px solid rgba(27, 31, 36, 0.15);
+    box-shadow: 0 1px 0 rgba(27, 31, 36, 0.1);
+}
+
+.btn-github-primary:hover {
+    background-color: #1a7f37;
+}
+
+/* Warning Button Style */
+.btn-github-warning {
+    background-color: #9a6700;
+    /* Darker orange/brown */
+    color: #ffffff;
+    border: 1px solid rgba(27, 31, 36, 0.15);
+}
+
+/* Danger Button Style */
+.btn-github-danger {
+    background-color: #d73a49;
+    color: #ffffff;
+    border: 1px solid rgba(27, 31, 36, 0.15);
+}
+
+/* Drag Handle Cursor */
+.draggable-card .github-card-header {
+    cursor: move;
+    /* Fallback */
+    cursor: grab;
+}
+
+.draggable-card .github-card-header:active {
+    cursor: grabbing;
 }

@@ -72,23 +72,23 @@
                         <div class="glass-panel p-3 mb-0" style="background: rgba(255,255,255,0.03) !important;">
                             <h6 class="mb-3 text-uppercase text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">
                                 Resource Naming Configuration</h6>
-                            <div class="row g-3">
-                                <div class="col-md-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                <div>
                                     <label class="form-label text-muted small">ECR Repository Name</label>
                                     <input type="text" class="glass-input w-100" id="ecrRepoName"
                                         value="dev-app-password-worker" placeholder="e.g., dev-worker">
                                 </div>
-                                <div class="col-md-3">
+                                <div>
                                     <label class="form-label text-muted small">DynamoDB Table Name</label>
                                     <input type="text" class="glass-input w-100" id="dynamodbTableName"
                                         value="dev-app-passwords" placeholder="e.g., dev-passwords">
                                 </div>
-                                <div class="col-md-3">
+                                <div>
                                     <label class="form-label text-muted small">S3 Bucket Name</label>
                                     <input type="text" class="glass-input w-100" id="s3BucketName"
                                         value="dev-app-passwords" placeholder="e.g., dev-bucket">
                                 </div>
-                                <div class="col-md-3">
+                                <div>
                                     <label class="form-label text-muted small">IAM Role Prefix</label>
                                     <input type="text" class="glass-input w-100" id="iamRolePrefix" value="dev"
                                         placeholder="e.g., dev">
@@ -100,32 +100,32 @@
                     <!-- Actions Grid -->
                     <div class="col-md-6">
                         <h5 class="mb-3">Setup & Provisioning</h5>
-                        <div class="d-grid gap-3">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <button class="glass-button glass-button-primary w-100" onclick="createInfrastructure()">
-                                <i class="fas fa-plus-circle me-2"></i>Create Core Resources (IAM, ECR, S3)
+                                <i class="fas fa-plus-circle me-2"></i>Core Res.
                             </button>
                             <button class="glass-button glass-button-primary w-100" onclick="createDynamoDBTable()">
-                                <i class="fas fa-database me-2"></i>Create DynamoDB Table
+                                <i class="fas fa-database me-2"></i>DynamoDB
                             </button>
                             <button class="glass-button w-100" onclick="createECRManual()">
-                                <i class="fas fa-box me-2"></i>Create ECR Repository (Manual)
+                                <i class="fas fa-box me-2"></i>ECR Repo
                             </button>
                         </div>
                     </div>
 
                     <div class="col-md-6">
                         <h5 class="mb-3">Deployment & Inspection</h5>
-                        <div class="d-grid gap-3">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <button class="glass-button w-100"
                                 style="border-color: var(--color-success-emphasis); color: var(--color-success-fg);"
                                 onclick="pushECRToAllRegions()">
-                                <i class="fas fa-globe me-2"></i>Push ECR Image to All Regions
+                                <i class="fas fa-globe me-2"></i>Push ECR
                             </button>
                             <button class="glass-button w-100" onclick="generateECRPushScript()">
-                                <i class="fas fa-file-code me-2"></i>Generate Push Script
+                                <i class="fas fa-file-code me-2"></i>Script
                             </button>
                             <button class="glass-button w-100" onclick="inspectResources()">
-                                <i class="fas fa-search me-2"></i>Inspect Resources
+                                <i class="fas fa-search me-2"></i>Inspect
                             </button>
                         </div>
                     </div>
@@ -250,39 +250,39 @@
                     <div class="mt-4 pt-3 border-top border-white-10">
                         <h6 class="text-danger mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Destructive
                             Cleanup</h6>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6 col-md-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                            <div>
                                 <input type="text" class="glass-input w-100 form-control-sm" id="deleteS3BucketName"
                                     value="dev-app-passwords" placeholder="Bucket">
                             </div>
                             {% if user_role == 'admin' %}
-                            <div class="col-6 col-md-3">
+                            <div>
                                 <input type="text" class="glass-input w-100 form-control-sm" id="deleteEcrRepoName"
                                     value="dev-app-password-worker" placeholder="Repo">
                             </div>
                             {% endif %}
-                            <div class="col-6 col-md-3">
+                            <div>
                                 <input type="text" class="glass-input w-100 form-control-sm" id="deleteLogGroupPrefix"
                                     value="/aws/lambda/dev" placeholder="Logs">
                             </div>
                             {% if user_role == 'admin' %}
-                            <div class="col-6 col-md-3">
+                            <div>
                                 <input type="text" class="glass-input w-100 form-control-sm"
                                     id="deleteDynamodbTableName" value="dev-app-passwords" placeholder="Table">
                             </div>
                             {% endif %}
                         </div>
-                        <div class="d-flex gap-2 flex-wrap">
-                            <button class="glass-button glass-button-danger btn-sm flex-grow-1"
-                                onclick="deleteS3Content()">S3 Content</button>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <button class="glass-button glass-button-danger btn-sm w-100" onclick="deleteS3Content()">S3
+                                Content</button>
                             {% if user_role == 'admin' %}
-                            <button class="glass-button glass-button-danger btn-sm flex-grow-1"
-                                onclick="deleteECRRepo()">ECR Repo</button>
+                            <button class="glass-button glass-button-danger btn-sm w-100" onclick="deleteECRRepo()">ECR
+                                Repo</button>
                             {% endif %}
-                            <button class="glass-button glass-button-danger btn-sm flex-grow-1"
+                            <button class="glass-button glass-button-danger btn-sm w-100"
                                 onclick="deleteCloudWatchLogs()">Logs</button>
                             {% if user_role == 'admin' %}
-                            <button class="glass-button glass-button-danger btn-sm flex-grow-1"
+                            <button class="glass-button glass-button-danger btn-sm w-100"
                                 onclick="deleteDynamoDBTable()">DynamoDB</button>
                             {% endif %}
                         </div>
