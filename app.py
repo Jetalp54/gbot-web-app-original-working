@@ -11586,8 +11586,10 @@ def api_save_proxy_config():
 @login_required
 def api_get_twocaptcha_config():
     """Get current 2Captcha configuration"""
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    # Allow admin, mailer, and support to view config
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     
     try:
         from database import TwoCaptchaConfig
@@ -11610,8 +11612,10 @@ def api_get_twocaptcha_config():
 @login_required
 def api_save_twocaptcha_config():
     """Save 2Captcha configuration"""
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    # Allow admin, mailer, and support to save config
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     
     try:
         data = request.get_json()
