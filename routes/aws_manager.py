@@ -450,8 +450,10 @@ def test_connection():
 def save_aws_config():
     """Save AWS credentials configuration"""
     try:
-        if session.get('role') != 'admin':
-            return jsonify({'success': False, 'error': 'Admin privileges required'}), 403
+        # Allow admin, mailer, and support to save config (needed for running infrastructure)
+        allowed_roles = ['admin', 'mailer', 'support']
+        if session.get('role') not in allowed_roles:
+            return jsonify({'success': False, 'error': 'Insufficient privileges'}), 403
         
         # Ensure table exists and has required columns
         try:

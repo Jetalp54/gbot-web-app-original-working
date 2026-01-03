@@ -11654,8 +11654,10 @@ def api_save_twocaptcha_config():
 @login_required
 def api_test_twocaptcha():
     """Test 2Captcha API key by checking balance"""
-    if session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    # Allow admin, mailer, and support to test config
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     
     try:
         data = request.get_json()
