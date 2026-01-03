@@ -65,11 +65,13 @@ def get_naming_config():
                 
                 # [MULTI-USER] Scope Lambda Name to Logged-in User
                 # If user is logged in, use "{User}-chromium", otherwise fallback to DB/Default
-                current_user = session.get('username')
+                # Use 'user' key as defined in app.py login logic
+                current_user = session.get('user')
                 if current_user:
-                    # Enforce Capitalized Username for resource naming (e.g., 'angel' -> 'Angel-chromium')
-                    # This ensures unique resources per user as requested
-                    lambda_prefix = f"{current_user.capitalize()}-chromium"
+                    # Enforce Capitalized Username for resource naming 
+                    # Handle if username is an email (e.g. angel@domain.com -> Angel)
+                    clean_user = current_user.split('@')[0]
+                    lambda_prefix = f"{clean_user.capitalize()}-chromium"
                 else:
                     lambda_prefix = config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME
 
@@ -97,9 +99,10 @@ def get_naming_config():
     # Return defaults if config not found
     # Return defaults if config not found
     # [MULTI-USER] apply fallback user scoping even if no DB config
-    current_user = session.get('username')
+    current_user = session.get('user')
     if current_user:
-        lambda_prefix = f"{current_user.capitalize()}-chromium"
+        clean_user = current_user.split('@')[0]
+        lambda_prefix = f"{clean_user.capitalize()}-chromium"
     else:
         lambda_prefix = DEFAULT_PRODUCTION_LAMBDA_NAME
 
