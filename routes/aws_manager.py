@@ -3382,8 +3382,17 @@ def create_lambdas():
             # Check for errors in the job tracking
             with lambda_creation_lock:
                 job_data = lambda_creation_jobs.get(creation_job_id)
+                
+                # Check for explicit errors
                 if job_data and job_data.get('errors'):
                     error_msg = f"Errors occurred during creation: {job_data['errors']}"
+                    logger.error(f"[LAMBDA] {error_msg}")
+                    return jsonify({'success': False, 'error': error_msg}), 500
+                
+                # Check if NO functions were created (silent failure)
+                success_count = job_data.get('success_count', 0) if job_data else 0
+                if success_count == 0:
+                    error_msg = "NO functions were created! The ECR repository likely does not exist in the selected region."
                     logger.error(f"[LAMBDA] {error_msg}")
                     return jsonify({'success': False, 'error': error_msg}), 500
                     
