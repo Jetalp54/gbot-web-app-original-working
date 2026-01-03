@@ -4568,7 +4568,7 @@ def bulk_generate():
                                                 account_id = sts.get_caller_identity()['Account']
                                                 ecr_uri = f"{account_id}.dkr.ecr.{geo}.amazonaws.com/{ECR_REPO_NAME}:{ECR_IMAGE_TAG}"
                                         
-                                            if func_name != PRODUCTION_LAMBDA_NAME:
+                                            if func_name != lambda_prefix_bulk:
                                                 create_or_update_lambda(
                                                     session=session_boto,
                                                     function_name=func_name,
@@ -4582,7 +4582,7 @@ def bulk_generate():
                                                 existing_function_names.append(func_name)
                                         except Exception as create_err:
                                             logger.error(f"[BULK] [{geo}] Failed to create {func_name}: {create_err}")
-                                            func_name = PRODUCTION_LAMBDA_NAME
+                                            func_name = lambda_prefix_bulk
                                 
                                 # Verify function exists
                                 try:
