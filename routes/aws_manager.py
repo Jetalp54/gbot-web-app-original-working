@@ -2837,7 +2837,12 @@ def create_lambdas():
                         try:
                             ecr_match = re.match(r'(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com/([^:]+):(.+)', base_ecr_uri)
                             if ecr_match:
-                                account_id, base_region, repo_name, image_tag = ecr_match.groups()
+                                account_id, base_region, parsed_repo_name, image_tag = ecr_match.groups()
+                                # Only override repo_name if it wasn't provided or set
+                                if not repo_name:
+                                    repo_name = parsed_repo_name
+                                else:
+                                    logger.info(f"[LAMBDA] [{geo}] Using configured ECR repo: {repo_name} (ignoring parsed: {parsed_repo_name})")
                                 logger.info(f"[LAMBDA] [{geo}] Parsed ECR URI - Account: {account_id}, Base Region: {base_region}, Repo: {repo_name}, Tag: {image_tag}")
                             else:
                                 # Fallback: try to get account ID from STS
