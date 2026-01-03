@@ -3967,8 +3967,10 @@ def bulk_generate():
                 
                 geos_with_functions = {}  # {geo: [list of function_names]}
                 
-                # Check each geo to see if it has Lambda functions
-                for geo in AVAILABLE_GEO_REGIONS:
+                # Check ONLY the user's selected region for Lambda functions
+                # This ensures multi-tenant isolation (each user invokes their own Lambdas)
+                # and dramatically speeds up the discovery process
+                for geo in [region]:  # Only check the user-selected region
                     try:
                         logger.info(f"[BULK] Checking geo {geo} for Lambda functions...")
                         geo_session = boto3.Session(
