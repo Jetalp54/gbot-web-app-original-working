@@ -3362,6 +3362,7 @@ def create_lambdas():
         # [DEBUG] Force SYNCHRONOUS execution to catch errors immediately
         # Using 900 seconds (15 minutes) - AWS Lambda maximum timeout
         try:
+            timeout = 900  # Default timeout 15 minutes
             logger.info("[LAMBDA] [DEBUG] Executing create_lambdas_background SYNCHRONOUSLY...")
             create_lambdas_background(
                 functions_by_geo_dict=functions_by_geo, 
