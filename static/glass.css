@@ -2,60 +2,70 @@
 /* Strictly additive - No global overrides */
 
 :root {
-    /* 1. Geometric Foundations - The Squircle */
-    --radius-panel: 2.5rem;
-    /* 40px */
-    --radius-inner: 1rem;
-    /* 16px */
+    /* 1. Geometric Foundations - Vercel Precision */
+    --radius-panel: 12px;
+    --radius-inner: 6px;
+    --radius-button: 6px;
 
-    /* 2. Refractive Surfaces */
-    --glass-blur: 28px;
-    --glass-opacity: 0.55;
+    /* 2. Refractive Surfaces - Subtle Production Glass */
+    --glass-blur: 16px;
+    --glass-opacity: 0.8;
+    /* Higher opacity for better contrast */
 
     /* 3. Typography */
-    --font-primary: 'Inter', sans-serif;
-    --font-code: 'Fira Code', monospace;
-    --letter-spacing-header: -0.025em;
+    --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-code: 'Geist Mono', 'Fira Code', 'Monaco', monospace;
+    /* Geist if available */
+    --letter-spacing-header: -0.02em;
 
     /* ANIMATION CURVES */
     --ease-elastic: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-production: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* THEME: NEBULA (Cosmic Default) - REFINED */
+/* THEME: DEFAULT / NEBULA (Vercel Production) */
 :root,
-[data-theme="nebula"] {
-    /* Background */
-    --bg-app: #020617;
-    --bg-gradient: radial-gradient(circle at 50% 0%, #020c2a 0%, #020617 100%);
+[data-theme="nebula"],
+[data-theme="midnight"],
+[data-theme="dark"] {
+    /* Backgrounds - Deep Space */
+    --bg-app: #000000;
+    --bg-gradient: linear-gradient(to bottom, #000000, #000000);
+    /* Flat black base */
 
-    /* Glass Surfaces */
-    --bg-panel: rgba(15, 23, 42, 0.55);
-    --bg-modal: rgba(15, 23, 42, 0.95);
-    --border-panel: rgba(148, 163, 184, 0.12);
-    --border-top: rgba(148, 163, 184, 0.25);
-    /* Boosted slightly for 3D effect */
-    --border-bottom: rgba(148, 163, 184, 0.05);
-    --glass-header-bg: rgba(2, 6, 23, 0.7);
+    /* Surfaces */
+    --bg-panel: rgba(10, 10, 10, 0.6);
+    /* Slightly transparent dark */
+    --bg-modal: #0a0a0a;
 
-    /* Primary / Accent */
-    --accent-primary: #6366f1;
-    /* Indigo */
-    --accent-secondary: #22d3ee;
-    /* Cyan */
-    --accent-glow: rgba(34, 211, 238, 0.5);
+    /* Borders - Crisp & Subtle */
+    --border-panel: rgba(255, 255, 255, 0.08);
+    --border-top: rgba(255, 255, 255, 0.12);
+    /* Subtle highlight */
+    --border-bottom: rgba(0, 0, 0, 1);
 
-    /* Text (CRITICAL) */
-    --text-primary: #e5e7eb;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
+    --glass-header-bg: rgba(0, 0, 0, 0.8);
+
+    /* Primary / Accent - User Controlled */
+    --accent-primary: #ededed;
+    /* Default white for primary actions in dark mode */
+    --accent-secondary: #333333;
+    /* Dark gray for secondary */
+    --accent-glow: rgba(255, 255, 255, 0.15);
+
+    /* Text - High Contrast */
+    --text-primary: #ededed;
+    --text-secondary: #a1a1a1;
+    --text-muted: #666666;
 
     /* Components */
-    --input-bg: rgba(2, 6, 23, 0.4);
+    --input-bg: #0a0a0a;
+    --input-border: #333333;
 
-    /* Orbs */
-    --orb-1: rgba(99, 102, 241, 0.25);
-    --orb-2: rgba(34, 211, 238, 0.25);
-    --orb-3: rgba(15, 23, 42, 0.5);
+    /* Orbs - Subtle or Removed for Clean Look */
+    --orb-1: rgba(255, 255, 255, 0.03);
+    --orb-2: rgba(255, 255, 255, 0.02);
+    --orb-3: rgba(0, 0, 0, 0);
 }
 
 /* THEME: MIDNIGHT (Neon Void) - REFINED */
@@ -165,110 +175,93 @@
     --orb-3: rgba(2, 44, 34, 0.5);
 }
 
-/* THEME: CRIMSON (Solar Flare) - REFINED */
-[data-theme="crimson"] {
-    /* Background */
-    --bg-app: #2a0a0a;
-    --bg-gradient: radial-gradient(circle at bottom, #450a0a, #2a0a0a);
-
-    /* Glass Surfaces */
-    --bg-panel: rgba(127, 29, 29, 0.55);
-    --bg-modal: rgba(127, 29, 29, 0.95);
-    --border-panel: rgba(251, 146, 60, 0.2);
-    --border-top: rgba(251, 146, 60, 0.35);
-    --border-bottom: rgba(251, 146, 60, 0.05);
-    --glass-header-bg: rgba(42, 10, 10, 0.8);
-
-    /* Primary / Accent */
-    --accent-primary: #f43f5e;
-    /* Rose Red */
-    --accent-secondary: #fb923c;
-    /* Solar Orange */
-    --accent-glow: rgba(251, 146, 60, 0.4);
-
-    /* Text */
-    --text-primary: #fff1f2;
-    --text-secondary: #fecdd3;
-    --text-muted: #fda4af;
-
-    /* Components */
-    --input-bg: rgba(0, 0, 0, 0.25);
-
-    /* Orbs */
-    --orb-1: rgba(244, 63, 94, 0.25);
-    --orb-2: rgba(251, 146, 60, 0.25);
-    --orb-3: rgba(42, 10, 10, 0.5);
-}
-
-
-/* 1. Global Scope Wrapper */
-.glass-ui {
-    position: relative;
-    min-height: 100vh;
-    width: 100%;
-    min-width: 100%;
-    box-sizing: border-box;
-    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background-color: var(--bg-app);
-    color: var(--text-primary);
-    overflow-x: hidden;
-    z-index: 0;
-    transition: background-color 0.5s ease, color 0.5s ease;
-}
-
-/* 2. Ambient Orb Animations */
-.glass-orb {
-    position: fixed;
-    border-radius: 50%;
-    filter: blur(80px);
-    z-index: 0;
-    pointer-events: none;
-    opacity: 0.6;
-    animation: float-orb 20s infinite ease-in-out;
-    transition: background 1s ease;
-}
-
-.glass-orb-1 {
-    top: -10%;
-    left: -10%;
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, var(--orb-1) 0%, rgba(15, 23, 42, 0) 70%);
-    animation-delay: 0s;
-}
-
-.glass-orb-2 {
-    bottom: -10%;
-    right: -10%;
-    width: 500px;
-    height: 500px;
-    background: radial-gradient(circle, var(--orb-2) 0%, rgba(15, 23, 42, 0) 70%);
-    animation-delay: -5s;
-}
-
+/* --- ORBS REMOVED FOR CLEAN VERCEL LOOK --- */
+.glass-ui::before,
+.glass-ui::after,
+.glass-orb,
+.glass-orb-1,
+.glass-orb-2,
 .glass-orb-3 {
-    top: 40%;
-    left: 40%;
-    width: 400px;
-    height: 400px;
-    background: radial-gradient(circle, var(--orb-3) 0%, rgba(15, 23, 42, 0) 70%);
-    animation-delay: -10s;
+    display: none !important;
 }
 
-@keyframes float-orb {
+/* Ensure Themes only affect Accent Colors, not Structure */
+/* Crimson Theme */
+[data-theme="crimson"] {
+    --accent-primary: #f43f5e;
+    /* Rose */
+    --accent-secondary: #881337;
+    /* Dark Rose */
+    --accent-glow: rgba(244, 63, 94, 0.2);
+}
 
-    0%,
-    100% {
-        transform: translate(0, 0) scale(1);
-    }
+/* Forest Theme */
+[data-theme="forest"] {
+    --accent-primary: #10b981;
+    /* Emerald */
+    --accent-secondary: #064e3b;
+    /* Dark Emerald */
+    --accent-glow: rgba(16, 185, 129, 0.2);
+}
 
-    33% {
-        transform: translate(30px, -50px) scale(1.1);
-    }
+/* Aurora Theme (Light Mode Mapping) */
+/* Aurora Theme (Light Mode Mapping) - REFINED VERCEL LIGHT */
+[data-theme="aurora"],
+[data-theme="light"] {
+    --bg-app: #ffffff;
+    --bg-modal: #ffffff;
+    --bg-panel: #ffffff;
+    --bg-gradient: none;
+    /* Flat white for cleaner look */
 
-    66% {
-        transform: translate(-20px, 20px) scale(0.9);
-    }
+    /* Darker borders for crisp definition */
+    --border-panel: #e5e5e5;
+    --border-top: #e5e5e5;
+    --border-bottom: #e5e5e5;
+
+    /* High contrast text */
+    --text-primary: #171717;
+    /* Near black */
+    --text-secondary: #666666;
+    --text-muted: #888888;
+
+    /* Inputs */
+    --input-bg: #fafafa;
+    --input-border: #d4d4d4;
+    /* Darker border for visibility */
+
+    /* Buttons */
+    --accent-primary: #171717;
+    /* Strong Black CTA */
+    --accent-secondary: #f3f3f3;
+    /* Light gray base for secondary */
+
+    /* Specific overrides for light mode components */
+    --glass-header-bg: rgba(255, 255, 255, 0.9);
+    --glass-blur: 0px;
+    /* Remove blur for crispness in light mode */
+}
+
+/* Light Mode Specific Overrides */
+[data-theme="aurora"] .glass-sidebar,
+[data-theme="light"] .glass-sidebar {
+    background: #fafafa;
+    /* Distinct sidebar background */
+    border-right: 1px solid #e5e5e5;
+}
+
+[data-theme="aurora"] .glass-button:not(.glass-button-primary):not(.glass-button-danger),
+[data-theme="light"] .glass-button:not(.glass-button-primary):not(.glass-button-danger) {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    color: #171717;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="aurora"] .glass-button:hover:not(.glass-button-primary):not(.glass-button-danger),
+[data-theme="light"] .glass-button:hover:not(.glass-button-primary):not(.glass-button-danger) {
+    background: #f5f5f5;
+    border-color: #d4d4d4;
 }
 
 /* 3. Glass Panels */
@@ -298,18 +291,54 @@
     overflow: hidden;
     margin-bottom: 2rem !important;
 
-    /* Weightless Entrance */
+    background: var(--bg-panel);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--border-panel);
+    border-radius: var(--radius-panel);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 1), 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+    /* Subtle depth */
+    transition: transform 0.2s var(--ease-production), box-shadow 0.2s var(--ease-production), border-color 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    z-index: 10;
+    /* Keep it above orbs */
+    margin-bottom: 2rem !important;
+    /* Maintain spacing */
     animation: slideUp 1s var(--ease-elastic) backwards;
-    transition: transform 0.4s var(--ease-elastic), box-shadow 0.4s var(--ease-elastic), border-color 0.3s ease;
+    /* Keep entrance animation */
 }
 
-/* Magnetic Hover */
 .glass-panel:hover,
 .glass-ui .github-card:hover,
 .glass-ui .card:hover {
-    transform: translateY(-8px) scale(1.01) !important;
-    border-top-color: var(--accent-primary) !important;
-    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6) !important;
+    border-color: var(--border-top);
+    /* Subtle highlight on hover */
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 1), 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    transform: translateY(-3px) scale(1.005);
+    /* Subtle lift */
+}
+
+/* Ensure no internal gradients mess up the flat look */
+.glass-panel::before,
+.glass-panel::after,
+.glass-ui .github-card::before,
+.glass-ui .github-card::after,
+.glass-ui .card::before,
+.glass-ui .card::after {
+    display: none !important;
+}
+
+/* Vercel Header Style */
+.glass-header {
+    background: var(--glass-header-bg);
+    border-bottom: 1px solid var(--border-panel);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    transition: border-color 0.2s ease;
 }
 
 @keyframes slideUp {
@@ -377,125 +406,107 @@
     min-height: 46px;
 }
 
-/* Neutral Pro */
+/* --- 5. INPUTS (Vercel Style) --- */
+.glass-input {
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-primary);
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-button);
+    backdrop-filter: none;
+    /* Removed blur for cleaner text */
+    transition: all 0.15s ease;
+    width: 100%;
+    font-size: 0.9rem;
+    min-height: 40px;
+    /* Standardize height */
+}
+
+.glass-input:focus {
+    outline: none;
+    border-color: var(--text-secondary);
+    /* Subtle highlight */
+    box-shadow: 0 0 0 1px var(--text-secondary);
+    /* Minimal focus ring */
+    background: #000;
+}
+
+.glass-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* --- 6. BUTTONS (Vercel Production) --- */
 .glass-button {
-    background: rgba(255, 255, 255, 0.03) !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
-    color: var(--text-secondary) !important;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    background: var(--accent-secondary);
+    /* Default dark button */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    padding: 0.6rem 1.2rem;
+    border-radius: var(--radius-button);
+    font-weight: 500;
+    font-size: 0.9rem;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    transition: all 0.15s var(--ease-production);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 40px;
 }
 
 .glass-button:hover {
-    background: rgba(255, 255, 255, 0.1) !important;
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(200, 200, 255, 0.3), 0 0 15px rgba(255, 255, 255, 0.05) !important;
-    border-top-color: rgba(255, 255, 255, 0.5) !important;
-    color: var(--text-primary) !important;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
 }
 
-.glass-button:active {
-    transform: translateY(-1px) scale(0.98);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
-}
-
-/* Primary Pro (Interstellar Gradient) */
+/* Primary Action - White/High Contrast */
 .glass-button-primary {
-    background: linear-gradient(135deg, var(--accent-primary) 0%, #4338ca 100%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.4) !important;
-    color: white !important;
-    box-shadow: 0 6px 20px var(--accent-glow),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4),
-        0 0 0 1px rgba(99, 102, 241, 0.2) !important;
+    background: var(--accent-primary) !important;
+    color: #000 !important;
+    /* Inverted text for white button */
+    border: 1px solid transparent !important;
+    font-weight: 600;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .glass-button-primary:hover {
-    transform: translateY(-3px) scale(1.02);
-    /* Neon Glow Intensifies */
-    box-shadow: 0 15px 35px var(--accent-glow),
-        inset 0 1px 0 rgba(255, 255, 255, 0.6),
-        0 0 25px var(--accent-primary) !important;
-    filter: brightness(1.2);
-    border-top-color: white !important;
+    background: #ffffff !important;
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(255, 255, 255, 0.2) !important;
 }
 
-.glass-button-primary:active {
-    transform: translateY(1px) scale(0.98);
-    box-shadow: 0 4px 10px var(--accent-glow) !important;
-}
-
-/* Danger Pro (Solar Flare) */
+/* Danger Action */
 .glass-button-danger {
-    background: linear-gradient(135deg, #ef4444 0%, #7f1d1d 100%) !important;
-    border: 1px solid rgba(239, 68, 68, 0.3) !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.3) !important;
-    color: white !important;
-    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    background: rgba(255, 50, 50, 0.1) !important;
+    color: #ff4444 !important;
+    border: 1px solid rgba(255, 50, 50, 0.2) !important;
 }
 
 .glass-button-danger:hover {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 15px 35px rgba(239, 68, 68, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.5),
-        0 0 25px rgba(239, 68, 68, 0.4) !important;
-    filter: brightness(1.2);
+    background: rgba(255, 50, 50, 0.15) !important;
+    border-color: #ff4444 !important;
 }
 
-/* Warning Pro (Amber Glow) */
+/* Warning Action */
 .glass-button-warning {
-    background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%) !important;
-    border: 1px solid rgba(245, 158, 11, 0.3) !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.3) !important;
-    color: white !important;
-    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    background: rgba(245, 158, 11, 0.1) !important;
+    color: #f59e0b !important;
+    border: 1px solid rgba(245, 158, 11, 0.2) !important;
 }
 
 .glass-button-warning:hover {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 15px 35px rgba(245, 158, 11, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.5),
-        0 0 25px rgba(245, 158, 11, 0.4) !important;
-    filter: brightness(1.2);
+    background: rgba(245, 158, 11, 0.15) !important;
+    border-color: #f59e0b !important;
 }
 
-/* Glass Sheen Animation - The "Premium" Factor */
-@keyframes glassSheen {
-    0% {
-        left: -150%;
-        opacity: 0;
-    }
-
-    50% {
-        opacity: 0.5;
-    }
-
-    100% {
-        left: 150%;
-        opacity: 0;
-    }
-}
-
+/* Remove old glow effects */
+.glass-button::after,
 .glass-button-primary::after,
 .glass-button-danger::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -150%;
-    width: 200%;
-    height: 100%;
-    background: linear-gradient(90deg,
-            transparent 0%,
-            rgba(255, 255, 255, 0.2) 20%,
-            rgba(255, 255, 255, 0.6) 50%,
-            rgba(255, 255, 255, 0.2) 80%,
-            transparent 100%);
-    transform: skewX(-20deg);
-    animation: glassSheen 3s infinite cubic-bezier(0.19, 1, 0.22, 1);
-    /* Slower, more elegant */
-    pointer-events: none;
+    display: none !important;
 }
 
 /* Mapped Legacy Classes (btn-github) to inherit Ultra Premium */
@@ -763,6 +774,153 @@
     z-index: 10 !important;
     position: sticky !important;
     bottom: 0 !important;
+}
+
+/* --- RESPONSIVE SIDEBAR & LAYOUT --- */
+
+/* Default Desktop State (Flex row) */
+.glass-ui {
+    display: flex;
+    flex-direction: row;
+    min-height: 100vh;
+    background: var(--bg-app);
+    background-image: var(--bg-gradient);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    position: relative;
+    width: 100%;
+}
+
+.glass-sidebar {
+    width: 260px;
+    height: 100vh;
+    background: #000;
+    border-right: 1px solid var(--border-panel);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    position: sticky;
+    top: 0;
+    flex-shrink: 0;
+    /* Prevent sidebar shrinking */
+    transition: transform 0.3s var(--ease-production);
+}
+
+.main-content {
+    flex: 1;
+    padding: 2rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100vh;
+    position: relative;
+    width: 100%;
+    /* Ensure it fills remaining space */
+    max-width: calc(100vw - 260px);
+    /* Explicit max-width for desktop */
+}
+
+/* Mobile Toggle - Hidden on Desktop */
+.mobile-nav-toggle {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+    background: var(--accent-secondary);
+    border: 1px solid var(--border-panel);
+    color: var(--text-primary);
+    padding: 0.5rem;
+    border-radius: var(--radius-button);
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* RESPONSIVE BREAKPOINT (Tablet/Mobile < 992px) */
+@media (max-width: 991.98px) {
+    .glass-ui {
+        flex-direction: column;
+    }
+
+    .glass-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(-100%);
+        /* Hidden by default */
+        width: 280px;
+        /* Slightly wider for touch targets */
+        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .glass-sidebar.active {
+        transform: translateX(0);
+    }
+
+    .main-content {
+        padding: 1rem;
+        /* Reduce padding on mobile */
+        width: 100%;
+        max-width: 100vw;
+        height: auto;
+        /* Let it scroll naturally */
+    }
+
+    .mobile-nav-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+    }
+
+    /* Overlay when sidebar is open */
+    .glass-sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(4px);
+        z-index: 90;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .glass-sidebar-overlay.active {
+        display: block;
+        opacity: 1;
+    }
+}
+
+/* Fix Card Layouts on Mobile */
+@media (max-width: 768px) {
+    .glass-panel {
+        padding: 1rem !important;
+        /* Smaller padding inside cards */
+    }
+
+    .glass-header h1 {
+        font-size: 1.5rem !important;
+        /* Smaller headers */
+    }
+
+    /* Force certain flex containers to wrap */
+    .d-flex,
+    .glass-header .d-flex {
+        flex-wrap: wrap;
+    }
+
+    /* Exception for small icon groups or specific toolbars */
+    .no-wrap-mobile {
+        flex-wrap: nowrap !important;
+    }
+}
+
+/* Ensure no horizontal scroll on body */
+body {
+    overflow-x: hidden;
+    width: 100%;
 }
 
 .glass-ui th {

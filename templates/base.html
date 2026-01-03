@@ -3061,272 +3061,242 @@
                 {% block content %}{% endblock %}
             </div>
         </div>
+    </div>
 
-        <!-- Theme Toggle Script -->
-        <script>
-            // Sidebar Management
-            function toggleSidebar() {
-                const sidebar = document.getElementById('sidebar');
-                const toggleIcon = document.getElementById('sidebarToggleIcon');
-                if (sidebar) {
-                    const isCollapsed = sidebar.classList.contains('collapsed');
-                    sidebar.classList.toggle('collapsed');
-                    localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+    <!-- Mobile Sidebar Toggle -->
+    <button class="mobile-nav-toggle" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
 
-                    // Update icon based on state
-                    if (toggleIcon) {
-                        if (sidebar.classList.contains('collapsed')) {
-                            toggleIcon.className = 'fas fa-angle-double-right';
-                        } else {
-                            toggleIcon.className = 'fas fa-angle-double-left';
+    <!-- Sidebar Overlay -->
+    <div class="glass-sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- Responsive Sidebar Script -->
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.glass-sidebar');
+            const overlay = document.querySelector('.glass-sidebar-overlay');
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+
+        // Close sidebar when clicking a link on mobile
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth < 992) {
+                    toggleSidebar();
+                }
+            });
+        });
+    </script>
+
+    <!-- Theme Toggle Script -->
+    <script>
+        // Theme Management
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+        }
+
+        // Dashboard Dropdown Toggle - Clean Implementation
+        function toggleDashboardDropdown(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            const wrapper = document.querySelector('aside.sidebar .nav-item-wrapper');
+            const navItem = wrapper ? wrapper.querySelector('.nav-item.has-dropdown') : null;
+            const dropdown = document.getElementById('dashboardDropdown');
+
+            if (!wrapper || !navItem || !dropdown) {
+                console.error('Sidebar dropdown elements not found', { wrapper, navItem, dropdown });
+                return;
+            }
+
+            const isOpen = wrapper.classList.contains('is-open');
+            console.log('Toggling dropdown, current state:', isOpen);
+
+            if (isOpen) {
+                // Close dropdown
+                wrapper.classList.remove('is-open');
+                navItem.classList.remove('is-open');
+                dropdown.classList.remove('is-open');
+                console.log('Dropdown closed');
+            } else {
+                // Open dropdown
+                wrapper.classList.add('is-open');
+                navItem.classList.add('is-open');
+                dropdown.classList.add('is-open');
+                console.log('Dropdown opened');
+            }
+        }
+
+        function handleDashboardClick(event) {
+            // If clicking on Dashboard link (not dropdown toggle), redirect to tab1
+            if (!event.target.closest('.dropdown-toggle')) {
+                event.preventDefault();
+                window.location.href = '/dashboard#tab1';
+            }
+        }
+
+        function handleDashboardTabClick(event, tabId) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            console.log('handleDashboardTabClick called with tabId:', tabId);
+
+            // Navigate to dashboard if not already there
+            if (window.location.pathname !== '/dashboard') {
+                console.log('Navigating to dashboard with tab:', tabId);
+                window.location.href = '/dashboard#' + tabId;
+                return;
+            }
+
+            // Update URL hash
+            window.location.hash = tabId;
+            console.log('Updated hash to:', tabId);
+
+            // Call showTab function if it exists
+            if (typeof showTab === 'function') {
+                console.log('Calling showTab directly');
+                showTab(tabId);
+            } else {
+                console.log('showTab not found, waiting...');
+                // Fallback: wait for showTab to be available
+                let attempts = 0;
+                const maxAttempts = 10;
+                const checkShowTab = setInterval(() => {
+                    attempts++;
+                    if (typeof showTab === 'function') {
+                        console.log('showTab found after', attempts * 100, 'ms');
+                        clearInterval(checkShowTab);
+                        showTab(tabId);
+                    } else if (attempts >= maxAttempts) {
+                        console.error('showTab function not found after', maxAttempts * 100, 'ms');
+                        clearInterval(checkShowTab);
+                        // Force show the tab by manipulating DOM directly
+                        const tabs = document.querySelectorAll('.tab-content');
+                        tabs.forEach(tab => {
+                            tab.classList.remove('active');
+                            tab.style.display = 'none';
+                        });
+                        const selectedTab = document.getElementById(tabId);
+                        if (selectedTab) {
+                            selectedTab.classList.add('active');
+                            selectedTab.style.display = 'block';
+                            console.log('Manually showed tab:', tabId);
                         }
                     }
+                }, 100);
+            }
+
+            // Update active state in dropdown
+            const dropdownItems = document.querySelectorAll('.dropdown-item');
+            dropdownItems.forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(tabId)) {
+                    item.classList.add('active');
+                }
+            });
+        }
+
+        // Initialize sidebar state
+        document.addEventListener('DOMContentLoaded', function () {
+            const sidebar = document.getElementById('sidebar');
+            const toggleIcon = document.getElementById('sidebarToggleIcon');
+            const savedState = localStorage.getItem('sidebarCollapsed');
+            if (sidebar && savedState === 'true') {
+                sidebar.classList.add('collapsed');
+                if (toggleIcon) {
+                    toggleIcon.className = 'fas fa-angle-double-right';
+                }
+            } else if (toggleIcon) {
+                toggleIcon.className = 'fas fa-angle-double-left';
+            }
+
+            // Handle hash navigation for dashboard tabs
+            if (window.location.hash) {
+                const tabId = window.location.hash.substring(1);
+                if (typeof showTab === 'function') {
+                    setTimeout(() => showTab(tabId), 100);
                 }
             }
 
-            // Dashboard Dropdown Toggle - Clean Implementation
-            function toggleDashboardDropdown(event) {
-                if (event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                }
-
+            // Auto-open dashboard dropdown if on dashboard page
+            if (window.location.pathname === '/dashboard') {
                 const wrapper = document.querySelector('aside.sidebar .nav-item-wrapper');
                 const navItem = wrapper ? wrapper.querySelector('.nav-item.has-dropdown') : null;
                 const dropdown = document.getElementById('dashboardDropdown');
 
-                if (!wrapper || !navItem || !dropdown) {
-                    console.error('Sidebar dropdown elements not found', { wrapper, navItem, dropdown });
-                    return;
-                }
-
-                const isOpen = wrapper.classList.contains('is-open');
-                console.log('Toggling dropdown, current state:', isOpen);
-
-                if (isOpen) {
-                    // Close dropdown
-                    wrapper.classList.remove('is-open');
-                    navItem.classList.remove('is-open');
-                    dropdown.classList.remove('is-open');
-                    console.log('Dropdown closed');
-                } else {
-                    // Open dropdown
+                if (wrapper && navItem && dropdown) {
                     wrapper.classList.add('is-open');
                     navItem.classList.add('is-open');
                     dropdown.classList.add('is-open');
-                    console.log('Dropdown opened');
-                }
-            }
-
-            function handleDashboardClick(event) {
-                // If clicking on Dashboard link (not dropdown toggle), redirect to tab1
-                if (!event.target.closest('.dropdown-toggle')) {
-                    event.preventDefault();
-                    window.location.href = '/dashboard#tab1';
-                }
-            }
-
-            function handleDashboardTabClick(event, tabId) {
-                event.preventDefault();
-                event.stopPropagation();
-
-                console.log('handleDashboardTabClick called with tabId:', tabId);
-
-                // Navigate to dashboard if not already there
-                if (window.location.pathname !== '/dashboard') {
-                    console.log('Navigating to dashboard with tab:', tabId);
-                    window.location.href = '/dashboard#' + tabId;
-                    return;
-                }
-
-                // Update URL hash
-                window.location.hash = tabId;
-                console.log('Updated hash to:', tabId);
-
-                // Call showTab function if it exists
-                if (typeof showTab === 'function') {
-                    console.log('Calling showTab directly');
-                    showTab(tabId);
+                    console.log('Auto-opened dashboard dropdown');
                 } else {
-                    console.log('showTab not found, waiting...');
-                    // Fallback: wait for showTab to be available
-                    let attempts = 0;
-                    const maxAttempts = 10;
-                    const checkShowTab = setInterval(() => {
-                        attempts++;
-                        if (typeof showTab === 'function') {
-                            console.log('showTab found after', attempts * 100, 'ms');
-                            clearInterval(checkShowTab);
-                            showTab(tabId);
-                        } else if (attempts >= maxAttempts) {
-                            console.error('showTab function not found after', maxAttempts * 100, 'ms');
-                            clearInterval(checkShowTab);
-                            // Force show the tab by manipulating DOM directly
-                            const tabs = document.querySelectorAll('.tab-content');
-                            tabs.forEach(tab => {
-                                tab.classList.remove('active');
-                                tab.style.display = 'none';
-                            });
-                            const selectedTab = document.getElementById(tabId);
-                            if (selectedTab) {
-                                selectedTab.classList.add('active');
-                                selectedTab.style.display = 'block';
-                                console.log('Manually showed tab:', tabId);
-                            }
-                        }
-                    }, 100);
+                    console.error('Could not auto-open dropdown', { wrapper, navItem, dropdown });
                 }
-
-                // Update active state in dropdown
-                const dropdownItems = document.querySelectorAll('.dropdown-item');
-                dropdownItems.forEach(item => {
-                    item.classList.remove('active');
-                    if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(tabId)) {
-                        item.classList.add('active');
-                    }
-                });
             }
 
-            // Initialize sidebar state
-            document.addEventListener('DOMContentLoaded', function () {
-                const sidebar = document.getElementById('sidebar');
-                const toggleIcon = document.getElementById('sidebarToggleIcon');
-                const savedState = localStorage.getItem('sidebarCollapsed');
-                if (sidebar && savedState === 'true') {
-                    sidebar.classList.add('collapsed');
-                    if (toggleIcon) {
-                        toggleIcon.className = 'fas fa-angle-double-right';
-                    }
-                } else if (toggleIcon) {
-                    toggleIcon.className = 'fas fa-angle-double-left';
+            // Update active dropdown item based on current tab
+            if (window.location.pathname === '/dashboard') {
+                const hash = window.location.hash.substring(1);
+                if (hash) {
+                    const dropdownItems = document.querySelectorAll('.dropdown-item');
+                    dropdownItems.forEach(item => {
+                        item.classList.remove('active');
+                        if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(hash)) {
+                            item.classList.add('active');
+                        }
+                    });
                 }
+            }
+        });
 
-                // Handle hash navigation for dashboard tabs
-                if (window.location.hash) {
-                    const tabId = window.location.hash.substring(1);
-                    if (typeof showTab === 'function') {
-                        setTimeout(() => showTab(tabId), 100);
-                    }
+        // Theme management
+        // Theme management
+        const themes = ['nebula', 'midnight', 'aurora', 'forest', 'crimson'];
+
+        function getPreferredTheme() {
+            const stored = localStorage.getItem('theme');
+            if (stored && themes.includes(stored)) return stored;
+            return 'nebula'; // Default to Antigravity Nebula
+        }
+
+        function setTheme(theme) {
+            if (!themes.includes(theme)) theme = 'nebula';
+
+            // Set the attribute for CSS to pick up
+            document.documentElement.setAttribute('data-color-mode', theme);
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+
+            // Update active state on palette buttons
+            const buttons = document.querySelectorAll('.theme-btn');
+            buttons.forEach(btn => {
+                const btnTheme = btn.getAttribute('data-set-theme');
+                if (btnTheme === theme) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
                 }
+            });
+        }
 
-                // Auto-open dashboard dropdown if on dashboard page
-                if (window.location.pathname === '/dashboard') {
-                    const wrapper = document.querySelector('aside.sidebar .nav-item-wrapper');
-                    const navItem = wrapper ? wrapper.querySelector('.nav-item.has-dropdown') : null;
-                    const dropdown = document.getElementById('dashboardDropdown');
+        // Initialize theme on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            setTheme(getPreferredTheme());
 
-                    if (wrapper && navItem && dropdown) {
-                        wrapper.classList.add('is-open');
-                        navItem.classList.add('is-open');
-                        dropdown.classList.add('is-open');
-                        console.log('Auto-opened dashboard dropdown');
-                    } else {
-                        console.error('Could not auto-open dropdown', { wrapper, navItem, dropdown });
-                    }
-                }
-
-                // Update active dropdown item based on current tab
-                if (window.location.pathname === '/dashboard') {
-                    const hash = window.location.hash.substring(1);
-                    if (hash) {
-                        const dropdownItems = document.querySelectorAll('.dropdown-item');
-                        dropdownItems.forEach(item => {
-                            item.classList.remove('active');
-                            if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(hash)) {
-                                item.classList.add('active');
-                            }
-                        });
-                    }
+            // Listen for system theme changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+                if (!localStorage.getItem('theme')) {
+                    setTheme(e.matches ? 'dark' : 'light');
                 }
             });
 
-            // Theme management
-            // Theme management
-            const themes = ['nebula', 'midnight', 'aurora', 'forest', 'crimson'];
-
-            function getPreferredTheme() {
-                const stored = localStorage.getItem('theme');
-                if (stored && themes.includes(stored)) return stored;
-                return 'nebula'; // Default to Antigravity Nebula
-            }
-
-            function setTheme(theme) {
-                if (!themes.includes(theme)) theme = 'nebula';
-
-                // Set the attribute for CSS to pick up
-                document.documentElement.setAttribute('data-color-mode', theme);
-                document.documentElement.setAttribute('data-theme', theme);
-                localStorage.setItem('theme', theme);
-
-                // Update active state on palette buttons
-                const buttons = document.querySelectorAll('.theme-btn');
-                buttons.forEach(btn => {
-                    const btnTheme = btn.getAttribute('data-set-theme');
-                    if (btnTheme === theme) {
-                        btn.classList.add('active');
-                    } else {
-                        btn.classList.remove('active');
-                    }
-                });
-            }
-
-            // Initialize theme on page load
-            document.addEventListener('DOMContentLoaded', function () {
-                setTheme(getPreferredTheme());
-
-                // Listen for system theme changes
-                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
-                    if (!localStorage.getItem('theme')) {
-                        setTheme(e.matches ? 'dark' : 'light');
-                    }
-                });
-
-                // IMMEDIATELY force close any stuck modals on page load
-                function forceCloseAllModalsImmediate() {
-                    // Close Bootstrap modals
-                    const bootstrapModals = document.querySelectorAll('.modal.show');
-                    bootstrapModals.forEach(function (modal) {
-                        const modalInstance = bootstrap.Modal.getInstance(modal);
-                        if (modalInstance) {
-                            modalInstance.hide();
-                        }
-                    });
-
-                    // Remove modal backdrops
-                    const backdrops = document.querySelectorAll('.modal-backdrop');
-                    backdrops.forEach(function (backdrop) {
-                        backdrop.remove();
-                    });
-
-                    // Force hide any modals with display: block
-                    const stuckModals = document.querySelectorAll('.modal[style*="display: block"]');
-                    stuckModals.forEach(function (modal) {
-                        modal.style.display = 'none';
-                    });
-
-                    // Remove any body classes that might be stuck
-                    document.body.classList.remove('modal-open');
-                    document.body.style.overflow = '';
-                    document.body.style.paddingRight = '';
-
-                    console.log('IMMEDIATELY cleared stuck modals on page load');
-                }
-
-                // Run immediately
-                forceCloseAllModalsImmediate();
-
-                // Run again after a short delay
-                setTimeout(forceCloseAllModalsImmediate, 50);
-                setTimeout(forceCloseAllModalsImmediate, 100);
-                setTimeout(forceCloseAllModalsImmediate, 200);
-                setTimeout(forceCloseAllModalsImmediate, 500);
-            });
-
-            // Make toggleTheme globally available
-            window.toggleTheme = toggleTheme;
-
-            // Global function to force close all modals
-            window.forceCloseAllModals = function () {
+            // IMMEDIATELY force close any stuck modals on page load
+            function forceCloseAllModalsImmediate() {
                 // Close Bootstrap modals
                 const bootstrapModals = document.querySelectorAll('.modal.show');
                 bootstrapModals.forEach(function (modal) {
@@ -3353,103 +3323,147 @@
                 document.body.style.overflow = '';
                 document.body.style.paddingRight = '';
 
-                console.log('Force closed all modals');
-            };
-
-            // Add keyboard shortcut to force close modals (Escape key)
-            document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape') {
-                    window.forceCloseAllModals();
-                }
-            });
-
-            // EMERGENCY FIX: Completely disable problematic modals
-            document.addEventListener('DOMContentLoaded', function () {
-                // Override Bootstrap Modal functions to prevent showing
-                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-                    const originalShow = bootstrap.Modal.prototype.show;
-                    bootstrap.Modal.prototype.show = function () {
-                        console.log('Modal show attempt blocked for:', this._element.id);
-                        // Don't show the modal
-                        return;
-                    };
-
-                    const originalHide = bootstrap.Modal.prototype.hide;
-                    bootstrap.Modal.prototype.hide = function () {
-                        console.log('Modal hide called for:', this._element.id);
-                        // Force hide
-                        this._element.style.display = 'none';
-                        this._element.classList.remove('show');
-                        document.body.classList.remove('modal-open');
-                        document.body.style.overflow = '';
-                        document.body.style.paddingRight = '';
-
-                        // Remove backdrop
-                        const backdrops = document.querySelectorAll('.modal-backdrop');
-                        backdrops.forEach(backdrop => backdrop.remove());
-                    };
-                }
-
-                // Override jQuery modal functions if they exist
-                if (typeof $ !== 'undefined' && $.fn.modal) {
-                    $.fn.modal = function () {
-                        console.log('jQuery modal call blocked');
-                        return this;
-                    };
-                }
-
-                // Force hide specific problematic modals
-                const problematicModals = ['testConnectionModal', 'deleteConfirmModal'];
-                problematicModals.forEach(function (modalId) {
-                    const modal = document.getElementById(modalId);
-                    if (modal) {
-                        modal.style.display = 'none';
-                        modal.style.visibility = 'hidden';
-                        modal.style.opacity = '0';
-                        modal.style.pointerEvents = 'none';
-                    }
-                });
-
-                console.log('Emergency modal blocking activated');
-            });
-        </script>
-
-        {% block scripts %}{% endblock %}
-
-        <!-- Scroll to Top Button -->
-        <button class="scroll-to-top" id="scrollToTop" onclick="scrollToTop()" title="Scroll to top">
-            <i class="fas fa-arrow-up"></i>
-        </button>
-
-        <script>
-            // Scroll to Top Button
-            function scrollToTop() {
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
+                console.log('IMMEDIATELY cleared stuck modals on page load');
             }
 
-            // Show/hide scroll to top button
-            window.addEventListener('scroll', function () {
-                const scrollButton = document.getElementById('scrollToTop');
-                if (scrollButton) {
-                    if (window.pageYOffset > 300) {
-                        scrollButton.classList.add('visible');
-                    } else {
-                        scrollButton.classList.remove('visible');
-                    }
+            // Run immediately
+            forceCloseAllModalsImmediate();
+
+            // Run again after a short delay
+            setTimeout(forceCloseAllModalsImmediate, 50);
+            setTimeout(forceCloseAllModalsImmediate, 100);
+            setTimeout(forceCloseAllModalsImmediate, 200);
+            setTimeout(forceCloseAllModalsImmediate, 500);
+        });
+
+        // Make toggleTheme globally available
+        window.toggleTheme = toggleTheme;
+
+        // Global function to force close all modals
+        window.forceCloseAllModals = function () {
+            // Close Bootstrap modals
+            const bootstrapModals = document.querySelectorAll('.modal.show');
+            bootstrapModals.forEach(function (modal) {
+                const modalInstance = bootstrap.Modal.getInstance(modal);
+                if (modalInstance) {
+                    modalInstance.hide();
                 }
             });
 
-            // Initialize scroll button on page load
-            document.addEventListener('DOMContentLoaded', function () {
-                const scrollButton = document.getElementById('scrollToTop');
-                if (scrollButton && window.pageYOffset > 300) {
-                    scrollButton.classList.add('visible');
+            // Remove modal backdrops
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(function (backdrop) {
+                backdrop.remove();
+            });
+
+            // Force hide any modals with display: block
+            const stuckModals = document.querySelectorAll('.modal[style*="display: block"]');
+            stuckModals.forEach(function (modal) {
+                modal.style.display = 'none';
+            });
+
+            // Remove any body classes that might be stuck
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
+            console.log('Force closed all modals');
+        };
+
+        // Add keyboard shortcut to force close modals (Escape key)
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                window.forceCloseAllModals();
+            }
+        });
+
+        // EMERGENCY FIX: Completely disable problematic modals
+        document.addEventListener('DOMContentLoaded', function () {
+            // Override Bootstrap Modal functions to prevent showing
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                const originalShow = bootstrap.Modal.prototype.show;
+                bootstrap.Modal.prototype.show = function () {
+                    console.log('Modal show attempt blocked for:', this._element.id);
+                    // Don't show the modal
+                    return;
+                };
+
+                const originalHide = bootstrap.Modal.prototype.hide;
+                bootstrap.Modal.prototype.hide = function () {
+                    console.log('Modal hide called for:', this._element.id);
+                    // Force hide
+                    this._element.style.display = 'none';
+                    this._element.classList.remove('show');
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+
+                    // Remove backdrop
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    backdrops.forEach(backdrop => backdrop.remove());
+                };
+            }
+
+            // Override jQuery modal functions if they exist
+            if (typeof $ !== 'undefined' && $.fn.modal) {
+                $.fn.modal = function () {
+                    console.log('jQuery modal call blocked');
+                    return this;
+                };
+            }
+
+            // Force hide specific problematic modals
+            const problematicModals = ['testConnectionModal', 'deleteConfirmModal'];
+            problematicModals.forEach(function (modalId) {
+                const modal = document.getElementById(modalId);
+                if (modal) {
+                    modal.style.display = 'none';
+                    modal.style.visibility = 'hidden';
+                    modal.style.opacity = '0';
+                    modal.style.pointerEvents = 'none';
                 }
             });
-        </script>
+
+            console.log('Emergency modal blocking activated');
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+
+    <!-- Scroll to Top Button -->
+    <button class="scroll-to-top" id="scrollToTop" onclick="scrollToTop()" title="Scroll to top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <script>
+        // Scroll to Top Button
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+
+        // Show/hide scroll to top button
+        window.addEventListener('scroll', function () {
+            const scrollButton = document.getElementById('scrollToTop');
+            if (scrollButton) {
+                if (window.pageYOffset > 300) {
+                    scrollButton.classList.add('visible');
+                } else {
+                    scrollButton.classList.remove('visible');
+                }
+            }
+        });
+
+        // Initialize scroll button on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            const scrollButton = document.getElementById('scrollToTop');
+            if (scrollButton && window.pageYOffset > 300) {
+                scrollButton.classList.add('visible');
+            }
+        });
+    </script>
     </div>
 </body>
 
