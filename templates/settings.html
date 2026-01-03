@@ -387,11 +387,11 @@
                     <label for="aws_ecr_uri" class="form-label-github">
                         <i class="fas fa-box"></i> ECR Image URI (Chromium Lambda)
                     </label>
-                    <input type="text" class="form-control-github" id="aws_ecr_uri" value="(connect first)" readonly
-                        placeholder="(connect first)">
+                    <input type="text" class="form-control-github" id="aws_ecr_uri" value=""
+                        placeholder="e.g., 123456789.dkr.ecr.eu-west-1.amazonaws.com/my-repo:latest">
                     <small style="color: #656d76; font-size: 12px;">
-                        ECR Image URI will be populated after testing connection. Built on EC2 from repo:
-                        docker-selenium-lambda
+                        Enter your ECR Image URI. Format:
+                        &lt;account-id&gt;.dkr.ecr.&lt;region&gt;.amazonaws.com/&lt;repo-name&gt;:&lt;tag&gt;
                     </small>
                 </div>
 
