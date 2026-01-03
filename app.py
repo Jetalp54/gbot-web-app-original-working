@@ -193,21 +193,19 @@ with app.app_context():
     db.create_all()
     
     # Auto-migration: Add ever_used column if it doesn't exist
+    # Auto-migration: Add ever_used column if it doesn't exist
     try:
-        from sqlalchemy import text, func
-        # Check if ever_used column exists
-        result = db.session.execute(text("""
-            SELECT column_name FROM information_schema.columns 
-            WHERE table_name = 'used_domain' AND column_name = 'ever_used'
-        """)).fetchone()
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('used_domain')]
         
-        if not result:
+        if 'ever_used' not in columns:
             logging.info("Adding missing 'ever_used' column to used_domain table...")
             # Add the column
-            db.session.execute(text("ALTER TABLE used_domain ADD COLUMN ever_used BOOLEAN DEFAULT FALSE"))
-            # Update existing records
-            db.session.execute(text("UPDATE used_domain SET ever_used = TRUE WHERE user_count > 0"))
-            db.session.commit()
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE used_domain ADD COLUMN ever_used BOOLEAN DEFAULT 0"))
+                conn.execute(text("UPDATE used_domain SET ever_used = 1 WHERE user_count > 0"))
+                conn.commit()
             logging.info("✅ Successfully added 'ever_used' column!")
         else:
             logging.debug("Column 'ever_used' already exists")
@@ -227,6 +225,28 @@ with app.app_context():
                 
     except Exception as e:
         logging.warning(f"Could not auto-migrate ever_used column: {e}")
+        try:
+            db.session.rollback()
+        except:
+            pass
+
+    # Auto-migration: Add last_login column if it doesn't exist
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('user')]
+        
+        if 'last_login' not in columns:
+            logging.info("Adding missing 'last_login' column to user table...")
+            # Add the column
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE user ADD COLUMN last_login TIMESTAMP"))
+                conn.commit()
+            logging.info("✅ Successfully added 'last_login' column!")
+        else:
+            logging.debug("Column 'last_login' already exists")
+    except Exception as e:
+        logging.warning(f"Could not auto-migrate last_login column: {e}")
         try:
             db.session.rollback()
         except:
@@ -386,7 +406,16 @@ def login():
                 session['user'] = user.username
                 session['user_id'] = user.id
                 session['role'] = user.role
+                session['role'] = user.role
                 session.permanent = True  # Make session persistent
+                
+                # Update last login time
+                try:
+                    user.last_login = datetime.now()
+                    db.session.commit()
+                except Exception as e:
+                    app.logger.error(f"Failed to update last_login for {username}: {e}")
+                    
                 app.logger.info(f"Session set - user: {session.get('user')}, role: {session.get('role')}")
                 flash(f'Welcome {user.username}!', 'success')
                 return redirect(url_for('dashboard'))
@@ -503,6 +532,58 @@ def search_accounts():
         'accounts': results,
         'count': len(results)
     })
+
+@app.route('/api/list-users')
+def list_users():
+    """API to list all users - admin only"""
+    if not session.get('user') or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+    try:
+        users = User.query.all()
+        user_list = []
+        
+        now = datetime.now()
+        
+        for u in users:
+            # Format last login
+            last_seen = "Never"
+            status = "inactive"
+            
+            if u.last_login:
+                diff = now - u.last_login
+                seconds = diff.total_seconds()
+                
+                if seconds < 60:
+                    last_seen = "Just now"
+                    status = "active"
+                elif seconds < 3600:
+                    mins = int(seconds / 60)
+                    last_seen = f"{mins}m ago"
+                    status = "active"
+                elif seconds < 86400:
+                    hours = int(seconds / 3600)
+                    last_seen = f"{hours}h ago"
+                    status = "active" if hours < 24 else "inactive"
+                elif seconds < 604800: # 7 days
+                    days = int(seconds / 86400)
+                    last_seen = f"{days}d ago"
+                    status = "inactive"
+                else:
+                    last_seen = u.last_login.strftime('%b %d, %Y')
+                    status = "inactive"
+            
+            user_list.append({
+                'username': u.username,
+                'role': u.role,
+                'last_login': last_seen,
+                'status': status,
+                'raw_last_login': u.last_login.isoformat() if u.last_login else None
+            })
+            
+        return jsonify({'success': True, 'users': user_list})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/users')
 def users():

@@ -1905,3 +1905,102 @@ html body .glass-ui textarea::placeholder {
 .draggable-card .github-card-header:active {
     cursor: grabbing;
 }
+
+/* User Management Styles */
+.monday-table tbody tr {
+    border-bottom: 1px solid var(--border-panel);
+    transition: background-color 0.2s ease;
+}
+
+.monday-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-active {
+    background-color: rgba(45, 204, 112, 0.15);
+    color: #2ecc71;
+    border: 1px solid rgba(45, 204, 112, 0.3);
+}
+
+.status-inactive {
+    background-color: rgba(149, 165, 166, 0.15);
+    color: #95a5a6;
+    border: 1px solid rgba(149, 165, 166, 0.3);
+}
+
+.role-dropdown {
+    padding: 6px 16px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: white;
+    border: none;
+    cursor: pointer;
+    text-align: center;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: none;
+    /* Remove default arrow */
+    width: 100px;
+    transition: transform 0.1s ease;
+}
+
+.role-dropdown:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.role-admin {
+    background-color: #e2445c;
+    box-shadow: 0 4px 0 #c02840;
+}
+
+.role-mailer {
+    background-color: #579bfc;
+    box-shadow: 0 4px 0 #2872d8;
+}
+
+.role-support {
+    background-color: #ffcb00;
+    color: #333;
+    box-shadow: 0 4px 0 #d9ad00;
+}
+
+.avatar-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+    color: white;
+    margin-right: 12px;
+}
+
+/* Modal Animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.modal-overlay {
+    animation: fadeIn 0.2s ease-out;
+}
