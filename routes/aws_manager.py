@@ -3359,12 +3359,37 @@ def create_lambdas():
                         lambda_creation_jobs[job_id]['status'] = 'failed'
                         lambda_creation_jobs[job_id]['error'] = str(e)
         
-        threading.Thread(
-            target=create_lambdas_with_tracking,
-            args=(functions_by_geo, access_key, secret_key, role_arn, 900, chromium_env, "Image", ecr_uri, ecr_repo_name, dynamodb_table),
-            kwargs={'job_id': creation_job_id},
-            daemon=True
-        ).start()
+        # [DEBUG] Force SYNCHRONOUS execution to catch errors immediately
+        # Using 900 seconds (15 minutes) - AWS Lambda maximum timeout
+        try:
+            logger.info("[LAMBDA] [DEBUG] Executing create_lambdas_background SYNCHRONOUSLY...")
+            create_lambdas_background(
+                functions_by_geo_dict=functions_by_geo, 
+                access_key=access_key,
+                secret_key=secret_key, 
+                role_arn=role_arn, 
+                timeout=timeout, 
+                env_vars=chromium_env, 
+                package_type='Image', 
+                base_ecr_uri=ecr_uri,
+                ecr_repo_name=ecr_repo_name,
+                dynamodb_table=dynamodb_table,
+                job_id=creation_job_id
+            )
+            logger.info("[LAMBDA] [DEBUG] Synchronous execution finished.")
+            
+            # Check for errors in the job tracking
+            with lambda_creation_lock:
+                job_data = lambda_creation_jobs.get(creation_job_id)
+                if job_data and job_data.get('errors'):
+                    error_msg = f"Errors occurred during creation: {job_data['errors']}"
+                    logger.error(f"[LAMBDA] {error_msg}")
+                    return jsonify({'success': False, 'error': error_msg}), 500
+                    
+        except Exception as sync_err:
+            logger.error(f"[LAMBDA] ✗✗✗ CRITICAL SYNC ERROR: {sync_err}")
+            logger.error(traceback.format_exc())
+            return jsonify({'success': False, 'error': str(sync_err)}), 500
         
         # Build summary message
         geo_summary = []
