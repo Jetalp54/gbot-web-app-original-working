@@ -2872,14 +2872,11 @@ def create_lambdas():
                             except ClientError as repo_err:
                                 error_code = repo_err.response.get('Error', {}).get('Code', '')
                                 if error_code in ['RepositoryNotFoundException', 'ResourceNotFoundException']:
-                                    logger.warning(f"[LAMBDA] [{geo}] ⚠️ ECR repository not found in {geo}. Skipping this region.")
-                                    return {
-                                        'geo': geo,
-                                        'success_count': 0,
-                                        'failure_count': 0,
-                                        'errors': []
-                                    }
-                                raise repo_err
+                                    # [FIX] Do not return early. Warn and proceed to let create_function try.
+                                    logger.warning(f"[LAMBDA] [{geo}] ⚠️ ECR repository verification failed: Not Found. Proceeding with creation attempt anyway.")
+                                else:
+                                    logger.warning(f"[LAMBDA] [{geo}] ⚠️ ECR repository check error: {repo_err}. Proceeding...")
+                                # Do NOT raise repo_err, just proceed
 
                             # 2. Check for image using list_images (more reliable)
                             image_found = False
