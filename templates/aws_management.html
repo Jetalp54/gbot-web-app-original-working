@@ -2088,6 +2088,7 @@
     }
 
     // Load AWS credentials from settings
+    // Load AWS credentials from settings
     function loadAwsCredentials() {
         fetch('/api/aws/get-config')
             .then(response => response.json())
@@ -2096,6 +2097,37 @@
                     // Store credentials in hidden fields or use directly
                     window.awsConfig = data.config;
                     log('AWS credentials loaded from settings.');
+
+                    // [MULTI-USER] Populate UI fields with user-scoped resource names from backend
+                    // This ensures the user sees 'Angel-chromium' etc. instead of defaults
+                    const config = data.config;
+
+                    // Helper to set value if element exists
+                    const setVal = (id, val) => {
+                        const el = document.getElementById(id);
+                        if (el && val) el.value = val;
+                    };
+
+                    // Core & Lambda
+                    setVal('s3BucketName', config.s3_bucket);
+                    setVal('ecrRepoName', config.ecr_repo_name);
+                    setVal('dynamodbTableName', config.dynamodb_table);
+                    setVal('lambdaPrefix', config.lambda_prefix);
+
+                    // EC2
+                    setVal('ec2InstanceName', config.instance_name ? (config.instance_name + '-ec2-build-box') : 'default-ec2-build-box');
+
+                    // Cleanup Tabs (pre-fill with same values)
+                    setVal('deleteS3BucketName', config.s3_bucket);
+                    setVal('deleteEcrRepoName', config.ecr_repo_name);
+                    setVal('deleteDynamodbTableName', config.dynamodb_table);
+
+                    // Derive log group from lambda prefix (e.g. Angel-chromium -> /aws/lambda/Angel)
+                    if (config.lambda_prefix) {
+                        const prefixPart = config.lambda_prefix.split('-')[0].split('_')[0];
+                        setVal('deleteLogGroupPrefix', `/aws/lambda/${prefixPart}`);
+                    }
+
                     // Show instance name if configured
                     if (data.config.instance_name && data.config.instance_name !== 'default') {
                         log(`🏷️ Instance: ${data.config.instance_name} | Lambda: ${data.config.lambda_prefix || 'gbot-chromium'} | ECR: ${data.config.ecr_repo_name || 'gbot-app-password-worker'}`);

@@ -62,7 +62,17 @@ def get_naming_config():
             config = AwsConfig.query.first()
             if config:
                 instance_name = config.instance_name or DEFAULT_INSTANCE_NAME
-                lambda_prefix = config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME
+                
+                # [MULTI-USER] Scope Lambda Name to Logged-in User
+                # If user is logged in, use "{User}-chromium", otherwise fallback to DB/Default
+                current_user = session.get('username')
+                if current_user:
+                    # Enforce Capitalized Username for resource naming (e.g., 'angel' -> 'Angel-chromium')
+                    # This ensures unique resources per user as requested
+                    lambda_prefix = f"{current_user.capitalize()}-chromium"
+                else:
+                    lambda_prefix = config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME
+
                 ecr_repo = config.ecr_repo_name or DEFAULT_ECR_REPO_NAME
                 s3_bucket = config.s3_bucket or DEFAULT_S3_BUCKET_NAME
                 dynamodb_table = config.dynamodb_table or DEFAULT_DYNAMODB_TABLE
@@ -85,9 +95,17 @@ def get_naming_config():
         logger.warning(f"[CONFIG] Could not load naming config from database: {e}")
     
     # Return defaults if config not found
+    # Return defaults if config not found
+    # [MULTI-USER] apply fallback user scoping even if no DB config
+    current_user = session.get('username')
+    if current_user:
+        lambda_prefix = f"{current_user.capitalize()}-chromium"
+    else:
+        lambda_prefix = DEFAULT_PRODUCTION_LAMBDA_NAME
+
     return {
         'instance_name': DEFAULT_INSTANCE_NAME,
-        'lambda_prefix': DEFAULT_PRODUCTION_LAMBDA_NAME,
+        'lambda_prefix': lambda_prefix,
         'lambda_role_name': DEFAULT_LAMBDA_ROLE_NAME,
         'production_lambda_name': DEFAULT_PRODUCTION_LAMBDA_NAME,
         'ecr_repo_name': DEFAULT_ECR_REPO_NAME,
@@ -576,6 +594,10 @@ def get_aws_config():
             logger.warning(f"Could not check/create aws_config table: {e}")
         
         config = AwsConfig.query.first()
+        
+        # Get dynamic naming configuration (handles user scoping)
+        naming_config = get_naming_config()
+
         if not config or not config.is_configured:
             logger.info("[AWS_CONFIG] No AWS configuration found")
             return jsonify({
@@ -594,9 +616,12 @@ def get_aws_config():
                 'ecr_uri': config.ecr_uri or '',
                 's3_bucket': config.s3_bucket,
                 # Multi-tenant naming configuration
-                'instance_name': getattr(config, 'instance_name', 'default') or 'default',
+                'ecr_uri': config.ecr_uri or '',
+                's3_bucket': config.s3_bucket,
+                # [MULTI-USER] Use dynamic naming config to ensure frontend sees the user-scoped names
+                'instance_name': naming_config.get('instance_name'),
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
-                'lambda_prefix': getattr(config, 'lambda_prefix', 'gbot-chromium') or 'gbot-chromium',
+                'lambda_prefix': naming_config.get('lambda_prefix'), # Returns {User}-chromium
                 'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords'
             }
         })
