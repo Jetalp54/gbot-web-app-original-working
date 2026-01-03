@@ -94,6 +94,12 @@
                                         placeholder="e.g., dev">
                                 </div>
                             </div>
+                            <div class="mt-3">
+                                <button class="glass-button glass-button-primary" onclick="saveNamingConfig()">
+                                    <i class="fas fa-save me-2"></i>Save Resource Names
+                                </button>
+                                <span id="namingConfigStatus" class="ms-2 small text-muted"></span>
+                            </div>
                         </div>
                     </div>
 
@@ -2175,6 +2181,86 @@
         }
     }
 
+    // Save Resource Naming Config to Database
+    async function saveNamingConfig() {
+        const creds = getAwsCredentials();
+        if (!creds) return;
+
+        const statusSpan = document.getElementById('namingConfigStatus');
+        if (statusSpan) statusSpan.textContent = 'Saving...';
+
+        const naming = getNamingConfig();
+
+        try {
+            const response = await fetch('/api/aws/save-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_key_id: creds.access_key,
+                    secret_access_key: creds.secret_key,
+                    region: creds.region,
+                    ecr_repo_name: naming.ecr_repo_name,
+                    s3_bucket: naming.s3_bucket,
+                    dynamodb_table: naming.dynamodb_table,
+                    lambda_prefix: naming.lambda_prefix
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                log('✅ Resource names saved to database.');
+                if (statusSpan) statusSpan.textContent = '✅ Saved!';
+                setTimeout(() => { if (statusSpan) statusSpan.textContent = ''; }, 3000);
+            } else {
+                log(`❌ Error saving resource names: ${data.error}`);
+                if (statusSpan) statusSpan.textContent = '❌ Error!';
+                alert('Error saving: ' + data.error);
+            }
+        } catch (error) {
+            log(`❌ Failed to save resource names: ${error.message}`);
+            if (statusSpan) statusSpan.textContent = '❌ Failed!';
+            alert('Error: ' + error.message);
+        }
+    }
+
+    // Load Saved Naming Config from Database
+    async function loadNamingConfig() {
+        try {
+            const response = await fetch('/api/aws/get-naming-config');
+            const data = await response.json();
+            if (data.success && data.config) {
+                const config = data.config;
+                // Populate inputs if values exist
+                if (config.ecr_repo_name) {
+                    const el = document.getElementById('ecrRepoName');
+                    if (el) el.value = config.ecr_repo_name;
+                    const delEl = document.getElementById('deleteEcrRepoName');
+                    if (delEl) delEl.value = config.ecr_repo_name;
+                }
+                if (config.s3_bucket) {
+                    const el = document.getElementById('s3BucketName');
+                    if (el) el.value = config.s3_bucket;
+                    const delEl = document.getElementById('deleteS3BucketName');
+                    if (delEl) delEl.value = config.s3_bucket;
+                }
+                if (config.dynamodb_table) {
+                    const el = document.getElementById('dynamodbTableName');
+                    if (el) el.value = config.dynamodb_table;
+                    const delEl = document.getElementById('deleteDynamodbTableName');
+                    if (delEl) delEl.value = config.dynamodb_table;
+                }
+                if (config.lambda_prefix) {
+                    const el = document.getElementById('lambdaPrefix');
+                    if (el) el.value = config.lambda_prefix;
+                    const delEl = document.getElementById('deleteLogGroupPrefix');
+                    if (delEl) delEl.value = '/aws/lambda/' + config.lambda_prefix.split('-')[0];
+                }
+                log('📦 Loaded saved resource names from database.');
+            }
+        } catch (error) {
+            console.log('Could not load naming config:', error);
+        }
+    }
+
     // Add event listeners for calculation updates
     document.addEventListener('DOMContentLoaded', function () {
         // Add listener to multipleUsers textarea for auto-calculation when checkbox is checked
@@ -2204,6 +2290,9 @@
 
         // Load AWS credentials on page load
         loadAwsCredentials();
+
+        // Load saved naming config on page load
+        loadNamingConfig();
 
         // Initial calculation update
         updateLambdaCalculation();

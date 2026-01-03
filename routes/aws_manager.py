@@ -123,6 +123,37 @@ def get_naming_config():
 
 aws_manager = Blueprint('aws_manager', __name__)
 
+@aws_manager.route('/api/aws/get-naming-config', methods=['GET'])
+def get_naming_config_api():
+    """Return saved resource naming configuration from database"""
+    try:
+        config = AwsConfig.query.first()
+        if config:
+            return jsonify({
+                'success': True,
+                'config': {
+                    'ecr_repo_name': config.ecr_repo_name or DEFAULT_ECR_REPO_NAME,
+                    's3_bucket': config.s3_bucket or DEFAULT_S3_BUCKET_NAME,
+                    'dynamodb_table': config.dynamodb_table or DEFAULT_DYNAMODB_TABLE,
+                    'lambda_prefix': config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME,
+                    'instance_name': config.instance_name or DEFAULT_INSTANCE_NAME
+                }
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'config': {
+                    'ecr_repo_name': DEFAULT_ECR_REPO_NAME,
+                    's3_bucket': DEFAULT_S3_BUCKET_NAME,
+                    'dynamodb_table': DEFAULT_DYNAMODB_TABLE,
+                    'lambda_prefix': DEFAULT_PRODUCTION_LAMBDA_NAME,
+                    'instance_name': DEFAULT_INSTANCE_NAME
+                }
+            })
+    except Exception as e:
+        logger.warning(f"[CONFIG] Error getting naming config: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @aws_manager.route('/api/service-accounts', methods=['GET'])
 def list_service_accounts():
     """List all configured service accounts"""
