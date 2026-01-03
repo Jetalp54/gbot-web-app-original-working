@@ -2658,7 +2658,14 @@ def create_lambdas():
 
         # Get all available AWS regions (geos) for distribution
         # Regions as specified by user
-        AVAILABLE_GEO_REGIONS = [
+        # [FIX] Use the selected region ONLY, unless specific logic dictates global distribution
+        # The user provided 'region' (e.g., eu-west-1). We should create the function THERE.
+        # The previous logic distributed across ALL regions starting with us-east-1, 
+        # which caused failure if ECR image was only in eu-west-1.
+        AVAILABLE_GEO_REGIONS = [region]
+        
+        # Keep the global list for reference or if we add a "Global Deployment" toggle later
+        GLOBAL_GEO_REGIONS = [
             # United States
             'us-east-1',      # N. Virginia
             'us-east-2',      # Ohio
