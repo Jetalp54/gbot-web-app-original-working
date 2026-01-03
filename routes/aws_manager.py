@@ -2511,12 +2511,14 @@ def create_lambdas():
                 account_id, uri_region, ecr_uri_repo_name, image_tag = ecr_match.groups()
                 logger.info(f"[LAMBDA] Parsed ECR URI - Account: {account_id}, Region: {uri_region}, Repo: {ecr_uri_repo_name}, Tag: {image_tag}")
                 
-                # If repo name in URI doesn't match configurable name, reconstruct URI
+                # [FIX] Do NOT override the repository name from the URI if it's provided.
+                # The frontend or user might provide a specific URI (e.g. user-scoped) 
+                # that differs from the global 'ecr_repo_name' config.
+                # Only warn if there's a mismatch but proceed with the provided URI.
                 if ecr_uri_repo_name != ecr_repo_name:
-                    logger.warning(f"[LAMBDA] ⚠️ ECR URI repo name '{ecr_uri_repo_name}' doesn't match configurable name '{ecr_repo_name}'")
-                    logger.info(f"[LAMBDA] Reconstructing ECR URI with correct repo name: {ecr_repo_name}")
-                    ecr_uri = f"{account_id}.dkr.ecr.{uri_region}.amazonaws.com/{ecr_repo_name}:{image_tag}"
-                    logger.info(f"[LAMBDA] New ECR URI: {ecr_uri}")
+                    logger.info(f"[LAMBDA] ℹ️ Using ECR URI repo '{ecr_uri_repo_name}' (Config says '{ecr_repo_name}')")
+                    # ecr_uri = f"{account_id}.dkr.ecr.{uri_region}.amazonaws.com/{ecr_repo_name}:{image_tag}"
+                    # logger.info(f"[LAMBDA] New ECR URI: {ecr_uri}")
 
         session = get_boto3_session(access_key, secret_key, region)
 
@@ -5101,6 +5103,10 @@ def save_app_password(email, app_password):
 @login_required
 def invoke_lambda():
     """Invoke production Lambda (Single invocation)"""
+    # Allow admin, mailer, and support to invoke functions
+    allowed_roles = ['admin', 'mailer', 'support']
+    if session.get('role') not in allowed_roles:
+        return jsonify({'success': False, 'error': 'Access denied'})
     try:
         data = request.get_json()
         access_key = data.get('access_key', '').strip()
