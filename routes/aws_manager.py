@@ -530,9 +530,22 @@ def save_aws_config():
         
         # Multi-tenant naming configuration (with safe defaults)
         instance_name = data.get('instance_name', 'default').strip() or 'default'
-        ecr_repo_name = data.get('ecr_repo_name', 'gbot-app-password-worker').strip() or 'gbot-app-password-worker'
+        ecr_repo_name = data.get('ecr_repo_name', '').strip()
         lambda_prefix = data.get('lambda_prefix', 'gbot-chromium').strip() or 'gbot-chromium'
         dynamodb_table = data.get('dynamodb_table', 'gbot-app-passwords').strip() or 'gbot-app-passwords'
+        
+        # CRITICAL: Extract ecr_repo_name from ecr_uri if not provided separately
+        # This ensures the saved ECR URI's repo name is used for Lambda operations
+        if not ecr_repo_name and ecr_uri:
+            import re
+            ecr_match = re.match(r'\d+\.dkr\.ecr\.[^.]+\.amazonaws\.com/([^:]+)', ecr_uri)
+            if ecr_match:
+                ecr_repo_name = ecr_match.group(1)
+                logger.info(f"[AWS_CONFIG] Extracted ECR repo name from URI: {ecr_repo_name}")
+        
+        # Fallback to default if still empty
+        if not ecr_repo_name:
+            ecr_repo_name = 'gbot-app-password-worker'
 
         if not access_key_id or not secret_access_key or not region:
             return jsonify({'success': False, 'error': 'Please provide Access Key ID, Secret Access Key and Region.'}), 400
