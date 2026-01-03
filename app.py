@@ -201,10 +201,15 @@ with app.app_context():
         
         if 'ever_used' not in columns:
             logging.info("Adding missing 'ever_used' column to used_domain table...")
-            # Add the column
             with db.engine.connect() as conn:
-                conn.execute(text("ALTER TABLE used_domain ADD COLUMN ever_used BOOLEAN DEFAULT 0"))
-                conn.execute(text("UPDATE used_domain SET ever_used = 1 WHERE user_count > 0"))
+                if 'postgresql' in str(db.engine.url):
+                    # Postgres requires properly cast default or boolean literal
+                    conn.execute(text('ALTER TABLE "used_domain" ADD COLUMN ever_used BOOLEAN DEFAULT FALSE'))
+                    conn.execute(text('UPDATE "used_domain" SET ever_used = TRUE WHERE user_count > 0'))
+                else:
+                    # SQLite: Using integer 0/1 is safer for older versions, though FALSE/TRUE often works
+                    conn.execute(text("ALTER TABLE used_domain ADD COLUMN ever_used BOOLEAN DEFAULT 0"))
+                    conn.execute(text("UPDATE used_domain SET ever_used = 1 WHERE user_count > 0"))
                 conn.commit()
             logging.info("✅ Successfully added 'ever_used' column!")
         else:
@@ -240,7 +245,12 @@ with app.app_context():
             logging.info("Adding missing 'last_login' column to user table...")
             # Add the column
             with db.engine.connect() as conn:
-                conn.execute(text("ALTER TABLE user ADD COLUMN last_login TIMESTAMP"))
+                if 'postgresql' in str(db.engine.url):
+                    # Postgres requires quoted table name "user" because it is a keyword
+                    conn.execute(text('ALTER TABLE "user" ADD COLUMN last_login TIMESTAMP'))
+                else:
+                    # SQLite is more lenient but quoting is still good practice
+                    conn.execute(text("ALTER TABLE user ADD COLUMN last_login TIMESTAMP"))
                 conn.commit()
             logging.info("✅ Successfully added 'last_login' column!")
         else:
