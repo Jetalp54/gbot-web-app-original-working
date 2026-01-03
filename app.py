@@ -261,6 +261,30 @@ with app.app_context():
             db.session.rollback()
         except:
             pass
+
+    # Auto-migration: Add created_at column to whitelisted_ip if it doesn't exist
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('whitelisted_ip')]
+        
+        if 'created_at' not in columns:
+            logging.info("Adding missing 'created_at' column to whitelisted_ip table...")
+            with db.engine.connect() as conn:
+                if 'postgresql' in str(db.engine.url):
+                    conn.execute(text('ALTER TABLE "whitelisted_ip" ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'))
+                else:
+                    conn.execute(text("ALTER TABLE whitelisted_ip ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
+                conn.commit()
+            logging.info("✅ Successfully added 'created_at' column to whitelisted_ip!")
+        else:
+            logging.debug("Column 'created_at' already exists in whitelisted_ip")
+    except Exception as e:
+        logging.warning(f"Could not auto-migrate created_at column for whitelisted_ip: {e}")
+        try:
+            db.session.rollback()
+        except:
+            pass
     if not User.query.filter_by(username='admin').first():
         admin_user = User(username='admin', password=generate_password_hash('A9B3nX#Q8k$mZ6vw', method='pbkdf2:sha256'), role='admin')
         db.session.add(admin_user)
@@ -815,14 +839,14 @@ def whitelist():
     
     # Get all whitelisted IPs for display
     try:
-        whitelisted_ips = WhitelistedIP.query.all()
-        ip_list = [ip.ip_address for ip in whitelisted_ips]
+        # Pass full objects to template to access created_at
+        whitelisted_ips = WhitelistedIP.query.order_by(WhitelistedIP.created_at.desc()).all()
     except Exception as e:
         app.logger.error(f"Error fetching whitelisted IPs: {e}")
-        ip_list = []
+        whitelisted_ips = []
     
     app.logger.info(f"Whitelist access granted: user={session.get('user')}, role={session.get('role')}, emergency_access={session.get('emergency_access')}")
-    return render_template('whitelist.html', user=session.get('user'), role=session.get('role'), whitelisted_ips=ip_list)
+    return render_template('whitelist.html', user=session.get('user'), role=session.get('role'), whitelisted_ips=whitelisted_ips)
 
 @app.route('/api/add-user', methods=['POST'])
 @login_required

@@ -3,407 +3,382 @@
 {% block title %}IP Whitelist Management{% endblock %}
 
 {% block content %}
-<!-- Page Header -->
-<div class="glass-panel mb-4">
-    <div class="d-flex align-items-center justify-content-between p-4">
-        <div class="d-flex align-items-center gap-3">
-            <div class="d-flex align-items-center justify-content-center rounded-3"
-                style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));">
-                <i class="fas fa-shield-alt text-white fa-lg"></i>
-            </div>
+<div class="glass-container-fluid">
+    <!-- Header -->
+    <div class="glass-panel d-flex justify-content-between align-items-center mb-4 p-4"
+        style="border-left: 4px solid var(--accent-primary);">
+        <div>
+            <h1 class="d-flex align-items-center m-0 fs-4 fw-bold" style="color: var(--text-primary);">
+                <i class="fas fa-shield-alt me-3" style="color: var(--accent-primary);"></i>IP Whitelist Management
+            </h1>
+            <p class="m-0 mt-1 text-muted small">Control which IP addresses can access your application</p>
+        </div>
+        <div>
+            <button onclick="toggleAddIPModal()" class="glass-button glass-button-primary">
+                <i class="fas fa-plus me-2"></i>Add New IP
+            </button>
+        </div>
+    </div>
+
+    <!-- Emergency Access Status (Only if active) -->
+    {% if session.get('emergency_access') %}
+    <div class="glass-panel glass-warning-box mb-4 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-triangle text-warning me-3 fs-4"></i>
             <div>
-                <h2 class="mb-0 text-white fw-bold">IP Whitelist Management</h2>
-                <p class="mb-0 text-muted small">Control which IP addresses can access your application</p>
+                <h5 class="text-warning fw-bold m-0">Emergency Access Active</h5>
+                <p class="m-0 text-muted small">You are using a temporary session. Please ensure your IP is whitelisted
+                    before logging out.</p>
             </div>
         </div>
-        {% if session.get('emergency_access') %}
-        <div class="d-flex align-items-center gap-3 px-3 py-2 rounded-3"
-            style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3);">
-            <i class="fas fa-exclamation-triangle text-warning"></i>
-            <span class="text-warning fw-semibold small">Emergency Access Active</span>
-            <a href="/logout" class="glass-button glass-button-danger py-1 px-2">
-                <i class="fas fa-sign-out-alt"></i>
-            </a>
+        <a href="/logout" class="glass-button glass-button-danger">
+            <i class="fas fa-sign-out-alt me-2"></i>Logout
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Emergency Entry Form (Collapsible) -->
+    <div class="glass-panel mb-4 p-4" style="border-left: 4px solid #f59e0b;">
+        <div class="d-flex justify-content-between align-items-center cursor-pointer" onclick="toggleEmergencyForm()">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-key text-warning me-3 fs-4"></i>
+                <div>
+                    <h5 class="fw-bold m-0 text-white">Emergency Access</h5>
+                    <p class="m-0 text-muted small">Locked out? Use your secret key to gain access</p>
+                </div>
+            </div>
+            <i class="fas fa-chevron-down text-muted" id="emergency-chevron"></i>
         </div>
-        {% endif %}
+
+        <div id="emergency-form-container" style="display: none; margin-top: 20px;">
+            <hr style="border-color: var(--border-panel);">
+            <div class="row align-items-end g-3">
+                <div class="col-md-5">
+                    <label class="form-label-github text-muted small">DETECTED IP</label>
+                    <div class="d-flex gap-2">
+                        <input type="text" id="emergency-ip" class="glass-input flex-grow-1 text-muted" readonly
+                            value="Detecting...">
+                        <button type="button" class="glass-button" onclick="detectIP('emergency')" title="Refresh IP">
+                            <i class="fas fa-crosshairs"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label-github text-muted small">EMERGENCY KEY</label>
+                    <input type="password" id="emergency-key" class="glass-input w-100" placeholder="Enter secret key">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" onclick="submitEmergencyIP()"
+                        class="glass-button glass-button-warning w-100 justify-content-center">
+                        <i class="fas fa-unlock me-2"></i>Access
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monday.com Style Data Table -->
+    <div class="glass-panel p-0 overflow-hidden">
+        <div class="table-responsive">
+            <table class="monday-table w-100">
+                <thead>
+                    <tr style="background: rgba(255,255,255,0.05); border-bottom: 2px solid var(--border-panel);">
+                        <th
+                            style="padding: 16px 24px; text-align: left; font-weight: 600; color: var(--text-secondary); width: 300px;">
+                            IP ADDRESS</th>
+                        <th
+                            style="padding: 16px 24px; text-align: center; font-weight: 600; color: var(--text-secondary); width: 150px;">
+                            STATUS</th>
+                        <th
+                            style="padding: 16px 24px; text-align: left; font-weight: 600; color: var(--text-secondary); width: 250px;">
+                            DATE ADDED</th>
+                        <th
+                            style="padding: 16px 24px; text-align: right; font-weight: 600; color: var(--text-secondary);">
+                            ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody id="ip-table-body">
+                    <!-- Group Header: Authorized Access Points -->
+                    <tr class="monday-group-header">
+                        <td colspan="4">
+                            <i class="fas fa-chevron-down monday-group-chevron"></i>
+                            Authorized Access Points
+                            <span class="text-muted fw-normal ms-2 fs-6" style="vertical-align: middle;">({{
+                                whitelisted_ips|length }})</span>
+                        </td>
+                    </tr>
+
+                    {% if whitelisted_ips %}
+                    {% for ip in whitelisted_ips %}
+                    <tr class="animate__animated animate__fadeIn">
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="d-flex align-items-center justify-content-center rounded-circle me-3"
+                                    style="width: 36px; height: 36px; background: rgba(59, 130, 246, 0.15);">
+                                    <i class="fas fa-network-wired text-info" style="font-size: 0.9rem;"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold" style="font-size: 0.95rem;">{{ ip.ip_address }}</div>
+                                    <div class="text-muted small">ID: {{ ip.id }}</div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Monday Style Full Status Cell -->
+                        <td class="monday-status-cell">
+                            <div class="monday-cell-block" title="This IP is authorized">
+                                ACTIVE
+                            </div>
+                        </td>
+
+                        <td>
+                            <div class="monday-date-cell">
+                                <div class="monday-date-icon">
+                                    <i class="far fa-calendar-alt" style="font-size: 0.8rem;"></i>
+                                </div>
+                                {% if ip.created_at %}
+                                {{ ip.created_at.strftime('%Y-%m-%d') }}
+                                {% else %}
+                                <span class="text-muted fst-italic">Unknown</span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <td style="text-align: right;">
+                            <button onclick="deleteIP('{{ ip.ip_address }}')"
+                                class="glass-button glass-button-danger p-2" title="Delete IP"
+                                style="width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center py-5 text-muted">
+                            <i class="fas fa-shield-alt fa-3x mb-3 opacity-50"></i>
+                            <p>No IP addresses whitelisted yet.</p>
+                            <button onclick="toggleAddIPModal()" class="glass-button glass-button-sm mt-2">Add your
+                                first IP</button>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<!-- Emergency Access Card -->
-<div class="glass-panel mb-4" style="border-left: 4px solid #f59e0b;">
-    <div class="p-4">
-        <div class="d-flex align-items-center gap-3 mb-4">
-            <div class="d-flex align-items-center justify-content-center rounded-circle"
-                style="width: 40px; height: 40px; background: rgba(245, 158, 11, 0.15);">
-                <i class="fas fa-unlock-alt text-warning"></i>
-            </div>
-            <div>
-                <h5 class="mb-0 text-warning fw-bold">Emergency Access</h5>
-                <p class="mb-0 text-muted small">Locked out? Use your emergency key to regain access</p>
-            </div>
-        </div>
+<!-- Add IP Modal -->
+<div id="addIPModal" class="modal-overlay"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1050; align-items: center; justify-content: center;">
+    <div class="glass-panel position-relative p-4" style="width: 450px;">
+        <button onclick="toggleAddIPModal()"
+            class="position-absolute top-0 end-0 m-3 btn-close btn-close-white"></button>
 
-        <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
-            <div style="flex: 1 1 280px;">
-                <label class="form-label-github small text-muted mb-2">YOUR CURRENT IP</label>
+        <h3 class="m-0 mb-4 d-flex align-items-center text-white">
+            <i class="fas fa-shield-alt text-success me-2"></i> Add New IP
+        </h3>
+
+        <form id="add-ip-form" onsubmit="event.preventDefault(); submitAddIP();">
+            <div class="form-group-github mb-3">
+                <label class="form-label-github text-muted small">DETECTED IP</label>
                 <div class="d-flex gap-2">
-                    <input type="text" id="emergency_ip" class="glass-input flex-grow-1" readonly
-                        placeholder="Detecting...">
-                    <button id="detectBtn" class="glass-button" type="button" title="Detect IP">
-                        <i class="fas fa-crosshairs"></i>
+                    <input type="text" id="detected-ip" class="glass-input flex-grow-1 text-muted" readonly
+                        value="Detecting...">
+                    <button type="button" class="glass-button" onclick="detectIP('modal')" title="Refresh IP">
+                        <i class="fas fa-sync-alt"></i>
                     </button>
                 </div>
             </div>
-            <div style="flex: 1 1 250px;">
-                <label class="form-label-github small text-muted mb-2">EMERGENCY KEY</label>
-                <input type="password" id="emergency_key" class="glass-input w-100" placeholder="Enter your secret key">
+
+            <div class="form-group-github mb-4">
+                <label class="form-label-github text-muted small">IP ADDRESS TO WHITELIST</label>
+                <input type="text" id="new-ip-address" class="glass-input fw-bold text-white"
+                    placeholder="e.g. 192.168.1.1" required>
+                <div class="form-text text-white-50 small mt-1">
+                    <i class="fas fa-info-circle me-1"></i> Use "Use Detected" button to verify your current IP.
+                </div>
             </div>
-            <div style="flex: 0 0 auto;">
-                <button type="button" id="emergencyBtn" class="glass-button glass-button-warning justify-content-center"
-                    style="min-width: 140px;">
-                    <i class="fas fa-key me-2"></i>Access
+
+            <div class="d-flex gap-2">
+                <button type="button" class="glass-button flex-grow-1 justify-content-center" onclick="useDetectedIP()">
+                    Use Detected
+                </button>
+                <button type="submit" class="glass-button glass-button-primary flex-grow-1 justify-content-center">
+                    <i class="fas fa-plus-circle me-2"></i>Add to Whitelist
                 </button>
             </div>
-        </div>
+        </form>
     </div>
 </div>
 
-<!-- Main Content - Side by Side Layout -->
-<div style="display: flex; gap: 24px; flex-wrap: wrap;">
-    <!-- Add New IP Card -->
-    <div style="flex: 0 0 350px; min-width: 300px;">
-        <div class="glass-panel h-100">
-            <div class="p-4">
-                <div class="d-flex align-items-center gap-3 mb-4">
-                    <div class="d-flex align-items-center justify-content-center rounded-circle"
-                        style="width: 40px; height: 40px; background: rgba(16, 185, 129, 0.15);">
-                        <i class="fas fa-plus text-success"></i>
-                    </div>
-                    <h5 class="mb-0 text-white fw-bold">Add New IP</h5>
-                </div>
+<!-- Status Toast Container -->
+<div id="status-toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100"></div>
 
-                <form id="add-ip-form">
-                    <div class="mb-3">
-                        <label for="ip_address" class="form-label-github small text-muted mb-2">IP ADDRESS</label>
-                        <input type="text" id="ip_address" name="ip_address" class="glass-input w-100"
-                            placeholder="e.g., 192.168.1.100" required>
-                    </div>
-                    <button type="submit" class="glass-button glass-button-primary w-100 justify-content-center">
-                        <i class="fas fa-plus-circle me-2"></i>Add to Whitelist
-                    </button>
-                </form>
-
-                <hr class="my-4" style="border-color: var(--border-panel);">
-
-                <div class="text-center">
-                    <p class="text-muted small mb-2">Quick Actions</p>
-                    <div class="d-flex gap-2 justify-content-center">
-                        <button id="refreshBtn" class="glass-button flex-grow-1 justify-content-center">
-                            <i class="fas fa-sync-alt me-2"></i>Refresh
-                        </button>
-                        <button id="deleteAllBtn"
-                            class="glass-button glass-button-danger flex-grow-1 justify-content-center">
-                            <i class="fas fa-trash-alt me-2"></i>Clear All
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Whitelisted IPs List -->
-    <div style="flex: 1 1 500px; min-width: 400px;">
-        <div class="glass-panel h-100 d-flex flex-column">
-            <div class="p-4 border-bottom" style="border-color: var(--border-panel) !important;">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="d-flex align-items-center justify-content-center rounded-circle"
-                        style="width: 40px; height: 40px; background: rgba(59, 130, 246, 0.15);">
-                        <i class="fas fa-list-ul text-info"></i>
-                    </div>
-                    <div>
-                        <h5 class="mb-0 text-white fw-bold">Whitelisted IPs</h5>
-                        <p class="mb-0 text-muted small">
-                            {% if whitelisted_ips %}{{ whitelisted_ips|length }} address(es) allowed{% else %}No
-                            addresses configured{% endif %}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <div id="ip-loading" class="text-center py-5 text-muted" style="display: none;">
-                <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
-                <p>Loading addresses...</p>
-            </div>
-
-            <div id="ip-list-container" class="flex-grow-1 p-4" style="max-height: 400px; overflow-y: auto;">
-                {% if whitelisted_ips %}
-                {% for ip in whitelisted_ips %}
-                <div class="d-flex align-items-center justify-content-between p-3 mb-2 rounded-3"
-                    style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-panel);">
-                    <div class="d-flex align-items-center gap-3">
-                        <i class="fas fa-check-circle text-success"></i>
-                        <code class="text-light">{{ ip }}</code>
-                    </div>
-                    <button class="glass-button glass-button-danger delete-ip-btn py-1 px-3" data-ip="{{ ip }}"
-                        title="Remove this IP">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                {% endfor %}
-                {% else %}
-                <div class="text-center py-5">
-                    <div class="d-flex align-items-center justify-content-center rounded-circle mx-auto mb-3"
-                        style="width: 80px; height: 80px; background: rgba(255,255,255,0.03); border: 2px dashed var(--border-panel);">
-                        <i class="fas fa-shield-alt fa-2x text-muted"></i>
-                    </div>
-                    <h6 class="text-muted mb-2">No IPs Whitelisted</h6>
-                    <p class="text-muted small mb-0">Add your first IP address using the form</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Status Messages -->
-<div id="status-messages" class="mt-4"></div>
-
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content glass-modal">
-            <div class="modal-header border-bottom border-secondary border-opacity-25">
-                <h5 class="modal-title glass-text-primary">
-                    <i class="fas fa-exclamation-triangle text-danger me-2"></i>Confirm Deletion
-                </h5>
-                <button type="button" class="btn-close btn-close-white" onclick="hideDeleteModal()"></button>
-            </div>
-            <div class="modal-body text-center p-4">
-                <p class="mb-2 text-secondary">Are you sure you want to remove this IP?</p>
-                <h4 id="delete-ip-address" class="text-white font-monospace my-3"></h4>
-                <p class="small text-muted">This action cannot be undone.</p>
-            </div>
-            <div class="modal-footer border-top-0 justify-content-center gap-3">
-                <button type="button" class="glass-button" id="cancelDeleteBtn">Cancel</button>
-                <button type="button" class="glass-button glass-button-danger" id="confirmDeleteBtn">
-                    <i class="fas fa-trash me-2"></i>Delete
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    let currentDeleteIP = '';
-
-    $(document).ready(function () {
-        console.log('Page loaded, initializing...');
-
-        // Auto-detect current IP on page load
-        detectCurrentIP();
-
-        // Bind button click events
-        $('#detectBtn').click(function () { detectCurrentIP(); });
-        $('#emergencyBtn').click(function () { emergencyAddIP(); });
-        $('#refreshBtn').click(function () { refreshIPList(); });
-        $('#deleteAllBtn').click(function () { deleteAllIPs(); });
-
-        // Add IP form submission
-        $("#add-ip-form").submit(function (event) {
-            event.preventDefault();
-            var ipAddress = $("#ip_address").val().trim();
-            if (!ipAddress) { showStatus('Please enter an IP address', 'error'); return; }
-            addIPToWhitelist(ipAddress, false);
-        });
-
-        // Delete IP button click (Delegate to container for dynamic elements)
-        $(document).on("click", ".delete-ip-btn", function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            currentDeleteIP = $(this).data("ip");
-            $("#delete-ip-address").text(currentDeleteIP);
-
-            // Show modal using Bootstrap
-            var modalEl = document.getElementById('deleteConfirmModal');
-            var modal = new bootstrap.Modal(modalEl);
-            modal.show();
-        });
-
-        // Confirm delete button
-        $(document).on("click", "#confirmDeleteBtn", function (e) {
-            e.preventDefault();
-            if (currentDeleteIP) { deleteIPFromWhitelist(currentDeleteIP); }
-        });
-
-        // Cancel button
-        $(document).on("click", "#cancelDeleteBtn", function () {
-            hideDeleteModal();
-        });
+    document.addEventListener('DOMContentLoaded', function () {
+        detectIP('all');
     });
 
-    function hideDeleteModal() {
-        var modalEl = document.getElementById('deleteConfirmModal');
-        var modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) { modal.hide(); }
-        // Fallback cleanup
-        $('.modal-backdrop').remove();
-        $('body').removeClass('modal-open').css('padding-right', '');
-    }
+    function toggleAddIPModal() {
+        const modal = document.getElementById('addIPModal');
+        const display = modal.style.display === 'flex' ? 'none' : 'flex';
+        modal.style.display = display;
 
-    function detectCurrentIP() {
-        $("#emergency_ip").val("Detecting...");
-        $("#ip_address").val("Detecting...");
-
-        // Try to detect current IP using external service
-        $.ajax({
-            url: 'https://api.ipify.org?format=json',
-            type: 'GET',
-            timeout: 5000,
-            success: function (data) {
-                $('#emergency_ip').val(data.ip);
-                $('#ip_address').val(data.ip);
-                showStatus('✅ IP address detected: ' + data.ip, 'success');
-            },
-            error: function () {
-                // Fallback to alternative service
-                $.ajax({
-                    url: 'https://ipinfo.io/ip',
-                    type: 'GET',
-                    timeout: 5000,
-                    success: function (ip) {
-                        $('#emergency_ip').val(ip.trim());
-                        $('#ip_address').val(ip.trim());
-                        showStatus('✅ IP address detected: ' + ip.trim(), 'success');
-                    },
-                    error: function () {
-                        $('#emergency_ip').val('Could not detect');
-                        $('#ip_address').val('Could not detect');
-                        showStatus('⚠️ Could not automatically detect your IP address.', 'warning');
-                    }
-                });
-            }
-        });
-    }
-
-    function emergencyAddIP() {
-        var ipAddress = $('#emergency_ip').val().trim();
-        var emergencyKey = $('#emergency_key').val().trim();
-
-        if (!ipAddress || ipAddress.includes('Detect') || !emergencyKey) {
-            showStatus('Please provide valid IP and Key', 'error');
-            return;
+        if (display === 'flex') {
+            document.getElementById('new-ip-address').focus();
         }
-        addIPToWhitelist(ipAddress, true, emergencyKey);
     }
 
-    function addIPToWhitelist(ipAddress, isEmergency, emergencyKey) {
-        var url = isEmergency ? '/api/emergency-add-ip' : '/api/add-whitelist-ip';
-        var data = isEmergency ? { ip_address: ipAddress, emergency_key: emergencyKey } : { ip_address: ipAddress };
+    function toggleEmergencyForm() {
+        const form = document.getElementById('emergency-form-container');
+        const chevron = document.getElementById('emergency-chevron');
 
-        showStatus('Adding IP to whitelist...', 'info');
-
-        $.ajax({
-            url: url,
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(data),
-            success: function (response) {
-                if (response.success) {
-                    showStatus('✅ ' + response.message, 'success');
-                    if (!isEmergency) $("#add-ip-form")[0].reset();
-                    setTimeout(function () { location.reload(); }, 1500);
-                } else {
-                    showStatus('❌ ' + response.error, 'error');
-                }
-            },
-            error: function (xhr, status, error) {
-                showStatus('❌ Network error: ' + error, 'error');
-            }
-        });
+        if (form.style.display === 'none') {
+            form.style.display = 'block';
+            form.classList.add('animate__animated', 'animate__fadeIn');
+            chevron.classList.remove('fa-chevron-down');
+            chevron.classList.add('fa-chevron-up');
+        } else {
+            form.style.display = 'none';
+            chevron.classList.remove('fa-chevron-up');
+            chevron.classList.add('fa-chevron-down');
+        }
     }
 
-    function refreshIPList() { location.reload(); }
+    function detectIP(context = 'all') {
+        const updateInput = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val;
+        };
 
-    function deleteAllIPs() {
-        if (confirm('⚠️ WARNING: This will delete ALL whitelisted IPs!\n\nThis action cannot be undone.')) {
-            showStatus('🔄 Deleting all IPs...', 'info');
-            $.ajax({
-                url: "/api/delete-all-whitelist-ips",
-                type: "POST",
-                contentType: "application/json",
-                data: JSON.stringify({}),
-                success: function (response) {
-                    if (response.success) {
-                        showStatus('✅ ' + response.message, 'success');
-                        setTimeout(function () { location.reload(); }, 1500);
-                    } else {
-                        showStatus('❌ ' + response.error, 'error');
-                    }
-                },
-                error: function (xhr) {
-                    showStatus('❌ Error: ' + xhr.responseText, 'error');
+        if (context === 'all' || context === 'modal') updateInput('detected-ip', "Detecting...");
+        if (context === 'all' || context === 'emergency') updateInput('emergency-ip', "Detecting...");
+
+        // Try multiple services for robustness
+        fetch('https://api.ipify.org?format=json')
+            .then(res => res.json())
+            .then(data => {
+                if (context === 'all' || context === 'modal') {
+                    updateInput('detected-ip', data.ip);
+                    if (!document.getElementById('new-ip-address').value) document.getElementById('new-ip-address').value = data.ip;
                 }
+                if (context === 'all' || context === 'emergency') {
+                    updateInput('emergency-ip', data.ip);
+                }
+            })
+            .catch(() => {
+                fetch('https://ipinfo.io/json')
+                    .then(res => res.json())
+                    .then(data => {
+                        if (context === 'all' || context === 'modal') updateInput('detected-ip', data.ip);
+                        if (context === 'all' || context === 'emergency') updateInput('emergency-ip', data.ip);
+                    })
+                    .catch(() => {
+                        const msg = "Could not detect";
+                        if (context === 'all' || context === 'modal') updateInput('detected-ip', msg);
+                        if (context === 'all' || context === 'emergency') updateInput('emergency-ip', msg);
+                    });
             });
+    }
+
+    function useDetectedIP() {
+        const detected = document.getElementById('detected-ip').value;
+        if (detected && detected !== "Detecting..." && detected !== "Could not detect") {
+            document.getElementById('new-ip-address').value = detected;
         }
     }
 
-    function deleteIPFromWhitelist(ipAddress) {
-        $.ajax({
-            url: "/api/delete-whitelist-ip",
-            type: "POST",
-            contentType: "application/json",
-            data: JSON.stringify({ ip_address: ipAddress }),
-            success: function (response) {
-                if (response.success) {
-                    showStatus('✅ ' + response.message, 'success');
-                    hideDeleteModal();
-                    setTimeout(function () { location.reload(); }, 1000);
+    function submitAddIP() {
+        const ip = document.getElementById('new-ip-address').value.trim();
+        if (!ip) return showToast("Please enter an IP address", "error");
+
+        fetch('/api/add-whitelist-ip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip_address: ip })
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast("IP Address Added Successfully", "success");
+                    setTimeout(() => location.reload(), 1000);
                 } else {
-                    showStatus('❌ ' + response.error, 'error');
+                    showToast(data.error || "Failed to add IP", "error");
                 }
-            },
-            error: function (xhr, status, error) {
-                showStatus('❌ Network error: ' + error, 'error');
-            }
-        });
+            })
+            .catch(err => showToast("Network Error: " + err, "error"));
     }
 
-    function showStatus(message, type) {
-        var boxClass = 'glass-info-box';
-        var icon = 'fa-info-circle';
-        var textColor = 'text-info';
+    function submitEmergencyIP() {
+        const ip = document.getElementById('emergency-ip').value.trim();
+        const key = document.getElementById('emergency-key').value.trim();
 
-        if (type === 'success') {
-            boxClass = 'glass-success-box';
-            icon = 'fa-check-circle';
-            textColor = 'text-success';
-        } else if (type === 'error') {
-            boxClass = 'glass-error-box';
-            icon = 'fa-exclamation-circle';
-            textColor = 'text-danger';
-        } else if (type === 'warning') {
-            boxClass = 'glass-warning-box';
-            icon = 'fa-exclamation-triangle';
-            textColor = 'text-warning';
-        }
+        if (!ip || ip.includes("Detect")) return showToast("Please wait for IP detection", "error");
+        if (!key) return showToast("Please enter your emergency key", "error");
 
-        var statusHtml = `
-            <div class="${boxClass} d-flex align-items-center gap-3 animate__animated animate__fadeIn">
-                <i class="fas ${icon} ${textColor} fs-5"></i>
-                <span class="fw-medium">${message}</span>
-                <button onclick="this.parentElement.style.display='none'" class="btn-close btn-close-white ms-auto" aria-label="Close"></button>
+        fetch('/api/emergency-add-ip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip_address: ip, emergency_key: key })
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast("Emergency Access Granted! IP Whitelisted.", "success");
+                    setTimeout(() => window.location.href = '/whitelist', 1500);
+                } else {
+                    showToast(data.error || "Failed to grant access", "error");
+                }
+            })
+            .catch(err => showToast("Network Error: " + err, "error"));
+    }
+
+    function deleteIP(ip) {
+        if (!confirm(`Are you sure you want to remove ${ip} from the whitelist?`)) return;
+
+        fetch('/api/delete-whitelist-ip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip_address: ip })
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast("IP Removed Successfully", "success");
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(data.error || "Failed to remove IP", "error");
+                }
+            })
+            .catch(err => showToast("Network Error: " + err, "error"));
+    }
+
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('status-toast-container');
+        const colorClass = type === 'success' ? 'glass-success-box' : (type === 'error' ? 'glass-error-box' : 'glass-info-box');
+        const icon = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle');
+
+        const toast = document.createElement('div');
+        toast.className = `${colorClass} mb-2 animate__animated animate__fadeInRight`;
+        toast.style.minWidth = "300px";
+        toast.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="fas ${icon} me-3 fs-5"></i>
+                <div class="fw-medium">${message}</div>
+                <button type="button" class="btn-close btn-close-white ms-auto" onclick="this.parentElement.parentElement.remove()"></button>
             </div>
         `;
 
-        $('#status-messages').html(statusHtml);
-
-        if (type === 'success') {
-            setTimeout(function () {
-                $('#status-messages').fadeOut();
-            }, 5000);
-        }
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.replace('animate__fadeInRight', 'animate__fadeOutRight');
+            setTimeout(() => toast.remove(), 500);
+        }, 3000);
     }
 </script>
 {% endblock %}

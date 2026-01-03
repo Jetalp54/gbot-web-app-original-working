@@ -12,6 +12,7 @@ class User(db.Model):
 class WhitelistedIP(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ip_address = db.Column(db.String(45), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
 class UsedDomain(db.Model):
     id = db.Column(db.Integer, primary_key=True)
