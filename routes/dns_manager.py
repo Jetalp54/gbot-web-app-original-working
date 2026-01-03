@@ -86,26 +86,30 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 db.session.commit()
                 return
 
-            # [USER-FIX] Advanced parsing for deep subdomains (Multi-level TLD support)
-            # If domain has 4+ parts (e.g. albert.exemple.it.com), assume first part is host
-            # and the rest is the zone/apex. This overrides standard to_apex logic.
+            # [USER-FIX] Advanced parsing for deep subdomains (double TLDs)
+            # FORCE: If 4+ parts, assume first is host, rest is ZONE.
             domain_parts = domain.lower().split('.')
+            
+            # Explicit debug logging
+            logger.info(f"PARSING DOMAIN: {domain}, parts: {len(domain_parts)}")
+            
             if len(domain_parts) >= 4:
-                # e.g. albert.exemple.it.com (4 parts) -> Host: albert, Apex: exemple.it.com
-                # e.g. sub.example.co.uk (4 parts) -> Host: sub, Apex: example.co.uk
+                # e.g. albertos.skillhorizonx.it.com -> Host: albertos, Zone: skillhorizonx.it.com
+                
+                # SPECIAL CHECK: If the user inputs a generic 3-part domain that looks like a subdomain
+                # but is actually a zone (e.g. something.it.com), we might need to handle 3 parts too?
+                # But user said "double TLD" so let's stick to 4 parts as the trigger for now.
+                
                 txt_host = domain_parts[0]
                 apex = '.'.join(domain_parts[1:])
-                logger.info(f"Deep subdomain detected (4+ parts): {domain} -> Apex: {apex}, Host: {txt_host}")
+                logger.info(f" [4+ PARTS] forcing custom apex: {apex}")
             else:
-                # Standard logic (2-3 parts) - Use to_apex for safety with co.uk etc.
                 apex = to_apex(domain)
+                logger.info(f" [STD PARTS] standard apex: {apex}")
                 
-                # Determine TXT host (subdomain part or @)
                 txt_host = '@'
                 if domain.lower() != apex.lower():
-                    # It's a subdomain
                     apex_parts = apex.lower().split('.')
-                    # Subdomain is the part of domain not in apex
                     if len(domain_parts) > len(apex_parts):
                         subdomain_part = domain_parts[:len(domain_parts) - len(apex_parts)]
                         txt_host = '.'.join(subdomain_part)
