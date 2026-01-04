@@ -30,7 +30,7 @@ from email.mime.multipart import MIMEMultipart
 import re
 
 from core_logic import google_api
-from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig, ServiceAccount, CloudflareConfig
+from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig, ServiceAccount, CloudflareConfig, Notification
 from routes.dns_manager import dns_manager
 from routes.aws_manager import aws_manager
 
@@ -459,6 +459,22 @@ def login():
                     db.session.commit()
                 except Exception as e:
                     app.logger.error(f"Failed to update last_login for {username}: {e}")
+                
+                # Create login notification
+                try:
+                    client_ip = get_client_ip()
+                    notification = Notification(
+                        type='login',
+                        title=f'{user.username} logged in',
+                        message=f'{user.username} ({user.role}) logged in from {client_ip}',
+                        icon='fa-sign-in-alt',
+                        user_id=user.id
+                    )
+                    db.session.add(notification)
+                    db.session.commit()
+                    app.logger.info(f"Login notification created for {username}")
+                except Exception as e:
+                    app.logger.error(f"Failed to create login notification: {e}")
                     
                 app.logger.info(f"Session set - user: {session.get('user')}, role: {session.get('role')}")
                 flash(f'Welcome {user.username}!', 'success')
@@ -1445,6 +1461,106 @@ def api_delete_all_whitelist_ips_simple():
         db.session.rollback()
         app.logger.error(f"Error deleting all whitelisted IPs (simple): {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
+
+# ============================================================
+# NOTIFICATION SYSTEM API ENDPOINTS
+# ============================================================
+
+@app.route('/api/notifications', methods=['GET'])
+def api_get_notifications():
+    """Get recent notifications for the header bell"""
+    try:
+        # Get the last 20 notifications, ordered by date
+        notifications = Notification.query.order_by(Notification.created_at.desc()).limit(20).all()
+        
+        # Count unread
+        unread_count = Notification.query.filter_by(is_read=False).count()
+        
+        notification_list = []
+        for n in notifications:
+            notification_list.append({
+                'id': n.id,
+                'type': n.type,
+                'title': n.title,
+                'message': n.message,
+                'icon': n.icon,
+                'is_read': n.is_read,
+                'created_at': n.created_at.isoformat() if n.created_at else None,
+                'time_ago': get_time_ago(n.created_at) if n.created_at else 'Unknown'
+            })
+        
+        return jsonify({
+            'success': True,
+            'notifications': notification_list,
+            'unread_count': unread_count
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting notifications: {e}")
+        return jsonify({'success': False, 'error': str(e), 'notifications': [], 'unread_count': 0})
+
+@app.route('/api/notifications/mark-read', methods=['POST'])
+def api_mark_notifications_read():
+    """Mark notifications as read"""
+    try:
+        data = request.get_json() or {}
+        notification_ids = data.get('ids', [])
+        mark_all = data.get('mark_all', False)
+        
+        if mark_all:
+            # Mark all as read
+            Notification.query.filter_by(is_read=False).update({'is_read': True})
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'All notifications marked as read'})
+        elif notification_ids:
+            # Mark specific notifications as read
+            Notification.query.filter(Notification.id.in_(notification_ids)).update({'is_read': True}, synchronize_session=False)
+            db.session.commit()
+            return jsonify({'success': True, 'message': f'{len(notification_ids)} notifications marked as read'})
+        else:
+            return jsonify({'success': False, 'error': 'No notification IDs provided'})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error marking notifications as read: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/notifications/clear', methods=['POST'])
+def api_clear_notifications():
+    """Clear all notifications (admin only)"""
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'})
+    
+    try:
+        count = Notification.query.count()
+        Notification.query.delete()
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Cleared {count} notifications'})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error clearing notifications: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+def get_time_ago(dt):
+    """Convert datetime to human-readable time ago string"""
+    if not dt:
+        return 'Unknown'
+    
+    now = datetime.now()
+    diff = now - dt
+    seconds = diff.total_seconds()
+    
+    if seconds < 60:
+        return 'Just now'
+    elif seconds < 3600:
+        mins = int(seconds / 60)
+        return f'{mins}m ago'
+    elif seconds < 86400:
+        hours = int(seconds / 3600)
+        return f'{hours}h ago'
+    elif seconds < 604800:
+        days = int(seconds / 86400)
+        return f'{days}d ago'
+    else:
+        return dt.strftime('%b %d')
 
 @app.route('/api/debug-whitelist-ips', methods=['GET'])
 def api_debug_whitelist_ips():

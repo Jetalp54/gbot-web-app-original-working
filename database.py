@@ -181,3 +181,15 @@ class ServiceAccount(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
+class Notification(db.Model):
+    """Store notifications for login events and system alerts"""
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(50), nullable=False, default='system')  # login, system, alert
+    title = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    icon = db.Column(db.String(50), default='fa-bell')  # FontAwesome icon class
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Who triggered it
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
