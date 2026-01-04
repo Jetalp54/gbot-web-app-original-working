@@ -13,7 +13,10 @@
             </h1>
             <p class="m-0 mt-1 text-muted small">Control which IP addresses can access your application</p>
         </div>
-        <div>
+        <div class="d-flex gap-2">
+            <button onclick="deleteAllIPs()" class="glass-button glass-button-danger">
+                <i class="fas fa-trash-alt me-2"></i>Delete All
+            </button>
             <button onclick="toggleAddIPModal()" class="glass-button glass-button-primary">
                 <i class="fas fa-plus me-2"></i>Add New IP
             </button>
@@ -353,6 +356,25 @@
                     setTimeout(() => location.reload(), 1000);
                 } else {
                     showToast(data.error || "Failed to remove IP", "error");
+                }
+            })
+            .catch(err => showToast("Network Error: " + err, "error"));
+    }
+
+    function deleteAllIPs() {
+        if (!confirm('⚠️ WARNING: This will remove ALL whitelisted IPs!\n\nYou may lose access to the application if you delete your own IP.\n\nAre you sure you want to proceed?')) return;
+
+        fetch('/api/delete-all-whitelist-ips', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`All ${data.deleted_count || 0} IP(s) removed successfully`, "success");
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(data.error || "Failed to delete all IPs", "error");
                 }
             })
             .catch(err => showToast("Network Error: " + err, "error"));

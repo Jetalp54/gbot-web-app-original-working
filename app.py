@@ -349,8 +349,9 @@ def before_request():
     # Debug logging
     app.logger.debug(f"Before request: endpoint={request.endpoint}, user={session.get('user')}, emergency_access={session.get('emergency_access')}, client_ip={get_client_ip()}")
     
-    # Always allow these routes without any checks (whitelisted routes)
-    if request.endpoint in ['static', 'login', 'emergency_access', 'test-admin']:
+    # Always allow these critical routes without any checks (truly exempt)
+    # These are required for emergency access and system health
+    if request.endpoint in ['static', 'emergency_access', 'api_emergency_add_ip', 'api_debug_config', 'api_debug_whitelist', 'health_check', 'test-admin']:
         app.logger.debug(f"Allowing {request.endpoint} route without restrictions")
         return
 
@@ -359,27 +360,11 @@ def before_request():
         app.logger.debug(f"Allowing emergency access user to access {request.endpoint}")
         return
 
-    # Allow logged-in users to bypass IP whitelist check
-    # But FIRST, enforce Role-Based Access Control (RBAC) for critical routes
-    if session.get('user'):
-        # Restricted Routes Check
-        if request.path == '/settings':
-            user_role = session.get('role')
-            # Get allowed permissions, defaulting to empty list
-            # Note: ROLE_PERMISSIONS is defined above
-            allowed_perms = ROLE_PERMISSIONS.get(user_role, [])
-            
-            if 'settings' not in allowed_perms:
-                app.logger.warning(f"Access denied to /settings for user {session.get('user')} (role: {user_role})")
-                flash("Access denied: You do not have permission to view Settings.", "danger")
-                return redirect(url_for('dashboard'))
-
-        app.logger.debug(f"Allowing logged-in user {session.get('user')} to access {request.endpoint}")
-        return
-
-    # IP Whitelist check - for ALL users (including logged-in users)
-    # Check if IP whitelist is enabled
-    if app.config.get('ENABLE_IP_WHITELIST', False):  # Default to False to prevent 502 lockout
+    # ================================================================
+    # IP WHITELIST CHECK - MUST HAPPEN BEFORE LOGIN IS ALLOWED
+    # This is the FIRST security gate - if IP is not whitelisted, DENY ALL
+    # ================================================================
+    if app.config.get('ENABLE_IP_WHITELIST', False):  # Default to False to prevent lockout
         client_ip = get_client_ip()
         
         # Normalize IP (strip whitespace, lowercase for IPv6)
@@ -401,11 +386,36 @@ def before_request():
         
         if not whitelisted_ip:
             app.logger.warning(f"IP '{client_ip}' (normalized: '{client_ip_normalized}') not whitelisted, access denied to {request.endpoint}")
-            return f"Access denied. IP {client_ip} is not whitelisted. Please contact administrator or use emergency access.", 403
+            # Block EVERYTHING including login if IP is not whitelisted
+            return f"Access denied. IP {client_ip} is not whitelisted. Please contact administrator or use <a href='/emergency_access?key=YOUR_WHITELIST_TOKEN'>emergency access</a>.", 403
         else:
             app.logger.info(f"IP '{client_ip_normalized}' is whitelisted, allowing access")
     else:
         app.logger.debug("IP whitelist disabled, allowing access")
+
+    # ================================================================
+    # AFTER IP CHECK PASSES - Allow login route
+    # ================================================================
+    if request.endpoint == 'login':
+        app.logger.debug("Allowing login route after IP check passed")
+        return
+
+    # ================================================================
+    # ROLE-BASED ACCESS CONTROL for logged-in users
+    # ================================================================
+    if session.get('user'):
+        # Restricted Routes Check
+        if request.path == '/settings':
+            user_role = session.get('role')
+            allowed_perms = ROLE_PERMISSIONS.get(user_role, [])
+            
+            if 'settings' not in allowed_perms:
+                app.logger.warning(f"Access denied to /settings for user {session.get('user')} (role: {user_role})")
+                flash("Access denied: You do not have permission to view Settings.", "danger")
+                return redirect(url_for('dashboard'))
+
+        app.logger.debug(f"Allowing logged-in user {session.get('user')} to access {request.endpoint}")
+        return
 
 @app.after_request
 def add_security_headers(response):
