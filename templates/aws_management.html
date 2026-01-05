@@ -610,6 +610,7 @@
     // Helper function to get AWS credentials
     function getAwsCredentials() {
         if (!window.awsConfig) {
+            console.error('AWS credentials not loaded in window.awsConfig');
             alert('AWS credentials not loaded. Please configure them in Settings first.');
             return null;
         }
@@ -1397,44 +1398,61 @@
     // Invoke Production Lambda
     function invokeProductionLambda() {
         // Prevent duplicate invocations
-        if (isProcessing) {
-            log('⚠️ WARNING: A bulk job is already running. Please wait for it to complete.');
-            alert('A bulk job is already running. Please wait for it to complete.');
-            return;
-        }
+        try {
+            if (isProcessing) {
+                log('⚠️ WARNING: A bulk job is already running.');
+                alert('A bulk job is already running. Please wait.');
+                return;
+            }
 
-        const creds = getAwsCredentials();
-        if (!creds) return;
-        const { access_key: accessKey, secret_key: secretKey, region } = creds;
-        // Force execution mode to multiple since single mode UI was removed
-        const executionMode = 'multiple';
-        const usersText = document.getElementById('multipleUsers').value.trim();
+            const creds = getAwsCredentials();
+            if (!creds) {
+                console.error('[FRONTEND] getAwsCredentials failed (returned null)');
+                return;
+            }
+            const { access_key: accessKey, secret_key: secretKey, region } = creds;
 
-        if (!usersText) {
-            alert('Please enter at least one account in the format \'email:password\' (one per line).');
-            return;
-        }
+            // Force execution mode to multiple
+            const executionMode = 'multiple';
+            const usersText = document.getElementById('multipleUsers').value.trim();
 
-        // Parse users cleanly
-        const usersRaw = usersText.split('\n').filter(line => line.trim() && line.includes(':'));
+            if (!usersText) {
+                alert('Please enter at least one account first.');
+                return;
+            }
 
-        // Log parsing results
-        console.log(`[FRONTEND] Parsed ${usersRaw.length} users from input`);
-        if (usersRaw.length === 0) {
-            alert('No valid users found. Please enter users in format: email:password (one per line)');
-            return;
-        }
+            // Parse users cleanly
+            const usersRaw = usersText.split('\n').filter(line => line.trim() && line.includes(':'));
 
-        if (usersRaw.length > 1000) {
-            alert(`Too many users (${usersRaw.length}). Maximum is 1000. Please reduce the number of users.`);
-            return;
+            // Log parsing results
+            console.log(`[FRONTEND] Parsed ${usersRaw.length} users from input`);
+
+            if (usersRaw.length === 0) {
+                alert('No valid users found. Format: email:password');
+                return;
+            }
+
+            if (usersRaw.length > 1000) {
+                alert(`Too many users (${usersRaw.length}). Max 1000.`);
+                return;
+            }
+
+            console.log('[FRONTEND] Requesting confirmation...');
+            // Check if confirmation is skipped or accepted
+            if (!confirm(`Are you sure you want to process ${usersRaw.length} accounts in parallel?`)) {
+                console.log('[FRONTEND] User cancelled confirmation.');
+                return;
+            }
+            console.log('[FRONTEND] Confirmation accepted. Starting job...');
+
+            // Set flag to prevent duplicate clicks
+            isProcessing = true;
+            invokeMultipleAccounts(usersRaw);
+        } catch (e) {
+            console.error('[FRONTEND] CRITICAL ERROR in invokeProductionLambda:', e);
+            alert('Critical Error: ' + e.message);
+            isProcessing = false;
         }
-        if (!confirm(`Are you sure you want to process ${usersRaw.length} accounts in parallel?\n\nThis will invoke the Lambda ${usersRaw.length} times concurrently on the server.`)) {
-            return;
-        }
-        // Set flag to prevent duplicate clicks
-        isProcessing = true;
-        invokeMultipleAccounts(usersRaw);
     }
 
     function invokeSingleAccount(userLine) {
@@ -1755,43 +1773,53 @@
 
     // Delete All Lambdas
     function deleteAllLambdas() {
-        const creds = getAwsCredentials();
-        if (!creds) return;
-        const { access_key: accessKey, secret_key: secretKey, region } = creds;
-        const naming = getNamingConfig();
+        try {
+            const creds = getAwsCredentials();
+            if (!creds) {
+                console.error('[FRONTEND] getAwsCredentials failed (returned null)');
+                return;
+            }
+            const { access_key: accessKey, secret_key: secretKey, region } = creds;
+            const naming = getNamingConfig();
 
-        if (!confirm(`Are you sure you want to delete all Lambdas with prefix "${naming.lambda_prefix}"?\n\nThis action cannot be undone.`)) {
-            return;
+            log('Requesting confirmation for DELETE ALL...');
+            if (!confirm(`Are you sure you want to delete all Lambdas with prefix "${naming.lambda_prefix}"?\n\nThis action cannot be undone.`)) {
+                log('User cancelled DELETE ALL.');
+                return;
+            }
+
+            log(`Deleting all Lambdas with prefix: ${naming.lambda_prefix}...`);
+
+            fetch('/api/aws/delete-all-lambdas', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    access_key: accessKey,
+                    secret_key: secretKey,
+                    region: region,
+                    lambda_prefix: naming.lambda_prefix
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        log('Lambda cleanup completed.');
+                        alert('All Lambdas deleted successfully.');
+                    } else {
+                        log(`ERROR deleting Lambdas: ${data.error}`);
+                        alert(`Error: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    log(`ERROR: ${error.message}`);
+                    alert(`Error: ${error.message}`);
+                });
+        } catch (e) {
+            console.error('[FRONTEND] CRITICAL ERROR in deleteAllLambdas:', e);
+            alert('Critical Error: ' + e.message);
         }
-
-        log(`Deleting all Lambdas with prefix: ${naming.lambda_prefix}...`);
-
-        fetch('/api/aws/delete-all-lambdas', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                access_key: accessKey,
-                secret_key: secretKey,
-                region: region,
-                lambda_prefix: naming.lambda_prefix
-            })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    log('Lambda cleanup completed.');
-                    alert('All Lambdas deleted successfully.');
-                } else {
-                    log(`ERROR deleting Lambdas: ${data.error}`);
-                    alert(`Error: ${data.error}`);
-                }
-            })
-            .catch(error => {
-                log(`ERROR: ${error.message}`);
-                alert(`Error: ${error.message}`);
-            });
     }
 
     // Delete S3 Content
