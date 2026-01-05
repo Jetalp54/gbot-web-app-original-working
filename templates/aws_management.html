@@ -31,7 +31,8 @@
     </div>
 
     <!-- Info Message -->
-    <div class="glass-panel p-4 mb-5" style="border-left: 4px solid var(--accent-secondary) !important;">
+    <div id="configWarningBanner" class="glass-panel p-4 mb-5"
+        style="border-left: 4px solid var(--accent-secondary) !important;">
         <div class="d-flex align-items-start gap-3">
             <div class="glass-orb"
                 style="position: static; width: 24px; height: 24px; background: var(--accent-secondary); filter: blur(10px); opacity: 0.8;">
@@ -2203,6 +2204,10 @@
                     // Store credentials in hidden fields or use directly
                     window.awsConfig = data.config;
                     log('AWS credentials loaded from settings.');
+
+                    // Hide warning banner
+                    const warningBanner = document.getElementById('configWarningBanner');
+                    if (warningBanner) warningBanner.style.display = 'none';
 
                     // [MULTI-USER] Populate UI fields with user-scoped resource names from backend
                     // This ensures the user sees 'Angel-chromium' etc. instead of defaults
