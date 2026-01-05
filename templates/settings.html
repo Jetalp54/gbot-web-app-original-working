@@ -220,6 +220,49 @@
             <div id="namecheap-config-status" style="margin-top: 16px; display: none;"></div>
         </div>
 
+        <!-- AWS Accounts Management Section -->
+        <div class="github-card draggable-card" data-id="aws-accounts" id="aws-accounts" style="margin-bottom: 24px;">
+            <div class="github-card-header" style="cursor: move;">
+                <h3 class="github-card-title" style="font-size: 18px;">
+                    <i class="fab fa-aws"></i>
+                    AWS Accounts Management
+                </h3>
+            </div>
+            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                Manage multiple AWS accounts. Add, edit, or remove AWS credentials.
+                Select the active account to use for AWS operations.
+            </p>
+
+            <!-- Add Account Button -->
+            <div style="margin-bottom: 16px;">
+                <button type="button" class="btn-github btn-github-primary" onclick="openAwsAccountModal()">
+                    <i class="fas fa-plus"></i> Add AWS Account
+                </button>
+            </div>
+
+            <!-- Accounts Table -->
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #30363d;">
+                            <th style="padding: 12px; text-align: left; color: #e6edf3;">Account Name</th>
+                            <th style="padding: 12px; text-align: left; color: #e6edf3;">Region</th>
+                            <th style="padding: 12px; text-align: left; color: #e6edf3;">Access Key</th>
+                            <th style="padding: 12px; text-align: left; color: #e6edf3;">Status</th>
+                            <th style="padding: 12px; text-align: right; color: #e6edf3;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aws-accounts-tbody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 24px; color: #656d76;">
+                                <i class="fas fa-spinner fa-spin"></i> Loading accounts...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Cloudflare DNS Configuration Section -->
         <div class="github-card draggable-card" data-id="cloudflare-config" style="margin-bottom: 24px;">
             <div class="github-card-header" style="cursor: move;">
@@ -988,6 +1031,96 @@
                         style="background: #0969da; height: 100%; width: 0%; transition: width 0.3s; border-radius: 6px;">
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AWS Account Modal -->
+<div id="awsAccountModal"
+    style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); justify-content: center; align-items: center;">
+    <div
+        style="background: #161b22; border: 1px solid #30363d; border-radius: 12px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto;">
+        <div
+            style="padding: 16px 20px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="awsModalTitle" style="margin: 0; font-size: 18px; color: #e6edf3;">
+                <i class="fab fa-aws"></i> Add AWS Account
+            </h3>
+            <button onclick="closeAwsAccountModal()"
+                style="background: none; border: none; color: #8b949e; cursor: pointer; font-size: 20px;">
+                &times;
+            </button>
+        </div>
+        <div style="padding: 20px;">
+            <input type="hidden" id="aws_account_id" value="">
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
+                    <i class="fas fa-tag"></i> Account Name *
+                </label>
+                <input type="text" id="aws_account_name" class="form-control-github w-100"
+                    placeholder="e.g., Production, Development" required>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
+                    <i class="fas fa-key"></i> Access Key ID *
+                </label>
+                <input type="text" id="aws_access_key_id" class="form-control-github w-100" placeholder="AKIA..."
+                    required>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
+                    <i class="fas fa-lock"></i> Secret Access Key *
+                </label>
+                <input type="password" id="aws_secret_access_key" class="form-control-github w-100"
+                    placeholder="Enter secret key">
+                <small style="color: #656d76; font-size: 12px;">Leave blank when editing to keep current key</small>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
+                    <i class="fas fa-globe"></i> AWS Region *
+                </label>
+                <select id="aws_region" class="form-control-github w-100">
+                    <option value="us-east-1">US East (N. Virginia)</option>
+                    <option value="us-east-2">US East (Ohio)</option>
+                    <option value="us-west-1">US West (N. California)</option>
+                    <option value="us-west-2">US West (Oregon)</option>
+                    <option value="eu-west-1" selected>Europe (Ireland)</option>
+                    <option value="eu-west-2">Europe (London)</option>
+                    <option value="eu-west-3">Europe (Paris)</option>
+                    <option value="eu-central-1">Europe (Frankfurt)</option>
+                    <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
+                    <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
+                    <i class="fas fa-box"></i> ECR Image URI
+                </label>
+                <input type="text" id="aws_ecr_uri" class="form-control-github w-100"
+                    placeholder="Auto-detected after test connection">
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
+                    <i class="fas fa-archive"></i> S3 Bucket Name
+                </label>
+                <input type="text" id="aws_s3_bucket" class="form-control-github w-100" placeholder="gbot-app-passwords"
+                    value="gbot-app-passwords">
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button type="button" class="btn-github" style="flex: 1;" onclick="testAwsConnection()">
+                    <i class="fas fa-plug"></i> Test Connection
+                </button>
+                <button type="button" class="btn-github btn-github-primary" style="flex: 1;"
+                    onclick="saveAwsConfiguration()">
+                    <i class="fas fa-save"></i> Save Account
+                </button>
             </div>
         </div>
     </div>
@@ -3502,11 +3635,15 @@
     window.onclick = function (event) {
         const cfModal = document.getElementById('cloudflareDomainsModal');
         const ncModal = document.getElementById('namecheapDomainsModal');
+        const awsModal = document.getElementById('awsAccountModal');
         if (event.target == cfModal) {
             cfModal.style.display = "none";
         }
         if (event.target == ncModal) {
             ncModal.style.display = "none";
+        }
+        if (event.target == awsModal) {
+            awsModal.style.display = "none";
         }
     }
 </script>
