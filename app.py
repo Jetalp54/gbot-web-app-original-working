@@ -2697,9 +2697,9 @@ def api_bulk_delete_account_users():
         app.logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/bulk-retrieve-account-users', methods=['POST'])
-@login_required
-def api_bulk_retrieve_account_users():
+# [DUPLICATE REMOVED] - This function was accidentally duplicated.
+# Removing the route decorator to fix startup error.
+def _unused_duplicate_api_bulk_retrieve_account_users():
     """
     Authenticate and retrieve all users from multiple accounts in bulk.
     Returns users in email:password format (password from app passwords if available).
