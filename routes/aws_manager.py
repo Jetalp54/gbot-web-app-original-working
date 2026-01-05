@@ -779,7 +779,8 @@ def get_aws_config():
         except Exception as e:
             logger.warning(f"Could not check/create aws_config table: {e}")
         
-        config = AwsConfig.query.first()
+        # Get the user's active AWS configuration (not just the first one)
+        config = get_current_active_config()
         
         # Get dynamic naming configuration (handles user scoping)
         naming_config = get_naming_config()
