@@ -2701,14 +2701,12 @@ def create_lambdas():
             logger.info(f"[LAMBDA] Creating single Lambda function")
 
         # Get all available AWS regions (geos) for distribution
-        # Regions as specified by user
-        # [FIX] Use the selected region ONLY, unless specific logic dictates global distribution
-        # The user provided 'region' (e.g., eu-west-1). We should create the function THERE.
-        # The previous logic distributed across ALL regions starting with us-east-1, 
-        # which caused failure if ECR image was only in eu-west-1.
-        AVAILABLE_GEO_REGIONS = [region]
+        # [MULTI-REGION] Deploy Lambda to ALL regions where ECR image exists
+        # The ECR push script replicates the image to all regions, so we can deploy globally
+        # This enables invoking Lambdas from any region for better performance
+        deploy_globally = data.get('deploy_globally', True)  # Default to global deployment
         
-        # Keep the global list for reference or if we add a "Global Deployment" toggle later
+        # Full list of all available regions for global deployment
         GLOBAL_GEO_REGIONS = [
             # United States
             'us-east-1',      # N. Virginia
@@ -2752,6 +2750,15 @@ def create_lambdas():
             # South America
             'sa-east-1',      # São Paulo
         ]
+        
+        # Use global regions if deploy_globally is True, otherwise just the selected region
+        if deploy_globally:
+            AVAILABLE_GEO_REGIONS = GLOBAL_GEO_REGIONS.copy()
+            logger.info(f"[LAMBDA] Global deployment enabled - deploying to ALL {len(AVAILABLE_GEO_REGIONS)} regions")
+        else:
+            AVAILABLE_GEO_REGIONS = [region]
+            logger.info(f"[LAMBDA] Single region deployment - deploying only to {region}")
+        
         
         # Distribute functions evenly across all available geos
         # Calculate how many functions each region should get for equal distribution
