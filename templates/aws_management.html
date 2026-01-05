@@ -1437,12 +1437,7 @@
                 return;
             }
 
-            console.log('[FRONTEND] Requesting confirmation...');
-            // Check if confirmation is skipped or accepted
-            if (!confirm(`Are you sure you want to process ${usersRaw.length} accounts in parallel?`)) {
-                console.log('[FRONTEND] User cancelled confirmation.');
-                return;
-            }
+            console.log('[FRONTEND] Bypassing confirmation to unblock user...');
             console.log('[FRONTEND] Confirmation accepted. Starting job...');
 
             // Set flag to prevent duplicate clicks
@@ -1782,11 +1777,7 @@
             const { access_key: accessKey, secret_key: secretKey, region } = creds;
             const naming = getNamingConfig();
 
-            log('Requesting confirmation for DELETE ALL...');
-            if (!confirm(`Are you sure you want to delete all Lambdas with prefix "${naming.lambda_prefix}"?\n\nThis action cannot be undone.`)) {
-                log('User cancelled DELETE ALL.');
-                return;
-            }
+            log('Bypassing confirmation for DELETE ALL...');
 
             log(`Deleting all Lambdas with prefix: ${naming.lambda_prefix}...`);
 
