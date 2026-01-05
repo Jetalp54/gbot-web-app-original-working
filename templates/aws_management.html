@@ -418,7 +418,7 @@
 
     // Initialize
     loadAwsAccountsSelector(); // Load account list first
-    loadAwsConfiguration();
+    loadAwsCredentials(); // Load AWS credentials into window.awsConfig
 
     // Tab switching logic
     function switchTab(tabId) {
