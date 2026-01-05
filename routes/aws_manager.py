@@ -166,6 +166,35 @@ def get_naming_config_api():
         logger.warning(f"[CONFIG] Error getting naming config: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@aws_manager.route('/api/aws/get-config', methods=['GET'])
+@login_required
+def get_aws_config_api():
+    """Return the currently ACTIVE AWS configuration including sensitive keys"""
+    try:
+        config = get_current_active_config()
+        if config:
+            return jsonify({
+                'success': True,
+                'config': {
+                    'id': config.id,
+                    'name': config.name,
+                    'access_key': config.access_key_id,
+                    'secret_key': config.secret_access_key,
+                    'region': config.region,
+                    's3_bucket': config.s3_bucket,
+                    'ecr_repo_name': config.ecr_repo_name,
+                    'dynamodb_table': config.dynamodb_table,
+                    'lambda_prefix': config.lambda_prefix,
+                    'instance_name': config.instance_name
+                }
+            })
+        else:
+             return jsonify({'success': False, 'error': 'No AWS configuration found. Please configure in Settings.'})
+
+    except Exception as e:
+        logger.error(f"[AWS_CONFIG] Error getting config: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @aws_manager.route('/api/service-accounts', methods=['GET'])
 def list_service_accounts():
     """List all configured service accounts"""
