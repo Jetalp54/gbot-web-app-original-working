@@ -49,14 +49,6 @@ ECR_REPO_NAME = DEFAULT_ECR_REPO_NAME
 
 logger = logging.getLogger(__name__)
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user' not in session:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-        return f(*args, **kwargs)
-    return decorated_function
-
 
 def get_naming_config():
     """
@@ -172,53 +164,6 @@ def get_naming_config_api():
             })
     except Exception as e:
         logger.warning(f"[CONFIG] Error getting naming config: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@aws_manager.route('/api/aws/get-config', methods=['GET'])
-# @login_required  # Temporarily disabled to debug credential loading issue
-def get_aws_config_api():
-    """Return the currently ACTIVE AWS configuration including sensitive keys"""
-    try:
-        # Debug: Log session state
-        user_id = session.get('user_id')
-        user_name = session.get('user')
-        logger.info(f"[GET_CONFIG] Session: user_id={user_id}, user={user_name}")
-        
-        config = get_current_active_config()
-        logger.info(f"[GET_CONFIG] get_current_active_config returned: {config}")
-        
-        # Robust fallback - if helper failed, try direct query
-        if not config:
-            logger.warning("[GET_CONFIG] No config from helper, trying direct query...")
-            config = AwsConfig.query.first()
-            logger.info(f"[GET_CONFIG] Direct query returned: {config}")
-        
-        if config:
-            logger.info(f"[GET_CONFIG] Returning config ID={config.id}, name={config.name}")
-            return jsonify({
-                'success': True,
-                'config': {
-                    'id': config.id,
-                    'name': config.name,
-                    'access_key_id': config.access_key_id,
-                    'secret_access_key': config.secret_access_key,
-                    'region': config.region,
-                    's3_bucket': config.s3_bucket,
-                    'ecr_repo_name': config.ecr_repo_name,
-                    'ecr_uri': config.ecr_uri,
-                    'dynamodb_table': config.dynamodb_table,
-                    'lambda_prefix': config.lambda_prefix,
-                    'instance_name': config.instance_name
-                }
-            })
-        else:
-            logger.error("[GET_CONFIG] No AWS configuration found in database at all!")
-            return jsonify({'success': False, 'error': 'No AWS configuration found. Please configure in Settings.'})
-
-    except Exception as e:
-        logger.error(f"[AWS_CONFIG] Error getting config: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/service-accounts', methods=['GET'])
@@ -827,13 +772,8 @@ def delete_aws_config(config_id):
 @aws_manager.route('/api/aws/get-config', methods=['GET'])
 @login_required
 def get_aws_config():
-    """Get AWS credentials configuration"""
+    """Get AWS credentials configuration - returns the ACTIVE config for current user"""
     try:
-        # Allow admin, mailer, and support to get config (needed for UI to function)
-        allowed_roles = ['admin', 'mailer', 'support']
-        if str(session.get('role', '')).lower() not in allowed_roles:
-            return jsonify({'success': False, 'error': 'Insufficient privileges'}), 403
-        
         # Ensure table exists
         try:
             inspector = db.inspect(db.engine)
@@ -842,7 +782,8 @@ def get_aws_config():
         except Exception as e:
             logger.warning(f"Could not check/create aws_config table: {e}")
         
-        config = AwsConfig.query.first()
+        # Use the multi-account helper to get ACTIVE config for current user
+        config = get_current_active_config()
         
         # Get dynamic naming configuration (handles user scoping)
         naming_config = get_naming_config()
