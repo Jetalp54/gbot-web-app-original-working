@@ -399,11 +399,15 @@ def get_rotated_proxy(proxy_list):
 
 # Login required decorator
 def login_required(f):
-    """Decorator to require login"""
-    from flask import redirect, url_for
+    """Decorator to require login - returns JSON for API routes, redirect for pages"""
+    from flask import redirect, url_for, request
     @wraps(f)
     def wrapper(*args, **kwargs):
         if 'user' not in session:
+            # For API routes, return JSON error
+            if request.path.startswith('/api/'):
+                return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+            # For page routes, redirect to login
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return wrapper
