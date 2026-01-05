@@ -483,7 +483,7 @@ def save_aws_config():
     try:
         # Allow admin, mailer, and support to save config (needed for running infrastructure)
         allowed_roles = ['admin', 'mailer', 'support']
-        if session.get('role') not in allowed_roles:
+        if str(session.get('role', '')).lower() not in allowed_roles:
             return jsonify({'success': False, 'error': 'Insufficient privileges'}), 403
         
         # Ensure table exists and has required columns
@@ -631,7 +631,7 @@ def get_aws_config():
     try:
         # Allow admin, mailer, and support to get config (needed for UI to function)
         allowed_roles = ['admin', 'mailer', 'support']
-        if session.get('role') not in allowed_roles:
+        if str(session.get('role', '')).lower() not in allowed_roles:
             return jsonify({'success': False, 'error': 'Insufficient privileges'}), 403
         
         # Ensure table exists
@@ -5260,7 +5260,7 @@ def invoke_lambda():
     """Invoke production Lambda (Single invocation)"""
     # Allow admin, mailer, and support to invoke functions
     allowed_roles = ['admin', 'mailer', 'support']
-    if session.get('role') not in allowed_roles:
+    if str(session.get('role', '')).lower() not in allowed_roles:
         return jsonify({'success': False, 'error': 'Access denied'})
     try:
         data = request.get_json()

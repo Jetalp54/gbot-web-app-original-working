@@ -449,8 +449,7 @@ def login():
                 app.logger.info(f"Password verified for user: {username}")
                 session['user'] = user.username
                 session['user_id'] = user.id
-                session['role'] = user.role
-                session['role'] = user.role
+                session['role'] = user.role.lower()
                 session.permanent = True  # Make session persistent
                 
                 # Update last login time
