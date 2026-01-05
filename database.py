@@ -8,6 +8,10 @@ class User(db.Model):
     password = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(80), nullable=False, default='support')
     last_login = db.Column(db.DateTime, nullable=True)  # Track last login time
+    active_aws_config_id = db.Column(db.Integer, db.ForeignKey('aws_config.id'), nullable=True) # Selected AWS account
+    
+    # Relationship to easily access the config
+    active_aws_config = db.relationship('AwsConfig', foreign_keys=[active_aws_config_id])
 
 class WhitelistedIP(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -128,6 +132,7 @@ class CloudflareConfig(db.Model):
 
 class AwsConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), default='Default Account') # Friendly name
     access_key_id = db.Column(db.String(255), nullable=False)
     secret_access_key = db.Column(db.Text, nullable=False)  # Encrypted
     region = db.Column(db.String(50), nullable=False, default='us-east-1')

@@ -59,21 +59,30 @@ def get_naming_config():
     try:
         from app import app
         with app.app_context():
-            config = AwsConfig.query.first()
+            # [MULTI-ACCOUNT] Use helper to get active config for current user
+            config = get_current_active_config()
             if config:
                 instance_name = config.instance_name or DEFAULT_INSTANCE_NAME
                 
-                # [MULTI-USER] Scope Lambda Name to Logged-in User
-                # If user is logged in, use "{User}-chromium", otherwise fallback to DB/Default
-                # Use 'user' key as defined in app.py login logic
+                # [MULTI-USER] Scope Lambda Name
+                # Priority: 
+                # 1. Custom Name in DB (aws_config.lambda_prefix)
+                # 2. Logged-in Username (User-chromium)
+                # 3. Default (Production-chromium)
+                
+                db_prefix = config.lambda_prefix
                 current_user = session.get('user')
-                if current_user:
-                    # Enforce Capitalized Username for resource naming 
-                    # Handle if username is an email (e.g. angel@domain.com -> Angel)
+
+                if db_prefix and db_prefix != DEFAULT_PRODUCTION_LAMBDA_NAME:
+                    # User explicitly set a custom name in settings
+                    lambda_prefix = db_prefix
+                elif current_user:
+                    # Fallback to username-based scoping
                     clean_user = current_user.split('@')[0]
                     lambda_prefix = f"{clean_user.capitalize()}-chromium"
                 else:
-                    lambda_prefix = config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME
+                    # Default
+                    lambda_prefix = DEFAULT_PRODUCTION_LAMBDA_NAME
 
                 ecr_repo = config.ecr_repo_name or DEFAULT_ECR_REPO_NAME
                 s3_bucket = config.s3_bucket or DEFAULT_S3_BUCKET_NAME
@@ -126,12 +135,15 @@ aws_manager = Blueprint('aws_manager', __name__)
 @aws_manager.route('/api/aws/get-naming-config', methods=['GET'])
 def get_naming_config_api():
     """Return saved resource naming configuration from database"""
+    """Return saved resource naming configuration from database"""
     try:
-        config = AwsConfig.query.first()
+        config = get_current_active_config()
         if config:
             return jsonify({
                 'success': True,
                 'config': {
+                    'id': config.id,
+                    'name': config.name,
                     'ecr_repo_name': config.ecr_repo_name or DEFAULT_ECR_REPO_NAME,
                     's3_bucket': config.s3_bucket or DEFAULT_S3_BUCKET_NAME,
                     'dynamodb_table': config.dynamodb_table or DEFAULT_DYNAMODB_TABLE,
@@ -555,14 +567,45 @@ def save_aws_config():
         if instance_name and instance_name != 'default' and not re.match(r'^[a-zA-Z0-9_-]+$', instance_name):
             return jsonify({'success': False, 'error': 'Instance name can only contain letters, numbers, dashes and underscores.'}), 400
 
-        # Get or create config
-        config = AwsConfig.query.first()
-        if not config:
-            config = AwsConfig()
-            db.session.add(config)
-            logger.info("[AWS_CONFIG] Creating new AWS config entry")
+        # Get config by ID (if updating) or create new
+        config_id = data.get('id')
+        config = None
+        
+        if config_id:
+            config = AwsConfig.query.get(config_id)
+            if not config:
+                return jsonify({'success': False, 'error': 'Configuration not found'}), 404
+            logger.info(f"[AWS_CONFIG] Updating existing configuration ID: {config_id}")
         else:
-            logger.info("[AWS_CONFIG] Updating existing AWS config entry")
+            # Check if we should create a NEW one or update the singleton (legacy behavior)
+            # If "create_new" flag is true, force create.
+            # Otherwise, check if *any* exist. If none, create. If some exist, error?
+            # For backward compatibility: if NO id is provided, and tables exist, 
+            # we used to just grab .first(). 
+            # Better approach: If ID is null, assume CREATE NEW if explicit, or UPDATE DEFAULT if one exists?
+            # Let's support an explicit 'create_new' flag or imply it if ID is missing but 'name' is provided?
+            
+            # Simple Logic: If user wants to edit, must provide ID. If no ID, assume NEW ENTRY.
+             # EXCEPT for the very first one.
+             
+            first_config = AwsConfig.query.first()
+            if not first_config:
+                 config = AwsConfig()
+                 db.session.add(config)
+                 logger.info("[AWS_CONFIG] Creating first (default) AWS config")
+            elif data.get('create_new', False):
+                 config = AwsConfig()
+                 db.session.add(config)
+                 logger.info("[AWS_CONFIG] Creating additional AWS config")
+            else:
+                 # Default to updating the first one if not specified (Legacy Support)
+                 config = first_config
+                 logger.info("[AWS_CONFIG] Updating default AWS config (Legacy Mode)")
+
+
+
+        # Update fields
+        config.name = data.get('name', 'My AWS Account').strip() or 'My AWS Account'
         
         # Update config - core fields (always required)
         config.access_key_id = access_key_id
@@ -599,22 +642,124 @@ def save_aws_config():
             return jsonify({'success': True, 'message': 'AWS configuration saved successfully'})
         except Exception as commit_err:
             db.session.rollback()
-            logger.error(f"[AWS_CONFIG] Database commit failed: {commit_err}")
-            logger.error(traceback.format_exc())
-            # Check if it's a column error
-            if 'no such column' in str(commit_err).lower() or 'column' in str(commit_err).lower():
-                return jsonify({
-                    'success': False, 
-                    'error': f'Database schema error. Please run migration: python3 migrate_db.py. Details: {str(commit_err)}'
-                }), 500
-            raise  # Re-raise to be caught by outer except
+            logger.error(f"[AWS_CONFIG] DB Commit Error: {commit_err}")
+            return jsonify({'success': False, 'error': f"Database error: {str(commit_err)}"}), 500
+
     except Exception as e:
-        logger.error(f"[AWS_CONFIG] Error saving AWS config: {e}")
-        logger.error(traceback.format_exc())
-        db.session.rollback()
+        logger.error(f"[AWS_CONFIG] Save Error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def get_current_active_config():
+    """
+    Helper to get the active AwsConfig for the current logged-in user.
+    Falls back to the first available config if no user preference is set.
+    """
+    from database import User
+    
+    user_id = session.get('user_id')
+    
+    if user_id:
+        user = User.query.get(user_id)
+        if user and user.active_aws_config_id:
+            config = AwsConfig.query.get(user.active_aws_config_id)
+            if config:
+                return config
+    
+    # Fallback: Return the first config found (default behavior)
+    return AwsConfig.query.first()
+
+@aws_manager.route('/api/aws/list-configs', methods=['GET'])
+@login_required
+def list_aws_configs():
+    """List all available AWS configurations (summary only)"""
+    try:
+        configs = AwsConfig.query.all()
         
-        # Provide more helpful error messages
-        error_msg = str(e)
+        # Get current user's active selection
+        active_id = None
+        from database import User
+        user_id = session.get('user_id')
+        if user_id:
+            user = User.query.get(user_id)
+            active_id = user.active_aws_config_id if user else None
+        
+        # If no active selection, default to first
+        if not active_id and configs:
+             active_id = configs[0].id
+
+        return jsonify({
+            'success': True,
+            'configs': [{
+                'id': c.id,
+                'name': c.name,
+                'region': c.region,
+                'active': (c.id == active_id),
+                'access_key_masked': f"{c.access_key_id[:4]}***" if c.access_key_id else ""
+            } for c in configs]
+        })
+    except Exception as e:
+        logger.error(f"[AWS_LIST] Error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@aws_manager.route('/api/aws/set-active-config', methods=['POST'])
+@login_required
+def set_active_config():
+    """Set the active AWS account for the current user"""
+    try:
+        data = request.get_json()
+        config_id = data.get('config_id')
+        
+        if not config_id:
+             return jsonify({'success': False, 'error': 'Missing config_id'}), 400
+             
+        from database import User
+        user = User.query.get(session.get('user_id'))
+        
+        if not user:
+             return jsonify({'success': False, 'error': 'User not found'}), 404
+             
+        # Verify config exists
+        config = AwsConfig.query.get(config_id)
+        if not config:
+             return jsonify({'success': False, 'error': 'Configuration not found'}), 404
+             
+        user.active_aws_config_id = config.id
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f"Switched to account: {config.name}"})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@aws_manager.route('/api/aws/delete-config/<int:config_id>', methods=['DELETE'])
+@login_required
+def delete_aws_config(config_id):
+    """Delete an AWS configuration"""
+    try:
+        # Check permissions
+        allowed_roles = ['admin']
+        if str(session.get('role', '')).lower() not in allowed_roles:
+            return jsonify({'success': False, 'error': 'Only admins can delete configurations'}), 403
+
+        config = AwsConfig.query.get(config_id)
+        if not config:
+            return jsonify({'success': False, 'error': 'Configuration not found'}), 404
+            
+        # Prevent deleting the last config? Maybe good practice but optional.
+        count = AwsConfig.query.count()
+        if count <= 1:
+             return jsonify({'success': False, 'error': 'Cannot delete the last configuration.'}), 400
+
+        db.session.delete(config)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Configuration deleted'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
         if 'no such column' in error_msg.lower():
             error_msg = 'Database schema is outdated. Please run: python3 migrate_db.py'
         elif 'UNIQUE constraint' in error_msg:

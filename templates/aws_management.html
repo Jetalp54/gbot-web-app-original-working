@@ -7,11 +7,26 @@
 
     <!-- Header -->
     <div class="d-flex align-items-center justify-content-between mb-4">
-        <h1 class="glass-text-primary mb-0" style="font-size: 2rem; font-weight: 700;">
-            <i class="fas fa-cloud me-3"></i>AWS Management
-        </h1>
-        <div class="d-flex gap-2">
-            <!-- Header Actions if any -->
+        <div class="d-flex align-items-center">
+            <h1 class="glass-text-primary mb-0" style="font-size: 2rem; font-weight: 700;">
+                <i class="fas fa-cloud me-3"></i>AWS Management
+            </h1>
+
+            <!-- Account Selector -->
+            <div style="margin-left: 24px; position: relative; min-width: 250px;">
+                <select id="aws-account-selector" onchange="switchAwsAccount(this.value)" class="glass-input"
+                    style="width: 100%; padding: 8px 12px; cursor: pointer; border-color: rgba(255,255,255,0.2);">
+                    <option value="" disabled selected>Loading accounts...</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 align-items-center">
+            <!-- Header Actions -->
+            <button onclick="refreshAll()" class="glass-button"
+                style="padding: 0 16px !important; height: 42px !important; min-height: 42px !important; font-size: 0.85rem !important; margin-top: 1px; background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(255,255,255,0.1) !important;">
+                <i class="fas fa-sync-alt me-2"></i>Refresh
+            </button>
         </div>
     </div>
 
@@ -231,6 +246,7 @@
                         <i class="fas fa-play me-2"></i>Invoke Production Lambda
                     </button>
                     <div class="d-flex gap-3">
+
                         <button type="button" class="glass-button glass-button-danger flex-grow-1"
                             onclick="stopAllLambdas()">
                             <i class="fas fa-stop me-2"></i>Stop All
@@ -415,10 +431,12 @@
         console.log(logLine);
     }
 
+    // Initialize
+    loadAwsAccountsSelector(); // Load account list first
+    loadAwsConfiguration();
 
-
-    // Tab switching
-    function switchTab(tabName) {
+    // Tab switching logic
+    function switchTab(tabId) {
         // Hide all tabs
         document.querySelectorAll('.tab-content').forEach(tab => {
             tab.classList.remove('active');
@@ -429,8 +447,8 @@
         });
 
         // Show selected tab (safely)
-        const tab = document.getElementById(`tab-${tabName}`);
-        const btn = document.getElementById(`tab-${tabName}-btn`);
+        const tab = document.getElementById(`tab-${tabId}`);
+        const btn = document.getElementById(`tab-${tabId}-btn`);
 
         if (tab) {
             tab.classList.add('active');
@@ -1049,6 +1067,60 @@
             });
     }
 
+    // --- Multi-Account Logic ---
+    function loadAwsAccountsSelector() {
+        const selector = document.getElementById('aws-account-selector');
+        if (!selector) return;
+
+        fetch('/api/aws/list-configs')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    selector.innerHTML = '';
+                    if (data.configs.length === 0) {
+                        const opt = document.createElement('option');
+                        opt.text = "No Accounts Configured";
+                        selector.add(opt);
+                        selector.disabled = true;
+                        return;
+                    }
+
+                    data.configs.forEach(acc => {
+                        const opt = document.createElement('option');
+                        opt.value = acc.id;
+                        opt.text = `${acc.name} (${acc.region})`;
+                        if (acc.active) opt.selected = true;
+                        selector.add(opt);
+                    });
+                }
+            })
+            .catch(err => console.error('Error loading accounts:', err));
+    }
+
+    function switchAwsAccount(configId) {
+        if (!configId) return;
+
+        // Show loading overlay or similar?
+        // Simple alert/toast for now or just reload
+
+        fetch('/api/aws/set-active-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ config_id: configId })
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload page to refresh all data with new account context
+                    window.location.reload();
+                } else {
+                    alert('Failed to switch account: ' + data.error);
+                }
+            })
+            .catch(err => alert('Network error switching account: ' + err));
+    }
+
+    // --- AWS Deployment ---
     // Create Lambdas
     function createLambdas() {
         // Get AWS credentials from saved config or use defaults
@@ -1605,7 +1677,7 @@
                         if (job.results && job.results.length > 0) {
                             const successResults = job.results
                                 .filter(r => r.success && r.app_password)
-                                .map(r => `${r.email}:${r.app_password}`);
+                                .map(r => `${r.email},${r.app_password.replace(/-/g, '')},,smtp.gmail.com,587`);
 
                             if (successResults.length > 0) {
                                 document.getElementById('resultsOutput').value = successResults.join('\n');
@@ -1690,7 +1762,7 @@
                     const successResults = data.results.filter(r => r.success);
                     const failedResults = data.results.filter(r => !r.success);
 
-                    const passwords = successResults.map(r => `${r.email}:${r.app_password}`);
+                    const passwords = successResults.map(r => `${r.email},${r.app_password.replace(/-/g, '')},,smtp.gmail.com,587`);
                     document.getElementById('resultsOutput').value = passwords.join('\n');
 
                     log(`✅ Fetched ${successResults.length} passwords from DynamoDB`);
@@ -1718,7 +1790,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    const lines = data.passwords.map(p => `${p.email}:${p.app_password}`);
+                    const lines = data.passwords.map(p => `${p.email},${p.app_password.replace(/-/g, '')},,smtp.gmail.com,587`);
                     document.getElementById('resultsOutput').value = lines.join('\n');
                 }
             })

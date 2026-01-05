@@ -299,111 +299,126 @@
 
         <!-- Garbage divs removed from here -->
 
-        <!-- AWS & G-Workspace Credentials Section -->
-        <div class="github-card" style="margin-bottom: 24px;">
-            <div class="github-card-header">
+        <!-- AWS Configuration (Multi-Account) -->
+        <div class="github-card draggable-card" data-id="aws-config" style="margin-bottom: 24px;">
+            <div class="github-card-header" style="cursor: move;">
                 <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-cloud"></i>
-                    AWS & G-Workspace Credentials
+                    <i class="fab fa-aws"></i> AWS Accounts (Multi-Account)
                 </h3>
             </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Configure AWS credentials for Lambda function management and Google Workspace automation. These
-                credentials
-                are saved securely and will be used for all AWS operations.
-            </p>
 
-            <form id="aws-config-form">
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="aws_access_key_id" class="form-label-github">
-                            <i class="fas fa-key"></i> Access Key ID
-                        </label>
-                        <input type="text" class="form-control-github w-100" id="aws_access_key_id"
-                            placeholder="Enter AWS Access Key ID" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Your AWS Access Key ID
-                        </small>
-                    </div>
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="aws_secret_access_key" class="form-label-github">
-                            <i class="fas fa-lock"></i> Secret Access Key
-                        </label>
-                        <input type="password" class="form-control-github w-100" id="aws_secret_access_key"
-                            placeholder="Enter AWS Secret Access Key" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Your AWS Secret Access Key
-                        </small>
-                    </div>
+            <div style="padding: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <p style="color: #656d76; margin: 0; font-size: 14px;">
+                        Manage multiple AWS accounts. Select the active one in AWS Management.
+                    </p>
+                    <button type="button" onclick="openAwsAccountModal()" class="btn-github btn-github-primary">
+                        <i class="fas fa-plus"></i> Add Account
+                    </button>
                 </div>
 
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="aws_region" class="form-label-github">
-                            <i class="fas fa-globe"></i> AWS Region
-                        </label>
-                        <select class="form-control-github w-100" id="aws_region" required>
-                            <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
-                            <option value="us-east-2">US East (Ohio) - us-east-2</option>
-                            <option value="us-west-1">US West (N. California) - us-west-1</option>
-                            <option value="us-west-2">US West (Oregon) - us-west-2</option>
-                            <option value="af-south-1">Africa (Cape Town) - af-south-1</option>
-                            <option value="ap-east-1">Asia Pacific (Hong Kong) - ap-east-1</option>
-                            <option value="ap-south-1">Asia Pacific (Mumbai) - ap-south-1</option>
-                            <option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
-                            <option value="ap-northeast-2">Asia Pacific (Seoul) - ap-northeast-2</option>
-                            <option value="ap-northeast-3">Asia Pacific (Osaka) - ap-northeast-3</option>
-                            <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
-                            <option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
-                            <option value="ap-southeast-3">Asia Pacific (Jakarta) - ap-southeast-3</option>
-                            <option value="ca-central-1">Canada (Central) - ca-central-1</option>
-                            <option value="eu-central-1">Europe (Frankfurt) - eu-central-1</option>
-                            <option value="eu-west-1" selected>Europe (Ireland) - eu-west-1</option>
-                            <option value="eu-west-2">Europe (London) - eu-west-2</option>
-                            <option value="eu-west-3">Europe (Paris) - eu-west-3</option>
-                            <option value="eu-north-1">Europe (Stockholm) - eu-north-1</option>
-                            <option value="eu-south-1">Europe (Milan) - eu-south-1</option>
-                            <option value="me-south-1">Middle East (Bahrain) - me-south-1</option>
-                            <option value="me-central-1">Middle East (UAE) - me-central-1</option>
-                            <option value="sa-east-1">South America (São Paulo) - sa-east-1</option>
+                <!-- Accounts List -->
+                <div class="table-container">
+                    <table class="github-table" id="aws-accounts-table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Region</th>
+                                <th>Access Key ID</th>
+                                <th>Status</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="aws-accounts-tbody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 20px; color: #656d76;">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading accounts...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- AWS Account Modal -->
+        <div id="awsAccountModal" class="custom-modal"
+            style="display: none; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+            <div class="custom-modal-content"
+                style="max-width: 600px; width: 90%; background: white; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.2);">
+                <div class="modal-header"
+                    style="padding: 16px 24px; border-bottom: 1px solid #d0d7de; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 id="awsModalTitle" style="margin: 0; font-size: 16px;">Add AWS Account</h3>
+                    <span class="close-modal" onclick="closeAwsAccountModal()"
+                        style="cursor: pointer; font-size: 20px;">&times;</span>
+                </div>
+                <div class="modal-body" style="padding: 24px;">
+                    <input type="hidden" id="aws_account_id">
+
+                    <div class="form-group-github">
+                        <label for="aws_account_name" class="form-label-github">Friendly Name</label>
+                        <input type="text" id="aws_account_name" class="form-control-github w-100"
+                            placeholder="e.g. Production, Staging">
+                        <small class="form-text text-muted">A name to identify this account.</small>
+                    </div>
+
+                    <div class="form-group-github">
+                        <label for="aws_access_key_id" class="form-label-github">Access Key ID</label>
+                        <input type="text" id="aws_access_key_id" class="form-control-github w-100"
+                            placeholder="AKIA...">
+                    </div>
+
+                    <div class="form-group-github">
+                        <label for="aws_secret_access_key" class="form-label-github">Secret Access Key</label>
+                        <input type="password" id="aws_secret_access_key" class="form-control-github w-100"
+                            placeholder="Enter new key to update">
+                    </div>
+
+                    <div class="form-group-github">
+                        <label for="aws_region" class="form-label-github">Region</label>
+                        <select id="aws_region" class="form-control-github w-100">
+                            <option value="us-east-1">US East (N. Virginia)</option>
+                            <option value="us-east-2">US East (Ohio)</option>
+                            <option value="us-west-1">US West (N. California)</option>
+                            <option value="us-west-2">US West (Oregon)</option>
+                            <option value="eu-west-1">EU (Ireland)</option>
+                            <option value="eu-central-1">EU (Frankfurt)</option>
+                            <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
+                            <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
                         </select>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Select your AWS region
-                        </small>
                     </div>
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="aws_s3_bucket" class="form-label-github">
-                            <i class="fas fa-bucket"></i> S3 Bucket (App Passwords)
-                        </label>
-                        <input type="text" class="form-control-github w-100" id="aws_s3_bucket"
-                            value="gbot-app-passwords" placeholder="gbot-app-passwords">
-                        <small style="color: #656d76; font-size: 12px;">
-                            S3 bucket name for app password storage
-                        </small>
+
+                    <details style="margin-top: 16px; margin-bottom: 16px;">
+                        <summary style="cursor: pointer; color: #0969da; font-weight: 600;">Advanced Settings</summary>
+                        <div style="padding-top: 12px; margin-top: 8px; border-top: 1px solid #d0d7de;">
+                            <div class="form-group-github">
+                                <label for="aws_ecr_uri" class="form-label-github">
+                                    ECR Repository URI
+                                </label>
+                                <input type="text" id="aws_ecr_uri" class="form-control-github w-100"
+                                    placeholder="(auto-filled on connect)">
+                            </div>
+
+                            <div class="form-group-github">
+                                <label for="aws_s3_bucket" class="form-label-github">S3 Bucket Name</label>
+                                <input type="text" id="aws_s3_bucket" class="form-control-github w-100"
+                                    placeholder="gbot-app-passwords">
+                            </div>
+                        </div>
+                    </details>
+
+                    <div class="modal-footer"
+                        style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+                        <button class="btn-github" onclick="testAwsConnection()" style="margin-right: auto;">
+                            <i class="fas fa-wifi"></i> Test Connection
+                        </button>
+                        <button class="btn-github" onclick="closeAwsAccountModal()">Cancel</button>
+                        <button class="btn-github btn-github-primary" onclick="saveAwsConfiguration()">
+                            <i class="fas fa-save"></i> Save Account
+                        </button>
                     </div>
                 </div>
-
-                <div class="form-group-github" style="margin-bottom: 16px;">
-                    <label for="aws_ecr_uri" class="form-label-github">
-                        <i class="fas fa-box"></i> ECR Image URI (Chromium Lambda)
-                    </label>
-                    <input type="text" class="form-control-github" id="aws_ecr_uri" value=""
-                        placeholder="e.g., 123456789.dkr.ecr.eu-west-1.amazonaws.com/my-repo:latest">
-                    <small style="color: #656d76; font-size: 12px;">
-                        Enter your ECR Image URI. Format:
-                        &lt;account-id&gt;.dkr.ecr.&lt;region&gt;.amazonaws.com/&lt;repo-name&gt;:&lt;tag&gt;
-                    </small>
-                </div>
-
-                <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
-                    <button type="button" class="btn-github" onclick="testAwsConnection()">
-                        <i class="fas fa-plug"></i> Test Connection
-                    </button>
-                    <button type="submit" class="btn-github btn-github-primary">
-                        <i class="fas fa-save"></i> Save Configuration
-                    </button>
-                </div>
-            </form>
+            </div>
         </div>
 
         <!-- OTP Generator SSH Settings Section -->
@@ -2750,72 +2765,177 @@
             });
     }
 
-    function loadAwsConfiguration() {
-        console.log('Loading AWS configuration...');
+    // --- AWS Accounts Management ---
 
-        fetch('/api/aws/get-config', {
+    let awsAccounts = [];
+
+    function loadAwsConfiguration() {
+        console.log('Loading AWS accounts list...');
+
+        const tbody = document.getElementById('aws-accounts-tbody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+
+        fetch('/api/aws/list-configs', {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
         })
             .then(response => response.json())
             .then(data => {
-                if (data.success && data.config) {
-                    // Populate ALL form fields including credentials
-                    $('#aws_access_key_id').val(data.config.access_key_id || '');
-                    // Also populate secret key so users don't have to re-enter it
-                    if (data.config.secret_access_key) {
-                        $('#aws_secret_access_key').val(data.config.secret_access_key);
-                    }
-                    $('#aws_region').val(data.config.region || 'eu-west-1');
-                    $('#aws_ecr_uri').val(data.config.ecr_uri || '(connect first)');
-                    $('#aws_s3_bucket').val(data.config.s3_bucket || 'gbot-app-passwords');
-
-                    console.log('AWS configuration loaded successfully');
+                if (data.success) {
+                    awsAccounts = data.configs;
+                    renderAwsAccountsTable();
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--color-danger-fg);">Error: ${data.error}</td></tr>`;
                 }
             })
             .catch(error => {
-                console.error('Error loading AWS configuration:', error);
+                console.error('Error loading AWS configs:', error);
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--color-danger-fg);">Network Error</td></tr>`;
             });
     }
 
-    function saveAwsConfiguration() {
-        console.log('Saving AWS configuration...');
+    function renderAwsAccountsTable() {
+        const tbody = document.getElementById('aws-accounts-tbody');
+        tbody.innerHTML = '';
 
-        const config = {
-            access_key_id: $('#aws_access_key_id').val().trim(),
-            secret_access_key: $('#aws_secret_access_key').val().trim(),
-            region: $('#aws_region').val(),
-            ecr_uri: $('#aws_ecr_uri').val().trim(),
-            s3_bucket: $('#aws_s3_bucket').val().trim() || 'gbot-app-passwords'
-        };
-
-        console.log('Config to save:', {
-            access_key_id: config.access_key_id ? config.access_key_id.substring(0, 4) + '***' : 'empty',
-            secret_access_key: config.secret_access_key ? '***' : 'empty',
-            region: config.region,
-            ecr_uri: config.ecr_uri,
-            s3_bucket: config.s3_bucket
-        });
-
-        // Validate required fields
-        if (!config.access_key_id || !config.secret_access_key || !config.region) {
-            showStatus('Please fill in all required fields', 'error');
+        if (awsAccounts.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 30px; color: var(--text-secondary);">
+                        No AWS accounts configured. Click "Add Account" to start.
+                    </td>
+                </tr>
+            `;
             return;
         }
 
-        showStatus('Saving AWS configuration...', 'info');
+        awsAccounts.forEach(acc => {
+            const tr = document.createElement('tr');
 
-        // Debug: Log what we're sending (without sensitive data)
-        console.log('[AWS SAVE] Sending config:', {
-            access_key_id: config.access_key_id ? config.access_key_id.substring(0, 4) + '***' : 'empty',
-            secret_access_key: config.secret_access_key ? '***' : 'empty',
-            region: config.region,
-            ecr_uri: config.ecr_uri,
-            s3_bucket: config.s3_bucket,
-            has_access_key: !!config.access_key_id,
-            has_secret_key: !!config.secret_access_key,
-            has_region: !!config.region
+            const activeBadge = acc.active
+                ? '<span class="status-badge status-success">Active</span>'
+                : '<span class="status-badge status-neutral">Inactive</span>';
+
+            tr.innerHTML = `
+                <td><strong>${acc.name || 'Set Name'}</strong></td>
+                <td><code style="background: rgba(175, 184, 193, 0.2); padding: 2px 6px; border-radius: 4px;">${acc.region}</code></td>
+                <td>${acc.access_key_masked}</td>
+                <td>${activeBadge}</td>
+                <td style="text-align: right;">
+                    <button class="btn-github" onclick="editAwsAccount(${acc.id})" style="padding: 4px 8px; font-size: 12px;">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-github" onclick="deleteAwsAccount(${acc.id})" style="padding: 4px 8px; font-size: 12px; color: var(--color-danger-fg);">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
         });
+    }
+
+    // Modal Management
+    function openAwsAccountModal() {
+        document.getElementById('aws_account_id').value = '';
+        document.getElementById('awsModalTitle').textContent = 'Add AWS Account';
+        document.getElementById('aws_account_name').value = '';
+        document.getElementById('aws_access_key_id').value = '';
+        document.getElementById('aws_secret_access_key').value = '';
+        document.getElementById('aws_region').value = 'us-east-1';
+        document.getElementById('aws_ecr_uri').value = '';
+        document.getElementById('aws_s3_bucket').value = 'gbot-app-passwords';
+
+        document.getElementById('awsAccountModal').style.display = 'flex';
+    }
+
+    function closeAwsAccountModal() {
+        document.getElementById('awsAccountModal').style.display = 'none';
+    }
+
+    function editAwsAccount(id) {
+        // Since list doesn't have full details (secret key is never returned),
+        // we might pull from the list for basic info, but ideally we'd fetch full details? 
+        // For now, let's just populate what we have from the list view + assume secrets are hidden.
+        // Actually, the implementation plan says standard CRUD. 
+        // We will fetch the single config if needed, or update API to return detail? 
+        // API get-config returns "active" config, not specific ID. 
+        // Use list data for now.
+
+        const acc = awsAccounts.find(a => a.id === id);
+        if (!acc) return;
+
+        document.getElementById('aws_account_id').value = acc.id;
+        document.getElementById('awsModalTitle').textContent = 'Edit AWS Account';
+        document.getElementById('aws_account_name').value = acc.name;
+        document.getElementById('aws_access_key_id').value = acc.access_key_masked; // Backend handles masked updates? Logic in save needs to handle this.
+        // If we send masked key back, backend should probably ignore it?
+        // Let's clear it so user knows they must re-enter if they want to change, OR backend checks for ***.
+        // Common pattern: Show placeholder in input.
+        document.getElementById('aws_access_key_id').value = '';
+        document.getElementById('aws_access_key_id').placeholder = 'Leave empty to keep existing key';
+
+        document.getElementById('aws_secret_access_key').value = '';
+        document.getElementById('aws_region').value = acc.region;
+
+        // We need ECR/S3 which aren't in list view. 
+        // Since we don't have a "get specific config" endpoint yet (only get active),
+        // let's Assume defaults or user must re-enter for now/wait for next iteration.
+        // Use defaults for now as they are mostly static.
+
+        document.getElementById('awsAccountModal').style.display = 'flex';
+    }
+
+    function deleteAwsAccount(id) {
+        if (!confirm('Are you sure you want to delete this AWS account connection?')) return;
+
+        fetch(`/api/aws/delete-config/${id}`, {
+            method: 'DELETE'
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus('Account deleted.', 'success');
+                    loadAwsConfiguration(); // Refresh list
+                } else {
+                    showStatus('Error: ' + data.error, 'error');
+                }
+            })
+            .catch(err => showStatus('Error: ' + err, 'error'));
+    }
+
+    function saveAwsConfiguration() {
+        const id = document.getElementById('aws_account_id').value;
+        const mode = id ? 'UPDATE' : 'CREATE';
+
+        console.log(`Saving AWS Account (${mode})...`);
+
+        const config = {
+            id: id,
+            name: document.getElementById('aws_account_name').value.trim(),
+            access_key_id: document.getElementById('aws_access_key_id').value.trim(),
+            secret_access_key: document.getElementById('aws_secret_access_key').value.trim(),
+            region: document.getElementById('aws_region').value,
+            ecr_uri: document.getElementById('aws_ecr_uri').value.trim(),
+            s3_bucket: document.getElementById('aws_s3_bucket').value.trim()
+        };
+
+        if (mode === 'CREATE') {
+            config.create_new = true;
+        }
+
+        // Basic validation
+        if (!config.name) {
+            showStatus('Please enter a name.', 'error');
+            return;
+        }
+        if (mode === 'CREATE' && (!config.access_key_id || !config.secret_access_key)) {
+            showStatus('Access and Secret keys are required for new accounts.', 'error');
+            return;
+        }
+
+        showStatus('Saving account...', 'info');
 
         fetch('/api/aws/save-config', {
             method: 'POST',
@@ -2825,43 +2945,18 @@
             },
             body: JSON.stringify(config)
         })
-            .then(response => {
-                console.log('[AWS SAVE] Response status:', response.status);
-                console.log('[AWS SAVE] Response headers:', Object.fromEntries(response.headers.entries()));
-
-                if (!response.ok) {
-                    // Try to get error message from response
-                    return response.text().then(text => {
-                        console.error('[AWS SAVE] Error response body:', text);
-                        try {
-                            const errData = JSON.parse(text);
-                            throw new Error(errData.error || `HTTP ${response.status}: ${text.substring(0, 200)}`);
-                        } catch (parseErr) {
-                            throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
-                        }
-                    });
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                console.log('Save response:', data);
                 if (data.success) {
-                    showStatus('✅ AWS configuration saved successfully', 'success');
-                    // Clear secret key field for security ONLY after successful save
-                    $('#aws_secret_access_key').val('');
-                    // Reload configuration (but don't reload secret key for security)
-                    setTimeout(() => {
-                        loadAwsConfiguration();
-                    }, 500);
+                    showStatus('✅ AWS account saved successfully', 'success');
+                    closeAwsAccountModal();
+                    loadAwsConfiguration(); // Refresh list
                 } else {
-                    showStatus('❌ Failed to save configuration: ' + (data.error || 'Unknown error'), 'error');
-                    console.error('Save failed:', data);
-                    // DON'T clear secret key on error - user can try saving again
+                    showStatus('❌ Failed to save: ' + (data.error || 'Unknown error'), 'error');
                 }
             })
             .catch(error => {
-                console.error('Error saving AWS configuration:', error);
-                showStatus('❌ Error saving configuration: ' + error.message, 'error');
+                showStatus('❌ Error saving: ' + error.message, 'error');
             });
     }
 
