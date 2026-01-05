@@ -1052,13 +1052,13 @@
             </button>
         </div>
         <div style="padding: 20px;">
-            <input type="hidden" id="aws_account_id" value="">
+            <input type="hidden" id="modal_aws_account_id" value="">
 
             <div style="margin-bottom: 16px;">
                 <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
                     <i class="fas fa-tag"></i> Account Name *
                 </label>
-                <input type="text" id="aws_account_name" class="form-control-github w-100"
+                <input type="text" id="modal_aws_account_name" class="form-control-github w-100"
                     placeholder="e.g., Production, Development" required>
             </div>
 
@@ -1066,7 +1066,7 @@
                 <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
                     <i class="fas fa-key"></i> Access Key ID *
                 </label>
-                <input type="text" id="aws_access_key_id" class="form-control-github w-100" placeholder="AKIA..."
+                <input type="text" id="modal_aws_access_key_id" class="form-control-github w-100" placeholder="AKIA..."
                     required>
             </div>
 
@@ -1074,7 +1074,7 @@
                 <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
                     <i class="fas fa-lock"></i> Secret Access Key *
                 </label>
-                <input type="password" id="aws_secret_access_key" class="form-control-github w-100"
+                <input type="password" id="modal_aws_secret_access_key" class="form-control-github w-100"
                     placeholder="Enter secret key">
                 <small style="color: #656d76; font-size: 12px;">Leave blank when editing to keep current key</small>
             </div>
@@ -1083,7 +1083,7 @@
                 <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
                     <i class="fas fa-globe"></i> AWS Region *
                 </label>
-                <select id="aws_region" class="form-control-github w-100">
+                <select id="modal_aws_region" class="form-control-github w-100">
                     <option value="us-east-1">US East (N. Virginia)</option>
                     <option value="us-east-2">US East (Ohio)</option>
                     <option value="us-west-1">US West (N. California)</option>
@@ -1101,7 +1101,7 @@
                 <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
                     <i class="fas fa-box"></i> ECR Image URI
                 </label>
-                <input type="text" id="aws_ecr_uri" class="form-control-github w-100"
+                <input type="text" id="modal_aws_ecr_uri" class="form-control-github w-100"
                     placeholder="Auto-detected after test connection">
             </div>
 
@@ -1109,8 +1109,8 @@
                 <label style="display: block; margin-bottom: 6px; color: #e6edf3; font-size: 14px;">
                     <i class="fas fa-archive"></i> S3 Bucket Name
                 </label>
-                <input type="text" id="aws_s3_bucket" class="form-control-github w-100" placeholder="gbot-app-passwords"
-                    value="gbot-app-passwords">
+                <input type="text" id="modal_aws_s3_bucket" class="form-control-github w-100"
+                    placeholder="gbot-app-passwords" value="gbot-app-passwords">
             </div>
 
             <div style="display: flex; gap: 12px;">
@@ -2956,14 +2956,14 @@
 
     // Modal Management
     function openAwsAccountModal() {
-        document.getElementById('aws_account_id').value = '';
+        document.getElementById('modal_aws_account_id').value = '';
         document.getElementById('awsModalTitle').textContent = 'Add AWS Account';
-        document.getElementById('aws_account_name').value = '';
-        document.getElementById('aws_access_key_id').value = '';
-        document.getElementById('aws_secret_access_key').value = '';
-        document.getElementById('aws_region').value = 'us-east-1';
-        document.getElementById('aws_ecr_uri').value = '';
-        document.getElementById('aws_s3_bucket').value = 'gbot-app-passwords';
+        document.getElementById('modal_aws_account_name').value = '';
+        document.getElementById('modal_aws_access_key_id').value = '';
+        document.getElementById('modal_aws_secret_access_key').value = '';
+        document.getElementById('modal_aws_region').value = 'eu-west-1';
+        document.getElementById('modal_aws_ecr_uri').value = '';
+        document.getElementById('modal_aws_s3_bucket').value = 'gbot-app-passwords';
 
         document.getElementById('awsAccountModal').style.display = 'flex';
     }
@@ -2984,23 +2984,17 @@
         const acc = awsAccounts.find(a => a.id === id);
         if (!acc) return;
 
-        document.getElementById('aws_account_id').value = acc.id;
+        document.getElementById('modal_aws_account_id').value = acc.id;
         document.getElementById('awsModalTitle').textContent = 'Edit AWS Account';
-        document.getElementById('aws_account_name').value = acc.name;
-        document.getElementById('aws_access_key_id').value = acc.access_key_masked; // Backend handles masked updates? Logic in save needs to handle this.
-        // If we send masked key back, backend should probably ignore it?
-        // Let's clear it so user knows they must re-enter if they want to change, OR backend checks for ***.
-        // Common pattern: Show placeholder in input.
-        document.getElementById('aws_access_key_id').value = '';
-        document.getElementById('aws_access_key_id').placeholder = 'Leave empty to keep existing key';
+        document.getElementById('modal_aws_account_name').value = acc.name;
+        // Clear access key field - user must re-enter to change
+        document.getElementById('modal_aws_access_key_id').value = '';
+        document.getElementById('modal_aws_access_key_id').placeholder = 'Leave empty to keep existing key';
 
-        document.getElementById('aws_secret_access_key').value = '';
-        document.getElementById('aws_region').value = acc.region;
-
-        // We need ECR/S3 which aren't in list view. 
-        // Since we don't have a "get specific config" endpoint yet (only get active),
-        // let's Assume defaults or user must re-enter for now/wait for next iteration.
-        // Use defaults for now as they are mostly static.
+        document.getElementById('modal_aws_secret_access_key').value = '';
+        document.getElementById('modal_aws_region').value = acc.region;
+        document.getElementById('modal_aws_ecr_uri').value = '';
+        document.getElementById('modal_aws_s3_bucket').value = 'gbot-app-passwords';
 
         document.getElementById('awsAccountModal').style.display = 'flex';
     }
@@ -3024,19 +3018,19 @@
     }
 
     function saveAwsConfiguration() {
-        const id = document.getElementById('aws_account_id').value;
+        const id = document.getElementById('modal_aws_account_id').value;
         const mode = id ? 'UPDATE' : 'CREATE';
 
         console.log(`Saving AWS Account (${mode})...`);
 
         const config = {
             id: id,
-            name: document.getElementById('aws_account_name').value.trim(),
-            access_key_id: document.getElementById('aws_access_key_id').value.trim(),
-            secret_access_key: document.getElementById('aws_secret_access_key').value.trim(),
-            region: document.getElementById('aws_region').value,
-            ecr_uri: document.getElementById('aws_ecr_uri').value.trim(),
-            s3_bucket: document.getElementById('aws_s3_bucket').value.trim()
+            name: document.getElementById('modal_aws_account_name').value.trim(),
+            access_key_id: document.getElementById('modal_aws_access_key_id').value.trim(),
+            secret_access_key: document.getElementById('modal_aws_secret_access_key').value.trim(),
+            region: document.getElementById('modal_aws_region').value,
+            ecr_uri: document.getElementById('modal_aws_ecr_uri').value.trim(),
+            s3_bucket: document.getElementById('modal_aws_s3_bucket').value.trim()
         };
 
         if (mode === 'CREATE') {
@@ -3079,9 +3073,9 @@
     }
 
     function testAwsConnection() {
-        const accessKey = $('#aws_access_key_id').val().trim();
-        const secretKey = $('#aws_secret_access_key').val().trim();
-        const region = $('#aws_region').val();
+        const accessKey = $('#modal_aws_access_key_id').val().trim();
+        const secretKey = $('#modal_aws_secret_access_key').val().trim();
+        const region = $('#modal_aws_region').val();
 
         if (!accessKey || !secretKey || !region) {
             showStatus('Please provide Access Key ID, Secret Access Key and Region.', 'error');
@@ -3110,7 +3104,7 @@
             .then(data => {
                 if (data.success) {
                     // Update ECR URI field but DON'T clear the secret key
-                    $('#aws_ecr_uri').val(data.ecr_uri);
+                    $('#modal_aws_ecr_uri').val(data.ecr_uri);
                     showStatus(`✅ Connected to AWS account ${data.account_id} (Region: ${data.region})`, 'success');
                     // Don't auto-save - let user decide when to save
                     // Secret key remains in the field so user can save if they want
