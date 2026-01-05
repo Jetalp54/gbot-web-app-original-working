@@ -299,126 +299,111 @@
 
         <!-- Garbage divs removed from here -->
 
-        <!-- AWS Configuration (Multi-Account) -->
-        <div class="github-card draggable-card" data-id="aws-config" style="margin-bottom: 24px;">
-            <div class="github-card-header" style="cursor: move;">
+        <!-- AWS & G-Workspace Credentials Section -->
+        <div class="github-card" style="margin-bottom: 24px;">
+            <div class="github-card-header">
                 <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fab fa-aws"></i> AWS Accounts (Multi-Account)
+                    <i class="fas fa-cloud"></i>
+                    AWS & G-Workspace Credentials
                 </h3>
             </div>
+            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                Configure AWS credentials for Lambda function management and Google Workspace automation. These
+                credentials
+                are saved securely and will be used for all AWS operations.
+            </p>
 
-            <div style="padding: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <p style="color: #656d76; margin: 0; font-size: 14px;">
-                        Manage multiple AWS accounts. Select the active one in AWS Management.
-                    </p>
-                    <button type="button" onclick="openAwsAccountModal()" class="btn-github btn-github-primary">
-                        <i class="fas fa-plus"></i> Add Account
+            <form id="aws-config-form">
+                <div class="d-flex flex-wrap gap-3 mb-3">
+                    <div class="flex-grow-1" style="min-width: 250px;">
+                        <label for="aws_access_key_id" class="form-label-github">
+                            <i class="fas fa-key"></i> Access Key ID
+                        </label>
+                        <input type="text" class="form-control-github w-100" id="aws_access_key_id"
+                            placeholder="Enter AWS Access Key ID" required>
+                        <small style="color: #656d76; font-size: 12px;">
+                            Your AWS Access Key ID
+                        </small>
+                    </div>
+                    <div class="flex-grow-1" style="min-width: 250px;">
+                        <label for="aws_secret_access_key" class="form-label-github">
+                            <i class="fas fa-lock"></i> Secret Access Key
+                        </label>
+                        <input type="password" class="form-control-github w-100" id="aws_secret_access_key"
+                            placeholder="Enter AWS Secret Access Key" required>
+                        <small style="color: #656d76; font-size: 12px;">
+                            Your AWS Secret Access Key
+                        </small>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-3 mb-3">
+                    <div class="flex-grow-1" style="min-width: 250px;">
+                        <label for="aws_region" class="form-label-github">
+                            <i class="fas fa-globe"></i> AWS Region
+                        </label>
+                        <select class="form-control-github w-100" id="aws_region" required>
+                            <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
+                            <option value="us-east-2">US East (Ohio) - us-east-2</option>
+                            <option value="us-west-1">US West (N. California) - us-west-1</option>
+                            <option value="us-west-2">US West (Oregon) - us-west-2</option>
+                            <option value="af-south-1">Africa (Cape Town) - af-south-1</option>
+                            <option value="ap-east-1">Asia Pacific (Hong Kong) - ap-east-1</option>
+                            <option value="ap-south-1">Asia Pacific (Mumbai) - ap-south-1</option>
+                            <option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
+                            <option value="ap-northeast-2">Asia Pacific (Seoul) - ap-northeast-2</option>
+                            <option value="ap-northeast-3">Asia Pacific (Osaka) - ap-northeast-3</option>
+                            <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
+                            <option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
+                            <option value="ap-southeast-3">Asia Pacific (Jakarta) - ap-southeast-3</option>
+                            <option value="ca-central-1">Canada (Central) - ca-central-1</option>
+                            <option value="eu-central-1">Europe (Frankfurt) - eu-central-1</option>
+                            <option value="eu-west-1" selected>Europe (Ireland) - eu-west-1</option>
+                            <option value="eu-west-2">Europe (London) - eu-west-2</option>
+                            <option value="eu-west-3">Europe (Paris) - eu-west-3</option>
+                            <option value="eu-north-1">Europe (Stockholm) - eu-north-1</option>
+                            <option value="eu-south-1">Europe (Milan) - eu-south-1</option>
+                            <option value="me-south-1">Middle East (Bahrain) - me-south-1</option>
+                            <option value="me-central-1">Middle East (UAE) - me-central-1</option>
+                            <option value="sa-east-1">South America (São Paulo) - sa-east-1</option>
+                        </select>
+                        <small style="color: #656d76; font-size: 12px;">
+                            Select your AWS region
+                        </small>
+                    </div>
+                    <div class="flex-grow-1" style="min-width: 250px;">
+                        <label for="aws_s3_bucket" class="form-label-github">
+                            <i class="fas fa-bucket"></i> S3 Bucket (App Passwords)
+                        </label>
+                        <input type="text" class="form-control-github w-100" id="aws_s3_bucket"
+                            value="gbot-app-passwords" placeholder="gbot-app-passwords">
+                        <small style="color: #656d76; font-size: 12px;">
+                            S3 bucket name for app password storage
+                        </small>
+                    </div>
+                </div>
+
+                <div class="form-group-github" style="margin-bottom: 16px;">
+                    <label for="aws_ecr_uri" class="form-label-github">
+                        <i class="fas fa-box"></i> ECR Image URI (Chromium Lambda)
+                    </label>
+                    <input type="text" class="form-control-github" id="aws_ecr_uri" value=""
+                        placeholder="e.g., 123456789.dkr.ecr.eu-west-1.amazonaws.com/my-repo:latest">
+                    <small style="color: #656d76; font-size: 12px;">
+                        Enter your ECR Image URI. Format:
+                        &lt;account-id&gt;.dkr.ecr.&lt;region&gt;.amazonaws.com/&lt;repo-name&gt;:&lt;tag&gt;
+                    </small>
+                </div>
+
+                <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+                    <button type="button" class="btn-github" onclick="testAwsConnection()">
+                        <i class="fas fa-plug"></i> Test Connection
+                    </button>
+                    <button type="submit" class="btn-github btn-github-primary">
+                        <i class="fas fa-save"></i> Save Configuration
                     </button>
                 </div>
-
-                <!-- Accounts List -->
-                <div class="table-container">
-                    <table class="github-table" id="aws-accounts-table" style="width: 100%;">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Region</th>
-                                <th>Access Key ID</th>
-                                <th>Status</th>
-                                <th style="text-align: right;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="aws-accounts-tbody">
-                            <tr>
-                                <td colspan="5" style="text-align: center; padding: 20px; color: #656d76;">
-                                    <i class="fas fa-spinner fa-spin"></i> Loading accounts...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- AWS Account Modal -->
-        <div id="awsAccountModal" class="custom-modal"
-            style="display: none; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
-            <div class="custom-modal-content"
-                style="max-width: 600px; width: 90%; background: white; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.2);">
-                <div class="modal-header"
-                    style="padding: 16px 24px; border-bottom: 1px solid #d0d7de; display: flex; justify-content: space-between; align-items: center;">
-                    <h3 id="awsModalTitle" style="margin: 0; font-size: 16px;">Add AWS Account</h3>
-                    <span class="close-modal" onclick="closeAwsAccountModal()"
-                        style="cursor: pointer; font-size: 20px;">&times;</span>
-                </div>
-                <div class="modal-body" style="padding: 24px;">
-                    <input type="hidden" id="aws_account_id">
-
-                    <div class="form-group-github">
-                        <label for="aws_account_name" class="form-label-github">Friendly Name</label>
-                        <input type="text" id="aws_account_name" class="form-control-github w-100"
-                            placeholder="e.g. Production, Staging">
-                        <small class="form-text text-muted">A name to identify this account.</small>
-                    </div>
-
-                    <div class="form-group-github">
-                        <label for="aws_access_key_id" class="form-label-github">Access Key ID</label>
-                        <input type="text" id="aws_access_key_id" class="form-control-github w-100"
-                            placeholder="AKIA...">
-                    </div>
-
-                    <div class="form-group-github">
-                        <label for="aws_secret_access_key" class="form-label-github">Secret Access Key</label>
-                        <input type="password" id="aws_secret_access_key" class="form-control-github w-100"
-                            placeholder="Enter new key to update">
-                    </div>
-
-                    <div class="form-group-github">
-                        <label for="aws_region" class="form-label-github">Region</label>
-                        <select id="aws_region" class="form-control-github w-100">
-                            <option value="us-east-1">US East (N. Virginia)</option>
-                            <option value="us-east-2">US East (Ohio)</option>
-                            <option value="us-west-1">US West (N. California)</option>
-                            <option value="us-west-2">US West (Oregon)</option>
-                            <option value="eu-west-1">EU (Ireland)</option>
-                            <option value="eu-central-1">EU (Frankfurt)</option>
-                            <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
-                            <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
-                        </select>
-                    </div>
-
-                    <details style="margin-top: 16px; margin-bottom: 16px;">
-                        <summary style="cursor: pointer; color: #0969da; font-weight: 600;">Advanced Settings</summary>
-                        <div style="padding-top: 12px; margin-top: 8px; border-top: 1px solid #d0d7de;">
-                            <div class="form-group-github">
-                                <label for="aws_ecr_uri" class="form-label-github">
-                                    ECR Repository URI
-                                </label>
-                                <input type="text" id="aws_ecr_uri" class="form-control-github w-100"
-                                    placeholder="(auto-filled on connect)">
-                            </div>
-
-                            <div class="form-group-github">
-                                <label for="aws_s3_bucket" class="form-label-github">S3 Bucket Name</label>
-                                <input type="text" id="aws_s3_bucket" class="form-control-github w-100"
-                                    placeholder="gbot-app-passwords">
-                            </div>
-                        </div>
-                    </details>
-
-                    <div class="modal-footer"
-                        style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
-                        <button class="btn-github" onclick="testAwsConnection()" style="margin-right: auto;">
-                            <i class="fas fa-wifi"></i> Test Connection
-                        </button>
-                        <button class="btn-github" onclick="closeAwsAccountModal()">Cancel</button>
-                        <button class="btn-github btn-github-primary" onclick="saveAwsConfiguration()">
-                            <i class="fas fa-save"></i> Save Account
-                        </button>
-                    </div>
-                </div>
-            </div>
+            </form>
         </div>
 
         <!-- OTP Generator SSH Settings Section -->

@@ -64,25 +64,17 @@ def get_naming_config():
             if config:
                 instance_name = config.instance_name or DEFAULT_INSTANCE_NAME
                 
-                # [MULTI-USER] Scope Lambda Name
-                # Priority: 
-                # 1. Custom Name in DB (aws_config.lambda_prefix)
-                # 2. Logged-in Username (User-chromium)
-                # 3. Default (Production-chromium)
-                
-                db_prefix = config.lambda_prefix
+                # [MULTI-USER] Scope Lambda Name to Logged-in User
+                # If user is logged in, use "{User}-chromium", otherwise fallback to DB/Default
+                # Use 'user' key as defined in app.py login logic
                 current_user = session.get('user')
-
-                if db_prefix and db_prefix != DEFAULT_PRODUCTION_LAMBDA_NAME:
-                    # User explicitly set a custom name in settings
-                    lambda_prefix = db_prefix
-                elif current_user:
-                    # Fallback to username-based scoping
+                if current_user:
+                    # Enforce Capitalized Username for resource naming 
+                    # Handle if username is an email (e.g. angel@domain.com -> Angel)
                     clean_user = current_user.split('@')[0]
                     lambda_prefix = f"{clean_user.capitalize()}-chromium"
                 else:
-                    # Default
-                    lambda_prefix = DEFAULT_PRODUCTION_LAMBDA_NAME
+                    lambda_prefix = config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME
 
                 ecr_repo = config.ecr_repo_name or DEFAULT_ECR_REPO_NAME
                 s3_bucket = config.s3_bucket or DEFAULT_S3_BUCKET_NAME
@@ -399,15 +391,11 @@ def get_rotated_proxy(proxy_list):
 
 # Login required decorator
 def login_required(f):
-    """Decorator to require login - returns JSON for API routes, redirect for pages"""
-    from flask import redirect, url_for, request
+    """Decorator to require login"""
+    from flask import redirect, url_for
     @wraps(f)
     def wrapper(*args, **kwargs):
         if 'user' not in session:
-            # For API routes, return JSON error
-            if request.path.startswith('/api/'):
-                return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-            # For page routes, redirect to login
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return wrapper
@@ -673,7 +661,7 @@ def get_current_active_config():
     return AwsConfig.query.first()
 
 @aws_manager.route('/api/aws/list-configs', methods=['GET'])
-# Note: Auth removed temporarily to fix credential loading
+@login_required
 def list_aws_configs():
     """List all available AWS configurations (summary only)"""
     try:
@@ -705,36 +693,8 @@ def list_aws_configs():
         logger.error(f"[AWS_LIST] Error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@aws_manager.route('/api/aws/get-single-config/<int:config_id>', methods=['GET'])
-def get_single_aws_config(config_id):
-    """Get a single AWS config by ID for editing in Settings modal"""
-    try:
-        config = AwsConfig.query.get(config_id)
-        if not config:
-            return jsonify({'success': False, 'error': 'Config not found'}), 404
-        
-        return jsonify({
-            'success': True,
-            'config': {
-                'id': config.id,
-                'name': config.name,
-                'access_key_id': config.access_key_id,
-                'secret_access_key': config.secret_access_key,  # Needed for edit modal
-                'region': config.region,
-                'ecr_uri': config.ecr_uri or '',
-                's3_bucket': config.s3_bucket or '',
-                'ecr_repo_name': config.ecr_repo_name or '',
-                'dynamodb_table': config.dynamodb_table or '',
-                'lambda_prefix': config.lambda_prefix or '',
-                'instance_name': config.instance_name or ''
-            }
-        })
-    except Exception as e:
-        logger.error(f"[AWS_GET_SINGLE] Error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 @aws_manager.route('/api/aws/set-active-config', methods=['POST'])
-# Note: Auth removed temporarily to fix account switching
+@login_required
 def set_active_config():
     """Set the active AWS account for the current user"""
     try:
@@ -765,10 +725,15 @@ def set_active_config():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/aws/delete-config/<int:config_id>', methods=['DELETE'])
-# Note: Auth removed temporarily
+@login_required
 def delete_aws_config(config_id):
     """Delete an AWS configuration"""
     try:
+        # Check permissions
+        allowed_roles = ['admin']
+        if str(session.get('role', '')).lower() not in allowed_roles:
+            return jsonify({'success': False, 'error': 'Only admins can delete configurations'}), 403
+
         config = AwsConfig.query.get(config_id)
         if not config:
             return jsonify({'success': False, 'error': 'Configuration not found'}), 404
@@ -786,11 +751,26 @@ def delete_aws_config(config_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+        if 'no such column' in error_msg.lower():
+            error_msg = 'Database schema is outdated. Please run: python3 migrate_db.py'
+        elif 'UNIQUE constraint' in error_msg:
+            error_msg = 'Configuration already exists. Updating existing entry...'
+        elif 'permission denied' in error_msg.lower():
+            error_msg = 'Database permission error. Check file permissions.'
+        
+        return jsonify({'success': False, 'error': error_msg}), 500
+
 @aws_manager.route('/api/aws/get-config', methods=['GET'])
-# Note: Auth removed temporarily to fix credential loading. The Settings page already shows credentials anyway.
+@login_required
 def get_aws_config():
-    """Get AWS credentials configuration - returns the ACTIVE config for current user"""
+    """Get AWS credentials configuration"""
     try:
+        # Allow admin, mailer, and support to get config (needed for UI to function)
+        allowed_roles = ['admin', 'mailer', 'support']
+        if str(session.get('role', '')).lower() not in allowed_roles:
+            return jsonify({'success': False, 'error': 'Insufficient privileges'}), 403
+        
         # Ensure table exists
         try:
             inspector = db.inspect(db.engine)
@@ -799,8 +779,7 @@ def get_aws_config():
         except Exception as e:
             logger.warning(f"Could not check/create aws_config table: {e}")
         
-        # Use the multi-account helper to get ACTIVE config for current user
-        config = get_current_active_config()
+        config = AwsConfig.query.first()
         
         # Get dynamic naming configuration (handles user scoping)
         naming_config = get_naming_config()
