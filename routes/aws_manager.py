@@ -186,11 +186,12 @@ def get_aws_config_api():
                 'config': {
                     'id': config.id,
                     'name': config.name,
-                    'access_key': config.access_key_id,
-                    'secret_key': config.secret_access_key,
+                    'access_key_id': config.access_key_id,
+                    'secret_access_key': config.secret_access_key,
                     'region': config.region,
                     's3_bucket': config.s3_bucket,
                     'ecr_repo_name': config.ecr_repo_name,
+                    'ecr_uri': config.ecr_uri,
                     'dynamodb_table': config.dynamodb_table,
                     'lambda_prefix': config.lambda_prefix,
                     'instance_name': config.instance_name
