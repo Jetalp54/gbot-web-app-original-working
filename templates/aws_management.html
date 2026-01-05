@@ -625,19 +625,25 @@
 
     // Helper function to get resource naming configuration
     function getNamingConfig() {
+        const config = window.awsConfig || {};
+
         return {
+            // Use DOM value (override) OR Config value OR Hardcoded Default
             // Infrastructure Tab (Inputs might be hidden for mailers)
-            ecr_repo_name: getSafeValue('ecrRepoName', 'dev-app-password-worker'),
-            dynamodb_table: getSafeValue('dynamodbTableName', 'dev-app-passwords'),
-            s3_bucket: getSafeValue('s3BucketName', 'dev-app-passwords'),
+            ecr_repo_name: getSafeValue('ecrRepoName', config.ecr_repo_name || 'gbot-app-password-worker'),
+            dynamodb_table: getSafeValue('dynamodbTableName', config.dynamodb_table || 'gbot-app-passwords'),
+            s3_bucket: getSafeValue('s3BucketName', config.s3_bucket || 'gbot-app-passwords'),
             iam_role_prefix: getSafeValue('iamRolePrefix', 'dev'),
+
             // Lambda Tab
-            lambda_prefix: getSafeValue('lambdaPrefix', 'dev-chromium'),
+            lambda_prefix: getSafeValue('lambdaPrefix', config.lambda_prefix || 'gbot-chromium'),
+
             // EC2 Tab
-            ec2_instance_name: getSafeValue('ec2InstanceName', 'dev-ec2-build-box'),
+            ec2_instance_name: getSafeValue('ec2InstanceName', config.instance_name || 'dev-ec2-build-box'),
+
             // Cleanup Tab
-            delete_s3_bucket: getSafeValue('deleteS3BucketName', 'dev-app-passwords'),
-            delete_ecr_repo: getSafeValue('deleteEcrRepoName', 'dev-app-password-worker'),
+            delete_s3_bucket: getSafeValue('deleteS3BucketName', config.s3_bucket || 'gbot-app-passwords'),
+            delete_ecr_repo: getSafeValue('deleteEcrRepoName', config.ecr_repo_name || 'gbot-app-password-worker'),
             delete_log_prefix: getSafeValue('deleteLogGroupPrefix', '/aws/lambda/dev'),
             delete_dynamodb_table: getSafeValue('deleteDynamodbTableName', 'dev-app-passwords')
         };
