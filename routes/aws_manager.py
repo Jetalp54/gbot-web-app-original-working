@@ -2753,8 +2753,61 @@ def create_lambdas():
         
         # Use global regions if deploy_globally is True, otherwise just the selected region
         if deploy_globally:
-            AVAILABLE_GEO_REGIONS = GLOBAL_GEO_REGIONS.copy()
-            logger.info(f"[LAMBDA] Global deployment enabled - deploying to ALL {len(AVAILABLE_GEO_REGIONS)} regions")
+            # [IMPROVED] Validate ECR image existence in each region before adding to list
+            # This ensures we don't try to create Lambdas in regions where the image hasn't replicated yet
+            logger.info(f"[LAMBDA] Validating ECR image availability in {len(GLOBAL_GEO_REGIONS)} regions...")
+            VALID_GEO_REGIONS = []
+            
+            # Helper to check image in a region
+            def check_region_image(region_chk):
+                try:
+                    # Create session for this region
+                    session_chk = boto3.Session(
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name=region_chk
+                    )
+                    ecr_chk = session_chk.client('ecr')
+                    
+                    # Check if repo exists
+                    try:
+                        ecr_chk.describe_repositories(repositoryNames=[ecr_repo_name])
+                    except ecr_chk.exceptions.RepositoryNotFoundException:
+                        return None # Repo missing
+                    except Exception:
+                        return None # Other error/access denied
+                        
+                    # Check if ANY image exists (we assume if any image exists, it's usable, or we could check for 'latest')
+                    try:
+                        imgs = ecr_chk.list_images(repositoryName=ecr_repo_name, maxResults=1, filter={'tagStatus': 'TAGGED'})
+                        if imgs.get('imageIds'):
+                            return region_chk
+                    except Exception:
+                        return None
+                        
+                    return None
+                except Exception as e:
+                    logger.warning(f"[LAMBDA] Failed to check region {region_chk}: {e}")
+                    return None
+
+            # Check regions in parallel
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(check_region_image, r) for r in GLOBAL_GEO_REGIONS]
+                for future in as_completed(futures):
+                    res = future.result()
+                    if res:
+                        VALID_GEO_REGIONS.append(res)
+            
+            if not VALID_GEO_REGIONS:
+                 logger.warning("[LAMBDA] ⚠️ No global regions had the ECR image! Falling back to selected region only.")
+                 AVAILABLE_GEO_REGIONS = [region]
+            else:
+                 AVAILABLE_GEO_REGIONS = sorted(VALID_GEO_REGIONS)
+                 # Ensure strict even distribution: 
+                 # If we have valid regions [A, B, C] and 4 functions, we want A=2, B=1, C=1.
+                 # The current logic handles this by iterating AVAILABLE_GEO_REGIONS cyclically.
+                 
+            logger.info(f"[LAMBDA] Global deployment enabled - Validated {len(AVAILABLE_GEO_REGIONS)} regions with images")
         else:
             AVAILABLE_GEO_REGIONS = [region]
             logger.info(f"[LAMBDA] Single region deployment - deploying only to {region}")

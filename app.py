@@ -2296,6 +2296,198 @@ def api_bulk_create_account_users():
         app.logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/bulk-retrieve-account-users', methods=['POST'])
+@login_required
+def api_bulk_retrieve_account_users():
+    """
+    Authenticate and retrieve all users from multiple accounts in bulk.
+    Authenticates all accounts first, then retrieves users in parallel.
+    Supports both ServiceAccount and GoogleAccount.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    try:
+        data = request.get_json()
+        accounts = data.get('accounts', [])
+        account_passwords = data.get('account_passwords', {}) # Optional mapping of account -> password
+        
+        if not accounts or len(accounts) == 0:
+            return jsonify({'success': False, 'error': 'No accounts provided'})
+        
+        app.logger.info(f"[BULK RETRIEVE] Starting bulk retrieve for {len(accounts)} account(s)")
+        
+        # Step 1: Authenticate all accounts in parallel
+        # (This logic is duplicated from api_bulk_delete_account_users for self-containment)
+        def authenticate_account(account_name):
+            """Authenticate a single account - supports both ServiceAccount and GoogleAccount"""
+            with app.app_context():
+                try:
+                    # Try ServiceAccount first (admin_email or name)
+                    from database import ServiceAccount
+                    service_account = ServiceAccount.query.filter_by(admin_email=account_name).first()
+                    if not service_account:
+                        service_account = ServiceAccount.query.filter_by(name=account_name).first()
+                    
+                    if service_account:
+                        # Use GoogleDomainsService for Service Account
+                        from services.google_domains_service import GoogleDomainsService
+                        try:
+                            domains_service = GoogleDomainsService(service_account.name)
+                            admin_service = domains_service._get_admin_service()
+                            return {'account': account_name, 'authenticated': True, 'service': admin_service, 'is_service_account': True}
+                        except Exception as sa_err:
+                            app.logger.error(f"[BULK RETRIEVE] [{account_name}] ServiceAccount auth error: {sa_err}")
+                            return {'account': account_name, 'authenticated': False, 'error': f'ServiceAccount auth failed: {str(sa_err)}'}
+                    
+                    # Fallback to GoogleAccount (legacy OAuth)
+                    from database import GoogleAccount
+                    account_db = GoogleAccount.query.filter_by(account_name=account_name).first()
+                    if not account_db:
+                        return {'account': account_name, 'authenticated': False, 'error': 'Account not found in database'}
+                    
+                    auth_success = authenticate_without_session(account_name)
+                    if not auth_success:
+                        return {'account': account_name, 'authenticated': False, 'error': 'Failed to authenticate. Please ensure authenticator is saved.'}
+                    
+                    service = get_service_without_session(account_name)
+                    if not service:
+                        return {'account': account_name, 'authenticated': False, 'error': 'Failed to get service'}
+                    
+                    return {'account': account_name, 'authenticated': True, 'service': service}
+                except Exception as e:
+                    app.logger.error(f"[BULK RETRIEVE] [{account_name}] Authentication error: {e}")
+                    return {'account': account_name, 'authenticated': False, 'error': str(e)}
+        
+        authenticated_accounts = {}
+        with ThreadPoolExecutor(max_workers=max(1, min(10, len(accounts)))) as auth_executor:
+            auth_futures = {auth_executor.submit(authenticate_account, account): account for account in accounts}
+            
+            for future in as_completed(auth_futures):
+                account = auth_futures[future]
+                try:
+                    auth_result = future.result()
+                    if auth_result['authenticated']:
+                        authenticated_accounts[account] = auth_result
+                    else:
+                        app.logger.error(f"[BULK RETRIEVE] [{account}] Authentication failed: {auth_result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    app.logger.error(f"[BULK RETRIEVE] [{account}] Authentication exception: {e}")
+        
+        app.logger.info(f"[BULK RETRIEVE] Authenticated {len(authenticated_accounts)}/{len(accounts)} account(s)")
+        
+        # Step 2: Retrieve users from all authenticated accounts in parallel
+        def retrieve_account_users(account_name):
+            """Retrieve all users from a single authenticated account"""
+            with app.app_context():
+                account_result = {
+                    'account': account_name,
+                    'authenticated': False,
+                    'users': [],
+                    'error': None
+                }
+                
+                try:
+                    if account_name not in authenticated_accounts:
+                        account_result['error'] = 'Account was not authenticated'
+                        return account_result
+                    
+                    auth_data = authenticated_accounts[account_name]
+                    service = auth_data['service']
+                    account_result['authenticated'] = True
+                    
+                    app.logger.info(f"[BULK RETRIEVE] [{account_name}] Retrieving users...")
+                    
+                    # Get all users
+                    all_users = []
+                    page_token = None
+                    while True:
+                        try:
+                            # Use maxResults=500 for efficiency
+                            users_result = service.users().list(customer='my_customer', maxResults=500, pageToken=page_token).execute()
+                            users = users_result.get('users', [])
+                            all_users.extend(users)
+                            
+                            page_token = users_result.get('nextPageToken')
+                            if not page_token:
+                                break
+                        except Exception as e:
+                            app.logger.error(f"[BULK RETRIEVE] [{account_name}] Error retrieving page: {e}")
+                            if not all_users: # If we failed on first page, treat as error
+                                raise e
+                            break # Otherwise accept partial results
+                    
+                    # Format user data
+                    formatted_users = []
+                    default_password = account_passwords.get(account_name, '')
+                    
+                    for user in all_users:
+                        email = user.get('primaryEmail', '')
+                        user_id = user.get('id', '') # Fixed indentation
+                        
+                        # Detect if admin
+                        is_admin = user.get('isAdmin', False)
+                        
+                        # Add to list
+                        formatted_users.append({
+                            'email': email,
+                            'primaryEmail': email,
+                            'id': user_id,
+                            'name': user.get('name', {}).get('fullName', ''),
+                            'isAdmin': is_admin,
+                            'creationTime': user.get('creationTime', ''),
+                            'lastLoginTime': user.get('lastLoginTime', ''),
+                            'suspended': user.get('suspended', False),
+                            'password': default_password, # Includes account password if available
+                            'app_password': '' # Placeholder, we don't know app passwords from Google API
+                        })
+                    
+                    account_result['users'] = formatted_users
+                    app.logger.info(f"[BULK RETRIEVE] [{account_name}] Successfully retrieved {len(formatted_users)} user(s)")
+                    
+                except Exception as e:
+                    account_result['error'] = str(e)
+                    app.logger.error(f"[BULK RETRIEVE] [{account_name}] Error: {e}")
+                
+                return account_result
+        
+        # Parallel execution for retrieval
+        all_results = []
+        if not authenticated_accounts:
+            # Return partial results if some auths failed but process completed
+            pass
+        else:
+            with ThreadPoolExecutor(max_workers=max(1, min(10, len(authenticated_accounts)))) as executor:
+                futures = {executor.submit(retrieve_account_users, account): account for account in authenticated_accounts.keys()}
+                
+                for future in as_completed(futures):
+                    try:
+                        all_results.append(future.result())
+                    except Exception as e:
+                        account = futures[future]
+                        all_results.append({
+                            'account': account,
+                            'authenticated': True, # It was auth'd to retrieve
+                            'error': f"Exception during retrieval: {str(e)}"
+                        })
+
+        # Compile final stats
+        total_retrieved_users = sum(len(r.get('users', []) or []) for r in all_results)
+        failed_accounts = len(accounts) - len([r for r in all_results if not r.get('error') and r.get('authenticated')])
+        
+        return jsonify({
+            'success': True,
+            'message': 'Bulk user retrieval completed',
+            'results': all_results,
+            'total_accounts': len(accounts),
+            'total_users': total_retrieved_users, # This was likely the missing field frontend expected
+            'total_failed': failed_accounts
+        })
+
+    except Exception as e:
+        app.logger.error(f"[BULK RETRIEVE] ✗✗✗ CRITICAL ERROR: {e}")
+        app.logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/bulk-delete-account-users', methods=['POST'])
 @login_required
 def api_bulk_delete_account_users():
