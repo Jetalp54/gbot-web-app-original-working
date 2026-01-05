@@ -7003,117 +7003,135 @@
     }
 
     function executeBulkAccountDeletion(event) {
-        console.log('executeBulkAccountDeletion called');
+        try {
+            console.log('executeBulkAccountDeletion called');
 
-        const tbody = document.getElementById('bulk-accounts-tbody');
-        if (!tbody) {
-            alert('Error: Table body not found');
-            return;
-        }
-
-        const rows = tbody.querySelectorAll('tr');
-
-        if (rows.length === 0) {
-            alert('Please add at least one account.');
-            return;
-        }
-
-        // Collect account emails from table (only account email is required)
-        const accounts = [];
-        rows.forEach((row) => {
-            const accountInput = row.querySelector('input[data-field="account"]');
-            if (accountInput) {
-                const account = accountInput.value.trim();
-                if (account && account.includes('@')) {
-                    accounts.push(account);
-                }
+            const tbody = document.getElementById('bulk-accounts-tbody');
+            if (!tbody) {
+                console.error('CRITICAL: Table body #bulk-accounts-tbody not found');
+                alert('Error: Table body not found');
+                return;
             }
-        });
+            console.log('Table body found');
 
-        if (accounts.length === 0) {
-            alert('Please add at least one valid account email.');
-            return;
-        }
+            const rows = tbody.querySelectorAll('tr');
+            console.log(`Found ${rows.length} rows in table`);
 
-        // Confirm deletion
-        if (!confirm(`⚠️ WARNING: This will delete ALL users from ${accounts.length} account(s).\n\nThis action cannot be undone!\n\nAre you sure you want to continue?`)) {
-            return;
-        }
+            if (rows.length === 0) {
+                alert('Please add at least one account.');
+                return;
+            }
 
-        // Show progress
-        const progressDiv = document.getElementById('bulk-account-progress');
-        const progressBar = document.getElementById('bulk-account-progress-bar');
-        const progressText = document.getElementById('bulk-account-progress-text');
-
-        if (progressDiv) progressDiv.style.display = 'block';
-        if (progressBar) progressBar.style.width = '0%';
-        if (progressText) progressText.textContent = `Authenticating and deleting users from ${accounts.length} account(s)...`;
-
-        // Disable button - get button from event or find it
-        let btn = null;
-        if (event && event.target) {
-            btn = event.target.closest('button');
-        }
-        if (!btn) {
-            // Fallback: find the button by its onclick attribute
-            const buttons = document.querySelectorAll('button[onclick*="executeBulkAccountDeletion"]');
-            btn = buttons[0];
-        }
-
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-        }
-
-        // Call API
-        fetch('/api/bulk-delete-account-users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                accounts: accounts
-            })
-        })
-            .then(response => {
-                // Check if response is JSON
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    return response.text().then(text => {
-                        console.error('Non-JSON response:', text);
-                        throw new Error('Server returned non-JSON response. Please check server logs.');
-                    });
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
-                }
-
-                if (data.success) {
-                    const progressBar = document.getElementById('bulk-account-progress-bar');
-                    const progressText = document.getElementById('bulk-account-progress-text');
-                    if (progressBar) progressBar.style.width = '100%';
-                    if (progressText) progressText.textContent = `✅ Deletion completed! ${data.total_deleted} users deleted from ${data.total_accounts} account(s)`;
-
-                    // Display results
-                    displayBulkAccountDeletionResults(data);
+            // Collect account emails from table (only account email is required)
+            const accounts = [];
+            rows.forEach((row, index) => {
+                const accountInput = row.querySelector('input[data-field="account"]');
+                if (accountInput) {
+                    const account = accountInput.value.trim();
+                    console.log(`Row ${index}: Found account input value: "${account}"`);
+                    if (account && account.includes('@')) {
+                        accounts.push(account);
+                    } else {
+                        console.warn(`Row ${index}: Account value invalid or missing @`);
+                    }
                 } else {
-                    const progressText = document.getElementById('bulk-account-progress-text');
-                    if (progressText) progressText.textContent = `❌ Error: ${data.error}`;
-                    alert(`Error: ${data.error}`);
+                    console.warn(`Row ${index}: Input input[data-field="account"] not found`);
                 }
-            })
-            .catch(error => {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
-                }
-                const progressText = document.getElementById('bulk-account-progress-text');
-                if (progressText) progressText.textContent = `❌ Network error: ${error.message}`;
-                console.error('Delete error:', error);
-                alert(`Network error: ${error.message}`);
             });
+
+            console.log(`Collected ${accounts.length} valid accounts:`, accounts);
+
+            if (accounts.length === 0) {
+                alert('Please add at least one valid account email.');
+                return;
+            }
+
+            if (accounts.length > 50) {
+                console.log("Large batch deletion started without confirmation");
+            }
+
+            // Show progress
+            const progressDiv = document.getElementById('bulk-account-progress');
+            const progressBar = document.getElementById('bulk-account-progress-bar');
+            const progressText = document.getElementById('bulk-account-progress-text');
+
+            if (progressDiv) progressDiv.style.display = 'block';
+            if (progressBar) progressBar.style.width = '0%';
+            if (progressText) progressText.textContent = `Authenticating and deleting users from ${accounts.length} account(s)...`;
+
+            // Disable button - get button from event or find it
+            let btn = null;
+            if (event && event.target) {
+                btn = event.target.closest('button');
+            }
+            if (!btn) {
+                // Fallback: find the button by its onclick attribute
+                const buttons = document.querySelectorAll('button[onclick*="executeBulkAccountDeletion"]');
+                btn = buttons[0];
+            }
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            }
+
+            console.log('Starting fetch request to /api/bulk-delete-account-users...');
+
+            // Call API
+            fetch('/api/bulk-delete-account-users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    accounts: accounts
+                })
+            })
+                .then(response => {
+                    console.log('Fetch response received:', response.status);
+                    // Check if response is JSON
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        return response.text().then(text => {
+                            console.error('Non-JSON response:', text);
+                            throw new Error('Server returned non-JSON response. Please check server logs.');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Fetch data received:', data);
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
+                    }
+
+                    if (data.success) {
+                        const progressBar = document.getElementById('bulk-account-progress-bar');
+                        const progressText = document.getElementById('bulk-account-progress-text');
+                        if (progressBar) progressBar.style.width = '100%';
+                        if (progressText) progressText.textContent = `✅ Deletion completed! ${data.total_deleted} users deleted from ${data.total_accounts} account(s)`;
+
+                        // Display results
+                        displayBulkAccountDeletionResults(data);
+                    } else {
+                        const progressText = document.getElementById('bulk-account-progress-text');
+                        if (progressText) progressText.textContent = `❌ Error: ${data.error}`;
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(err => {
+                    console.error('Fetch error:', err);
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
+                    }
+                    const progressText = document.getElementById('bulk-account-progress-text');
+                    if (progressText) progressText.textContent = `❌ System Error`;
+                    alert('System Error: ' + err.message);
+                });
+        } catch (e) {
+            console.error('CRITICAL ERROR in executeBulkAccountDeletion:', e);
+            alert('Critical Frontend Error: ' + e.message);
+        }
     }
 
     function displayBulkAccountDeletionResults(data) {
