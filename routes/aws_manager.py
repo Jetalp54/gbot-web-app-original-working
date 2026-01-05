@@ -49,6 +49,14 @@ ECR_REPO_NAME = DEFAULT_ECR_REPO_NAME
 
 logger = logging.getLogger(__name__)
 
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user' not in session:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
 
 def get_naming_config():
     """
