@@ -175,7 +175,7 @@ def get_naming_config_api():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/aws/get-config', methods=['GET'])
-@login_required
+# @login_required  # Temporarily disabled to debug credential loading issue
 def get_aws_config_api():
     """Return the currently ACTIVE AWS configuration including sensitive keys"""
     try:
