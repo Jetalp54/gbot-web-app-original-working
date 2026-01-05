@@ -179,8 +179,22 @@ def get_naming_config_api():
 def get_aws_config_api():
     """Return the currently ACTIVE AWS configuration including sensitive keys"""
     try:
+        # Debug: Log session state
+        user_id = session.get('user_id')
+        user_name = session.get('user')
+        logger.info(f"[GET_CONFIG] Session: user_id={user_id}, user={user_name}")
+        
         config = get_current_active_config()
+        logger.info(f"[GET_CONFIG] get_current_active_config returned: {config}")
+        
+        # Robust fallback - if helper failed, try direct query
+        if not config:
+            logger.warning("[GET_CONFIG] No config from helper, trying direct query...")
+            config = AwsConfig.query.first()
+            logger.info(f"[GET_CONFIG] Direct query returned: {config}")
+        
         if config:
+            logger.info(f"[GET_CONFIG] Returning config ID={config.id}, name={config.name}")
             return jsonify({
                 'success': True,
                 'config': {
@@ -198,10 +212,13 @@ def get_aws_config_api():
                 }
             })
         else:
-             return jsonify({'success': False, 'error': 'No AWS configuration found. Please configure in Settings.'})
+            logger.error("[GET_CONFIG] No AWS configuration found in database at all!")
+            return jsonify({'success': False, 'error': 'No AWS configuration found. Please configure in Settings.'})
 
     except Exception as e:
         logger.error(f"[AWS_CONFIG] Error getting config: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/service-accounts', methods=['GET'])
