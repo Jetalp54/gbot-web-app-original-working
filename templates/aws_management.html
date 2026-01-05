@@ -37,18 +37,18 @@
         <!-- Glass Tabs -->
         <!-- Glass Tabs (Improved Spacing & No Background) -->
         <div class="d-flex border-bottom border-white-10 p-3 gap-3">
-            {% if user_role == 'admin' %}
+            {% if role == 'admin' %}
             <button class="glass-button tab-button active" onclick="switchTab('infra')" id="tab-infra-btn">
                 <i class="fas fa-server me-2"></i>Core Infrastructure
             </button>
             {% endif %}
 
-            <button class="glass-button tab-button {% if user_role == 'mailer' %}active{% endif %}"
+            <button class="glass-button tab-button {% if role == 'mailer' %}active{% endif %}"
                 onclick="switchTab('lambda')" id="tab-lambda-btn">
                 <i class="fas fa-code me-2"></i>Production Lambda
             </button>
 
-            {% if user_role == 'admin' %}
+            {% if role == 'admin' %}
             <button class="glass-button tab-button" onclick="switchTab('ec2')" id="tab-ec2-btn">
                 <i class="fas fa-desktop me-2"></i>EC2 Build Box
             </button>
@@ -62,7 +62,7 @@
         <div class="p-4">
 
             <!-- Tab: Core Infrastructure -->
-            {% if user_role == 'admin' %}
+            {% if role == 'admin' %}
             <div id="tab-infra" class="tab-content active">
                 <h4 class="mb-4 glass-text-primary">Core Resource Management</h4>
 
@@ -157,7 +157,7 @@
             {% endif %}
 
             <!-- Tab: Lambda Management -->
-            <div id="tab-lambda" class="tab-content {% if user_role == 'mailer' %}active{% endif %}">
+            <div id="tab-lambda" class="tab-content {% if role == 'mailer' %}active{% endif %}">
                 <h4 class="mb-4 glass-text-primary">Production Lambda Management</h4>
 
                 <!-- Config Box -->
@@ -261,7 +261,7 @@
                                 <input type="text" class="glass-input w-100 form-control-sm" id="deleteS3BucketName"
                                     value="dev-app-passwords" placeholder="Bucket">
                             </div>
-                            {% if user_role == 'admin' %}
+                            {% if role == 'admin' %}
                             <div>
                                 <input type="text" class="glass-input w-100 form-control-sm" id="deleteEcrRepoName"
                                     value="dev-app-password-worker" placeholder="Repo">
@@ -271,7 +271,7 @@
                                 <input type="text" class="glass-input w-100 form-control-sm" id="deleteLogGroupPrefix"
                                     value="/aws/lambda/dev" placeholder="Logs">
                             </div>
-                            {% if user_role == 'admin' %}
+                            {% if role == 'admin' %}
                             <div>
                                 <input type="text" class="glass-input w-100 form-control-sm"
                                     id="deleteDynamodbTableName" value="dev-app-passwords" placeholder="Table">
@@ -281,13 +281,13 @@
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <button class="glass-button glass-button-danger btn-sm w-100" onclick="deleteS3Content()">S3
                                 Content</button>
-                            {% if user_role == 'admin' %}
+                            {% if role == 'admin' %}
                             <button class="glass-button glass-button-danger btn-sm w-100" onclick="deleteECRRepo()">ECR
                                 Repo</button>
                             {% endif %}
                             <button class="glass-button glass-button-danger btn-sm w-100"
                                 onclick="deleteCloudWatchLogs()">Logs</button>
-                            {% if user_role == 'admin' %}
+                            {% if role == 'admin' %}
                             <button class="glass-button glass-button-danger btn-sm w-100"
                                 onclick="deleteDynamoDBTable()">DynamoDB</button>
                             {% endif %}
@@ -297,7 +297,7 @@
             </div>
 
             <!-- Tab: EC2 Build Box -->
-            {% if user_role == 'admin' %}
+            {% if role == 'admin' %}
             <div id="tab-ec2" class="tab-content" style="display: none;">
                 <div class="glass-panel p-4 mb-4" style="border-left: 4px solid #f59e0b !important;">
                     <h5 style="color: #f59e0b;"><i class="fas fa-info-circle me-2"></i>Hybrid Build Box</h5>
