@@ -1721,6 +1721,7 @@ def push_ecr_to_all_regions():
                         using_ec2 = False
                         ec2_error_msg = None # Initialize error message tracking
                         try:
+                            logger.info(f"[ECR] [{target_region}] Searching for EC2 build box...")
                             ec2_instance = find_ec2_build_instance(source_session)
                             if ec2_instance:
                                 ec2_instance_id = ec2_instance['InstanceId']
@@ -1729,10 +1730,16 @@ def push_ecr_to_all_regions():
                                     logger.info(f"[ECR] [{target_region}] ✓ Found running EC2 build box: {ec2_instance_id}, will use it for Docker operations")
                                     using_ec2 = True
                                 else:
-                                    logger.warning(f"[ECR] [{target_region}] ⚠️ EC2 build box found but state is '{ec2_instance_state}', cannot use it")
+                                    ec2_error_msg = f"EC2 instance found but state is '{ec2_instance_state}' (not running)"
+                                    logger.warning(f"[ECR] [{target_region}] ⚠️ {ec2_error_msg}")
                                     ec2_instance_id = None  # Don't use if not running
+                            else:
+                                ec2_error_msg = "No EC2 build box found matching name pattern"
+                                logger.error(f"[ECR] [{target_region}] ✗ {ec2_error_msg}")
                         except Exception as ec2_err:
-                            logger.debug(f"[ECR] [{target_region}] Could not find EC2 build box: {ec2_err}")
+                            ec2_error_msg = f"Error finding EC2 build box: {ec2_err}"
+                            logger.error(f"[ECR] [{target_region}] ✗ {ec2_error_msg}")
+                            logger.error(traceback.format_exc())
                         
                         # Check if Docker is available locally (fallback option)
                         docker_available = shutil.which('docker') is not None
@@ -7813,7 +7820,8 @@ def find_ec2_build_instance(session, instance_name=None):
     """Find EC2 build instance by name tag - tries exact match first, then pattern match"""
     if instance_name is None:
         naming_config = get_naming_config()
-        instance_name = naming_config.get('ec2_instance_name', 'gbot-ec2-build-box')
+        # FIXED: get_naming_config returns 'instance_name', not 'ec2_instance_name'
+        instance_name = naming_config.get('instance_name', 'default-ec2-build-box')
     
     logger.info(f"[EC2] Searching for instance with Name tag: {instance_name}")
     ec2 = session.client("ec2")
