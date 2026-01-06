@@ -1719,6 +1719,7 @@ def push_ecr_to_all_regions():
                         ec2_instance_id = None
                         ec2_instance_state = None
                         using_ec2 = False
+                        ec2_error_msg = None # Initialize error message tracking
                         try:
                             ec2_instance = find_ec2_build_instance(source_session)
                             if ec2_instance:
@@ -1945,6 +1946,7 @@ exit 1
                                 return region_result
                                 
                             except Exception as ssm_err:
+                                ec2_error_msg = str(ssm_err)
                                 logger.error(f"[ECR] [{target_region}] ✗ Failed to use EC2 build box: {ssm_err}")
                                 logger.error(traceback.format_exc())
                                 # Fall through to local Docker or manual instructions
@@ -1953,15 +1955,14 @@ exit 1
                         # Try local Docker as fallback
                         if not docker_available:
                             logger.warning(f"[ECR] [{target_region}] ⚠️ Docker not available. Manual push required.")
-                            logger.warning(f"[ECR] [{target_region}] To push manually:")
-                            logger.warning(f"[ECR] [{target_region}]   1. docker pull {source_ecr_uri}")
-                            logger.warning(f"[ECR] [{target_region}]   2. docker tag {source_ecr_uri} {target_ecr_uri}")
-                            logger.warning(f"[ECR] [{target_region}]   3. aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com")
-                            logger.warning(f"[ECR] [{target_region}]   4. docker push {target_ecr_uri}")
+                            
+                            error_msg = "Docker not available. Manual push required."
+                            if ec2_error_msg:
+                                error_msg += f" (EC2 Attempt Failed: {ec2_error_msg})"
                             
                             region_result = {
                                 'success': False,
-                                'error': 'Docker not available. Manual push required.',
+                                'error': error_msg,
                                 'instructions': [
                                     f'docker pull {source_ecr_uri}',
                                     f'docker tag {source_ecr_uri} {target_ecr_uri}',
