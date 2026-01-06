@@ -233,24 +233,30 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 operation.message = 'Getting verification token from Google...'
                 db.session.commit()
                 
-                logger.info(f"Job {job_id}: Step 4 - Getting verification token for {domain}")
+                # Get verification token for the SUBDOMAIN (full domain being added)
+                # The TXT record will go at txt_host (subdomain prefix) in the apex zone
+                # Verification will be for the full subdomain
+                logger.info(f"Job {job_id}: Step 4 - Getting verification token for SUBDOMAIN: {domain}")
+                logger.info(f"Job {job_id}: TXT will be placed at host '{txt_host}' in zone '{apex}'")
                 if not google_service:
                     google_service = GoogleDomainsService(account_name)
-                    
-                token_result = google_service.get_verification_token(domain, apex_domain=apex)
+                
+                # Get token for the SUBDOMAIN - this is what we're adding and verifying
+                token_result = google_service.get_verification_token(domain)
                 token = token_result['token']
-                # Use the calculated subdomain host, not the default '@' from Google
-                # Google returns '@' for apex, but we need the subdomain part for subdomains
                 txt_value = token_result.get('txt_value', f'google-site-verification={token}')
                 
-                # Fix for double prefix issue: ensure we don't have "google-site-verification=google-site-verification=..."
+                # Fix for double prefix issue
                 if txt_value.startswith('google-site-verification=google-site-verification='):
                     logger.warning(f"Detected double prefix in TXT value: {txt_value}. Fixing...")
                     txt_value = txt_value.replace('google-site-verification=', '', 1)
                 
+                # NOTE: txt_host was calculated earlier (lines 103-115) based on the domain structure
+                # For subdomain verification, we keep that value (e.g., 'almertnas' for almertnas.brainshifthub.it.com)
+                
                 operation.message = f'Token received, creating DNS TXT record...'
-                operation.raw_log.append(log_entry('token', 'success', f'Retrieved verification token, will use host: {txt_host}'))
-                logger.info(f"Got verification token for {domain}, will add TXT record with host: {txt_host}")
+                operation.raw_log.append(log_entry('token', 'success', f'Retrieved verification token for {domain}, will use host: {txt_host}'))
+                logger.info(f"Got verification token for {domain}, TXT host: {txt_host} in zone: {apex}")
                 db.session.commit()
             
             except Exception as e:

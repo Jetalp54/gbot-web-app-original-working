@@ -368,14 +368,14 @@ class GoogleDomainsService:
         
         Args:
             domain: Domain to verify (can be subdomain like 'sub.example.com' or apex 'example.com')
-            apex_domain: Optional pre-calculated apex domain. If not provided, will be calculated.
+            apex_domain: Optional pre-calculated apex domain for Admin SDK verification.
         
         Returns:
             Dict with 'verified' (bool) and 'status' (str)
         """
         logger.info(f"Starting domain verification for {domain}")
         
-        # Use provided apex or calculate it
+        # Use provided apex or calculate it (for Admin SDK, which needs apex)
         if apex_domain:
             apex = apex_domain
             logger.info(f"Using provided apex domain: {apex}")
@@ -384,11 +384,11 @@ class GoogleDomainsService:
             apex = to_apex(domain)
             logger.info(f"Calculated apex domain: {apex}")
         
-        # IMPORTANT: For Site Verification API, we verify the APEX domain, not individual subdomains.
-        # This is because TXT records are typically placed at the apex (@), and verifying the apex
-        # covers all subdomains. When the user manually verifies in Admin Console, they verify the apex.
-        verification_domain = apex
-        logger.info(f"Will verify apex domain: {verification_domain} (original: {domain})")
+        # For Site Verification API, we verify the EXACT domain being added
+        # If adding a subdomain, we verify the subdomain (not the apex)
+        # The TXT record is at the subdomain, so Google looks for it there
+        verification_domain = domain
+        logger.info(f"Will verify domain: {verification_domain} (apex for Admin SDK: {apex})")
         
         # STEP 1: Site Verification API - Verify ownership
         site_verification_success = False
@@ -403,11 +403,11 @@ class GoogleDomainsService:
                 service_account_row = ServiceAccount.query.filter_by(name=self.account_name).first()
                 admin_email = service_account_row.admin_email if service_account_row else None
                 
-                # Create verification resource - USE APEX DOMAIN
+                # Create verification resource - USE THE SUBDOMAIN being verified
                 verification_resource = {
                     'site': {
                         'type': 'INET_DOMAIN',
-                        'identifier': verification_domain  # Use apex, not subdomain
+                        'identifier': verification_domain  # Use subdomain (full domain being added)
                     }
                 }
                 
