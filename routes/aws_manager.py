@@ -7820,8 +7820,10 @@ def find_ec2_build_instance(session, instance_name=None):
     """Find EC2 build instance by name tag - tries exact match first, then pattern match"""
     if instance_name is None:
         naming_config = get_naming_config()
-        # FIXED: get_naming_config returns 'instance_name', not 'ec2_instance_name'
-        instance_name = naming_config.get('instance_name', 'default-ec2-build-box')
+        # CORRECTED: ec2_instance_name is the full name like 'default-ec2-build-box'
+        # constructed from instance_name (prefix) + '-ec2-build-box' at line 91
+        instance_name = naming_config.get('ec2_instance_name', 'default-ec2-build-box')
+        logger.info(f"[EC2] Using EC2 instance name from config: {instance_name}")
     
     logger.info(f"[EC2] Searching for instance with Name tag: {instance_name}")
     ec2 = session.client("ec2")
