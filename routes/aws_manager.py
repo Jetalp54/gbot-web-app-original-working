@@ -1181,7 +1181,7 @@ def generate_ecr_push_script():
                 f"",
                 f"# Ensure repository exists in {target_region}",
                 f"echo \"Ensuring repository exists...\"",
-                f"aws ecr create-repository --repository-name $REPO_NAME --region {target_region} >/dev/null 2>&1 || echo \"Repository likely exists, proceeding...\"",
+                f"aws ecr create-repository --repository-name $REPO_NAME --region {target_region} || echo \"Repository likely exists, proceeding...\"",
                 f"",
                 f"# Authenticate with {target_region}",
                 f"aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.{target_region}.amazonaws.com",
@@ -1756,9 +1756,9 @@ export AWS_DEFAULT_REGION={target_region}
 
 # Authenticate with target region ECR
 echo "=== Step 0: Ensuring repository {repo_name} exists in {target_region}... ==="
-if ! aws ecr create-repository --repository-name {repo_name} --region {target_region} >/dev/null 2>&1; then
-    echo "Repository likely exists or could not be created (ignoring if exists)..."
-fi
+# Authenticate with target region ECR
+echo "=== Step 0: Ensuring repository {repo_name} exists in {target_region}... ==="
+aws ecr create-repository --repository-name {repo_name} --region {target_region} || echo "Repository creation returned non-zero (may already exist)."
 
 echo "=== Step 1: Authenticating with ECR in {target_region}... ==="
 if ! aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com; then
