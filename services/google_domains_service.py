@@ -378,24 +378,30 @@ class GoogleDomainsService:
         from services.zone_utils import to_apex
         apex = to_apex(domain)
         
+        # IMPORTANT: For Site Verification API, we verify the APEX domain, not individual subdomains.
+        # This is because TXT records are typically placed at the apex (@), and verifying the apex
+        # covers all subdomains. When the user manually verifies in Admin Console, they verify the apex.
+        verification_domain = apex
+        logger.info(f"Will verify apex domain: {verification_domain} (original: {domain})")
+        
         # STEP 1: Site Verification API - Verify ownership
         site_verification_success = False
         site_verification_error = None
         
         for without_delegation in [False, True]:
             try:
-                logger.info(f"Step 1: Site Verification for {domain} (without_delegation={without_delegation})")
+                logger.info(f"Step 1: Site Verification for {verification_domain} (without_delegation={without_delegation})")
                 service = self._get_site_verification_service(without_delegation=without_delegation)
                 
                 # Get admin email for owner field
                 service_account_row = ServiceAccount.query.filter_by(name=self.account_name).first()
                 admin_email = service_account_row.admin_email if service_account_row else None
                 
-                # Create verification resource
+                # Create verification resource - USE APEX DOMAIN
                 verification_resource = {
                     'site': {
                         'type': 'INET_DOMAIN',
-                        'identifier': domain
+                        'identifier': verification_domain  # Use apex, not subdomain
                     }
                 }
                 
@@ -409,22 +415,22 @@ class GoogleDomainsService:
                     body=verification_resource
                 ).execute()
                 
-                logger.info(f"Site Verification API response for {domain}: {result}")
+                logger.info(f"Site Verification API response for {verification_domain}: {result}")
                 
                 # Check if we got a valid response
-                if result.get('id') or result.get('site', {}).get('identifier') == domain:
-                    logger.info(f"Site Verification succeeded for {domain}")
+                if result.get('id') or result.get('site', {}).get('identifier') == verification_domain:
+                    logger.info(f"Site Verification succeeded for {verification_domain}")
                     site_verification_success = True
                     break
                     
             except HttpError as e:
                 error_str = str(e)
                 status = e.resp.status if hasattr(e, 'resp') else 'unknown'
-                logger.warning(f"Site Verification HTTP {status} for {domain}: {error_str}")
+                logger.warning(f"Site Verification HTTP {status} for {verification_domain}: {error_str}")
                 
                 # 409 means already verified in Site Verification - that's okay
                 if status == 409 or 'already exists' in error_str.lower():
-                    logger.info(f"Site Verification already exists for {domain}")
+                    logger.info(f"Site Verification already exists for {verification_domain}")
                     site_verification_success = True
                     break
                 
@@ -432,8 +438,8 @@ class GoogleDomainsService:
                 if status == 400:
                     error_msg = "DNS TXT record not found. Please wait for DNS propagation."
                     if 'verification token could not be found' in error_str.lower():
-                        error_msg = "DNS TXT verification token not found on domain. Check that the TXT record was created correctly."
-                    logger.error(f"Site Verification failed for {domain}: {error_msg}")
+                        error_msg = f"DNS TXT verification token not found for {verification_domain}. Check that the TXT record was created at the apex domain."
+                    logger.error(f"Site Verification failed for {verification_domain}: {error_msg}")
                     return {'verified': False, 'status': 'failed', 'error': error_msg}
                 
                 # 503 - try other mode
@@ -446,7 +452,7 @@ class GoogleDomainsService:
                 
             except Exception as e:
                 site_verification_error = str(e)
-                logger.error(f"Site Verification error for {domain}: {e}")
+                logger.error(f"Site Verification error for {verification_domain}: {e}")
         
         if not site_verification_success:
             error_msg = f"Site Verification failed: {site_verification_error or 'Unknown error'}"
