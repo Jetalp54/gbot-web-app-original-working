@@ -396,11 +396,11 @@ class GoogleDomainsService:
         site_verification_success = False
         site_verification_error = None
         
-        # If specific delegation mode provided (from getToken), use only that mode
-        # Otherwise try both modes
+        # If specific delegation mode provided (from getToken), prioritize it but allow fallback
         if without_delegation is not None:
-            delegation_modes = [without_delegation]
-            logger.info(f"Using specific delegation mode from getToken: without_delegation={without_delegation}")
+            # Try the specific mode first, then the other one as fallback
+            delegation_modes = [without_delegation, not without_delegation]
+            logger.info(f"Prioritizing delegation mode from getToken: without_delegation={without_delegation} (fallback to {not without_delegation})")
         else:
             delegation_modes = [False, True]  # WITH delegation first, then WITHOUT
             logger.info(f"No specific delegation mode, trying both modes")
