@@ -358,7 +358,7 @@ class GoogleDomainsService:
         raise Exception("Failed to get verification token from Google Site Verification API")
     
     
-    def verify_domain(self, domain: str) -> Dict:
+    def verify_domain(self, domain: str, apex_domain: str = None) -> Dict:
         """
         Verify domain in Google Workspace after DNS TXT record is created.
         
@@ -368,15 +368,21 @@ class GoogleDomainsService:
         
         Args:
             domain: Domain to verify (can be subdomain like 'sub.example.com' or apex 'example.com')
+            apex_domain: Optional pre-calculated apex domain. If not provided, will be calculated.
         
         Returns:
             Dict with 'verified' (bool) and 'status' (str)
         """
         logger.info(f"Starting domain verification for {domain}")
         
-        # Get apex domain for Workspace verification
-        from services.zone_utils import to_apex
-        apex = to_apex(domain)
+        # Use provided apex or calculate it
+        if apex_domain:
+            apex = apex_domain
+            logger.info(f"Using provided apex domain: {apex}")
+        else:
+            from services.zone_utils import to_apex
+            apex = to_apex(domain)
+            logger.info(f"Calculated apex domain: {apex}")
         
         # IMPORTANT: For Site Verification API, we verify the APEX domain, not individual subdomains.
         # This is because TXT records are typically placed at the apex (@), and verifying the apex

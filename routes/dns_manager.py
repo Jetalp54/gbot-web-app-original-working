@@ -353,8 +353,8 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
 
                     attempt += 1
                     try:
-                        logger.info(f"=== VERIFICATION ATTEMPT {attempt}/{max_attempts} === Domain: {domain}")
-                        verify_result = google_service.verify_domain(domain)
+                        logger.info(f"=== VERIFICATION ATTEMPT {attempt}/{max_attempts} === Domain: {domain}, Apex: {apex}")
+                        verify_result = google_service.verify_domain(domain, apex_domain=apex)
                         
                         logger.info(f"Job {job_id}: Verification result for {domain}: {verify_result}")
                         
