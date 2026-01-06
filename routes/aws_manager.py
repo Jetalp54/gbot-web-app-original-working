@@ -1754,6 +1754,11 @@ export AWS_SECRET_ACCESS_KEY={secret_key}
 export AWS_DEFAULT_REGION={target_region}
 
 # Authenticate with target region ECR
+echo "=== Step 0: Ensuring repository {repo_name} exists in {target_region}... ==="
+if ! aws ecr create-repository --repository-name {repo_name} --region {target_region} >/dev/null 2>&1; then
+    echo "Repository likely exists or could not be created (ignoring if exists)..."
+fi
+
 echo "=== Step 1: Authenticating with ECR in {target_region}... ==="
 if ! aws ecr get-login-password --region {target_region} | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{target_region}.amazonaws.com; then
     echo "ERROR: Failed to authenticate with target region ECR"
@@ -1983,6 +1988,22 @@ exit 1
                         
                         # Attempt to push using Docker
                         try:
+                            # Step 0: Ensure repository exists (using Boto3)
+                            try:
+                                logger.info(f"[ECR] [{target_region}] Step 0: Ensuring repository exists...")
+                                target_session = get_boto3_session(access_key, secret_key, target_region)
+                                target_ecr = target_session.client("ecr")
+                                try:
+                                    target_ecr.create_repository(repositoryName=repo_name)
+                                    logger.info(f"[ECR] [{target_region}] ✓ Created repository {repo_name}")
+                                except ClientError as e:
+                                    if e.response['Error']['Code'] == 'RepositoryAlreadyExistsException':
+                                        logger.info(f"[ECR] [{target_region}] Repository {repo_name} already exists")
+                                    else:
+                                        logger.warning(f"[ECR] [{target_region}] Warning creating repo: {e}")
+                            except Exception as repo_err:
+                                logger.warning(f"[ECR] [{target_region}] Failed to ensure repository exists: {repo_err}")
+
                             logger.info(f"[ECR] [{target_region}] Step 1: Authenticating with ECR...")
                             # Authenticate with ECR
                             login_cmd = [
