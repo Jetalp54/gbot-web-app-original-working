@@ -30,15 +30,43 @@ def to_apex(domain: str) -> str:
         # Manual parsing strategy to avoid publicsuffix2 issues
         # 1. Define known multi-part TLDs
         known_multipart_tlds = {
+            # UK TLDs
             'co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'me.uk', 'ltd.uk', 'plc.uk', 'net.uk', 'sch.uk',
+            # Australia TLDs
             'com.au', 'net.au', 'org.au', 'edu.au', 'gov.au',
+            # New Zealand TLDs
             'co.nz', 'net.nz', 'org.nz',
+            # Japan TLDs
             'co.jp', 'ne.jp', 'or.jp', 'go.jp', 'ac.jp',
+            # Brazil TLDs
             'com.br', 'net.br', 'org.br', 'gov.br',
+            # Singapore TLDs
             'com.sg', 'edu.sg', 'gov.sg', 'net.sg', 'org.sg',
+            # South Africa TLDs
             'co.za', 'org.za', 'gov.za',
+            # India TLDs
             'co.in', 'net.in', 'org.in', 'gen.in', 'ind.in',
-            'com.cn', 'net.cn', 'org.cn', 'gov.cn'
+            # China TLDs
+            'com.cn', 'net.cn', 'org.cn', 'gov.cn',
+            # Country + Generic Combo TLDs (important for verification!)
+            'it.com', 'eu.com', 'us.com', 'uk.com', 'de.com', 'fr.com', 'es.com', 'ru.com',
+            'br.com', 'cn.com', 'ar.com', 'kr.com', 'hu.com', 'no.com', 'se.com', 'za.com',
+            'uk.net', 'gb.net', 'jp.net', 'eu.net',
+            # Other multi-part TLDs
+            'com.mx', 'org.mx', 'edu.mx', 'gob.mx',
+            'co.il', 'org.il', 'net.il', 'ac.il', 'gov.il',
+            'com.tr', 'net.tr', 'org.tr', 'edu.tr', 'gov.tr',
+            'com.ar', 'net.ar', 'org.ar', 'edu.ar', 'gob.ar',
+            'co.kr', 'or.kr', 'go.kr', 'ac.kr', 're.kr',
+            'com.hk', 'org.hk', 'net.hk', 'edu.hk', 'gov.hk',
+            'com.my', 'net.my', 'org.my', 'edu.my', 'gov.my',
+            'com.ph', 'net.ph', 'org.ph', 'edu.ph', 'gov.ph',
+            'com.tw', 'net.tw', 'org.tw', 'edu.tw', 'gov.tw',
+            'co.th', 'or.th', 'in.th', 'ac.th', 'go.th',
+            'com.ua', 'net.ua', 'org.ua', 'edu.ua', 'gov.ua',
+            'com.eg', 'org.eg', 'net.eg', 'edu.eg', 'gov.eg',
+            'co.ke', 'or.ke', 'ne.ke', 'ac.ke', 'go.ke',
+            'com.ng', 'org.ng', 'net.ng', 'edu.ng', 'gov.ng'
         }
         
         parts = domain.split('.')
