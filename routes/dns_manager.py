@@ -245,6 +245,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 token_result = google_service.get_verification_token(domain)
                 token = token_result['token']
                 txt_value = token_result.get('txt_value', f'google-site-verification={token}')
+                token_delegation_mode = token_result.get('without_delegation')  # Track which credential mode was used
                 
                 # Fix for double prefix issue
                 if txt_value.startswith('google-site-verification=google-site-verification='):
@@ -359,8 +360,8 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
 
                     attempt += 1
                     try:
-                        logger.info(f"=== VERIFICATION ATTEMPT {attempt}/{max_attempts} === Domain: {domain}, Apex: {apex}")
-                        verify_result = google_service.verify_domain(domain, apex_domain=apex)
+                        logger.info(f"=== VERIFICATION ATTEMPT {attempt}/{max_attempts} === Domain: {domain}, Apex: {apex}, delegation_mode={token_delegation_mode}")
+                        verify_result = google_service.verify_domain(domain, apex_domain=apex, without_delegation=token_delegation_mode)
                         
                         logger.info(f"Job {job_id}: Verification result for {domain}: {verify_result}")
                         
