@@ -359,6 +359,12 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                         return
 
                     attempt += 1
+                    
+                    # Update status to show progress
+                    if attempt > 1:
+                        operation.message = f'Verifying domain... (Attempt {attempt}/{max_attempts})'
+                        db.session.commit()
+                    
                     try:
                         logger.info(f"=== VERIFICATION ATTEMPT {attempt}/{max_attempts} === Domain: {domain}, Apex: {apex}, delegation_mode={token_delegation_mode}")
                         verify_result = google_service.verify_domain(domain, apex_domain=apex, without_delegation=token_delegation_mode)
@@ -370,9 +376,12 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                             operation.verify_status = 'success'
                             operation.message = 'Domain verified successfully'
                             operation.raw_log.append(log_entry('verify', 'success', f'Verified on attempt {attempt}'))
+                            db.session.commit()  # Commit success immediately
                             logger.info(f"=== VERIFICATION SUCCESS === Domain {apex} verified on attempt {attempt}")
                         else:
                             operation.raw_log.append(log_entry('verify', 'pending', f'Attempt {attempt}/{max_attempts}: Not yet verified'))
+                            db.session.commit()  # Commit log update immediately
+                            
                             if attempt < max_attempts:
                                 time.sleep(30)  # Wait 30 seconds between retries
                     
@@ -389,6 +398,8 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                             return
                         
                         operation.raw_log.append(log_entry('verify', 'error', f'Attempt {attempt} error: {error_msg}'))
+                        db.session.commit()  # Commit error log
+                        
                         if attempt < max_attempts:
                             time.sleep(30)
                 
