@@ -36,16 +36,21 @@ The `install_automation.sh` script handles EVERYTHING automatically:
 
 #### Quick Start
 ```bash
-# Clone the repository
-git clone https://github.com/Jetalp54/gbot-web-app-original-working.git
-cd gbot-web-app-original-working
+# Clone directly into /opt/gbot-web-app (IMPORTANT: specify the directory name!)
+cd /opt
+sudo git clone https://github.com/Jetalp54/gbot-web-app-original-working.git gbot-web-app
 
-# Make script executable
-chmod +x install_automation.sh
+# Go into the cloned directory
+cd gbot-web-app
 
-# Run complete installation (as root)
+# Make script executable and run installation
+sudo chmod +x install_automation.sh
 sudo ./install_automation.sh
 ```
+
+> **⚠️ Important**: You MUST clone with the directory name `gbot-web-app` at the end.
+> If you just run `git clone <url>` without specifying the directory, it will create
+> `/opt/gbot-web-app-original-working` which is NOT where the app runs.
 
 The script will:
 1. Install all system dependencies
