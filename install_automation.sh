@@ -23,7 +23,8 @@
 #   sudo ./install_automation.sh
 #
 # Author: GBot Automation
-# Last Updated: December 2024
+# Last Updated: January 2026
+# Supports: Ubuntu 22.04 LTS and Ubuntu 24.04 LTS
 ################################################################################
 
 set -e  # Exit on error
@@ -416,6 +417,58 @@ fi
 print_success "AWS CLI installed: $(aws --version 2>/dev/null || echo 'Ready')"
 
 # ============================================================================
+# STEP 7b: Docker Installation (for ECR image operations)
+# ============================================================================
+print_section "STEP 7b: Docker Installation"
+
+if command -v docker &> /dev/null; then
+    print_info "Docker already installed: $(docker --version)"
+else
+    print_info "Installing Docker..."
+    wait_for_apt
+    
+    # Add Docker's official GPG key
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    
+    # Add the repository to Apt sources
+    echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+        $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+        tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    wait_for_apt
+    apt-get update -qq
+    wait_for_apt
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    # Add user to docker group
+    usermod -aG docker $APP_USER
+    
+    # Start and enable Docker
+    systemctl enable docker
+    systemctl start docker
+    
+    print_success "Docker installed: $(docker --version)"
+fi
+
+# ============================================================================
+# STEP 7c: Node.js Installation (for frontend builds if needed)
+# ============================================================================
+print_section "STEP 7c: Node.js Installation"
+
+if command -v node &> /dev/null; then
+    print_info "Node.js already installed: $(node --version)"
+else
+    print_info "Installing Node.js LTS..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    wait_for_apt
+    apt-get install -y nodejs
+    print_success "Node.js installed: $(node --version)"
+fi
+
+# ============================================================================
 # STEP 8: Nginx Web Server Installation
 # ============================================================================
 print_section "STEP 8/15: Nginx Web Server Installation"
@@ -596,26 +649,26 @@ if [ -f requirements.txt ]; then
 else
     print_warning "requirements.txt not found, installing essential packages..."
     pip install \
-        Flask==2.3.3 \
-        paramiko==3.3.1 \
-        google-auth==2.23.3 \
-        google-auth-oauthlib==1.1.0 \
-        google-api-python-client==2.103.0 \
-        faker==19.6.2 \
-        psycopg2-binary \
-        Flask-SQLAlchemy \
-        python-dotenv \
-        psutil==5.9.5 \
-        gunicorn==21.2.0 \
-        requests==2.31.0 \
+        Flask==3.0.3 \
+        paramiko==3.5.0 \
+        google-auth==2.38.0 \
+        google-auth-oauthlib==1.2.2 \
+        google-api-python-client==2.165.0 \
+        faker==33.3.0 \
+        psycopg2-binary==2.9.10 \
+        Flask-SQLAlchemy==3.1.1 \
+        python-dotenv==1.0.1 \
+        psutil==6.1.1 \
+        gunicorn==23.0.0 \
+        requests==2.32.3 \
         pyotp==2.9.0 \
         publicsuffix2==2.20191221 \
-        boto3==1.34.0 \
-        selenium==4.16.0 \
-        webdriver-manager==4.0.1 \
+        boto3==1.35.100 \
+        selenium==4.27.1 \
+        webdriver-manager==4.0.2 \
         selenium-stealth==1.0.6 \
-        fake-useragent==1.4.0 \
-        selenium-wire==5.1.0
+        fake-useragent==2.0.3 \
+        undetected-chromedriver==3.5.5
 fi
 
 # Install additional production packages
