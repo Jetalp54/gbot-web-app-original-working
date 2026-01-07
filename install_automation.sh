@@ -821,6 +821,10 @@ fi
 # Add missing columns to existing tables (db.create_all doesn't modify existing tables)
 print_info "Ensuring all database columns exist..."
 sudo -u postgres psql -d "$DB_NAME" -c "ALTER TABLE domain_operation ADD COLUMN IF NOT EXISTS txt_record_value VARCHAR(255);" 2>/dev/null || true
+sudo -u postgres psql -d "$DB_NAME" -c "ALTER TABLE domain_operation ADD COLUMN IF NOT EXISTS txt_host VARCHAR(255);" 2>/dev/null || true
+sudo -u postgres psql -d "$DB_NAME" -c "ALTER TABLE domain_operation ADD COLUMN IF NOT EXISTS account_name VARCHAR(255);" 2>/dev/null || true
+sudo -u postgres psql -d "$DB_NAME" -c "ALTER TABLE domain_operation ADD COLUMN IF NOT EXISTS verification_attempts INTEGER DEFAULT 0;" 2>/dev/null || true
+sudo -u postgres psql -d "$DB_NAME" -c "ALTER TABLE domain_operation ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP;" 2>/dev/null || true
 
 # Create DomainVerificationOperation table if it doesn't exist
 sudo -u postgres psql -d "$DB_NAME" -c "

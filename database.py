@@ -166,10 +166,14 @@ class DomainOperation(db.Model):
     job_id = db.Column(db.String(36), nullable=False, index=True)
     input_domain = db.Column(db.String(255), nullable=False)
     apex_domain = db.Column(db.String(255), nullable=False)
+    account_name = db.Column(db.String(255))  # Google account name for retries
     txt_record_value = db.Column(db.String(255))  # Store the Google verification token
+    txt_host = db.Column(db.String(255))  # Subdomain prefix for TXT record (e.g., "sub" for sub.domain.com)
     workspace_status = db.Column(db.String(50), default='pending')  # pending, success, failed, skipped
     dns_status = db.Column(db.String(50), default='pending')  # pending, success, failed, dry-run
-    verify_status = db.Column(db.String(50), default='pending')  # pending, success, failed, skipped
+    verify_status = db.Column(db.String(50), default='pending')  # pending, success, failed, pending_retry
+    verification_attempts = db.Column(db.Integer, default=0)  # Retry counter
+    last_attempt_at = db.Column(db.DateTime)  # When last verification was attempted
     message = db.Column(db.Text)
     raw_log = db.Column(db.JSON)  # JSONB in PostgreSQL, JSON in SQLite
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp(), index=True)

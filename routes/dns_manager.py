@@ -254,16 +254,15 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     logger.warning(f"Detected double prefix in TXT value: {txt_value}. Fixing...")
                     txt_value = txt_value.replace('google-site-verification=', '', 1)
                 
-                # CRITICAL: Save the TXT value to database IMMEDIATELY so it's never lost
+                # CRITICAL: Save TXT value AND context to DB IMMEDIATELY for background retries
                 operation.txt_record_value = txt_value
-                
-                # NOTE: txt_host was calculated earlier (lines 103-115) based on the domain structure
-                # For subdomain verification, we keep that value (e.g., 'almertnas' for almertnas.brainshifthub.it.com)
+                operation.txt_host = txt_host  # Save for retry verification
+                operation.account_name = account_name  # Save for retry verification
                 
                 operation.message = f'Token received, creating DNS TXT record...'
                 operation.raw_log.append(log_entry('token', 'success', f'Retrieved verification token for {domain}, will use host: {txt_host}'))
                 logger.info(f"Got verification token for {domain}, TXT host: {txt_host} in zone: {apex}")
-                db.session.commit()  # Commit with txt_record_value saved
+                db.session.commit()  # Commit with all verification context saved
             
             except Exception as e:
                 db.session.rollback()
@@ -380,6 +379,9 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                             verified = True
                             operation.verify_status = 'success'
                             operation.message = 'Domain verified successfully'
+                            # CLEANUP: Clear TXT record from DB on success
+                            operation.txt_record_value = None
+                            operation.txt_host = None
                             operation.raw_log.append(log_entry('verify', 'success', f'Verified on attempt {attempt}'))
                             db.session.commit()  # Commit success immediately
                             logger.info(f"=== VERIFICATION SUCCESS === Domain {apex} verified on attempt {attempt}")
@@ -416,10 +418,14 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                             time.sleep(30)
                 
                 if not verified:
-                    operation.verify_status = 'failed'
-                    operation.message = f'Verification failed after {max_attempts} attempts. DNS may not have propagated yet.'
-                    operation.raw_log.append(log_entry('verify', 'failed', 'Verification timeout'))
-                    logger.warning(f"Domain {apex} verification failed after {max_attempts} attempts")
+                    # Set to pending_retry so background worker can continue trying
+                    from datetime import datetime
+                    operation.verify_status = 'pending_retry'
+                    operation.verification_attempts = attempt
+                    operation.last_attempt_at = datetime.utcnow()
+                    operation.message = f'Queued for background retry. Initial {max_attempts} attempts done. DNS may still be propagating.'
+                    operation.raw_log.append(log_entry('verify', 'pending_retry', 'Queued for background verification'))
+                    logger.info(f"Domain {domain} queued for background retry after {attempt} attempts")
                 
                 db.session.commit()
             else:

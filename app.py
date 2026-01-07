@@ -290,6 +290,89 @@ with app.app_context():
         db.session.add(admin_user)
         db.session.commit()
 
+# ============================================================================
+# Background Domain Verification Worker
+# ============================================================================
+def background_verification_worker():
+    """
+    Background thread that retries domain verification for pending domains.
+    Runs every 5 minutes, retries for up to 24 hours (288 attempts).
+    """
+    from datetime import datetime, timedelta
+    from services.google_domains_service import GoogleDomainsService
+    
+    logging.info("🚀 Background verification worker starting...")
+    
+    while True:
+        try:
+            time.sleep(300)  # Wait 5 minutes between checks
+            
+            with app.app_context():
+                from database import DomainOperation
+                
+                # Find domains waiting for retry
+                five_mins_ago = datetime.utcnow() - timedelta(minutes=5)
+                pending = DomainOperation.query.filter(
+                    DomainOperation.verify_status == 'pending_retry',
+                    DomainOperation.txt_record_value.isnot(None),
+                    DomainOperation.verification_attempts < 288,  # Max 24 hours of retries
+                ).filter(
+                    (DomainOperation.last_attempt_at.is_(None)) | 
+                    (DomainOperation.last_attempt_at < five_mins_ago)
+                ).limit(10).all()  # Process max 10 at a time
+                
+                if pending:
+                    logging.info(f"🔄 Background worker found {len(pending)} domains to retry")
+                
+                for op in pending:
+                    try:
+                        logging.info(f"🔄 Background retry for {op.input_domain} (attempt {op.verification_attempts + 1})")
+                        
+                        # Initialize service with stored account name
+                        google_service = GoogleDomainsService(op.account_name)
+                        
+                        # Try verification
+                        result = google_service.verify_domain(op.input_domain, apex_domain=op.apex_domain)
+                        
+                        op.verification_attempts = (op.verification_attempts or 0) + 1
+                        op.last_attempt_at = datetime.utcnow()
+                        
+                        if result.get('verified'):
+                            op.verify_status = 'success'
+                            op.message = f'Background verified after {op.verification_attempts} total attempts'
+                            # CLEANUP: Clear TXT record on success
+                            op.txt_record_value = None
+                            op.txt_host = None
+                            logging.info(f"✅ Background verification SUCCESS for {op.input_domain}")
+                        elif op.verification_attempts >= 288:
+                            op.verify_status = 'failed'
+                            op.message = 'Verification failed after 24 hours of retries'
+                            logging.warning(f"❌ Background verification FAILED (max retries) for {op.input_domain}")
+                        else:
+                            op.message = f'Background retry {op.verification_attempts}/288 - still pending'
+                            logging.info(f"⏳ Background verification still pending for {op.input_domain}")
+                        
+                        db.session.commit()
+                        
+                    except Exception as e:
+                        logging.error(f"Background verification error for {op.input_domain}: {e}")
+                        op.verification_attempts = (op.verification_attempts or 0) + 1
+                        op.last_attempt_at = datetime.utcnow()
+                        db.session.commit()
+                        
+        except Exception as e:
+            logging.error(f"Background verification worker error: {e}", exc_info=True)
+            time.sleep(60)  # Wait a minute on error before retrying
+
+# Start background verification worker as daemon thread
+# Only start in production (when gunicorn serves the app, not in reloader)
+import os
+if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
+    bg_worker_thread = threading.Thread(target=background_verification_worker, daemon=True, name="background-verify")
+    bg_worker_thread.start()
+    logging.info("✅ Background verification worker thread started")
+
+
 def login_required(f):
     def wrapper(*args, **kwargs):
         if 'user' not in session:
