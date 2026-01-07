@@ -494,22 +494,22 @@ class GoogleDomainsService:
         
         # STEP 2: Check verification status in Google Workspace Admin SDK
         try:
-            logger.info(f"Checking verification status in Workspace Admin SDK for {apex}")
+            logger.info(f"Checking verification status in Workspace Admin SDK for {verification_domain}")
             admin_service = self._get_admin_service()
             
             # Try to get domain status
             try:
-                domain_info = admin_service.domains().get(customer='my_customer', domainName=apex).execute()
+                domain_info = admin_service.domains().get(customer='my_customer', domainName=verification_domain).execute()
                 current_verified = domain_info.get('verified', False)
-                logger.info(f"Workspace verification status for {apex}: {current_verified}")
+                logger.info(f"Workspace verification status for {verification_domain}: {current_verified}")
                 
                 if current_verified:
-                    logger.info(f"Domain {apex} is verified in Google Workspace!")
+                    logger.info(f"Domain {verification_domain} is verified in Google Workspace!")
                     return {'verified': True, 'status': 'verified'}
                 else:
                     # Site Verification succeeded but Workspace hasn't synced yet
                     # This is normal - Workspace may need a few minutes
-                    logger.info(f"Site Verification succeeded, Workspace verification pending...")
+                    logger.info(f"Site Verification succeeded, Workspace verification pending for {verification_domain}...")
                     return {
                         'verified': False, 
                         'status': 'pending', 
@@ -519,9 +519,9 @@ class GoogleDomainsService:
             except HttpError as e:
                 if e.resp.status == 404:
                     # Domain not in Workspace - add it
-                    logger.info(f"Domain {apex} not in Workspace, adding...")
+                    logger.info(f"Domain {verification_domain} not in Workspace, adding...")
                     try:
-                        self.ensure_domain_added(apex)
+                        self.ensure_domain_added(verification_domain)
                         return {
                             'verified': False,
                             'status': 'pending',
@@ -541,7 +541,7 @@ class GoogleDomainsService:
                     return {'verified': True, 'status': 'verified'}
                     
         except Exception as e:
-            logger.error(f"Workspace/Site verification error for {apex}: {e}", exc_info=True)
+            logger.error(f"Workspace/Site verification error for {verification_domain}: {e}", exc_info=True)
             return {
                 'verified': False,
                 'status': 'failed', 
