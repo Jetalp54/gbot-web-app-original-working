@@ -342,9 +342,9 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 logger.info(f"=== STEP 6 START === Job {job_id}: Domain {domain} - Starting verification process")
                 logger.info(f"Job {job_id}: Current operation status - workspace: {operation.workspace_status}, dns: {operation.dns_status}")
                 
-                # Wait 10 seconds after DNS TXT record creation before first verification attempt
-                logger.info(f"Waiting 10 seconds for DNS propagation before verification...")
-                time.sleep(10)
+                # Wait 30 seconds (User recommended 30s-120s) after DNS TXT record creation before first verification attempt
+                logger.info(f"Waiting 30 seconds for DNS propagation before verification...")
+                time.sleep(30)
                 
                 max_attempts = 10
                 attempt = 0

@@ -430,7 +430,8 @@ class GoogleDomainsService:
                     logger.info(f"Using admin email as owner: {admin_email}")
                 
                 # Retry with exponential backoff for webResource().insert()
-                max_retries = 3
+                # Increased to 5 retries to handle slow DNS propagation (total wait ~150s)
+                max_retries = 5
                 for attempt in range(max_retries):
                     try:
                         result = service.webResource().insert(
