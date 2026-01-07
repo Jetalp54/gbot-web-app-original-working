@@ -381,7 +381,14 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                             db.session.commit()  # Commit success immediately
                             logger.info(f"=== VERIFICATION SUCCESS === Domain {apex} verified on attempt {attempt}")
                         else:
-                            operation.raw_log.append(log_entry('verify', 'pending', f'Attempt {attempt}/{max_attempts}: Not yet verified'))
+                            # Use logic to show more detailed status
+                            status_msg = verify_result.get('error', f'Attempt {attempt}/{max_attempts}: Not yet verified')
+                            if verify_result.get('status') == 'pending':
+                                # This means Site Verification passed, but Workspace sync is pending
+                                status_msg = f"Attempt {attempt}: Site Verification OK, waiting for Workspace sync..."
+                            
+                            operation.message = status_msg
+                            operation.raw_log.append(log_entry('verify', 'pending', status_msg))
                             db.session.commit()  # Commit log update immediately
                             
                             if attempt < max_attempts:
