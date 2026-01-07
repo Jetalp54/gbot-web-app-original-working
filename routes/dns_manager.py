@@ -1058,7 +1058,7 @@ def stop_bulk_multi_account():
 @dns_manager.route('/api/domains/bulk-multi-account/status/<job_id>', methods=['GET'])
 @login_required
 def get_bulk_multi_account_status(job_id):
-    """Get status of a bulk multi-account job."""
+    """Get status of a bulk multi-account job - MEMORY ONLY for stability."""
     try:
         with bulk_multi_lock:
             if job_id not in bulk_multi_jobs:
@@ -1066,47 +1066,16 @@ def get_bulk_multi_account_status(job_id):
             
             job = bulk_multi_jobs[job_id]
             
-            # Hybrid status: Merge memory state with DB state for active operations
-            # This ensures we see granular progress updates (e.g. 'Creating DNS TXT')
-            # instead of being stuck on 'Adding to Workspace' until the whole thing finishes.
-            from database import DomainOperation
-            from app import db # Ensure db is available
-            
-            # NO nested app_context - Flask route already has one!
-            # Just query DB directly
-            final_entries = []
-            
-            try:
-                for entry in job['entries']:
-                    e_copy = entry.copy()
-                    
-                    op_id = entry.get('operation_id')
-                    if op_id:
-                        try:
-                            op = DomainOperation.query.filter_by(job_id=op_id).first()
-                            if op:
-                                e_copy['workspaceStatus'] = op.workspace_status or e_copy['workspaceStatus']
-                                e_copy['dnsStatus'] = op.dns_status or e_copy['dnsStatus']
-                                e_copy['verifyStatus'] = op.verify_status or e_copy['verifyStatus']
-                                e_copy['message'] = op.message or e_copy['message']
-                        except Exception as db_err:
-                            logger.warning(f"Status poll DB error for op {op_id}: {db_err}")
-                    
-                    final_entries.append(e_copy)
-                    
-            except Exception as loop_err:
-                logger.error(f"Error in status loop: {loop_err}", exc_info=True)
-                final_entries = job['entries']
-
+            # Return memory state directly - no DB queries to avoid deadlocks
             return jsonify({
                 'success': True,
                 'job_id': job_id,
                 'status': job['status'],
-                'entries': final_entries
+                'entries': job['entries']
             })
             
     except Exception as e:
-        logger.error(f"Error getting bulk multi-account status (CRITICAL): {e}", exc_info=True)
+        logger.error(f"Status endpoint error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
