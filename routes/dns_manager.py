@@ -1073,39 +1073,49 @@ def get_bulk_multi_account_status(job_id):
             from app import db # Ensure db is available
             
             final_entries = []
+            loop_success = False
             
             # We must use an app context to query DB
             from app import app
-            with app.app_context():
-                try:
-                    # Refresh DB session to get latest data
-                    db.session.expire_all()
-                    
-                    for entry in job['entries']:
-                        # Create a copy so we don't mutate memory state during read if not needed
-                        e_copy = entry.copy()
+            try:
+                with app.app_context():
+                    try:
+                        # Refresh DB session to get latest data
+                        db.session.expire_all()
                         
-                        op_id = entry.get('operation_id')
-                        if op_id:
-                             # Check DB for live status
-                            try:
-                                op = DomainOperation.query.filter_by(job_id=op_id).first()
-                                if op:
-                                    # Overlay DB status onto entry
-                                    e_copy['workspaceStatus'] = op.workspace_status or e_copy['workspaceStatus']
-                                    e_copy['dnsStatus'] = op.dns_status or e_copy['dnsStatus']
-                                    e_copy['verifyStatus'] = op.verify_status or e_copy['verifyStatus']
-                                    e_copy['message'] = op.message or e_copy['message']
-                            except Exception as db_err:
-                                # If DB access fails (lock, etc), just use memory state
-                                logger.warning(f"Status poll DB error for op {op_id}: {db_err}")
+                        for entry in job['entries']:
+                            # Create a copy so we don't mutate memory state during read if not needed
+                            e_copy = entry.copy()
+                            
+                            op_id = entry.get('operation_id')
+                            if op_id:
+                                 # Check DB for live status
+                                try:
+                                    op = DomainOperation.query.filter_by(job_id=op_id).first()
+                                    if op:
+                                        # Overlay DB status onto entry
+                                        e_copy['workspaceStatus'] = op.workspace_status or e_copy['workspaceStatus']
+                                        e_copy['dnsStatus'] = op.dns_status or e_copy['dnsStatus']
+                                        e_copy['verifyStatus'] = op.verify_status or e_copy['verifyStatus']
+                                        e_copy['message'] = op.message or e_copy['message']
+                                except Exception as db_err:
+                                    # If DB access fails (lock, etc), just use memory state
+                                    logger.warning(f"Status poll DB error for op {op_id}: {db_err}")
+                            
+                            final_entries.append(e_copy)
                         
-                        final_entries.append(e_copy)
-                        
-                except Exception as loop_err:
-                     logger.error(f"Error in status loop: {loop_err}")
-                     # Fallback to raw entries if big loop fails
-                     final_entries = job['entries']
+                        loop_success = True
+                            
+                    except Exception as loop_err:
+                         logger.error(f"Error in status loop (inner): {loop_err}", exc_info=True)
+                         # Continue to fallback
+                         
+            except Exception as context_err:
+                logger.error(f"Error creating app context or outer loop: {context_err}", exc_info=True)
+
+            # Fallback if loop failed
+            if not loop_success or not final_entries:
+                final_entries = job['entries']
 
             return jsonify({
                 'success': True,
@@ -1115,7 +1125,7 @@ def get_bulk_multi_account_status(job_id):
             })
             
     except Exception as e:
-        logger.error(f"Error getting bulk multi-account status: {e}")
+        logger.error(f"Error getting bulk multi-account status (CRITICAL): {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
