@@ -585,29 +585,24 @@ print_section "STEP 9/15: Application Directory Setup"
 # GitHub repository URL
 GITHUB_REPO="https://github.com/Jetalp54/gbot-web-app-original-working.git"
 
-# Create directories
-mkdir -p $APP_DIR
-mkdir -p $LOG_DIR
-mkdir -p $APP_DIR/logs
-mkdir -p $APP_DIR/backups
-mkdir -p $APP_DIR/instance
-
 # Get the script's directory (where the source files are)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Check if app.py exists in APP_DIR or SCRIPT_DIR
+# Check if app.py exists in APP_DIR
 if [ ! -f "$APP_DIR/app.py" ]; then
     if [ -f "$SCRIPT_DIR/app.py" ] && [ "$SCRIPT_DIR" != "$APP_DIR" ]; then
         print_info "Copying application files from $SCRIPT_DIR to $APP_DIR..."
+        mkdir -p $APP_DIR
         cp -r "$SCRIPT_DIR"/* $APP_DIR/ 2>/dev/null || true
         cp "$SCRIPT_DIR"/.env $APP_DIR/ 2>/dev/null || true
         cp "$SCRIPT_DIR"/.gitignore $APP_DIR/ 2>/dev/null || true
     else
-        print_info "Cloning application from GitHub..."
-        cd /opt
-        rm -rf gbot-web-app 2>/dev/null || true
-        git clone $GITHUB_REPO gbot-web-app
-        print_success "Repository cloned successfully"
+        print_info "Cloning application from GitHub to $APP_DIR..."
+        # Remove any existing directory to ensure clean clone
+        rm -rf $APP_DIR 2>/dev/null || true
+        # Clone directly into the target directory name (not the repo name)
+        git clone $GITHUB_REPO $APP_DIR
+        print_success "Repository cloned successfully to $APP_DIR"
     fi
 else
     print_info "Application files already exist in $APP_DIR"
@@ -618,6 +613,12 @@ else
         git pull origin master 2>/dev/null || git pull origin main 2>/dev/null || print_warning "Could not pull latest changes"
     fi
 fi
+
+# Create required subdirectories AFTER clone/copy
+mkdir -p $APP_DIR/logs
+mkdir -p $APP_DIR/backups
+mkdir -p $APP_DIR/instance
+mkdir -p $LOG_DIR
 
 # Set ownership
 chown -R $APP_USER:$APP_USER $APP_DIR
@@ -768,10 +769,20 @@ print_success "Database initialization complete"
 # ============================================================================
 print_section "STEP 13/15: Systemd Service Configuration"
 
-# Create gunicorn config if not exists
-if [ ! -f "$APP_DIR/gunicorn.conf.py" ]; then
-    print_info "Creating gunicorn configuration..."
-    cat > "$APP_DIR/gunicorn.conf.py" <<'GUNICORN_EOF'
+# Ensure log directories exist with proper permissions
+print_info "Ensuring log directories exist with correct permissions..."
+mkdir -p $LOG_DIR
+mkdir -p $APP_DIR/logs
+chown -R $APP_USER:$APP_USER $LOG_DIR
+chown -R $APP_USER:$APP_USER $APP_DIR/logs
+chmod 755 $LOG_DIR
+chmod 755 $APP_DIR/logs
+touch $LOG_DIR/access.log $LOG_DIR/error.log
+chown $APP_USER:$APP_USER $LOG_DIR/*.log
+
+# Always create/update gunicorn config with absolute log paths
+print_info "Creating gunicorn configuration with absolute log paths..."
+cat > "$APP_DIR/gunicorn.conf.py" <<'GUNICORN_EOF'
 import multiprocessing
 import os
 
@@ -788,7 +799,7 @@ keepalive = 5
 max_requests = 1000
 max_requests_jitter = 50
 
-# Logging
+# Logging - absolute paths for systemd compatibility
 accesslog = '/var/log/gbot/access.log'
 errorlog = '/var/log/gbot/error.log'
 loglevel = 'info'
@@ -809,8 +820,7 @@ tmp_upload_dir = None
 keyfile = None
 certfile = None
 GUNICORN_EOF
-    chown $APP_USER:$APP_USER "$APP_DIR/gunicorn.conf.py"
-fi
+chown $APP_USER:$APP_USER "$APP_DIR/gunicorn.conf.py"
 
 # Create systemd service
 print_info "Creating systemd service..."

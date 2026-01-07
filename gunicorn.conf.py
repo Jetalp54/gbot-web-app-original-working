@@ -23,9 +23,10 @@ graceful_timeout = 300  # More time for graceful shutdown
 # Memory management
 preload_app = True
 
-# Logging
-accesslog = "logs/gunicorn_access.log"
-errorlog = "logs/gunicorn_error.log"
+# Logging - Use absolute paths for production
+log_dir = "/var/log/gbot"
+accesslog = f"{log_dir}/access.log"
+errorlog = f"{log_dir}/error.log"
 loglevel = "info"
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 

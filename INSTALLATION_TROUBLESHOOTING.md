@@ -84,10 +84,30 @@ sudo apt-get clean
 sudo apt-get update
 
 # 4. Re-run the installation script
-sudo ./install_complete_ubuntu22.sh
+sudo ./install_automation.sh
 ```
 
-### 4. Installation Interrupted
+### 4. Gunicorn Log Directory Error
+
+**Error Message:**
+```
+Error: 'logs/gunicorn_error.log' isn't writable [FileNotFoundError]
+```
+
+**Solution:**
+The gunicorn.conf.py was using relative paths. The install script has been fixed to use absolute paths (`/var/log/gbot/`).
+
+```bash
+# Create the log directory manually
+sudo mkdir -p /var/log/gbot
+sudo chown -R root:root /var/log/gbot
+sudo touch /var/log/gbot/access.log /var/log/gbot/error.log
+
+# Restart the service
+sudo systemctl restart gbot
+```
+
+### 5. Installation Interrupted
 
 If the installation was interrupted:
 
@@ -102,10 +122,34 @@ ls -la /etc/systemd/system/gbot.service
 ls -la /etc/nginx/sites-available/gbot
 
 # Re-run the script (it's idempotent - safe to run multiple times)
-sudo ./install_complete_ubuntu22.sh
+sudo ./install_automation.sh
 ```
 
-### 5. Database Connection Issues
+### 6. DATABASE_URL Not Configured
+
+**Error Message:**
+```
+sqlalchemy.exc.OperationalError: connection to server at "localhost" failed: FATAL
+```
+
+**Solution:**
+Check that DATABASE_URL in `.env` is NOT commented out:
+
+```bash
+# Check the .env file
+cat /opt/gbot-web-app/.env | grep DATABASE_URL
+
+# If it shows with # at the start, edit and uncomment it:
+sudo nano /opt/gbot-web-app/.env
+
+# Make sure this line exists WITHOUT # at the start:
+DATABASE_URL=postgresql://gbot_user:YOUR_PASSWORD@127.0.0.1/gbot_db
+
+# Restart
+sudo systemctl restart gbot
+```
+
+### 7. Database Connection Issues
 
 If you get database connection errors:
 

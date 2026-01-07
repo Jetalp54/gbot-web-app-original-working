@@ -14,65 +14,50 @@ A comprehensive Google Workspace administration and automation platform designed
 
 ## 📋 System Requirements
 
-- **Operating System**: Ubuntu 18.04 LTS or later
-- **Python**: Python 3.8 or higher
-- **Memory**: Minimum 512MB RAM (1GB recommended)
-- **Disk Space**: Minimum 1GB free space
+- **Operating System**: Ubuntu 22.04 LTS or Ubuntu 24.04 LTS
+- **Python**: Python 3.10 or higher
+- **Memory**: Minimum 1GB RAM (2GB recommended)
+- **Disk Space**: Minimum 2GB free space
+- **Database**: PostgreSQL 14+
 - **Internet**: Required for package installation and Google API access
 
 ## 🛠️ Installation
 
 ### Option 1: Complete Automated Installation (Recommended)
 
+The `install_automation.sh` script handles EVERYTHING automatically:
+- System updates and security configuration
+- Python 3.10+, PostgreSQL, Nginx, Docker, Node.js
+- Chrome/ChromeDriver for Selenium automation
+- AWS CLI for cloud operations
+- Virtual environment and all dependencies
+- Systemd service configuration
+- Firewall and log rotation setup
+
 #### Quick Start
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd gbot-web-app
+git clone https://github.com/Jetalp54/gbot-web-app-original-working.git
+cd gbot-web-app-original-working
 
 # Make script executable
-chmod +x setup_complete.sh
+chmod +x install_automation.sh
 
-# Run complete installation
-./setup_complete.sh --install
+# Run complete installation (as root)
+sudo ./install_automation.sh
 ```
 
-#### Installation Modes
+The script will:
+1. Install all system dependencies
+2. Create PostgreSQL database with secure password
+3. Set up Nginx reverse proxy
+4. Configure systemd service
+5. Generate and display all credentials at the end
 
-**Complete Installation (Production Ready)**
-```bash
-./setup_complete.sh --install
-```
-
-**Force Reinstall Everything**
-```bash
-./setup_complete.sh --reinstall
-```
-
-**Validate Existing Installation**
-```bash
-./setup_complete.sh --validate
-```
-
-**Check System Requirements**
-```bash
-./setup_complete.sh --check
-```
-
-**Setup SSL Certificate**
-```bash
-./setup_complete.sh --ssl
-```
-
-**Create Backup**
-```bash
-./setup_complete.sh --backup
-```
-
-**Clean Installation**
-```bash
-./setup_complete.sh --clean
-```
+#### After Installation
+- Access: `http://YOUR_SERVER_IP`
+- Check status: `sudo systemctl status gbot`
+- View logs: `sudo journalctl -u gbot -f`
 
 ### Option 2: Python Installer Only (Alternative)
 
@@ -347,55 +332,35 @@ gbot-web-app/
 
 ### Development
 ```bash
-# Simple development server
+# Activate virtual environment
+source venv/bin/activate
+
+# Run development server
 python3 app.py
 ```
 
 ### Production Deployment
 
-#### Quick Production Setup
+#### Quick Production Setup (Recommended)
 ```bash
-# Complete production deployment with PostgreSQL, Nginx, SSL, and monitoring
-./setup_complete.sh --install
-
-# Force reinstall everything (clean slate)
-./setup_complete.sh --reinstall
+# Complete production deployment with PostgreSQL, Nginx, and all dependencies
+sudo ./install_automation.sh
 ```
 
-#### Step-by-Step Production Setup
-```bash
-# 1. Install system dependencies (optional - script handles this automatically)
-sudo apt-get update
-sudo apt-get install -y python3-pip python3-dev python3-venv build-essential libssl-dev libffi-dev postgresql postgresql-contrib nginx ufw certbot python3-certbot-nginx
-
-# 2. Run complete production installation (handles everything automatically)
-./setup_complete.sh --install
-
-# 3. Or force reinstall everything (clean slate)
-./setup_complete.sh --reinstall
-
-# 4. Create backup anytime
-./setup_complete.sh --backup
-
-# 5. Services start automatically, but you can check status:
-sudo systemctl status gbot nginx postgresql
-```
-
-#### Production Configuration
+#### Production Configuration (Automatic)
 - **Database**: PostgreSQL with optimized settings
-- **Web Server**: Nginx with reverse proxy
-- **Application Server**: Gunicorn with 4 workers
-- **Process Management**: Systemd service
-- **Security**: Firewall (UFW), SSL/TLS, Security headers
-- **Monitoring**: Log rotation, health checks
-- **Backup**: Automated backup system
+- **Web Server**: Nginx with reverse proxy and rate limiting
+- **Application Server**: Gunicorn with multi-threaded workers
+- **Process Management**: Systemd service with auto-restart
+- **Docker**: Installed for ECR image operations
+- **Security**: Firewall (UFW), security headers
+- **Monitoring**: Log rotation, memory monitoring service
+- **Backup**: Daily automated backups at 2 AM
 
 #### SSL Certificate Setup
 ```bash
-# Setup SSL with Let's Encrypt
-./setup_complete.sh --ssl
-
-# Manual SSL setup
+# Install Certbot and get SSL certificate
+sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d yourdomain.com
 ```
 
@@ -404,21 +369,18 @@ sudo certbot --nginx -d yourdomain.com
 # Check service status
 sudo systemctl status gbot nginx postgresql
 
-# View logs
+# View application logs
 sudo journalctl -u gbot -f
+
+# View Nginx logs
 sudo tail -f /var/log/nginx/error.log
+sudo tail -f /var/log/gbot/error.log
 
 # Restart services
 sudo systemctl restart gbot nginx
 
-# Backup and restore
-./setup_complete.sh --backup
-
-# Validate installation
-./setup_complete.sh --validate
-
-# Clean installation (removes everything)
-./setup_complete.sh --clean
+# Run backup manually
+sudo /opt/gbot-web-app/backup.sh
 ```
 
 ### Docker (Future Enhancement)
