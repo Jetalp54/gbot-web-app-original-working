@@ -27,21 +27,22 @@ else:
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # Database Connection Pool Settings - UNLIMITED for unlimited concurrent machines
+# Database Connection Pool Settings - Optimized for Standard Postgres (max_connections=100)
 SQLALCHEMY_ENGINE_OPTIONS = {
-    'pool_size': 500,  # Very high for unlimited machines (was 100)
-    'pool_recycle': 7200,  # Recycle connections after 2 hours
+    'pool_size': 20,  # Reasonable limit per worker (default PG max is 100 total)
+    'pool_recycle': 3600,  # Recycle connections after 1 hour
     'pool_pre_ping': True,  # Validate connections before use
-    'max_overflow': 1000,  # Very high overflow for unlimited burst traffic (was 200)
-    'pool_timeout': 300,  # Very long timeout for unlimited load (was 120)
+    'max_overflow': 40,  # Allow burst up to 60 total per worker (still aggressive but safer than 1500)
+    'pool_timeout': 30,  # Wait 30s for a connection before failing
 }
 
 # Add PostgreSQL-specific connection arguments if using PostgreSQL
 if 'postgresql' in SQLALCHEMY_DATABASE_URI:
     SQLALCHEMY_ENGINE_OPTIONS['connect_args'] = {
-        'connect_timeout': 120,  # Very long connection timeout (was 60)
+        'connect_timeout': 10,  # Faster failover
         'application_name': 'gbot_web_app',
-        'keepalives_idle': 600,
-        'keepalives_interval': 30,
+        'keepalives_idle': 60,
+        'keepalives_interval': 10,
         'keepalives_count': 3
     }
 
