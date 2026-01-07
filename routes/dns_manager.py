@@ -1077,26 +1077,35 @@ def get_bulk_multi_account_status(job_id):
             # We must use an app context to query DB
             from app import app
             with app.app_context():
-                # Refresh DB session to get latest data
-                db.session.expire_all()
-                
-                for entry in job['entries']:
-                    # Create a copy so we don't mutate memory state during read if not needed
-                    e_copy = entry.copy()
+                try:
+                    # Refresh DB session to get latest data
+                    db.session.expire_all()
                     
-                    op_id = entry.get('operation_id')
-                    if op_id:
-                         # Check DB for live status
-                        op = DomainOperation.query.filter_by(job_id=op_id).first()
-                        if op:
-                            # Overlay DB status onto entry
-                            e_copy['workspaceStatus'] = op.workspace_status or e_copy['workspaceStatus']
-                            e_copy['dnsStatus'] = op.dns_status or e_copy['dnsStatus']
-                            e_copy['verifyStatus'] = op.verify_status or e_copy['verifyStatus']
-                            e_copy['message'] = op.message or e_copy['message']
-                            # Also include detailed logs if needed, but message should suffice
-                    
-                    final_entries.append(e_copy)
+                    for entry in job['entries']:
+                        # Create a copy so we don't mutate memory state during read if not needed
+                        e_copy = entry.copy()
+                        
+                        op_id = entry.get('operation_id')
+                        if op_id:
+                             # Check DB for live status
+                            try:
+                                op = DomainOperation.query.filter_by(job_id=op_id).first()
+                                if op:
+                                    # Overlay DB status onto entry
+                                    e_copy['workspaceStatus'] = op.workspace_status or e_copy['workspaceStatus']
+                                    e_copy['dnsStatus'] = op.dns_status or e_copy['dnsStatus']
+                                    e_copy['verifyStatus'] = op.verify_status or e_copy['verifyStatus']
+                                    e_copy['message'] = op.message or e_copy['message']
+                            except Exception as db_err:
+                                # If DB access fails (lock, etc), just use memory state
+                                logger.warning(f"Status poll DB error for op {op_id}: {db_err}")
+                        
+                        final_entries.append(e_copy)
+                        
+                except Exception as loop_err:
+                     logger.error(f"Error in status loop: {loop_err}")
+                     # Fallback to raw entries if big loop fails
+                     final_entries = job['entries']
 
             return jsonify({
                 'success': True,
