@@ -2288,6 +2288,9 @@
 
         const naming = getNamingConfig();
 
+        // Get instance_name from IAM Role Prefix field (this is the key prefix for all resources)
+        const instanceName = getSafeValue('iamRolePrefix', 'dev');
+
         try {
             const response = await fetch('/api/aws/save-config', {
                 method: 'POST',
@@ -2296,6 +2299,8 @@
                     access_key_id: creds.access_key,
                     secret_access_key: creds.secret_key,
                     region: creds.region,
+                    // Include instance_name - this is the KEY field for resource naming!
+                    instance_name: instanceName,
                     ecr_repo_name: naming.ecr_repo_name,
                     s3_bucket: naming.s3_bucket,
                     dynamodb_table: naming.dynamodb_table,
@@ -2304,7 +2309,7 @@
             });
             const data = await response.json();
             if (data.success) {
-                log('✅ Resource names saved to database.');
+                log(`✅ Resource names saved: instance=${instanceName}, ECR=${naming.ecr_repo_name}, S3=${naming.s3_bucket}, DynamoDB=${naming.dynamodb_table}`);
                 if (statusSpan) statusSpan.textContent = '✅ Saved!';
                 setTimeout(() => { if (statusSpan) statusSpan.textContent = ''; }, 3000);
             } else {
@@ -2327,6 +2332,13 @@
             if (data.success && data.config) {
                 const config = data.config;
                 // Populate inputs if values exist
+
+                // Instance name (IAM Role Prefix) - this is the KEY prefix
+                if (config.instance_name && config.instance_name !== 'default') {
+                    const el = document.getElementById('iamRolePrefix');
+                    if (el) el.value = config.instance_name;
+                }
+
                 if (config.ecr_repo_name) {
                     const el = document.getElementById('ecrRepoName');
                     if (el) el.value = config.ecr_repo_name;
@@ -2351,7 +2363,7 @@
                     const delEl = document.getElementById('deleteLogGroupPrefix');
                     if (delEl) delEl.value = '/aws/lambda/' + config.lambda_prefix.split('-')[0];
                 }
-                log('📦 Loaded saved resource names from database.');
+                log(`📦 Loaded resource config: instance=${config.instance_name || 'default'}, ECR=${config.ecr_repo_name}`);
             }
         } catch (error) {
             console.log('Could not load naming config:', error);
