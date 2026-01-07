@@ -17,6 +17,16 @@ from services.cloudflare_dns_service import CloudflareDNSService
 
 logger = logging.getLogger(__name__)
 
+# URGENT DEBUG: Force logging to file to diagnose user issue
+try:
+    debug_handler = logging.FileHandler('dns_debug.log')
+    debug_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+    debug_handler.setLevel(logging.INFO)
+    logger.addHandler(debug_handler)
+    logger.info("DNS Manager Debug Logging Initialized")
+except Exception as e:
+    print(f"Failed to setup debug logging: {e}")
+
 dns_manager = Blueprint('dns_manager', __name__)
 
 # Login required decorator (matches app.py implementation)
