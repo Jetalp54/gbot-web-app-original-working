@@ -301,7 +301,12 @@ def background_verification_worker():
     from datetime import datetime, timedelta
     from services.google_domains_service import GoogleDomainsService
     
-    logging.info("🚀 Background verification worker starting...")
+    # Ensure app context is available
+    if not app:
+        logging.error("Background worker: Flask app not available!")
+        return
+        
+    logging.info("🚀 Background verification worker thread initialized")
     
     while True:
         try:

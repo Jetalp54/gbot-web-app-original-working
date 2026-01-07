@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from flask import Blueprint, request, jsonify, session, redirect, url_for
 from functools import wraps
-from database import db, DomainOperation, GoogleAccount, ServiceAccount, CloudflareConfig
+from database import db, DomainOperation, DomainVerificationOperation, GoogleAccount, ServiceAccount, CloudflareConfig
 from services.zone_utils import to_apex
 from services.google_domains_service import GoogleDomainsService
 from services.namecheap_dns_service import NamecheapDNSService
@@ -121,6 +121,7 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
             logger.info(f"TXT Host for {domain} (Apex: {apex}): {txt_host}")
             
             operation.apex_domain = apex
+            operation.message = f"Parsed: Host={txt_host}, Zone={apex}"
             operation.raw_log = [log_entry('apex', 'success', f'Converted {domain} to apex: {apex}, TXT host: {txt_host}')]
             db.session.commit()
             
@@ -781,15 +782,20 @@ def verify_single_domain(job_id: str, domain: str, account_name: str, stop_event
     from app import app
     with app.app_context():
         try:
-            # Get the operation record
-            operation = DomainVerificationOperation.query.filter_by(
-                job_id=job_id, domain=domain
-            ).first()
+            logger.info(f"Job {job_id}: Starting verification process for {domain} inside thread")
             
+            # Find the operation record - check both tables
+            operation = DomainOperation.query.filter_by(job_id=job_id, input_domain=domain).first()
             if not operation:
-                logger.error(f"Operation not found for {domain}")
-                return {'success': False, 'error': 'Operation not found'}
-            
+                operation = DomainVerificationOperation.query.filter_by(job_id=job_id, domain=domain).first()
+                if not operation:
+                    logger.error(f"Job {job_id}: No operation found for {domain}")
+                    return {'success': False, 'error': 'Operation not found'}
+
+            operation.message = 'Initializing verification process...'
+            operation.verify_status = 'pending'
+            db.session.commit()
+            logger.info(f"Job {job_id}: Operation found and status initialized for {domain}")
             if stop_event.is_set():
                 operation.verify_status = 'stopped'
                 operation.message = 'Stopped by user'
