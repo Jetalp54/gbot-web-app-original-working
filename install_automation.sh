@@ -818,6 +818,28 @@ with app.app_context():
 " 2>/dev/null || print_warning "Database initialization may need manual attention"
 fi
 
+# Add missing columns to existing tables (db.create_all doesn't modify existing tables)
+print_info "Ensuring all database columns exist..."
+sudo -u postgres psql -d "$DB_NAME" -c "ALTER TABLE domain_operation ADD COLUMN IF NOT EXISTS txt_record_value VARCHAR(255);" 2>/dev/null || true
+
+# Create DomainVerificationOperation table if it doesn't exist
+sudo -u postgres psql -d "$DB_NAME" -c "
+CREATE TABLE IF NOT EXISTS domain_verification_operation (
+    id VARCHAR(36) PRIMARY KEY,
+    job_id VARCHAR(36) NOT NULL,
+    domain VARCHAR(255) NOT NULL,
+    apex_domain VARCHAR(255) NOT NULL,
+    account_name VARCHAR(255) NOT NULL,
+    workspace_status VARCHAR(50) DEFAULT 'skipped',
+    dns_status VARCHAR(50) DEFAULT 'skipped',
+    verify_status VARCHAR(50) DEFAULT 'pending',
+    message TEXT,
+    raw_log JSON,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_domain_verification_op_job_id ON domain_verification_operation(job_id);
+" 2>/dev/null || true
+
 print_success "Database initialization complete"
 
 # ============================================================================
