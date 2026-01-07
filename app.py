@@ -143,6 +143,18 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100 MB
 
 db.init_app(app)
 
+# Enable SQLite Write-Ahead Logging (WAL) for better concurrency
+if 'sqlite' in app.config.get('SQLALCHEMY_DATABASE_URI', ''):
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+    
+    @event.listens_for(Engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
+
 # Register blueprints
 app.register_blueprint(dns_manager)
 app.register_blueprint(aws_manager)

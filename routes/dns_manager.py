@@ -1001,9 +1001,10 @@ def start_bulk_multi_account():
                 job = bulk_multi_jobs[job_id]
                 entries = job['entries']
                 
-                # Process entries in PARALLEL (max 5 concurrent)
-                max_workers = min(5, len(entries))
-                logger.info(f"Job {job_id}: Starting parallel processing with {max_workers} workers")
+                # Process entries SEQUENTIALLY to avoid SQLite locking issues
+                # TODO: Increase to 3-5 if moving to PostgreSQL
+                max_workers = 1 
+                logger.info(f"Job {job_id}: Starting processing with {max_workers} worker (Sequential Mode)")
                 
                 try:
                     with ThreadPoolExecutor(max_workers=max_workers) as executor:
