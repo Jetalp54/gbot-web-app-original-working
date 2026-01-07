@@ -198,3 +198,18 @@ class Notification(db.Model):
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
+class DomainVerificationOperation(db.Model):
+    """Track domain verification-only operations (for verify-unverified endpoint)"""
+    id = db.Column(db.String(36), primary_key=True)  # UUID as string
+    job_id = db.Column(db.String(36), nullable=False, index=True)
+    domain = db.Column(db.String(255), nullable=False)
+    apex_domain = db.Column(db.String(255), nullable=False)
+    account_name = db.Column(db.String(255), nullable=False)
+    workspace_status = db.Column(db.String(50), default='skipped')
+    dns_status = db.Column(db.String(50), default='skipped')
+    verify_status = db.Column(db.String(50), default='pending')
+    message = db.Column(db.Text)
+    raw_log = db.Column(db.JSON)
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp(), index=True)
+    
+    __table_args__ = (db.Index('idx_domain_verification_op_job_id', 'job_id'),)
