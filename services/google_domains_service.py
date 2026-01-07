@@ -60,7 +60,17 @@ class GoogleDomainsService:
             )
             
             if creds.expired and creds.refresh_token:
-                creds.refresh(google.auth.transport.requests.Request())
+                logger.info(f"Refreshing expired credentials for {self.account_name}...")
+                import google.auth.transport.requests
+                import requests
+                
+                # Create a session with a timeout
+                session = requests.Session()
+                session.timeout = 30  # 30 seconds timeout
+                request = google.auth.transport.requests.Request(session=session)
+                
+                creds.refresh(request)
+                logger.info("Credentials refreshed successfully")
             
             return creds if creds.valid else None
         
@@ -77,7 +87,13 @@ class GoogleDomainsService:
         if not creds:
             raise Exception("Failed to get valid credentials")
         
-        self._admin_service = build('admin', 'directory_v1', credentials=creds)
+        # Build service with timeout
+        import httplib2
+        # Use httplib2 shim that accepts timeout
+        http = httplib2.Http(timeout=30)
+        creds.authorize(http)
+        
+        self._admin_service = build('admin', 'directory_v1', http=http)
         return self._admin_service
     
     def _get_site_verification_service(self, force_refresh=False, without_delegation=False):

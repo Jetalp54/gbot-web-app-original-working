@@ -148,18 +148,24 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     logger.warning(f"Error checking verification status for {apex}: {e}")
                     # Continue with process
             
-            # Step 3: Add domain to Workspace (or continue if already exists)
+            # Step 3: Add domain to Google Workspace (this is where it likely hangs)
             if stop_event and stop_event.is_set():
                 operation.message = 'Stopped by user'
                 operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
                 db.session.commit()
                 return
 
-            google_service = None
+            logger.info(f"JOB {job_id} CHECKPOINT: Starting Step 3 (Add to Workspace) for {apex}")
+            operation.message = 'Adding domain to Workspace (this may take a moment)...'
+            db.session.commit()
+            
             try:
                 logger.info(f"Job {job_id}: Step 3 - Adding {domain} to Workspace")
                 google_service = GoogleDomainsService(account_name)
-                result = google_service.ensure_domain_added(domain)
+                
+                logger.info(f"JOB {job_id} CHECKPOINT: Calling ensure_domain_added({apex})...")
+                result = google_service.ensure_domain_added(apex)
+                logger.info(f"JOB {job_id} CHECKPOINT: ensure_domain_added returned: {result}")
                 
                 if result.get('already_exists'):
                     operation.workspace_status = 'success'
