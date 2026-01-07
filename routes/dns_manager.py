@@ -86,29 +86,31 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 db.session.commit()
                 return
 
-            # [USER-FIX] Advanced parsing for deep subdomains (double TLDs)
-            # FORCE: If 4+ parts, assume first is host, rest is ZONE.
+            # [USER-FIX] STRICT PARSING Logic
+            # Rule: "the alias is the word before the first . and the rest is the domain"
+            # This applies for any domain with 3 or more parts (e.g. sub.example.com -> sub + example.com)
+            # For 2 parts (example.com), we use standard behavior (@ + example.com)
             domain_parts = domain.lower().split('.')
             
-            # Explicit debug logging
             logger.info(f"PARSING DOMAIN: {domain}, parts: {len(domain_parts)}")
             
-            if len(domain_parts) >= 4:
-                # e.g. albertos.skillhorizonx.it.com -> Host: albertos, Zone: skillhorizonx.it.com
-                
-                # SPECIAL CHECK: If the user inputs a generic 3-part domain that looks like a subdomain
-                # but is actually a zone (e.g. something.it.com), we might need to handle 3 parts too?
-                # But user said "double TLD" so let's stick to 4 parts as the trigger for now.
+            if len(domain_parts) >= 3:
+                # STRICT USER RULE: First part is host, rest is ZONE.
+                # e.g. anjins.learnatory.info -> Host: anjins, Zone: learnatory.info
+                # e.g. angel.mentorcrafter.it.com -> Host: angel, Zone: mentorcrafter.it.com
                 
                 txt_host = domain_parts[0]
                 apex = '.'.join(domain_parts[1:])
-                logger.info(f" [4+ PARTS] forcing custom apex: {apex}")
+                logger.info(f" [STRICT MODE] Custom split -> Host: {txt_host}, Zone: {apex}")
             else:
+                # Fallback for standard domains (e.g. example.com)
                 apex = to_apex(domain)
-                logger.info(f" [STD PARTS] standard apex: {apex}")
+                logger.info(f" [STD MODE] standard apex: {apex}")
                 
                 txt_host = '@'
                 if domain.lower() != apex.lower():
+                    # This path might not be reached if to_apex works well for 2-part domains
+                     # But keeping logical fallback just in case
                     apex_parts = apex.lower().split('.')
                     if len(domain_parts) > len(apex_parts):
                         subdomain_part = domain_parts[:len(domain_parts) - len(apex_parts)]
