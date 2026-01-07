@@ -706,28 +706,27 @@ SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}' ||
 
 ENV_FILE="$APP_DIR/.env"
 
-if [ -f "$ENV_FILE" ]; then
-    print_warning ".env file exists. Backing up and ensuring DATABASE_URL is set correctly..."
-    cp "$ENV_FILE" "$APP_DIR/.env.backup.$(date +%Y%m%d_%H%M%S)"
-    
-    # Remove any existing DATABASE_URL lines (commented or not)
-    sed -i '/DATABASE_URL/d' "$ENV_FILE"
-    
-    # Add the correct DATABASE_URL at the end (NOT commented!)
-    echo "" >> "$ENV_FILE"
-    echo "# Database (auto-configured by installer)" >> "$ENV_FILE"
-    echo "DATABASE_URL=postgresql://$DB_USER:$DB_PASSWORD@127.0.0.1/$DB_NAME" >> "$ENV_FILE"
-else
-    print_info "Creating .env file..."
-    cat > "$ENV_FILE" <<EOF
-# GBot Web Application Environment Configuration
-# Generated: $(date)
+# ALWAYS create a fresh production .env file
+# The git repo contains a dev template that must be replaced with production values
+print_info "Creating production .env file with generated secrets..."
 
-# Security
+# Backup any existing .env (whether dev template or old production config)
+if [ -f "$ENV_FILE" ]; then
+    print_warning "Backing up existing .env file..."
+    mv "$ENV_FILE" "$APP_DIR/.env.backup.$(date +%Y%m%d_%H%M%S)"
+fi
+
+# Create fresh production .env with all required values
+cat > "$ENV_FILE" <<EOF
+# GBot Web Application - Production Configuration
+# Generated: $(date)
+# DO NOT COMMIT THIS FILE TO GIT!
+
+# Security (auto-generated - keep these secret!)
 SECRET_KEY=$SECRET_KEY
 WHITELIST_TOKEN=$WHITELIST_TOKEN
 
-# Database - THIS LINE MUST NOT BE COMMENTED!
+# Database - PostgreSQL connection (REQUIRED - DO NOT COMMENT OUT!)
 DATABASE_URL=postgresql://$DB_USER:$DB_PASSWORD@127.0.0.1/$DB_NAME
 
 # IP Whitelist Configuration
@@ -738,7 +737,7 @@ ALLOW_ALL_IPS_IN_DEV=False
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
-# Application Settings
+# Application Settings (PRODUCTION MODE)
 DEBUG=False
 FLASK_ENV=production
 LOG_LEVEL=INFO
@@ -756,6 +755,13 @@ SERVER_IP=$SERVER_IP
 CHROME_BINARY=/usr/bin/chromium-browser
 CHROMEDRIVER_PATH=/usr/bin/chromedriver
 EOF
+
+# Ensure .env is in .gitignore so git pull never overwrites it again
+if ! grep -q "^\.env$" "$APP_DIR/.gitignore" 2>/dev/null; then
+    echo "" >> "$APP_DIR/.gitignore"
+    echo "# Never commit production .env file" >> "$APP_DIR/.gitignore"
+    echo ".env" >> "$APP_DIR/.gitignore"
+    print_info "Added .env to .gitignore"
 fi
 
 chmod 600 "$ENV_FILE"

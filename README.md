@@ -31,6 +31,7 @@ The `install_automation.sh` script handles EVERYTHING automatically:
 - Chrome/ChromeDriver for Selenium automation
 - AWS CLI for cloud operations
 - Virtual environment and all dependencies
+- **Generates fresh SECRET_KEY, WHITELIST_TOKEN, and DATABASE_URL**
 - Systemd service configuration
 - Firewall and log rotation setup
 
@@ -55,14 +56,26 @@ sudo ./install_automation.sh
 The script will:
 1. Install all system dependencies
 2. Create PostgreSQL database with secure password
-3. Set up Nginx reverse proxy
-4. Configure systemd service
-5. Generate and display all credentials at the end
+3. **Generate fresh `.env` file with all secrets** (replaces any existing `.env`)
+4. Set up Nginx reverse proxy
+5. Configure systemd service
+6. **Display all credentials at the end (SAVE THESE!)**
 
 #### After Installation
+The script displays important information at the end:
+- **SECRET_KEY**: Auto-generated, used for session security
+- **WHITELIST_TOKEN**: For emergency access and API authentication
+- **DATABASE_URL**: PostgreSQL connection string
+- **Emergency Access URL**: `http://YOUR_IP/emergency_access?key=YOUR_TOKEN`
+
+#### Service Commands
 - Access: `http://YOUR_SERVER_IP`
 - Check status: `sudo systemctl status gbot`
 - View logs: `sudo journalctl -u gbot -f`
+- Restart: `sudo systemctl restart gbot`
+
+> **📝 Note**: The `.env` file is auto-generated and NOT committed to git.
+> See `.env.example` for the template with all available configuration options.
 
 ### Option 2: Python Installer Only (Alternative)
 
