@@ -166,6 +166,7 @@ class DomainOperation(db.Model):
     job_id = db.Column(db.String(36), nullable=False, index=True)
     input_domain = db.Column(db.String(255), nullable=False)
     apex_domain = db.Column(db.String(255), nullable=False)
+    txt_record_value = db.Column(db.String(255))  # Store the Google verification token
     workspace_status = db.Column(db.String(50), default='pending')  # pending, success, failed, skipped
     dns_status = db.Column(db.String(50), default='pending')  # pending, success, failed, dry-run
     verify_status = db.Column(db.String(50), default='pending')  # pending, success, failed, skipped

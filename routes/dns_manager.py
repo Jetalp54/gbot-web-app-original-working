@@ -254,13 +254,16 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     logger.warning(f"Detected double prefix in TXT value: {txt_value}. Fixing...")
                     txt_value = txt_value.replace('google-site-verification=', '', 1)
                 
+                # CRITICAL: Save the TXT value to database IMMEDIATELY so it's never lost
+                operation.txt_record_value = txt_value
+                
                 # NOTE: txt_host was calculated earlier (lines 103-115) based on the domain structure
                 # For subdomain verification, we keep that value (e.g., 'almertnas' for almertnas.brainshifthub.it.com)
                 
                 operation.message = f'Token received, creating DNS TXT record...'
                 operation.raw_log.append(log_entry('token', 'success', f'Retrieved verification token for {domain}, will use host: {txt_host}'))
                 logger.info(f"Got verification token for {domain}, TXT host: {txt_host} in zone: {apex}")
-                db.session.commit()
+                db.session.commit()  # Commit with txt_record_value saved
             
             except Exception as e:
                 db.session.rollback()
