@@ -913,36 +913,46 @@ def start_bulk_multi_account():
                         import uuid as uuid_module
                         entry_job_id = str(uuid_module.uuid4())
                         
-                        # Call the working function
-                        process_domain_verification(
-                            job_id=entry_job_id,
-                            domain=domain,
-                            account_name=account_name,  # Same account_name session.get() would give
-                            dry_run=False,
-                            skip_verified=False,
-                            provider=provider_name,
-                            stop_event=job['stop_event']
-                        )
-                        
-                        # Check the operation result from database
-                        from database import DomainOperation
-                        operation = DomainOperation.query.filter_by(job_id=entry_job_id).first()
-                        
-                        if operation:
-                            # Copy results to entry status
-                            entry['workspaceStatus'] = operation.workspace_status
-                            entry['dnsStatus'] = operation.dns_status
-                            entry['verifyStatus'] = operation.verify_status
-                            entry['message'] = operation.message
-                            logger.info(f"Job {job_id} Entry {entry['index']}: "
-                                       f"Workspace={operation.workspace_status}, "
-                                       f"DNS={operation.dns_status}, "
-                                       f"Verify={operation.verify_status}")
-                        else:
-                            entry['message'] = 'Processing complete (no operation record)'
-                            entry['workspaceStatus'] = 'success'
-                            entry['dnsStatus'] = 'success'
-                            entry['verifyStatus'] = 'pending'
+                        try:
+                            # Call the working function
+                            process_domain_verification(
+                                job_id=entry_job_id,
+                                domain=domain,
+                                account_name=account_name,  # Same account_name session.get() would give
+                                dry_run=False,
+                                skip_verified=False,
+                                provider=provider_name,
+                                stop_event=job['stop_event']
+                            )
+                            
+                            # Check the operation result from database
+                            from database import DomainOperation
+                            # Force a fresh query to ensure we get the latest status
+                            db.session.expire_all()
+                            operation = DomainOperation.query.filter_by(job_id=entry_job_id).first()
+                            
+                            if operation:
+                                # Copy results to entry status
+                                entry['workspaceStatus'] = operation.workspace_status or 'failed'
+                                entry['dnsStatus'] = operation.dns_status or 'pending'
+                                entry['verifyStatus'] = operation.verify_status or 'pending'
+                                entry['message'] = operation.message or 'Completed'
+                                logger.info(f"Job {job_id} Entry {entry['index']}: "
+                                           f"Workspace={operation.workspace_status}, "
+                                           f"DNS={operation.dns_status}, "
+                                           f"Verify={operation.verify_status}")
+                            else:
+                                logger.warning(f"Job {job_id} Entry {entry['index']}: Operation record not found for {entry_job_id}")
+                                entry['message'] = 'Processing failed (no operation record)'
+                                entry['workspaceStatus'] = 'failed'
+                                entry['dnsStatus'] = 'failed'
+                                entry['verifyStatus'] = 'failed'
+
+                        except Exception as inner_e:
+                            logger.error(f"Job {job_id}: Core function error for entry {entry.get('index')}: {inner_e}", exc_info=True)
+                            entry['message'] = f'Error: {str(inner_e)[:100]}'
+                            entry['workspaceStatus'] = 'failed'
+                            entry['dnsStatus'] = 'failed'
                             
                     except Exception as e:
                         logger.error(f"Job {job_id}: Error processing entry {entry.get('index')}: {e}", exc_info=True)
