@@ -912,6 +912,8 @@ def start_bulk_multi_account():
                         # Use a proper UUID for the entry job (database column is 36 chars max)
                         import uuid as uuid_module
                         entry_job_id = str(uuid_module.uuid4())
+                        # CRITICAL: Save operation ID to entry so status endpoint can look it up
+                        entry['operation_id'] = entry_job_id
                         
                         try:
                             # Call the working function
@@ -1043,11 +1045,44 @@ def get_bulk_multi_account_status(job_id):
                 return jsonify({'success': False, 'error': 'Job not found'}), 404
             
             job = bulk_multi_jobs[job_id]
+            
+            # Hybrid status: Merge memory state with DB state for active operations
+            # This ensures we see granular progress updates (e.g. 'Creating DNS TXT')
+            # instead of being stuck on 'Adding to Workspace' until the whole thing finishes.
+            from database import DomainOperation
+            from app import db # Ensure db is available
+            
+            final_entries = []
+            
+            # We must use an app context to query DB
+            from app import app
+            with app.app_context():
+                # Refresh DB session to get latest data
+                db.session.expire_all()
+                
+                for entry in job['entries']:
+                    # Create a copy so we don't mutate memory state during read if not needed
+                    e_copy = entry.copy()
+                    
+                    op_id = entry.get('operation_id')
+                    if op_id:
+                         # Check DB for live status
+                        op = DomainOperation.query.filter_by(job_id=op_id).first()
+                        if op:
+                            # Overlay DB status onto entry
+                            e_copy['workspaceStatus'] = op.workspace_status or e_copy['workspaceStatus']
+                            e_copy['dnsStatus'] = op.dns_status or e_copy['dnsStatus']
+                            e_copy['verifyStatus'] = op.verify_status or e_copy['verifyStatus']
+                            e_copy['message'] = op.message or e_copy['message']
+                            # Also include detailed logs if needed, but message should suffice
+                    
+                    final_entries.append(e_copy)
+
             return jsonify({
                 'success': True,
                 'job_id': job_id,
                 'status': job['status'],
-                'entries': job['entries']
+                'entries': final_entries
             })
             
     except Exception as e:
@@ -1116,18 +1151,21 @@ def get_namecheap_domains():
 def get_domain_verification_status():
     """
     Get status of domain verification job.
-    
-    Query params:
-        job_id: Job UUID
+    Supports both DomainOperation (add/verify) and DomainVerificationOperation (verify existing).
     """
     job_id = request.args.get('job_id')
     if not job_id:
         return jsonify({'success': False, 'error': 'No job_id provided'}), 400
     
     try:
-        # Query operations by job_id
-        # We use job_id column which is indexed
+        from database import DomainOperation, DomainVerificationOperation
+        
+        # 1. Try DomainOperation (standard add+verify flow)
         operations = DomainOperation.query.filter_by(job_id=job_id).order_by(DomainOperation.updated_at.desc()).all()
+        
+        # 2. If no operations found, try DomainVerificationOperation (verify-only flow)
+        if not operations:
+             operations = DomainVerificationOperation.query.filter_by(job_id=job_id).all()
         
         if not operations:
             # Fallback to active_jobs check just in case DB write hasn't happened yet
@@ -1139,18 +1177,24 @@ def get_domain_verification_status():
             
         # Determine overall status
         # If any operation is pending, job is running
-        is_running = any(op.verify_status == 'pending' or op.workspace_status == 'pending' or op.dns_status == 'pending' for op in operations)
+        is_running = any(op.verify_status == 'pending' or (hasattr(op, 'workspace_status') and op.workspace_status == 'pending') or (hasattr(op, 'dns_status') and op.dns_status == 'pending') for op in operations)
         status = 'running' if is_running else 'completed'
         
         results = []
         for op in operations:
+            # Normalize fields (DomainVerificationOperation might differ slightly)
+            domain_name = getattr(op, 'input_domain', getattr(op, 'domain', 'Unknown'))
+            workspace_status = getattr(op, 'workspace_status', 'N/A')
+            dns_status = getattr(op, 'dns_status', 'N/A')
+            app_updated = getattr(op, 'updated_at', None)
+            
             results.append({
-                'domain': op.input_domain, # Use input_domain as per model
-                'workspace': op.workspace_status,
-                'dns': op.dns_status,
+                'domain': domain_name,
+                'workspace': workspace_status,
+                'dns': dns_status,
                 'verify': op.verify_status,
                 'message': op.message,
-                'updated_at': op.updated_at.isoformat() if op.updated_at else None
+                'updated_at': app_updated.isoformat() if app_updated else None
             })
             
         return jsonify({
