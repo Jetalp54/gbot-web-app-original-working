@@ -1061,7 +1061,7 @@ def stop_bulk_multi_account():
 @dns_manager.route('/api/domains/bulk-multi-account/status/<job_id>', methods=['GET'])
 @login_required
 def get_bulk_multi_account_status(job_id):
-    """Get status of a bulk multi-account job - MEMORY ONLY for stability."""
+    """Get status of a bulk multi-account job with live DB updates."""
     try:
         with bulk_multi_lock:
             if job_id not in bulk_multi_jobs:
@@ -1069,12 +1069,32 @@ def get_bulk_multi_account_status(job_id):
             
             job = bulk_multi_jobs[job_id]
             
-            # Return memory state directly - no DB queries to avoid deadlocks
+            # Get live status from DB for each entry
+            from database import DomainOperation
+            
+            final_entries = []
+            for entry in job['entries']:
+                e_copy = entry.copy()
+                
+                op_id = entry.get('operation_id')
+                if op_id:
+                    try:
+                        op = DomainOperation.query.filter_by(job_id=op_id).first()
+                        if op:
+                            e_copy['workspaceStatus'] = op.workspace_status or e_copy.get('workspaceStatus', 'pending')
+                            e_copy['dnsStatus'] = op.dns_status or e_copy.get('dnsStatus', 'pending')
+                            e_copy['verifyStatus'] = op.verify_status or e_copy.get('verifyStatus', 'pending')
+                            e_copy['message'] = op.message or e_copy.get('message', '')
+                    except Exception as db_err:
+                        logger.warning(f"Status poll DB error: {db_err}")
+                
+                final_entries.append(e_copy)
+            
             return jsonify({
                 'success': True,
                 'job_id': job_id,
                 'status': job['status'],
-                'entries': job['entries']
+                'entries': final_entries
             })
             
     except Exception as e:
