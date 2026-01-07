@@ -76,9 +76,11 @@ def get_naming_config():
                 else:
                     lambda_prefix = config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME
 
-                ecr_repo = config.ecr_repo_name or DEFAULT_ECR_REPO_NAME
-                s3_bucket = config.s3_bucket or DEFAULT_S3_BUCKET_NAME
-                dynamodb_table = config.dynamodb_table or DEFAULT_DYNAMODB_TABLE
+                # ECR repo name: use DB value if set, otherwise construct from instance_name
+                # This ensures ECR repo matches the actual created repo (e.g., 'dev1-app-password-worker')
+                ecr_repo = config.ecr_repo_name if config.ecr_repo_name else f"{instance_name}-app-password-worker"
+                s3_bucket = config.s3_bucket or f"{instance_name}-app-passwords"
+                dynamodb_table = config.dynamodb_table or f"{instance_name}-app-passwords"
                 
                 return {
                     'instance_name': instance_name,
@@ -98,7 +100,6 @@ def get_naming_config():
         logger.warning(f"[CONFIG] Could not load naming config from database: {e}")
     
     # Return defaults if config not found
-    # Return defaults if config not found
     # [MULTI-USER] apply fallback user scoping even if no DB config
     current_user = session.get('user')
     if current_user:
@@ -107,19 +108,21 @@ def get_naming_config():
     else:
         lambda_prefix = DEFAULT_PRODUCTION_LAMBDA_NAME
 
+    # Use DEFAULT_INSTANCE_NAME prefix for all fallback resource names
+    instance_name = DEFAULT_INSTANCE_NAME
     return {
-        'instance_name': DEFAULT_INSTANCE_NAME,
+        'instance_name': instance_name,
         'lambda_prefix': lambda_prefix,
-        'lambda_role_name': DEFAULT_LAMBDA_ROLE_NAME,
-        'production_lambda_name': DEFAULT_PRODUCTION_LAMBDA_NAME,
-        'ecr_repo_name': DEFAULT_ECR_REPO_NAME,
-        's3_bucket': DEFAULT_S3_BUCKET_NAME,
-        'dynamodb_table': DEFAULT_DYNAMODB_TABLE,
-        'ec2_instance_name': EC2_INSTANCE_NAME,
-        'ec2_role_name': EC2_ROLE_NAME,
-        'ec2_instance_profile_name': EC2_INSTANCE_PROFILE_NAME,
-        'ec2_security_group_name': EC2_SECURITY_GROUP_NAME,
-        'ec2_key_pair_name': EC2_KEY_PAIR_NAME,
+        'lambda_role_name': f"{lambda_prefix}-lambda-role",
+        'production_lambda_name': lambda_prefix,
+        'ecr_repo_name': f"{instance_name}-app-password-worker",
+        's3_bucket': f"{instance_name}-app-passwords",
+        'dynamodb_table': f"{instance_name}-app-passwords",
+        'ec2_instance_name': f"{instance_name}-ec2-build-box",
+        'ec2_role_name': f"{instance_name}-ec2-build-role",
+        'ec2_instance_profile_name': f"{instance_name}-ec2-build-instance-profile",
+        'ec2_security_group_name': f"{instance_name}-ec2-build-sg",
+        'ec2_key_pair_name': f"{instance_name}-ec2-build-key",
     }
 
 aws_manager = Blueprint('aws_manager', __name__)
@@ -127,31 +130,34 @@ aws_manager = Blueprint('aws_manager', __name__)
 @aws_manager.route('/api/aws/get-naming-config', methods=['GET'])
 def get_naming_config_api():
     """Return saved resource naming configuration from database"""
-    """Return saved resource naming configuration from database"""
     try:
         config = get_current_active_config()
         if config:
+            instance_name = config.instance_name or DEFAULT_INSTANCE_NAME
             return jsonify({
                 'success': True,
                 'config': {
                     'id': config.id,
                     'name': config.name,
-                    'ecr_repo_name': config.ecr_repo_name or DEFAULT_ECR_REPO_NAME,
-                    's3_bucket': config.s3_bucket or DEFAULT_S3_BUCKET_NAME,
-                    'dynamodb_table': config.dynamodb_table or DEFAULT_DYNAMODB_TABLE,
+                    # Use DB values if set, otherwise construct from instance_name prefix
+                    'ecr_repo_name': config.ecr_repo_name if config.ecr_repo_name else f"{instance_name}-app-password-worker",
+                    's3_bucket': config.s3_bucket or f"{instance_name}-app-passwords",
+                    'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
                     'lambda_prefix': config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME,
-                    'instance_name': config.instance_name or DEFAULT_INSTANCE_NAME
+                    'instance_name': instance_name
                 }
             })
         else:
+            # No config found - use default instance_name prefix pattern
+            instance_name = DEFAULT_INSTANCE_NAME
             return jsonify({
                 'success': True,
                 'config': {
-                    'ecr_repo_name': DEFAULT_ECR_REPO_NAME,
-                    's3_bucket': DEFAULT_S3_BUCKET_NAME,
-                    'dynamodb_table': DEFAULT_DYNAMODB_TABLE,
+                    'ecr_repo_name': f"{instance_name}-app-password-worker",
+                    's3_bucket': f"{instance_name}-app-passwords",
+                    'dynamodb_table': f"{instance_name}-app-passwords",
                     'lambda_prefix': DEFAULT_PRODUCTION_LAMBDA_NAME,
-                    'instance_name': DEFAULT_INSTANCE_NAME
+                    'instance_name': instance_name
                 }
             })
     except Exception as e:

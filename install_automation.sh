@@ -672,8 +672,23 @@ else
         undetected-chromedriver==3.5.5
 fi
 
-# Install additional production packages
+# Install additional production packages (explicitly to ensure they're installed)
 pip install gunicorn psutil psycopg2-binary
+
+# Verify gunicorn was installed
+if [ ! -f "$APP_DIR/venv/bin/gunicorn" ]; then
+    print_error "CRITICAL: gunicorn not found in venv! Trying to install again..."
+    pip install --force-reinstall gunicorn
+    if [ ! -f "$APP_DIR/venv/bin/gunicorn" ]; then
+        print_error "Failed to install gunicorn. Please check pip and try manually."
+        exit 1
+    fi
+fi
+print_success "✓ Verified gunicorn is installed at $APP_DIR/venv/bin/gunicorn"
+
+# Fix ownership of venv (created as root, needs to be owned by APP_USER for systemd)
+chown -R $APP_USER:$APP_USER $APP_DIR/venv
+chmod -R 755 $APP_DIR/venv/bin
 
 print_success "Python dependencies installed"
 
@@ -692,9 +707,16 @@ SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}' ||
 ENV_FILE="$APP_DIR/.env"
 
 if [ -f "$ENV_FILE" ]; then
-    print_warning ".env file exists. Backing up and updating DATABASE_URL..."
+    print_warning ".env file exists. Backing up and ensuring DATABASE_URL is set correctly..."
     cp "$ENV_FILE" "$APP_DIR/.env.backup.$(date +%Y%m%d_%H%M%S)"
-    sed -i "s|DATABASE_URL=.*|DATABASE_URL=postgresql://$DB_USER:$DB_PASSWORD@127.0.0.1/$DB_NAME|g" "$ENV_FILE"
+    
+    # Remove any existing DATABASE_URL lines (commented or not)
+    sed -i '/DATABASE_URL/d' "$ENV_FILE"
+    
+    # Add the correct DATABASE_URL at the end (NOT commented!)
+    echo "" >> "$ENV_FILE"
+    echo "# Database (auto-configured by installer)" >> "$ENV_FILE"
+    echo "DATABASE_URL=postgresql://$DB_USER:$DB_PASSWORD@127.0.0.1/$DB_NAME" >> "$ENV_FILE"
 else
     print_info "Creating .env file..."
     cat > "$ENV_FILE" <<EOF
@@ -705,7 +727,7 @@ else
 SECRET_KEY=$SECRET_KEY
 WHITELIST_TOKEN=$WHITELIST_TOKEN
 
-# Database
+# Database - THIS LINE MUST NOT BE COMMENTED!
 DATABASE_URL=postgresql://$DB_USER:$DB_PASSWORD@127.0.0.1/$DB_NAME
 
 # IP Whitelist Configuration
@@ -738,6 +760,34 @@ fi
 
 chmod 600 "$ENV_FILE"
 chown $APP_USER:$APP_USER "$ENV_FILE"
+
+# Verify DATABASE_URL is set and NOT commented
+print_info "Verifying DATABASE_URL configuration..."
+if grep -q "^DATABASE_URL=" "$ENV_FILE"; then
+    print_success "✓ DATABASE_URL is correctly configured (not commented)"
+else
+    print_error "DATABASE_URL is missing or commented! Adding it now..."
+    echo "DATABASE_URL=postgresql://$DB_USER:$DB_PASSWORD@127.0.0.1/$DB_NAME" >> "$ENV_FILE"
+fi
+
+# Test database connection before proceeding
+print_info "Testing database connection..."
+source $APP_DIR/venv/bin/activate
+if python3 -c "import psycopg2; conn = psycopg2.connect('postgresql://$DB_USER:$DB_PASSWORD@127.0.0.1/$DB_NAME'); conn.close(); print('OK')" 2>/dev/null; then
+    print_success "✓ Database connection successful!"
+else
+    print_error "Database connection FAILED! Trying to fix..."
+    # Reset the password in PostgreSQL to match what we have
+    sudo -u postgres psql -c "ALTER USER $DB_USER WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || true
+    
+    # Test again
+    if python3 -c "import psycopg2; conn = psycopg2.connect('postgresql://$DB_USER:$DB_PASSWORD@127.0.0.1/$DB_NAME'); conn.close(); print('OK')" 2>/dev/null; then
+        print_success "✓ Database connection fixed and working!"
+    else
+        print_error "Could not establish database connection. Please check PostgreSQL manually."
+        print_error "DATABASE_URL: postgresql://$DB_USER:****@127.0.0.1/$DB_NAME"
+    fi
+fi
 
 print_success "Environment configuration complete"
 
