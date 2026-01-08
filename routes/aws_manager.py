@@ -69,10 +69,10 @@ def get_naming_config():
                 # Use 'user' key as defined in app.py login logic
                 current_user = session.get('user')
                 if current_user:
-                    # Enforce Capitalized Username for resource naming 
-                    # Handle if username is an email (e.g. angel@domain.com -> Angel)
+                    # Enforce Lowercase Username for resource naming 
+                    # Handle if username is an email (e.g. angel@domain.com -> angel)
                     clean_user = current_user.split('@')[0]
-                    lambda_prefix = f"{clean_user.capitalize()}-chromium"
+                    lambda_prefix = f"{clean_user.lower()}-chromium"
                 else:
                     lambda_prefix = config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME
 
@@ -104,7 +104,7 @@ def get_naming_config():
     current_user = session.get('user')
     if current_user:
         clean_user = current_user.split('@')[0]
-        lambda_prefix = f"{clean_user.capitalize()}-chromium"
+        lambda_prefix = f"{clean_user.lower()}-chromium"
     else:
         lambda_prefix = DEFAULT_PRODUCTION_LAMBDA_NAME
 
@@ -143,7 +143,8 @@ def get_naming_config_api():
                     'ecr_repo_name': config.ecr_repo_name if config.ecr_repo_name else f"{instance_name}-app-password-worker",
                     's3_bucket': config.s3_bucket or f"{instance_name}-app-passwords",
                     'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
-                    'lambda_prefix': config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME,
+                    # [MULTI-USER] Use dynamic user-scoped prefix (e.g. patrick-chromium) over DB default
+                    'lambda_prefix': get_naming_config().get('lambda_prefix', config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME),
                     'instance_name': instance_name
                 }
             })
