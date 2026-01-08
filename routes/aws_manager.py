@@ -4233,7 +4233,7 @@ def bulk_generate():
                         
                         matching_functions = [
                             fn['FunctionName'] for fn in geo_functions.get('Functions', [])
-                            if fn['FunctionName'].startswith(lambda_prefix_bulk) or 'gbot' in fn['FunctionName'].lower()
+                            if fn['FunctionName'].startswith(lambda_prefix_bulk)
                         ]
                         
                         if matching_functions:
