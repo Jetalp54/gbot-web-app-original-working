@@ -261,14 +261,17 @@ class SimpleDomainService:
         logger.info(f"[FULL_PROCESS] Input: {input_domain}, Apex: {apex}, TXT Host: {txt_host}")
         
         # Step 1: Add domain to Workspace
-        add_ok, add_msg = self.add_domain(apex)
+        # CRITICAL FIX: Use input_domain (full subdomain), NOT apex. 
+        # Adding apex often fails with 403 if it's already in use or restricted.
+        logger.info(f"[FULL_PROCESS] Adding FULL domain: {input_domain}")
+        add_ok, add_msg = self.add_domain(input_domain)
         result['add_success'] = add_ok
         result['add_message'] = add_msg
         
         if not add_ok:
             # CRITICAL FIX: Stop immediately if we can't add the domain
             # Do NOT proceed to get token, because it's useless if domain isn't in Workspace
-            logger.error(f"[FULL_PROCESS] Add failed for {apex}: {add_msg}")
+            logger.error(f"[FULL_PROCESS] Add failed for {input_domain}: {add_msg}")
             return result
         
         # Step 2: Get verification token
