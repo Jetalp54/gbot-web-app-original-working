@@ -11,8 +11,13 @@ import io
 import smtplib
 import tempfile
 import time
+import socket
 import sqlite3
 import traceback
+
+# Set global default socket timeout to 60 seconds to prevent indefinite hangs
+# This protects against database locks, API freezes, and SSH hangs
+socket.setdefaulttimeout(60.0)
 from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 import logging.handlers

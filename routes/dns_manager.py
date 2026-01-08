@@ -27,6 +27,15 @@ try:
 except Exception as e:
     print(f"Failed to setup debug logging: {e}")
 
+def log_entry(step, status, message):
+    """Helper to create structured log entries"""
+    return {
+        'timestamp': datetime.now().isoformat(),
+        'step': step,
+        'status': status,
+        'message': message
+    }
+
 dns_manager = Blueprint('dns_manager', __name__)
 
 # Login required decorator (matches app.py implementation)
@@ -165,16 +174,24 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                 db.session.commit()
                 return
 
+            print(f"DTO-LOG: Starting Step 3 (Add to Workspace) for {apex}")
             logger.info(f"JOB {job_id} CHECKPOINT: Starting Step 3 (Add to Workspace) for {apex}")
             operation.message = 'Adding domain to Workspace (this may take a moment)...'
             db.session.commit()
             
             try:
+                print(f"DTO-LOG: Initializing GoogleDomainsService for {account_name}")
                 logger.info(f"Job {job_id}: Step 3 - Adding {domain} to Workspace")
                 google_service = GoogleDomainsService(account_name)
                 
+                print(f"DTO-LOG: Calling ensure_domain_added({apex})...")
                 logger.info(f"JOB {job_id} CHECKPOINT: Calling ensure_domain_added({apex})...")
+                
+                # Set a hard timeout on the thread execution for this specific call if possible, 
+                # but relying on global socket timeout is safer.
                 result = google_service.ensure_domain_added(apex)
+                
+                print(f"DTO-LOG: ensure_domain_added returned: {result}")
                 logger.info(f"JOB {job_id} CHECKPOINT: ensure_domain_added returned: {result}")
                 
                 if result.get('already_exists'):
