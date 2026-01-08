@@ -68,6 +68,8 @@ def get_naming_config():
                 # If user is logged in, use "{User}-chromium", otherwise fallback to DB/Default
                 # Use 'user' key as defined in app.py login logic
                 current_user = session.get('user')
+                print(f"[DEBUG] get_naming_config MAIN: user={current_user}, session keys={list(session.keys()) if session else 'None'}", flush=True)
+
                 if current_user:
                     # Enforce Lowercase Username for resource naming 
                     # Handle if username is an email (e.g. angel@domain.com -> angel)
@@ -102,6 +104,9 @@ def get_naming_config():
     # Return defaults if config not found
     # [MULTI-USER] apply fallback user scoping even if no DB config
     current_user = session.get('user')
+    
+    print(f"[DEBUG] get_naming_config FALLBACK: user={current_user}, session keys={list(session.keys()) if session else 'None'}", flush=True)
+
     if current_user:
         clean_user = current_user.split('@')[0]
         lambda_prefix = f"{clean_user.lower()}-chromium"
@@ -110,6 +115,8 @@ def get_naming_config():
 
     # Use DEFAULT_INSTANCE_NAME prefix for all fallback resource names
     instance_name = DEFAULT_INSTANCE_NAME
+    
+    print(f"[DEBUG] get_naming_config RETURNING: lambda_prefix={lambda_prefix}", flush=True)
     return {
         'instance_name': instance_name,
         'lambda_prefix': lambda_prefix,
