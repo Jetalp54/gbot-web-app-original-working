@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 # Required scopes for domain operations
 SCOPES = [
     "https://www.googleapis.com/auth/admin.directory.domain",
+    "https://www.googleapis.com/auth/admin.directory.user",
     "https://www.googleapis.com/auth/siteverification"
 ]
 
