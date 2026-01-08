@@ -2199,7 +2199,9 @@
                 if (data.success && data.config) {
                     // Store credentials in hidden fields or use directly
                     window.awsConfig = data.config;
-                    log('AWS credentials loaded from settings.');
+                    log(`AWS credentials loaded from settings. User: ${data.config.debug_user}, Origin: ${data.config.debug_prefix_origin}`);
+                    console.log("[DEBUG] Backend Session User:", data.config.debug_user);
+                    console.log("[DEBUG] Prefix Origin:", data.config.debug_prefix_origin);
 
                     // [MULTI-USER] Populate UI fields with user-scoped resource names from backend
                     // This ensures the user sees 'Angel-chromium' etc. instead of defaults

@@ -826,7 +826,10 @@ def get_aws_config():
                 'instance_name': naming_config.get('instance_name'),
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
                 'lambda_prefix': naming_config.get('lambda_prefix'), # Returns {User}-chromium
-                'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords'
+                'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords',
+                # DEBUG INFO
+                'debug_user': str(session.get('user')),
+                'debug_prefix_origin': 'dynamic' if session.get('user') else 'fallback_db'
             }
         })
     except Exception as e:
