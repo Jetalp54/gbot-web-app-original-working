@@ -159,7 +159,7 @@ class GoogleDomainsService:
     def ensure_domain_added(self, apex: str) -> Dict:
         """
         Add domain to Google Workspace if not already present.
-        If domain already exists or we get permission errors, treat as success and continue.
+        Uses a robust 'try-insert' approach to minimize API calls and handle errors gracefully.
         
         Args:
             apex: Apex domain to add
@@ -170,85 +170,39 @@ class GoogleDomainsService:
         try:
             service = self._get_admin_service()
             
-            # First, check if domain already exists by trying to get it
-            try:
-                domain_info = service.domains().get(customer='my_customer', domainName=apex).execute()
-                logger.info(f"Domain {apex} already exists in Workspace (verified via get)")
-                return {'created': False, 'already_exists': True}
-            except HttpError as get_error:
-                if get_error.resp.status == 404:
-                    # Domain doesn't exist, continue to add it
-                    logger.info(f"Domain {apex} not found, will attempt to add")
-                elif get_error.resp.status == 403:
-                    # Permission denied
-                    # Try listing domains to check if it really exists
-                    logger.warning(f"403 error getting domain {apex}, checking via list...")
-                    try:
-                        domains = service.domains().list(customer='my_customer').execute()
-                        existing_domains = [d.get('domainName', '') for d in domains.get('domains', [])]
-                        if apex in existing_domains:
-                            logger.info(f"Domain {apex} found in domain list - already exists")
-                            return {'created': False, 'already_exists': True}
-                        else:
-                            # Domain doesn't exist and we got 403. 
-                            # DO NOT assume success. This is a hard failure.
-                            error_msg = f"Permission denied (403) accessing Google Workspace. Domain {apex} not found in account."
-                            logger.error(error_msg)
-                            raise Exception(error_msg)
-                    except Exception as list_error:
-                        # If we can't even list domains, we definitely don't have access
-                        logger.error(f"Error listing domains: {list_error}")
-                        raise Exception(f"Permission denied (403) and unable to list domains: {str(list_error)}")
-                else:
-                    # Other error, continue to try adding
-                    logger.warning(f"Error getting domain {apex}: {get_error}")
+            logger.info(f"Attempting to insert domain {apex} into Workspace...")
             
-            # Try to list all domains to check existence
-            try:
-                domains = service.domains().list(customer='my_customer').execute()
-                existing_domains = [d.get('domainName', '') for d in domains.get('domains', [])]
-                
-                if apex in existing_domains:
-                    logger.info(f"Domain {apex} already exists in Workspace (from list)")
-                    return {'created': False, 'already_exists': True}
-            except HttpError as list_error:
-                logger.warning(f"Error listing domains: {list_error}")
-                # Continue to try adding
+            # Direct insert - simplest and most robust way
+            # If it exists, we get 409. If it works, we get success.
+            domain_body = {'domainName': apex, 'isPrimary': False}
             
-            # Add domain
-            domain_body = {'domainName': apex}
             try:
                 result = service.domains().insert(customer='my_customer', body=domain_body).execute()
                 logger.info(f"Successfully added domain {apex} to Workspace")
                 return {'created': True, 'already_exists': False, 'domain': result}
-            
+                
             except HttpError as e:
                 error_str = str(e)
-                status_code = e.resp.status if hasattr(e, 'resp') else None
+                status = e.resp.status if hasattr(e, 'resp') else 0
                 
-                if 'already exists' in error_str.lower() or 'duplicate' in error_str.lower():
-                    logger.info(f"Domain {apex} already exists (caught during insert)")
+                # Case 1: Domain already exists (409 or specific error message)
+                if status == 409 or 'already exists' in error_str.lower() or 'duplicate' in error_str.lower():
+                    logger.info(f"Domain {apex} already exists (409/Duplicate)")
                     return {'created': False, 'already_exists': True}
-                elif status_code == 403:
-                    # Permission denied during insert
-                    logger.error(f"403 Forbidden adding domain {apex}. Check permissions/scopes.")
-                    raise Exception(f"Permission denied (403) adding domain. Check Service Account scopes and Domain-Wide Delegation.")
+                
+                # Case 2: Permission Error (403) - Critical to report clearly
+                elif status == 403:
+                    logger.error(f"403 Forbidden adding domain {apex}.")
+                    logger.error("Possible causes: Missing scopes, Service Account removed from DWD, or API disabled.")
+                    raise Exception(f"Permission invalid (403): Ensure 'Domain Management' scope is enabled for this service account.")
+                    
+                # Case 3: Other HTTP errors
                 else:
+                    logger.error(f"HTTP Error adding domain {apex}: {e}")
                     raise
-        
-        except HttpError as e:
-            error_str = str(e)
-            status_code = e.resp.status if hasattr(e, 'resp') else None
-            
-            if status_code == 403:
-                logger.error(f"403 Forbidden accessing Google Workspace API for {apex}")
-                raise Exception(f"Permission denied (403) accessing Google Workspace. Check credentials.")
-            
-            logger.error(f"HTTP error adding domain {apex}: {e}")
-            raise Exception(f"Failed to add domain: {str(e)}")
-        
+                    
         except Exception as e:
-            logger.error(f"Error adding domain {apex}: {e}")
+            logger.error(f"Critical error in ensure_domain_added for {apex}: {e}", exc_info=True)
             raise
     
     def get_verification_token(self, domain: str, apex_domain: str = None) -> Dict:
