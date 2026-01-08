@@ -872,9 +872,17 @@ def start_bulk_multi_account():
             from app import app
             from concurrent.futures import ThreadPoolExecutor
             
+            # DEBUG: Explicit print to see if thread starts
+            print(f"[DEBUG] process_bulk_multi STARTED for job {job_id}")
+            logger.info(f"[DEBUG] process_bulk_multi STARTED for job {job_id}")
+            
             def process_single_entry(entry_data):
                 """Process a single entry using SimpleDomainService - REWRITTEN"""
                 entry_idx, entry, job, provider_name = entry_data
+                
+                # DEBUG: Print at very start
+                print(f"[DEBUG] process_single_entry STARTED for {entry.get('domain')}")
+                logger.info(f"[DEBUG] process_single_entry STARTED for {entry.get('domain')}")
                 
                 with app.app_context():
                     if job['stop_event'].is_set():
