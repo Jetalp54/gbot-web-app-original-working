@@ -56,6 +56,19 @@ def get_naming_config():
     Returns dict with all naming values for multi-tenant support.
     Each user/tenant can have their own instance with unique names.
     """
+    # [MULTI-USER] Capture session user data immediately from request context
+    # This must be done before pushing any new app context
+    current_user = session.get('user')
+    clean_user = None
+    dynamic_lambda_prefix = None
+    
+    if current_user:
+        # Enforce Lowercase Username (e.g. Angel -> angel)
+        clean_user = current_user.split('@')[0].lower()
+        dynamic_lambda_prefix = f"{clean_user}-chromium"
+        
+    print(f"[DEBUG] get_naming_config START: user={current_user} -> clean={clean_user}, dynamic_prefix={dynamic_lambda_prefix}, session keys={list(session.keys()) if session else 'None'}", flush=True)
+
     try:
         from app import app
         with app.app_context():
@@ -65,16 +78,9 @@ def get_naming_config():
                 instance_name = config.instance_name or DEFAULT_INSTANCE_NAME
                 
                 # [MULTI-USER] Scope Lambda Name to Logged-in User
-                # If user is logged in, use "{User}-chromium", otherwise fallback to DB/Default
-                # Use 'user' key as defined in app.py login logic
-                current_user = session.get('user')
-                print(f"[DEBUG] get_naming_config MAIN: user={current_user}, session keys={list(session.keys()) if session else 'None'}", flush=True)
-
-                if current_user:
-                    # Enforce Lowercase Username for resource naming 
-                    # Handle if username is an email (e.g. angel@domain.com -> angel)
-                    clean_user = current_user.split('@')[0]
-                    lambda_prefix = f"{clean_user.lower()}-chromium"
+                # If user is logged in, ALWAYS use dynamic name.
+                if dynamic_lambda_prefix:
+                    lambda_prefix = dynamic_lambda_prefix
                 else:
                     lambda_prefix = config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME
 
@@ -84,6 +90,7 @@ def get_naming_config():
                 s3_bucket = config.s3_bucket or f"{instance_name}-app-passwords"
                 dynamodb_table = config.dynamodb_table or f"{instance_name}-app-passwords"
                 
+                print(f"[DEBUG] get_naming_config DB SUCCESS: lambda_prefix={lambda_prefix}", flush=True)
                 return {
                     'instance_name': instance_name,
                     'lambda_prefix': lambda_prefix,
@@ -100,23 +107,19 @@ def get_naming_config():
                 }
     except Exception as e:
         logger.warning(f"[CONFIG] Could not load naming config from database: {e}")
+        import traceback
+        traceback.print_exc()
     
     # Return defaults if config not found
-    # [MULTI-USER] apply fallback user scoping even if no DB config
-    current_user = session.get('user')
-    
-    print(f"[DEBUG] get_naming_config FALLBACK: user={current_user}, session keys={list(session.keys()) if session else 'None'}", flush=True)
-
-    if current_user:
-        clean_user = current_user.split('@')[0]
-        lambda_prefix = f"{clean_user.lower()}-chromium"
+    if dynamic_lambda_prefix:
+        lambda_prefix = dynamic_lambda_prefix
     else:
         lambda_prefix = DEFAULT_PRODUCTION_LAMBDA_NAME
 
     # Use DEFAULT_INSTANCE_NAME prefix for all fallback resource names
     instance_name = DEFAULT_INSTANCE_NAME
     
-    print(f"[DEBUG] get_naming_config RETURNING: lambda_prefix={lambda_prefix}", flush=True)
+    print(f"[DEBUG] get_naming_config FALLBACK RETURN: lambda_prefix={lambda_prefix}", flush=True)
     return {
         'instance_name': instance_name,
         'lambda_prefix': lambda_prefix,
