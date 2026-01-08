@@ -265,6 +265,8 @@ class SimpleDomainService:
         result['add_message'] = add_msg
         
         if not add_ok:
+            # CRITICAL FIX: Stop immediately if we can't add the domain
+            # Do NOT proceed to get token, because it's useless if domain isn't in Workspace
             logger.error(f"[FULL_PROCESS] Add failed for {apex}: {add_msg}")
             return result
         
