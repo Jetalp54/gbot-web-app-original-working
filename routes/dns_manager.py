@@ -36,18 +36,15 @@ job_lock = threading.Lock()
 def process_domain_verification(job_id: str, domain: str, account_name: str, dry_run: bool, skip_verified: bool, provider: str = 'namecheap', stop_event=None):
     """
     Process domain verification for a single domain in background thread.
-    
-    Args:
-        job_id: Job UUID
-        domain: Input domain (can be subdomain)
-        account_name: Google account name
-        dry_run: If True, skip DNS writes
-        skip_verified: If True, skip already verified domains
-        provider: DNS provider ('namecheap' or 'cloudflare')
-        stop_event: threading.Event to signal stopping
+    REWRITTEN to use SimpleDomainService
     """
     # Create Flask app context for background thread
     from app import app
+    from database import db, ServiceAccount, DomainOperation
+    from services.simple_domain_service import SimpleDomainService
+    from services.cloudflare_dns_service import CloudflareDNSService
+    from services.namecheap_dns_service import NamecheapDNSService
+    
     with app.app_context():
         # Check stop event at start
         if stop_event and stop_event.is_set():
@@ -79,360 +76,144 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
         }
         
         try:
-            # Step 1: Identify apex domain
-            if stop_event and stop_event.is_set():
-                operation.message = 'Stopped by user'
-                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
+            # Step 1: Find Service Account
+            sa = ServiceAccount.query.filter_by(name=account_name).first()
+            if not sa:
+                # Try fallback lookup
+                sa = ServiceAccount.query.filter_by(admin_email=account_name).first()
+            
+            if not sa:
+                error_msg = f"Service Account '{account_name}' not found"
+                operation.workspace_status = 'failed'
+                operation.message = error_msg
+                operation.raw_log.append(log_entry('auth', 'failed', error_msg))
                 db.session.commit()
                 return
 
-            # [USER-FIX] STRICT PARSING Logic
-            # Rule: "the alias is the word before the first . and the rest is the domain"
-            # This applies for any domain with 3 or more parts (e.g. sub.example.com -> sub + example.com)
-            # For 2 parts (example.com), we use standard behavior (@ + example.com)
-            domain_parts = domain.lower().split('.')
-            
-            logger.info(f"PARSING DOMAIN: {domain}, parts: {len(domain_parts)}")
-            
-            if len(domain_parts) >= 3:
-                # STRICT USER RULE: First part is host, rest is ZONE.
-                # e.g. anjins.learnatory.info -> Host: anjins, Zone: learnatory.info
-                # e.g. angel.mentorcrafter.it.com -> Host: angel, Zone: mentorcrafter.it.com
-                
-                txt_host = domain_parts[0]
-                apex = '.'.join(domain_parts[1:])
-                logger.info(f" [STRICT MODE] Custom split -> Host: {txt_host}, Zone: {apex}")
-            else:
-                # Fallback for standard domains (e.g. example.com)
-                apex = to_apex(domain)
-                logger.info(f" [STD MODE] standard apex: {apex}")
-                
-                txt_host = '@'
-                if domain.lower() != apex.lower():
-                    # This path might not be reached if to_apex works well for 2-part domains
-                     # But keeping logical fallback just in case
-                    apex_parts = apex.lower().split('.')
-                    if len(domain_parts) > len(apex_parts):
-                        subdomain_part = domain_parts[:len(domain_parts) - len(apex_parts)]
-                        txt_host = '.'.join(subdomain_part)
-            
-            logger.info(f"Processing domain: {domain} -> Apex: {apex} (Provider: {provider})")
-            
-            logger.info(f"TXT Host for {domain} (Apex: {apex}): {txt_host}")
-            
-            operation.apex_domain = apex
-            operation.raw_log = [log_entry('apex', 'success', f'Converted {domain} to apex: {apex}, TXT host: {txt_host}')]
+            operation.message = f"Authenticated as {sa.admin_email}"
+            operation.raw_log.append(log_entry('auth', 'success', f"Using Service Account: {sa.name}"))
+            db.session.commit()
+
+            # Initialize Service
+            svc = SimpleDomainService(sa.json_content, sa.admin_email)
+
+            if stop_event and stop_event.is_set(): return
+
+            # Step 2: Full Process (Add + Token)
+            # This handles the "Add Full Domain" logic correctly
+            operation.message = "Adding domain to Workspace..."
             db.session.commit()
             
-            # Step 2: Check if already verified (if skip_verified is True)
-            if stop_event and stop_event.is_set():
-                operation.message = 'Stopped by user'
-                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
+            # SimpleDomainService.full_process returns { 'apex_domain', 'txt_host', 'add_success', 'token', ... }
+            result = svc.full_process(domain)
+            
+            # Identify Apex/Host from result
+            apex = result.get('apex_domain', domain)
+            txt_host = result.get('txt_host', '@')
+            operation.apex_domain = apex
+            
+            # Check Add Status
+            if result['add_success']:
+                operation.workspace_status = 'success'
+                operation.raw_log.append(log_entry('workspace', 'success', result['add_message']))
+            else:
+                operation.workspace_status = 'failed'
+                operation.message = result['add_message']
+                operation.raw_log.append(log_entry('workspace', 'failed', result['add_message']))
                 db.session.commit()
                 return
 
-            if skip_verified:
-                try:
-                    google_service = GoogleDomainsService(account_name)
-                    if google_service.is_verified(apex):
-                        operation.workspace_status = 'skipped'
-                        operation.dns_status = 'skipped'
-                        operation.verify_status = 'skipped'
-                        operation.message = 'Domain already verified (skipped)'
-                        operation.raw_log.append(log_entry('check', 'skipped', 'Domain already verified'))
-                        db.session.commit()
-                        return
-                except Exception as e:
-                    db.session.rollback()
-                    logger.warning(f"Error checking verification status for {apex}: {e}")
-                    # Continue with process
-            
-            # Step 3: Add domain to Workspace (or continue if already exists)
-            if stop_event and stop_event.is_set():
-                operation.message = 'Stopped by user'
-                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
-                db.session.commit()
-                return
-
-            google_service = None
-            try:
-                logger.info(f"Job {job_id}: Step 3 - Adding APEX domain {apex} to Workspace (input: {domain})")
-                google_service = GoogleDomainsService(account_name)
-                # CRITICAL FIX: Pass APEX domain, not subdomain! Google Workspace only accepts apex domains.
-                result = google_service.ensure_domain_added(apex)
-                
-                if result.get('already_exists'):
-                    operation.workspace_status = 'success'
-                    operation.message = 'Domain exists, getting verification token...'
-                    operation.raw_log.append(log_entry('workspace', 'success', 'Domain already exists in Workspace - continuing with verification'))
-                    logger.info(f"Domain {domain} already exists, continuing with verification process")
-                    db.session.commit()
-                elif result.get('created'):
-                    operation.workspace_status = 'success'
-                    operation.message = 'Domain added, getting verification token...'
-                    operation.raw_log.append(log_entry('workspace', 'success', 'Domain added to Workspace'))
-                    logger.info(f"Domain {domain} added to Workspace")
-                    db.session.commit()
-                else:
-                    raise Exception("Unexpected result from ensure_domain_added")
-                
-                db.session.commit()
-                # IMPORTANT: Continue to next step even if domain already exists
-            
-            except Exception as e:
-                db.session.rollback()
-                error_msg = str(e)
-                # Check for common error types
-                if 'insufficient' in error_msg.lower() or 'scope' in error_msg.lower():
-                    error_msg = f'Missing required Google API scopes. Please re-authenticate with site verification scope: {error_msg}'
-                    operation.workspace_status = 'failed'
-                    operation.message = error_msg
-                    operation.raw_log.append(log_entry('workspace', 'failed', error_msg))
-                    db.session.commit()
-                    return
-                elif '403' in error_msg or 'forbidden' in error_msg.lower() or 'not authorized' in error_msg.lower():
-                    # 403 error - Permission denied
-                    # This is now a hard failure because we can't verify if the domain exists
-                    error_msg = f"Permission denied (403) accessing Google Workspace. Please check your Service Account permissions and Domain-Wide Delegation. Error: {error_msg}"
-                    operation.workspace_status = 'failed'
-                    operation.message = error_msg
-                    operation.raw_log.append(log_entry('workspace', 'failed', error_msg))
-                    db.session.commit()
-                    return
-                elif 'already exists' in error_msg.lower() or 'duplicate' in error_msg.lower() or 'conflict' in error_msg.lower() or '409' in error_msg.lower():
-                    # Domain already exists, treat as success and CONTINUE
-                    operation.workspace_status = 'success'
-                    operation.raw_log.append(log_entry('workspace', 'success', f'Domain already exists: {error_msg} - continuing with verification'))
-                    logger.info(f"Domain {apex} already exists (from exception), continuing with verification")
-                    db.session.commit()
-                    # Continue to next step - don't return!
-                    if not google_service:
-                        google_service = GoogleDomainsService(account_name)
-                else:
-                    # Other errors - check if it's a permission issue that we can work around
-                    if 'permission' in error_msg.lower() and 'domain' in error_msg.lower():
-                        # Permission issue but domain might exist - continue
-                        logger.warning(f"Permission issue for {apex}, but continuing assuming domain exists")
-                        operation.workspace_status = 'success'
-                        operation.raw_log.append(log_entry('workspace', 'success', f'Domain exists (continuing despite permission warning)'))
-                        db.session.commit()
-                        if not google_service:
-                            google_service = GoogleDomainsService(account_name)
-                    else:
-                        operation.workspace_status = 'failed'
-                        operation.message = f'Failed to add domain to Workspace: {error_msg}'
-                        operation.raw_log.append(log_entry('workspace', 'failed', error_msg))
-                        db.session.commit()
-                        return
-            
-            # Step 4: Get verification token (always proceed, even if domain already existed)
-            if stop_event and stop_event.is_set():
-                operation.message = 'Stopped by user'
-                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
-                db.session.commit()
-                return
-
-            try:
-                operation.message = 'Getting verification token from Google...'
-                db.session.commit()
-                
-                # Get verification token for the SUBDOMAIN (full domain being added)
-                # The TXT record will go at txt_host (subdomain prefix) in the apex zone
-                # Verification will be for the full subdomain
-                logger.info(f"Job {job_id}: Step 4 - Getting verification token for SUBDOMAIN: {domain}")
-                logger.info(f"Job {job_id}: TXT will be placed at host '{txt_host}' in zone '{apex}'")
-                if not google_service:
-                    google_service = GoogleDomainsService(account_name)
-                
-                # Get token for the SUBDOMAIN - this is what we're adding and verifying
-                token_result = google_service.get_verification_token(domain)
-                token = token_result['token']
-                txt_value = token_result.get('txt_value', f'google-site-verification={token}')
-                token_delegation_mode = token_result.get('without_delegation')  # Track which credential mode was used
-                
-                # Fix for double prefix issue
-                if txt_value.startswith('google-site-verification=google-site-verification='):
-                    logger.warning(f"Detected double prefix in TXT value: {txt_value}. Fixing...")
-                    txt_value = txt_value.replace('google-site-verification=', '', 1)
-                
-                # CRITICAL: Save the TXT value to database IMMEDIATELY so it's never lost
-                operation.txt_record_value = txt_value
-                
-                # NOTE: txt_host was calculated earlier (lines 103-115) based on the domain structure
-                # For subdomain verification, we keep that value (e.g., 'almertnas' for almertnas.brainshifthub.it.com)
-                
-                operation.message = f'Token received, creating DNS TXT record...'
-                operation.raw_log.append(log_entry('token', 'success', f'Retrieved verification token for {domain}, will use host: {txt_host}'))
-                logger.info(f"Got verification token for {domain}, TXT host: {txt_host} in zone: {apex}")
-                db.session.commit()  # Commit with txt_record_value saved
-            
-            except Exception as e:
-                db.session.rollback()
-                error_msg = str(e)
-                logger.error(f"Job {job_id}: Step 4 FAILED for {domain}: {error_msg}", exc_info=True)
-                # Check for scope/permission errors
-                if 'insufficient' in error_msg.lower() or 'scope' in error_msg.lower() or 'permission' in error_msg.lower():
-                    error_msg = f'Missing Google Site Verification API scope. Please re-authenticate: {error_msg}'
-                elif 'not found' in error_msg.lower() or '404' in error_msg.lower():
-                    error_msg = f'Domain not found in Google Workspace. Ensure domain is added first: {error_msg}'
-                
-                operation.dns_status = 'failed'
+            # Check Token Status
+            token = result.get('token')
+            if token:
+                operation.message = "Token received, creating DNS..."
+                operation.txt_record_value = token # This is the full txt value (e.g. google-site-verification=...)
+                operation.raw_log.append(log_entry('token', 'success', result['token_message']))
+            else:
+                operation.dns_status = 'failed' 
                 operation.verify_status = 'failed'
-                operation.message = f'Failed to get verification token: {error_msg}'
-                operation.raw_log.append(log_entry('token', 'failed', error_msg))
-                db.session.commit()
-                return
-            
-            # Step 5: Create TXT record in DNS (unless dry-run)
-            if stop_event and stop_event.is_set():
-                operation.message = 'Stopped by user'
-                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
+                operation.message = result.get('token_message', 'Failed to get token')
+                operation.raw_log.append(log_entry('token', 'failed', operation.message))
                 db.session.commit()
                 return
 
+            db.session.commit()
+
+            if stop_event and stop_event.is_set(): return
+
+            # Step 3: Create DNS Record
             if dry_run:
                 operation.dns_status = 'dry-run'
-                operation.message = f'Dry-run: DNS TXT record not created (would use host: {txt_host})'
-                operation.raw_log.append(log_entry('dns', 'dry-run', f'Dry-run mode: would add TXT @ {txt_host} with value: {txt_value}'))
-                db.session.commit()
+                operation.message = f"Dry-run: Would add TXT {txt_host} to {apex}"
+                operation.raw_log.append(log_entry('dns', 'dry-run', f"Dry-run: TXT @ {txt_host} = {token}"))
             else:
+                operation.message = f"Adding DNS record ({provider})..."
+                db.session.commit()
+                
                 try:
-                    dns_result = None
-                    operation.message = f'Creating TXT record in {provider.capitalize()}...'
-                    db.session.commit()
-                    
+                    dns_res = None
                     if provider == 'cloudflare':
-                        logger.info(f"Adding TXT record to Cloudflare: apex={apex}, host={txt_host}, value={txt_value}")
-                        dns_service = CloudflareDNSService()
-                        # Cloudflare uses TTL 1 for automatic
-                        dns_result = dns_service.upsert_txt_record(apex, txt_host, txt_value, ttl=1)
+                        dns_svc_cf = CloudflareDNSService()
+                        dns_res = dns_svc_cf.upsert_txt_record(apex, txt_host, token, ttl=1)
                     else:
-                        # Default to Namecheap
-                        logger.info(f"Adding TXT record to Namecheap: apex={apex}, host={txt_host}, value={txt_value}")
-                        dns_service = NamecheapDNSService()
-                        # Use TTL 1799 (Automatic) as requested by user and seen in logs
-                        dns_result = dns_service.upsert_txt_record(apex, txt_host, txt_value, ttl=1799)
-                    
-                    logger.info(f"Job {job_id}: Step 5 - DNS result: {dns_result}")
+                        dns_svc_nc = NamecheapDNSService()
+                        dns_res = dns_svc_nc.upsert_txt_record(apex, txt_host, token, ttl=1799)
                     
                     operation.dns_status = 'success'
-                    operation.message = f'TXT record created! Verifying domain...'
-                    operation.raw_log.append(log_entry('dns', 'success', f'TXT record created @ {txt_host}: {dns_result}'))
-                    db.session.commit()
-                    
-                    # Short wait for DNS propagation before verification
-                    logger.info(f"Job {job_id}: Waiting 5 seconds for DNS propagation...")
-                    time.sleep(5)
-                    
+                    operation.raw_log.append(log_entry('dns', 'success', f"DNS created: {dns_res}"))
+                    operation.message = "DNS record created. Verifying..."
                 except Exception as e:
-                    db.session.rollback()
-                    error_msg = f"DNS API Error ({provider}): {str(e)}"
-                    logger.error(f"Job {job_id}: Step 5 FAILED: {error_msg}", exc_info=True)
                     operation.dns_status = 'failed'
-                    operation.message = error_msg
-                    operation.raw_log.append(log_entry('dns', 'failed', error_msg))
+                    operation.message = f"DNS Error: {str(e)}"
+                    operation.raw_log.append(log_entry('dns', 'failed', str(e)))
                     db.session.commit()
                     return
             
-            # Step 6: Verify domain (with retries)
-            if stop_event and stop_event.is_set():
-                operation.message = 'Stopped by user'
-                operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
-                db.session.commit()
-                return
+            db.session.commit()
 
+            # Step 4: Verification Loop
+            if stop_event and stop_event.is_set(): return
+            
             if not dry_run:
-                # EXPLICIT LOG: Verification is starting
-                logger.info(f"=== STEP 6 START === Job {job_id}: Domain {domain} - Starting verification process")
-                logger.info(f"Job {job_id}: Current operation status - workspace: {operation.workspace_status}, dns: {operation.dns_status}")
+                # Wait for propagation (short wait initially)
+                time.sleep(10)
                 
-                # Wait 30 seconds (User recommended 30s-120s) after DNS TXT record creation before first verification attempt
-                logger.info(f"Waiting 30 seconds for DNS propagation before verification...")
-                time.sleep(30)
-                
-                max_attempts = 10
-                attempt = 0
                 verified = False
+                max_attempts = 10
                 
-                logger.info(f"Job {job_id}: Starting verification loop - max {max_attempts} attempts for {domain}")
-                
-                while attempt < max_attempts and not verified:
-                    if stop_event and stop_event.is_set():
-                        operation.message = 'Stopped by user'
-                        operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
-                        db.session.commit()
-                        logger.warning(f"Job {job_id}: Verification stopped by user event")
-                        return
-
-                    attempt += 1
+                for attempt in range(1, max_attempts + 1):
+                    if stop_event and stop_event.is_set(): return
                     
-                    # Update status to show progress
-                    if attempt > 1:
-                        operation.message = f'Verifying domain... (Attempt {attempt}/{max_attempts})'
-                        db.session.commit()
+                    operation.message = f"Verifying... (Attempt {attempt}/{max_attempts})"
+                    db.session.commit()
                     
-                    try:
-                        logger.info(f"=== VERIFICATION ATTEMPT {attempt}/{max_attempts} === Domain: {domain}, Apex: {apex}, delegation_mode={token_delegation_mode}")
-                        verify_result = google_service.verify_domain(domain, apex_domain=apex, without_delegation=token_delegation_mode)
-                        
-                        logger.info(f"Job {job_id}: Verification result for {domain}: {verify_result}")
-                        
-                        if verify_result.get('verified'):
-                            verified = True
-                            operation.verify_status = 'success'
-                            operation.message = 'Domain verified successfully'
-                            operation.raw_log.append(log_entry('verify', 'success', f'Verified on attempt {attempt}'))
-                            db.session.commit()  # Commit success immediately
-                            logger.info(f"=== VERIFICATION SUCCESS === Domain {apex} verified on attempt {attempt}")
-                        else:
-                            # Use logic to show more detailed status
-                            status_msg = verify_result.get('error', f'Attempt {attempt}/{max_attempts}: Not yet verified')
-                            if verify_result.get('status') == 'pending':
-                                # This means Site Verification passed, but Workspace sync is pending
-                                status_msg = f"Attempt {attempt}: Site Verification OK, waiting for Workspace sync..."
-                            
-                            operation.message = status_msg
-                            operation.raw_log.append(log_entry('verify', 'pending', status_msg))
-                            db.session.commit()  # Commit log update immediately
-                            
-                            if attempt < max_attempts:
-                                time.sleep(30)  # Wait 30 seconds between retries
+                    # Use SimpleDomainService to verify
+                    is_verified, v_msg = svc.verify_domain(domain)
                     
-                    except Exception as e:
-                        error_msg = str(e)
-                        logger.warning(f"Verification attempt {attempt} error for {apex}: {error_msg}")
-                        # Check for scope/permission errors
-                        if 'insufficient' in error_msg.lower() or 'scope' in error_msg.lower() or 'permission' in error_msg.lower():
-                            error_msg = f'Missing Google Site Verification API scope. Please re-authenticate: {error_msg}'
-                            operation.verify_status = 'failed'
-                            operation.message = error_msg
-                            operation.raw_log.append(log_entry('verify', 'failed', error_msg))
-                            db.session.commit()
-                            return
-                        
-                        operation.raw_log.append(log_entry('verify', 'error', f'Attempt {attempt} error: {error_msg}'))
-                        db.session.commit()  # Commit error log
-                        
+                    if is_verified:
+                        verified = True
+                        operation.verify_status = 'success'
+                        operation.message = "Domain verified successfully!"
+                        operation.raw_log.append(log_entry('verify', 'success', f"Verified on attempt {attempt}"))
+                        break
+                    else:
+                        operation.raw_log.append(log_entry('verify', 'pending', f"Attempt {attempt}: {v_msg}"))
                         if attempt < max_attempts:
-                            time.sleep(30)
+                            time.sleep(30) # Wait between retries
                 
                 if not verified:
                     operation.verify_status = 'failed'
-                    operation.message = f'Verification failed after {max_attempts} attempts. DNS may not have propagated yet.'
-                    operation.raw_log.append(log_entry('verify', 'failed', 'Verification timeout'))
-                    logger.warning(f"Domain {apex} verification failed after {max_attempts} attempts")
-                
-                db.session.commit()
+                    operation.message = "Verification timed out."
+                    operation.raw_log.append(log_entry('verify', 'failed', "Max attempts reached"))
             else:
                 operation.verify_status = 'skipped'
-                operation.message = 'Dry-run: Verification skipped'
-                operation.raw_log.append(log_entry('verify', 'skipped', 'Dry-run mode'))
-                db.session.commit()
-        
+            
+            db.session.commit()
+
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error processing domain {domain}: {e}")
-            operation.message = f'Unexpected error: {str(e)}'
+            logger.error(f"Error in process_domain_verification: {e}", exc_info=True)
+            operation.message = f"System Error: {str(e)}"
             operation.raw_log.append(log_entry('error', 'failed', str(e)))
             db.session.commit()
 
