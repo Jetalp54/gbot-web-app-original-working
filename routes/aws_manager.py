@@ -153,8 +153,9 @@ def get_naming_config_api():
                     'ecr_repo_name': config.ecr_repo_name if config.ecr_repo_name else f"{instance_name}-app-password-worker",
                     's3_bucket': config.s3_bucket or f"{instance_name}-app-passwords",
                     'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
-                    # [MULTI-USER] Use dynamic user-scoped prefix (e.g. patrick-chromium) over DB default
-                    'lambda_prefix': get_naming_config().get('lambda_prefix', config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME),
+                    'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
+                    # [MULTI-USER] Inline logic to guarantee session access
+                    'lambda_prefix': (f"{session.get('user').split('@')[0].lower()}-chromium" if session.get('user') else (config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME)),
                     'instance_name': instance_name
                 }
             })
@@ -825,7 +826,9 @@ def get_aws_config():
                 # [MULTI-USER] Use dynamic naming config to ensure frontend sees the user-scoped names
                 'instance_name': naming_config.get('instance_name'),
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
-                'lambda_prefix': naming_config.get('lambda_prefix'), # Returns {User}-chromium
+                'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
+                # [MULTI-USER] Inline logic to guarantee session access
+                'lambda_prefix': (f"{session.get('user').split('@')[0].lower()}-chromium" if session.get('user') else naming_config.get('lambda_prefix')),
                 'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords',
                 # DEBUG INFO
                 'debug_user': str(session.get('user')),

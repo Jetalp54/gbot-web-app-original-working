@@ -2200,8 +2200,18 @@
                     // Store credentials in hidden fields or use directly
                     window.awsConfig = data.config;
                     log(`AWS credentials loaded from settings. User: ${data.config.debug_user}, Origin: ${data.config.debug_prefix_origin}`);
-                    console.log("[DEBUG] Backend Session User:", data.config.debug_user);
-                    console.log("[DEBUG] Prefix Origin:", data.config.debug_prefix_origin);
+
+                    // DEBUG: Alert if user session not detected
+                    if (data.config.debug_user === 'None' || !data.config.debug_user) {
+                        // Only alert if we expected a user (i.e. we are logged in - which we are if seeing this page)
+                        alert("CRITICIAL DEBUG: Server reports 'User: None'. This means the session is lost or not propagating. The Dynamic Naming feature will fail!");
+                    } else {
+                        // verify the prefix matches the user
+                        const expectedPrefix = data.config.debug_user.split('@')[0].toLowerCase() + '-chromium';
+                        if (data.config.lambda_prefix !== expectedPrefix) {
+                            alert(`NAMING MISMATCH!\nExpected: ${expectedPrefix}\nGot: ${data.config.lambda_prefix}\nOrigin: ${data.config.debug_prefix_origin}`);
+                        }
+                    }
 
                     // [MULTI-USER] Populate UI fields with user-scoped resource names from backend
                     // This ensures the user sees 'Angel-chromium' etc. instead of defaults
