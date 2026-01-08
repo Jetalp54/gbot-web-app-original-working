@@ -59,11 +59,10 @@ def test_manual_verification(admin_email, domain):
 
         # 4. Try Add Domain
         print(f"\n--- Adding Domain {domain} ---")
-        parts = domain.lower().split('.')
-        apex = '.'.join(parts[1:]) if len(parts) >= 3 else domain
-        print(f"Apex: {apex}")
+        # CRITICAL FIX: Always add the FULL subdomain, never the apex
+        print(f"Adding Full Domain: {domain}")
         
-        success, msg = svc.add_domain(apex)
+        success, msg = svc.add_domain(domain)
         print(f"Result: {success} - {msg}")
         
         # 5. Get Token
