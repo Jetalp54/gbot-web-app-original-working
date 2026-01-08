@@ -873,7 +873,7 @@ def start_bulk_multi_account():
             from concurrent.futures import ThreadPoolExecutor
             
             def process_single_entry(entry_data):
-                """Process a single entry - calls existing process_domain_verification"""
+                """Process a single entry using SimpleDomainService - REWRITTEN"""
                 entry_idx, entry, job, provider_name = entry_data
                 
                 with app.app_context():
@@ -886,103 +886,113 @@ def start_bulk_multi_account():
                         admin_email = entry['adminEmail']
                         account_domain = entry['accountDomain']
                         
-                        logger.info(f"Job {job_id}: Processing entry {entry['index']}: {domain} -> {admin_email}")
+                        logger.info(f"[BULK] Processing: {domain} -> {admin_email}")
                         
-                        # Step 1: Find account by NAME (same lookup as single-account feature)
+                        # ========== STEP 1: Find Service Account ==========
                         entry['authStatus'] = 'running'
                         entry['message'] = 'Finding account...'
                         
-                        # Try exact NAME match first (main lookup method)
+                        # Try multiple lookup methods
                         service_account = ServiceAccount.query.filter_by(name=admin_email).first()
-                        lookup_method = 'name' if service_account else None
-                        
-                        # Try by admin_email
                         if not service_account:
                             service_account = ServiceAccount.query.filter_by(admin_email=admin_email).first()
-                            lookup_method = 'admin_email' if service_account else None
-                        
-                        # Try by account domain name
                         if not service_account and account_domain:
                             service_account = ServiceAccount.query.filter_by(name=account_domain).first()
-                            lookup_method = 'domain_name' if service_account else None
-                        
-                        # Fallback: partial match
-                        if not service_account:
-                            all_accounts = ServiceAccount.query.all()
-                            for acc in all_accounts:
-                                if account_domain in (acc.name or '') or account_domain in (acc.admin_email or ''):
-                                    service_account = acc
-                                    lookup_method = 'partial_match'
-                                    break
                         
                         if not service_account:
                             entry['authStatus'] = 'failed'
                             entry['message'] = f'Account not found for {admin_email}'
-                            logger.warning(f"Job {job_id}: Account not found for {admin_email}")
+                            logger.error(f"[BULK] Account not found: {admin_email}")
                             return
                         
-                        account_name = service_account.name
-                        logger.info(f"Job {job_id}: Found account '{account_name}' via {lookup_method}")
-                        
                         entry['authStatus'] = 'success'
-                        entry['message'] = f'Using: {account_name}'
+                        entry['message'] = f'Using: {service_account.name}'
+                        logger.info(f"[BULK] Found account: {service_account.name}")
                         
-                        # Step 2: CALL THE EXISTING WORKING FUNCTION
-                        # This is the key - use the same function as single-account feature!
+                        # ========== STEP 2: Use SimpleDomainService ==========
+                        from services.simple_domain_service import SimpleDomainService
+                        
                         entry['workspaceStatus'] = 'running'
                         entry['message'] = 'Adding to Workspace...'
                         
-                        # Call existing process_domain_verification directly
-                        # Use a proper UUID for the entry job (database column is 36 chars max)
-                        import uuid as uuid_module
-                        entry_job_id = str(uuid_module.uuid4())
-                        # CRITICAL: Save operation ID to entry so status endpoint can look it up
-                        entry['operation_id'] = entry_job_id
-                        
                         try:
-                            # Call the working function
-                            process_domain_verification(
-                                job_id=entry_job_id,
-                                domain=domain,
-                                account_name=account_name,  # Same account_name session.get() would give
-                                dry_run=False,
-                                skip_verified=False,
-                                provider=provider_name,
-                                stop_event=job['stop_event']
+                            svc = SimpleDomainService(
+                                service_account_json=service_account.json_content,
+                                admin_email=service_account.admin_email
                             )
                             
-                            # Check the operation result from database
-                            from database import DomainOperation
-                            # Force a fresh query to ensure we get the latest status
-                            db.session.expire_all()
-                            operation = DomainOperation.query.filter_by(job_id=entry_job_id).first()
+                            # Run the full process
+                            result = svc.full_process(domain)
                             
-                            if operation:
-                                # Copy results to entry status
-                                entry['workspaceStatus'] = operation.workspace_status or 'failed'
-                                entry['dnsStatus'] = operation.dns_status or 'pending'
-                                entry['verifyStatus'] = operation.verify_status or 'pending'
-                                entry['message'] = operation.message or 'Completed'
-                                logger.info(f"Job {job_id} Entry {entry['index']}: "
-                                           f"Workspace={operation.workspace_status}, "
-                                           f"DNS={operation.dns_status}, "
-                                           f"Verify={operation.verify_status}")
+                            if result['add_success']:
+                                entry['workspaceStatus'] = 'success'
+                                entry['message'] = result['add_message']
                             else:
-                                logger.warning(f"Job {job_id} Entry {entry['index']}: Operation record not found for {entry_job_id}")
-                                entry['message'] = 'Processing failed (no operation record)'
                                 entry['workspaceStatus'] = 'failed'
+                                entry['message'] = result['add_message']
+                                logger.error(f"[BULK] Add failed for {domain}: {result['add_message']}")
+                                return
+                            
+                            # ========== STEP 3: Create DNS Record ==========
+                            if result['token']:
+                                entry['dnsStatus'] = 'running'
+                                entry['message'] = 'Creating DNS TXT record...'
+                                
+                                apex = result['apex_domain']
+                                txt_host = result['txt_host']
+                                txt_value = result['token']
+                                
+                                try:
+                                    if provider_name == 'cloudflare':
+                                        from services.cloudflare_dns_service import CloudflareDNSService
+                                        dns_svc = CloudflareDNSService()
+                                        dns_svc.upsert_txt_record(apex, txt_host, txt_value, ttl=1)
+                                    else:
+                                        from services.namecheap_dns_service import NamecheapDNSService
+                                        dns_svc = NamecheapDNSService()
+                                        dns_svc.upsert_txt_record(apex, txt_host, txt_value, ttl=1799)
+                                    
+                                    entry['dnsStatus'] = 'success'
+                                    entry['message'] = 'DNS record created, verifying...'
+                                    logger.info(f"[BULK] DNS created for {domain}")
+                                    
+                                except Exception as dns_err:
+                                    entry['dnsStatus'] = 'failed'
+                                    entry['message'] = f'DNS error: {str(dns_err)[:80]}'
+                                    logger.error(f"[BULK] DNS failed for {domain}: {dns_err}")
+                                    return
+                                
+                                # ========== STEP 4: Verify Domain ==========
+                                entry['verifyStatus'] = 'running'
+                                entry['message'] = 'Verifying domain...'
+                                
+                                # Wait for DNS propagation
+                                import time
+                                time.sleep(10)
+                                
+                                verified, verify_msg = svc.verify_domain(domain)
+                                
+                                if verified:
+                                    entry['verifyStatus'] = 'success'
+                                    entry['message'] = 'Domain verified!'
+                                    logger.info(f"[BULK] Verified: {domain}")
+                                else:
+                                    entry['verifyStatus'] = 'failed'
+                                    entry['message'] = verify_msg
+                                    logger.warning(f"[BULK] Verify failed for {domain}: {verify_msg}")
+                            else:
                                 entry['dnsStatus'] = 'failed'
-                                entry['verifyStatus'] = 'failed'
-
-                        except Exception as inner_e:
-                            logger.error(f"Job {job_id}: Core function error for entry {entry.get('index')}: {inner_e}", exc_info=True)
-                            entry['message'] = f'Error: {str(inner_e)[:100]}'
+                                entry['message'] = result['token_message']
+                                logger.error(f"[BULK] Token failed for {domain}: {result['token_message']}")
+                                
+                        except Exception as svc_err:
+                            logger.error(f"[BULK] Service error for {domain}: {svc_err}", exc_info=True)
                             entry['workspaceStatus'] = 'failed'
-                            entry['dnsStatus'] = 'failed'
+                            entry['message'] = f'Error: {str(svc_err)[:80]}'
                             
                     except Exception as e:
-                        logger.error(f"Job {job_id}: Error processing entry {entry.get('index')}: {e}", exc_info=True)
-                        entry['message'] = f'Error: {str(e)[:100]}'
+                        logger.error(f"[BULK] Fatal error for entry: {e}", exc_info=True)
+                        entry['message'] = f'Error: {str(e)[:80]}'
                         entry['workspaceStatus'] = 'failed'
             
             # Main thread function
