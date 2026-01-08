@@ -87,8 +87,13 @@ class GoogleDomainsService:
         if not creds:
             raise Exception("Failed to get valid credentials")
         
-        # Build service (reverted timeout to avoid missing httplib2 dependency)
-        self._admin_service = build('admin', 'directory_v1', credentials=creds)
+        # Build service with timeout now that we confirmed httplib2 is installed
+        import httplib2
+        # Use httplib2 shim that accepts timeout (30 seconds)
+        http = httplib2.Http(timeout=30)
+        creds.authorize(http)
+        
+        self._admin_service = build('admin', 'directory_v1', http=http)
         return self._admin_service
     
     def _get_site_verification_service(self, force_refresh=False, without_delegation=False):
