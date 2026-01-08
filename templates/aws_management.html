@@ -2199,6 +2199,10 @@
                 if (data.success && data.config) {
                     // Store credentials in hidden fields or use directly
                     window.awsConfig = data.config;
+
+                    // FORCE ALERT TO DEBUG
+                    alert("DEBUG RAW CONFIG:\nUser: " + data.config.debug_user + "\nPrefix: " + data.config.lambda_prefix + "\nOrigin: " + data.config.debug_prefix_origin + "\n\nIf you see this, the code IS updated.");
+
                     log(`AWS credentials loaded from settings. User: ${data.config.debug_user}, Origin: ${data.config.debug_prefix_origin}`);
 
                     // DEBUG: Alert if user session not detected
