@@ -9,32 +9,13 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from flask import Blueprint, request, jsonify, session, redirect, url_for
 from functools import wraps
-from database import db, DomainOperation, DomainVerificationOperation, GoogleAccount, ServiceAccount, CloudflareConfig
+from database import db, DomainOperation, GoogleAccount, ServiceAccount, CloudflareConfig
 from services.zone_utils import to_apex
 from services.google_domains_service import GoogleDomainsService
 from services.namecheap_dns_service import NamecheapDNSService
 from services.cloudflare_dns_service import CloudflareDNSService
 
 logger = logging.getLogger(__name__)
-
-# URGENT DEBUG: Force logging to file to diagnose user issue
-try:
-    debug_handler = logging.FileHandler('dns_debug.log')
-    debug_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
-    debug_handler.setLevel(logging.INFO)
-    logger.addHandler(debug_handler)
-    logger.info("DNS Manager Debug Logging Initialized")
-except Exception as e:
-    print(f"Failed to setup debug logging: {e}")
-
-def log_entry(step, status, message):
-    """Helper to create structured log entries"""
-    return {
-        'timestamp': datetime.now().isoformat(),
-        'step': step,
-        'status': status,
-        'message': message
-    }
 
 dns_manager = Blueprint('dns_manager', __name__)
 
@@ -140,7 +121,6 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
             logger.info(f"TXT Host for {domain} (Apex: {apex}): {txt_host}")
             
             operation.apex_domain = apex
-            operation.message = f"Parsed: Host={txt_host}, Zone={apex}"
             operation.raw_log = [log_entry('apex', 'success', f'Converted {domain} to apex: {apex}, TXT host: {txt_host}')]
             db.session.commit()
             
@@ -167,32 +147,19 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     logger.warning(f"Error checking verification status for {apex}: {e}")
                     # Continue with process
             
-            # Step 3: Add domain to Google Workspace (this is where it likely hangs)
+            # Step 3: Add domain to Workspace (or continue if already exists)
             if stop_event and stop_event.is_set():
                 operation.message = 'Stopped by user'
                 operation.raw_log.append(log_entry('stop', 'stopped', 'Process stopped by user'))
                 db.session.commit()
                 return
 
-            print(f"DTO-LOG: Starting Step 3 (Add to Workspace) for {apex}")
-            logger.info(f"JOB {job_id} CHECKPOINT: Starting Step 3 (Add to Workspace) for {apex}")
-            operation.message = 'Adding domain to Workspace (this may take a moment)...'
-            db.session.commit()
-            
+            google_service = None
             try:
-                print(f"DTO-LOG: Initializing GoogleDomainsService for {account_name}")
-                logger.info(f"Job {job_id}: Step 3 - Adding {domain} to Workspace")
+                logger.info(f"Job {job_id}: Step 3 - Adding APEX domain {apex} to Workspace (input: {domain})")
                 google_service = GoogleDomainsService(account_name)
-                
-                print(f"DTO-LOG: Calling ensure_domain_added({apex})...")
-                logger.info(f"JOB {job_id} CHECKPOINT: Calling ensure_domain_added({apex})...")
-                
-                # Set a hard timeout on the thread execution for this specific call if possible, 
-                # but relying on global socket timeout is safer.
+                # CRITICAL FIX: Pass APEX domain, not subdomain! Google Workspace only accepts apex domains.
                 result = google_service.ensure_domain_added(apex)
-                
-                print(f"DTO-LOG: ensure_domain_added returned: {result}")
-                logger.info(f"JOB {job_id} CHECKPOINT: ensure_domain_added returned: {result}")
                 
                 if result.get('already_exists'):
                     operation.workspace_status = 'success'
@@ -288,15 +255,16 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                     logger.warning(f"Detected double prefix in TXT value: {txt_value}. Fixing...")
                     txt_value = txt_value.replace('google-site-verification=', '', 1)
                 
-                # CRITICAL: Save TXT value AND context to DB IMMEDIATELY for background retries
+                # CRITICAL: Save the TXT value to database IMMEDIATELY so it's never lost
                 operation.txt_record_value = txt_value
-                operation.txt_host = txt_host  # Save for retry verification
-                operation.account_name = account_name  # Save for retry verification
+                
+                # NOTE: txt_host was calculated earlier (lines 103-115) based on the domain structure
+                # For subdomain verification, we keep that value (e.g., 'almertnas' for almertnas.brainshifthub.it.com)
                 
                 operation.message = f'Token received, creating DNS TXT record...'
                 operation.raw_log.append(log_entry('token', 'success', f'Retrieved verification token for {domain}, will use host: {txt_host}'))
                 logger.info(f"Got verification token for {domain}, TXT host: {txt_host} in zone: {apex}")
-                db.session.commit()  # Commit with all verification context saved
+                db.session.commit()  # Commit with txt_record_value saved
             
             except Exception as e:
                 db.session.rollback()
@@ -413,9 +381,6 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                             verified = True
                             operation.verify_status = 'success'
                             operation.message = 'Domain verified successfully'
-                            # CLEANUP: Clear TXT record from DB on success
-                            operation.txt_record_value = None
-                            operation.txt_host = None
                             operation.raw_log.append(log_entry('verify', 'success', f'Verified on attempt {attempt}'))
                             db.session.commit()  # Commit success immediately
                             logger.info(f"=== VERIFICATION SUCCESS === Domain {apex} verified on attempt {attempt}")
@@ -452,14 +417,10 @@ def process_domain_verification(job_id: str, domain: str, account_name: str, dry
                             time.sleep(30)
                 
                 if not verified:
-                    # Set to pending_retry so background worker can continue trying
-                    from datetime import datetime
-                    operation.verify_status = 'pending_retry'
-                    operation.verification_attempts = attempt
-                    operation.last_attempt_at = datetime.utcnow()
-                    operation.message = f'Queued for background retry. Initial {max_attempts} attempts done. DNS may still be propagating.'
-                    operation.raw_log.append(log_entry('verify', 'pending_retry', 'Queued for background verification'))
-                    logger.info(f"Domain {domain} queued for background retry after {attempt} attempts")
+                    operation.verify_status = 'failed'
+                    operation.message = f'Verification failed after {max_attempts} attempts. DNS may not have propagated yet.'
+                    operation.raw_log.append(log_entry('verify', 'failed', 'Verification timeout'))
+                    logger.warning(f"Domain {apex} verification failed after {max_attempts} attempts")
                 
                 db.session.commit()
             else:
@@ -815,20 +776,15 @@ def verify_single_domain(job_id: str, domain: str, account_name: str, stop_event
     from app import app
     with app.app_context():
         try:
-            logger.info(f"Job {job_id}: Starting verification process for {domain} inside thread")
+            # Get the operation record
+            operation = DomainVerificationOperation.query.filter_by(
+                job_id=job_id, domain=domain
+            ).first()
             
-            # Find the operation record - check both tables
-            operation = DomainOperation.query.filter_by(job_id=job_id, input_domain=domain).first()
             if not operation:
-                operation = DomainVerificationOperation.query.filter_by(job_id=job_id, domain=domain).first()
-                if not operation:
-                    logger.error(f"Job {job_id}: No operation found for {domain}")
-                    return {'success': False, 'error': 'Operation not found'}
-
-            operation.message = 'Initializing verification process...'
-            operation.verify_status = 'pending'
-            db.session.commit()
-            logger.info(f"Job {job_id}: Operation found and status initialized for {domain}")
+                logger.error(f"Operation not found for {domain}")
+                return {'success': False, 'error': 'Operation not found'}
+            
             if stop_event.is_set():
                 operation.verify_status = 'stopped'
                 operation.message = 'Stopped by user'
@@ -1034,10 +990,9 @@ def start_bulk_multi_account():
                 job = bulk_multi_jobs[job_id]
                 entries = job['entries']
                 
-                # Process entries SEQUENTIALLY to avoid SQLite locking issues
-                # TODO: Increase to 3-5 if moving to PostgreSQL
-                max_workers = 1 
-                logger.info(f"Job {job_id}: Starting processing with {max_workers} worker (Sequential Mode)")
+                # Process entries in PARALLEL (max 5 concurrent)
+                max_workers = min(5, len(entries))
+                logger.info(f"Job {job_id}: Starting parallel processing with {max_workers} workers")
                 
                 try:
                     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -1107,7 +1062,7 @@ def stop_bulk_multi_account():
 @dns_manager.route('/api/domains/bulk-multi-account/status/<job_id>', methods=['GET'])
 @login_required
 def get_bulk_multi_account_status(job_id):
-    """Get status of a bulk multi-account job with live DB updates."""
+    """Get status of a bulk multi-account job - MEMORY ONLY for stability."""
     try:
         with bulk_multi_lock:
             if job_id not in bulk_multi_jobs:
@@ -1115,32 +1070,12 @@ def get_bulk_multi_account_status(job_id):
             
             job = bulk_multi_jobs[job_id]
             
-            # Get live status from DB for each entry
-            from database import DomainOperation
-            
-            final_entries = []
-            for entry in job['entries']:
-                e_copy = entry.copy()
-                
-                op_id = entry.get('operation_id')
-                if op_id:
-                    try:
-                        op = DomainOperation.query.filter_by(job_id=op_id).first()
-                        if op:
-                            e_copy['workspaceStatus'] = op.workspace_status or e_copy.get('workspaceStatus', 'pending')
-                            e_copy['dnsStatus'] = op.dns_status or e_copy.get('dnsStatus', 'pending')
-                            e_copy['verifyStatus'] = op.verify_status or e_copy.get('verifyStatus', 'pending')
-                            e_copy['message'] = op.message or e_copy.get('message', '')
-                    except Exception as db_err:
-                        logger.warning(f"Status poll DB error: {db_err}")
-                
-                final_entries.append(e_copy)
-            
+            # Return memory state directly - no DB queries to avoid deadlocks
             return jsonify({
                 'success': True,
                 'job_id': job_id,
                 'status': job['status'],
-                'entries': final_entries
+                'entries': job['entries']
             })
             
     except Exception as e:
