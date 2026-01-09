@@ -3,12 +3,6 @@
 {% block title %}AWS Management - GBot Web{% endblock %}
 
 {% block content %}
-<!-- STATIC DEBUG: If you see this, the file IS updated. Generated: 2026-01-09 12:30 -->
-<div
-    style="background: #ff0000; color: white; padding: 15px; font-size: 18px; font-weight: bold; text-align: center; position: fixed; top: 0; left: 0; right: 0; z-index: 999999;">
-    🔴 CODE VERSION: JAN-09-1230 - IF YOU SEE THIS RED BANNER, THE SERVER HAS THE NEW CODE 🔴
-</div>
-<div style="margin-top: 60px;"></div>
 <div class="d-flex align-items-center justify-content-between mb-4">
     <h1 class="glass-text-primary mb-0" style="font-size: 2rem; font-weight: 700;">
         <i class="fas fa-cloud me-3"></i>AWS Management
@@ -2199,24 +2193,7 @@
                 if (data.success && data.config) {
                     // Store credentials in hidden fields or use directly
                     window.awsConfig = data.config;
-
-                    // DEBUG: Log everything to console
-                    console.log('[NAMING DEBUG] Full API response:', JSON.stringify(data.config, null, 2));
-                    console.log('[NAMING DEBUG] lambda_prefix:', data.config.lambda_prefix);
-                    console.log('[NAMING DEBUG] debug_user:', data.config.debug_user);
-                    console.log('[NAMING DEBUG] debug_prefix_origin:', data.config.debug_prefix_origin);
-
-                    // DEBUG: Create visible banner to show what backend returned
-                    let debugBanner = document.getElementById('naming-debug-banner');
-                    if (!debugBanner) {
-                        debugBanner = document.createElement('div');
-                        debugBanner.id = 'naming-debug-banner';
-                        debugBanner.style.cssText = 'background: #ff6600; color: white; padding: 10px; font-family: monospace; font-size: 11px; position: fixed; top: 50px; left: 0; right: 0; z-index: 99998; text-align: center;';
-                        document.body.prepend(debugBanner);
-                    }
-                    debugBanner.innerHTML = `<b>SESSION DEBUG:</b> user="${data.config.debug_session_user}" | user_id="${data.config.debug_session_user_id}" | role="${data.config.debug_session_role}" | keys=[${(data.config.debug_session_keys || []).join(',')}] | <b>RESULT:</b> prefix="${data.config.lambda_prefix}"`;
-
-                    log(`AWS credentials loaded from settings. User: ${data.config.debug_user}, Origin: ${data.config.debug_prefix_origin}`);
+                    log(`AWS credentials loaded from settings`);
 
                     // [MULTI-USER] Populate UI fields with user-scoped resource names from backend
                     // This ensures the user sees 'Angel-chromium' etc. instead of defaults

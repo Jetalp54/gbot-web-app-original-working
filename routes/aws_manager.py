@@ -56,16 +56,9 @@ def get_current_username():
     Handles both new sessions (with 'user' key) and old sessions (with only 'user_id').
     Returns None if no user is logged in.
     """
-    # CRITICAL DEBUG: Log all session keys
-    all_keys = list(session.keys()) if session else []
-    logger.error(f"[NAMING DEBUG] Session keys: {all_keys}")
-    logger.error(f"[NAMING DEBUG] session.get('user') = {session.get('user')}")
-    logger.error(f"[NAMING DEBUG] session.get('user_id') = {session.get('user_id')}")
-    
     # First, try the direct session username
     username = session.get('user')
     if username:
-        logger.error(f"[NAMING DEBUG] Found 'user' in session: {username}, returning: {username.split('@')[0].lower()}")
         return username.split('@')[0].lower()
     
     # Fallback: Try to get username from user_id via database query
@@ -75,12 +68,10 @@ def get_current_username():
             from database import User
             user = User.query.get(user_id)
             if user and user.username:
-                logger.error(f"[NAMING DEBUG] Recovered username from user_id {user_id}: {user.username}")
                 return user.username.split('@')[0].lower()
         except Exception as e:
-            logger.error(f"[NAMING DEBUG] Failed to recover username from user_id {user_id}: {e}")
+            logger.warning(f"Failed to recover username from user_id {user_id}: {e}")
     
-    logger.error("[NAMING DEBUG] FAILED - No user found in session, returning None")
     return None
 
 
@@ -831,28 +822,17 @@ def get_aws_config():
                 db.create_all()
         except Exception as e:
             logger.warning(f"Could not check/create aws_config table: {e}")
-        
         # Get the user's active AWS configuration (not just the first one)
         config = get_current_active_config()
         
         # Get dynamic naming configuration (handles user scoping)
         naming_config = get_naming_config()
         
-        # DIRECT SESSION DEBUG - Log session contents directly in this route
-        logger.error(f"[GET_AWS_CONFIG DEBUG] Direct session access:")
-        logger.error(f"[GET_AWS_CONFIG DEBUG] session['user'] via get = {session.get('user')}")
-        logger.error(f"[GET_AWS_CONFIG DEBUG] session['role'] via get = {session.get('role')}")
-        logger.error(f"[GET_AWS_CONFIG DEBUG] All session keys = {list(session.keys())}")
-        
-        # Pre-compute username for consistent use
-        current_username = get_current_username()
-        logger.error(f"[GET_AWS_CONFIG DEBUG] get_current_username() returned: {current_username}")
+        # Get session user for dynamic naming
+        _session_user = session.get('user')
 
         if not config or not config.is_configured:
-            logger.info("[AWS_CONFIG] No AWS configuration found - still returning naming config")
-            
-            # STILL compute and return naming config even without AWS credentials
-            _session_user = session.get('user')
+            # Return naming config even without AWS credentials configured
             if _session_user:
                 _lambda_prefix = f"{_session_user.split('@')[0].lower()}-chromium"
             else:
@@ -866,34 +846,16 @@ def get_aws_config():
                     's3_bucket': naming_config.get('s3_bucket', 'gbot-app-passwords'),
                     'ecr_repo_name': naming_config.get('ecr_repo_name', 'gbot-app-password-worker'),
                     'dynamodb_table': naming_config.get('dynamodb_table', 'gbot-app-passwords'),
-                    'debug_user': _session_user or 'None',
-                    'debug_prefix_origin': 'dynamic_no_aws' if _session_user else 'fallback',
-                    'debug_session_user': str(_session_user) if _session_user else 'MISSING',
-                    # Mark as not fully configured
                     'is_configured': False
                 },
-                'message': 'AWS credentials not configured - using naming defaults'
+                'message': 'AWS credentials not configured'
             })
         
-        logger.info("[AWS_CONFIG] ✓ AWS configuration loaded successfully")
-        # DIRECT INLINE SESSION ACCESS - No helper functions
-        _session_user = session.get('user')
-        _session_user_id = session.get('user_id')
-        _session_role = session.get('role')
-        _session_keys = list(session.keys())
-        
-        logger.error(f"[INLINE DEBUG] _session_user={_session_user}, _session_user_id={_session_user_id}, _session_role={_session_role}, keys={_session_keys}")
-        
-        # Compute lambda_prefix DIRECTLY - no helper functions
+        # Compute lambda_prefix based on logged-in user
         if _session_user:
-            _clean_username = _session_user.split('@')[0].lower()
-            _lambda_prefix = f"{_clean_username}-chromium"
-            _origin = 'direct_inline'
+            _lambda_prefix = f"{_session_user.split('@')[0].lower()}-chromium"
         else:
             _lambda_prefix = naming_config.get('lambda_prefix', 'gbot-chromium')
-            _origin = 'fallback'
-        
-        logger.error(f"[INLINE DEBUG] Computed _lambda_prefix={_lambda_prefix}, origin={_origin}")
         
         return jsonify({
             'success': True,
@@ -905,21 +867,12 @@ def get_aws_config():
                 's3_bucket': config.s3_bucket,
                 'instance_name': naming_config.get('instance_name'),
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
-                # DIRECT INLINE lambda_prefix - no helper functions!
                 'lambda_prefix': _lambda_prefix,
-                'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords',
-                # DEBUG INFO
-                'debug_user': _session_user or 'None',
-                'debug_prefix_origin': _origin,
-                'debug_session_keys': _session_keys,
-                'debug_session_user': str(_session_user) if _session_user else 'MISSING',
-                'debug_session_user_id': str(_session_user_id) if _session_user_id else 'MISSING',
-                'debug_session_role': str(_session_role) if _session_role else 'MISSING'
+                'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords'
             }
         })
     except Exception as e:
         logger.error(f"Error getting AWS config: {e}")
-        logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @aws_manager.route('/api/aws/create-dynamodb', methods=['POST'])
