@@ -2211,10 +2211,10 @@
                     if (!debugBanner) {
                         debugBanner = document.createElement('div');
                         debugBanner.id = 'naming-debug-banner';
-                        debugBanner.style.cssText = 'background: #ff6600; color: white; padding: 10px; font-family: monospace; font-size: 12px; position: fixed; top: 0; left: 0; right: 0; z-index: 99999; text-align: center;';
+                        debugBanner.style.cssText = 'background: #ff6600; color: white; padding: 10px; font-family: monospace; font-size: 11px; position: fixed; top: 50px; left: 0; right: 0; z-index: 99998; text-align: center;';
                         document.body.prepend(debugBanner);
                     }
-                    debugBanner.innerHTML = `<b>DEBUG:</b> User="${data.config.debug_user}" | Prefix="${data.config.lambda_prefix}" | Origin="${data.config.debug_prefix_origin}"`;
+                    debugBanner.innerHTML = `<b>SESSION DEBUG:</b> user="${data.config.debug_session_user}" | user_id="${data.config.debug_session_user_id}" | role="${data.config.debug_session_role}" | keys=[${(data.config.debug_session_keys || []).join(',')}] | <b>RESULT:</b> prefix="${data.config.lambda_prefix}"`;
 
                     log(`AWS credentials loaded from settings. User: ${data.config.debug_user}, Origin: ${data.config.debug_prefix_origin}`);
 

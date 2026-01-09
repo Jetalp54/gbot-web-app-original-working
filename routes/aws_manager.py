@@ -859,9 +859,13 @@ def get_aws_config():
                 # [MULTI-USER] Dynamic naming based on logged-in user
                 'lambda_prefix': f"{get_current_username()}-chromium" if get_current_username() else naming_config.get('lambda_prefix'),
                 'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords',
-                # DEBUG INFO
+                # DEBUG INFO - Raw session data to diagnose naming issue
                 'debug_user': get_current_username() or 'None',
-                'debug_prefix_origin': 'dynamic' if get_current_username() else 'fallback_db'
+                'debug_prefix_origin': 'dynamic' if get_current_username() else 'fallback_db',
+                'debug_session_keys': list(session.keys()) if session else [],
+                'debug_session_user': str(session.get('user', 'MISSING')),
+                'debug_session_user_id': str(session.get('user_id', 'MISSING')),
+                'debug_session_role': str(session.get('role', 'MISSING'))
             }
         })
     except Exception as e:
