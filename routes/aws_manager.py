@@ -50,6 +50,34 @@ ECR_REPO_NAME = DEFAULT_ECR_REPO_NAME
 logger = logging.getLogger(__name__)
 
 
+def get_current_username():
+    """
+    Get the current logged-in user's username from session.
+    Handles both new sessions (with 'user' key) and old sessions (with only 'user_id').
+    Returns None if no user is logged in.
+    """
+    # First, try the direct session username
+    username = session.get('user')
+    if username:
+        logger.debug(f"[NAMING] Found username in session: {username}")
+        return username.split('@')[0].lower()
+    
+    # Fallback: Try to get username from user_id via database query
+    user_id = session.get('user_id')
+    if user_id:
+        try:
+            from database import User
+            user = User.query.get(user_id)
+            if user and user.username:
+                logger.info(f"[NAMING] Recovered username from user_id {user_id}: {user.username}")
+                return user.username.split('@')[0].lower()
+        except Exception as e:
+            logger.error(f"[NAMING] Failed to recover username from user_id {user_id}: {e}")
+    
+    logger.warning("[NAMING] No user found in session - returning None")
+    return None
+
+
 def get_naming_config():
     """
     Get customizable naming configuration from database.
@@ -155,12 +183,8 @@ def get_naming_config_api():
                     'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
                     'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
                     'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
-                    # [MULTI-USER] Inline logic with Session Repair
-                    'lambda_prefix': (
-                        f"{(session.get('user') or (lambda: (__import__('database').User.query.get(session['user_id']).username if session.get('user_id') else None))()).split('@')[0].lower()}-chromium"
-                        if (session.get('user') or session.get('user_id')) 
-                        else (config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME)
-                    ),
+                    # [MULTI-USER] Dynamic naming based on logged-in user
+                    'lambda_prefix': f"{get_current_username()}-chromium" if get_current_username() else (config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME),
                     'instance_name': instance_name
                 }
             })
@@ -832,16 +856,12 @@ def get_aws_config():
                 'instance_name': naming_config.get('instance_name'),
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
-                # [MULTI-USER] Inline logic with Session Repair
-                'lambda_prefix': (
-                     f"{(session.get('user') or (lambda: (__import__('database').User.query.get(session['user_id']).username if session.get('user_id') else None))()).split('@')[0].lower()}-chromium"
-                     if (session.get('user') or session.get('user_id'))
-                     else naming_config.get('lambda_prefix')
-                ),
+                # [MULTI-USER] Dynamic naming based on logged-in user
+                'lambda_prefix': f"{get_current_username()}-chromium" if get_current_username() else naming_config.get('lambda_prefix'),
                 'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords',
                 # DEBUG INFO
-                'debug_user': str(session.get('user') or (session.get('user_id', 'None') if not session.get('user') else 'None')),
-                'debug_prefix_origin': 'dynamic_repaired' if (not session.get('user') and session.get('user_id')) else ('dynamic' if session.get('user') else 'fallback_db')
+                'debug_user': get_current_username() or 'None',
+                'debug_prefix_origin': 'dynamic' if get_current_username() else 'fallback_db'
             }
         })
     except Exception as e:
