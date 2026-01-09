@@ -154,8 +154,13 @@ def get_naming_config_api():
                     's3_bucket': config.s3_bucket or f"{instance_name}-app-passwords",
                     'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
                     'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
-                    # [MULTI-USER] Inline logic to guarantee session access
-                    'lambda_prefix': (f"{session.get('user').split('@')[0].lower()}-chromium" if session.get('user') else (config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME)),
+                    'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
+                    # [MULTI-USER] Inline logic with Session Repair
+                    'lambda_prefix': (
+                        f"{(session.get('user') or (lambda: (__import__('database').User.query.get(session['user_id']).username if session.get('user_id') else None))()).split('@')[0].lower()}-chromium"
+                        if (session.get('user') or session.get('user_id')) 
+                        else (config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME)
+                    ),
                     'instance_name': instance_name
                 }
             })
@@ -827,12 +832,16 @@ def get_aws_config():
                 'instance_name': naming_config.get('instance_name'),
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
-                # [MULTI-USER] Inline logic to guarantee session access
-                'lambda_prefix': (f"{session.get('user').split('@')[0].lower()}-chromium" if session.get('user') else naming_config.get('lambda_prefix')),
+                # [MULTI-USER] Inline logic with Session Repair
+                'lambda_prefix': (
+                     f"{(session.get('user') or (lambda: (__import__('database').User.query.get(session['user_id']).username if session.get('user_id') else None))()).split('@')[0].lower()}-chromium"
+                     if (session.get('user') or session.get('user_id'))
+                     else naming_config.get('lambda_prefix')
+                ),
                 'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords',
                 # DEBUG INFO
-                'debug_user': str(session.get('user')),
-                'debug_prefix_origin': 'dynamic' if session.get('user') else 'fallback_db'
+                'debug_user': str(session.get('user') or (session.get('user_id', 'None') if not session.get('user') else 'None')),
+                'debug_prefix_origin': 'dynamic_repaired' if (not session.get('user') and session.get('user_id')) else ('dynamic' if session.get('user') else 'fallback_db')
             }
         })
     except Exception as e:
