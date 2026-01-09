@@ -56,10 +56,16 @@ def get_current_username():
     Handles both new sessions (with 'user' key) and old sessions (with only 'user_id').
     Returns None if no user is logged in.
     """
+    # CRITICAL DEBUG: Log all session keys
+    all_keys = list(session.keys()) if session else []
+    logger.error(f"[NAMING DEBUG] Session keys: {all_keys}")
+    logger.error(f"[NAMING DEBUG] session.get('user') = {session.get('user')}")
+    logger.error(f"[NAMING DEBUG] session.get('user_id') = {session.get('user_id')}")
+    
     # First, try the direct session username
     username = session.get('user')
     if username:
-        logger.debug(f"[NAMING] Found username in session: {username}")
+        logger.error(f"[NAMING DEBUG] Found 'user' in session: {username}, returning: {username.split('@')[0].lower()}")
         return username.split('@')[0].lower()
     
     # Fallback: Try to get username from user_id via database query
@@ -69,12 +75,12 @@ def get_current_username():
             from database import User
             user = User.query.get(user_id)
             if user and user.username:
-                logger.info(f"[NAMING] Recovered username from user_id {user_id}: {user.username}")
+                logger.error(f"[NAMING DEBUG] Recovered username from user_id {user_id}: {user.username}")
                 return user.username.split('@')[0].lower()
         except Exception as e:
-            logger.error(f"[NAMING] Failed to recover username from user_id {user_id}: {e}")
+            logger.error(f"[NAMING DEBUG] Failed to recover username from user_id {user_id}: {e}")
     
-    logger.warning("[NAMING] No user found in session - returning None")
+    logger.error("[NAMING DEBUG] FAILED - No user found in session, returning None")
     return None
 
 

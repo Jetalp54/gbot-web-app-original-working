@@ -968,12 +968,22 @@ def api_delete_user():
         if username == session.get('user'):
             return jsonify({'success': False, 'error': 'Cannot delete your own account'})
         
+        # CASCADE DELETE: First delete all notifications referencing this user
+        try:
+            from database import Notification
+            deleted_notifications = Notification.query.filter_by(user_id=user.id).delete()
+            app.logger.info(f"Deleted {deleted_notifications} notifications for user {username} (id={user.id})")
+        except Exception as notif_err:
+            app.logger.warning(f"Could not delete notifications for user {username}: {notif_err}")
+        
         db.session.delete(user)
         db.session.commit()
         
         return jsonify({'success': True, 'message': f'User {username} deleted successfully'})
         
     except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error deleting user: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/delete-users', methods=['POST'])
