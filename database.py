@@ -195,7 +195,7 @@ class Notification(db.Model):
     title = db.Column(db.String(255), nullable=False)
     message = db.Column(db.Text, nullable=False)
     icon = db.Column(db.String(50), default='fa-bell')  # FontAwesome icon class
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Who triggered it
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=True)  # Who triggered it - CASCADE deletes notifications when user is deleted
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
