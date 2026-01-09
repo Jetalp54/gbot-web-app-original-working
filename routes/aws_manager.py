@@ -837,6 +837,16 @@ def get_aws_config():
         
         # Get dynamic naming configuration (handles user scoping)
         naming_config = get_naming_config()
+        
+        # DIRECT SESSION DEBUG - Log session contents directly in this route
+        logger.error(f"[GET_AWS_CONFIG DEBUG] Direct session access:")
+        logger.error(f"[GET_AWS_CONFIG DEBUG] session['user'] via get = {session.get('user')}")
+        logger.error(f"[GET_AWS_CONFIG DEBUG] session['role'] via get = {session.get('role')}")
+        logger.error(f"[GET_AWS_CONFIG DEBUG] All session keys = {list(session.keys())}")
+        
+        # Pre-compute username for consistent use
+        current_username = get_current_username()
+        logger.error(f"[GET_AWS_CONFIG DEBUG] get_current_username() returned: {current_username}")
 
         if not config or not config.is_configured:
             logger.info("[AWS_CONFIG] No AWS configuration found")
@@ -863,12 +873,12 @@ def get_aws_config():
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
                 # [MULTI-USER] Dynamic naming based on logged-in user
-                'lambda_prefix': f"{get_current_username()}-chromium" if get_current_username() else naming_config.get('lambda_prefix'),
+                'lambda_prefix': f"{current_username}-chromium" if current_username else naming_config.get('lambda_prefix'),
                 'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords',
                 # DEBUG INFO - Raw session data to diagnose naming issue
-                'debug_user': get_current_username() or 'None',
-                'debug_prefix_origin': 'dynamic' if get_current_username() else 'fallback_db',
-                'debug_session_keys': list(session.keys()) if session else [],
+                'debug_user': current_username or 'None',
+                'debug_prefix_origin': 'dynamic' if current_username else 'fallback_db',
+                'debug_session_keys': list(session.keys()),
                 'debug_session_user': str(session.get('user', 'MISSING')),
                 'debug_session_user_id': str(session.get('user_id', 'MISSING')),
                 'debug_session_role': str(session.get('role', 'MISSING'))
