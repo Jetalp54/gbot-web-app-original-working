@@ -2193,6 +2193,23 @@
                 if (data.success && data.config) {
                     // Store credentials in hidden fields or use directly
                     window.awsConfig = data.config;
+
+                    // DEBUG: Log everything to console
+                    console.log('[NAMING DEBUG] Full API response:', JSON.stringify(data.config, null, 2));
+                    console.log('[NAMING DEBUG] lambda_prefix:', data.config.lambda_prefix);
+                    console.log('[NAMING DEBUG] debug_user:', data.config.debug_user);
+                    console.log('[NAMING DEBUG] debug_prefix_origin:', data.config.debug_prefix_origin);
+
+                    // DEBUG: Create visible banner to show what backend returned
+                    let debugBanner = document.getElementById('naming-debug-banner');
+                    if (!debugBanner) {
+                        debugBanner = document.createElement('div');
+                        debugBanner.id = 'naming-debug-banner';
+                        debugBanner.style.cssText = 'background: #ff6600; color: white; padding: 10px; font-family: monospace; font-size: 12px; position: fixed; top: 0; left: 0; right: 0; z-index: 99999; text-align: center;';
+                        document.body.prepend(debugBanner);
+                    }
+                    debugBanner.innerHTML = `<b>DEBUG:</b> User="${data.config.debug_user}" | Prefix="${data.config.lambda_prefix}" | Origin="${data.config.debug_prefix_origin}"`;
+
                     log(`AWS credentials loaded from settings. User: ${data.config.debug_user}, Origin: ${data.config.debug_prefix_origin}`);
 
                     // [MULTI-USER] Populate UI fields with user-scoped resource names from backend
