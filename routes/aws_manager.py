@@ -857,31 +857,45 @@ def get_aws_config():
             })
         
         logger.info("[AWS_CONFIG] ✓ AWS configuration loaded successfully")
+        # DIRECT INLINE SESSION ACCESS - No helper functions
+        _session_user = session.get('user')
+        _session_user_id = session.get('user_id')
+        _session_role = session.get('role')
+        _session_keys = list(session.keys())
+        
+        logger.error(f"[INLINE DEBUG] _session_user={_session_user}, _session_user_id={_session_user_id}, _session_role={_session_role}, keys={_session_keys}")
+        
+        # Compute lambda_prefix DIRECTLY - no helper functions
+        if _session_user:
+            _clean_username = _session_user.split('@')[0].lower()
+            _lambda_prefix = f"{_clean_username}-chromium"
+            _origin = 'direct_inline'
+        else:
+            _lambda_prefix = naming_config.get('lambda_prefix', 'gbot-chromium')
+            _origin = 'fallback'
+        
+        logger.error(f"[INLINE DEBUG] Computed _lambda_prefix={_lambda_prefix}, origin={_origin}")
+        
         return jsonify({
             'success': True,
             'config': {
                 'access_key_id': config.access_key_id,
-                'secret_access_key': config.secret_access_key,  # Note: In production, consider encrypting this
+                'secret_access_key': config.secret_access_key,
                 'region': config.region,
                 'ecr_uri': config.ecr_uri or '',
                 's3_bucket': config.s3_bucket,
-                # Multi-tenant naming configuration
-                'ecr_uri': config.ecr_uri or '',
-                's3_bucket': config.s3_bucket,
-                # [MULTI-USER] Use dynamic naming config to ensure frontend sees the user-scoped names
                 'instance_name': naming_config.get('instance_name'),
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
-                'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
-                # [MULTI-USER] Dynamic naming based on logged-in user
-                'lambda_prefix': f"{current_username}-chromium" if current_username else naming_config.get('lambda_prefix'),
+                # DIRECT INLINE lambda_prefix - no helper functions!
+                'lambda_prefix': _lambda_prefix,
                 'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords',
-                # DEBUG INFO - Raw session data to diagnose naming issue
-                'debug_user': current_username or 'None',
-                'debug_prefix_origin': 'dynamic' if current_username else 'fallback_db',
-                'debug_session_keys': list(session.keys()),
-                'debug_session_user': str(session.get('user', 'MISSING')),
-                'debug_session_user_id': str(session.get('user_id', 'MISSING')),
-                'debug_session_role': str(session.get('role', 'MISSING'))
+                # DEBUG INFO
+                'debug_user': _session_user or 'None',
+                'debug_prefix_origin': _origin,
+                'debug_session_keys': _session_keys,
+                'debug_session_user': str(_session_user) if _session_user else 'MISSING',
+                'debug_session_user_id': str(_session_user_id) if _session_user_id else 'MISSING',
+                'debug_session_role': str(_session_role) if _session_role else 'MISSING'
             }
         })
     except Exception as e:
