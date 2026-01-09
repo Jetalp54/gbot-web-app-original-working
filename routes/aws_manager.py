@@ -849,11 +849,30 @@ def get_aws_config():
         logger.error(f"[GET_AWS_CONFIG DEBUG] get_current_username() returned: {current_username}")
 
         if not config or not config.is_configured:
-            logger.info("[AWS_CONFIG] No AWS configuration found")
+            logger.info("[AWS_CONFIG] No AWS configuration found - still returning naming config")
+            
+            # STILL compute and return naming config even without AWS credentials
+            _session_user = session.get('user')
+            if _session_user:
+                _lambda_prefix = f"{_session_user.split('@')[0].lower()}-chromium"
+            else:
+                _lambda_prefix = naming_config.get('lambda_prefix', 'gbot-chromium')
+            
             return jsonify({
                 'success': True,
-                'config': None,
-                'message': 'No AWS configuration found'
+                'config': {
+                    'lambda_prefix': _lambda_prefix,
+                    'instance_name': naming_config.get('instance_name', 'gbot'),
+                    's3_bucket': naming_config.get('s3_bucket', 'gbot-app-passwords'),
+                    'ecr_repo_name': naming_config.get('ecr_repo_name', 'gbot-app-password-worker'),
+                    'dynamodb_table': naming_config.get('dynamodb_table', 'gbot-app-passwords'),
+                    'debug_user': _session_user or 'None',
+                    'debug_prefix_origin': 'dynamic_no_aws' if _session_user else 'fallback',
+                    'debug_session_user': str(_session_user) if _session_user else 'MISSING',
+                    # Mark as not fully configured
+                    'is_configured': False
+                },
+                'message': 'AWS credentials not configured - using naming defaults'
             })
         
         logger.info("[AWS_CONFIG] ✓ AWS configuration loaded successfully")
