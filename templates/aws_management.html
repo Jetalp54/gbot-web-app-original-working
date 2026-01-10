@@ -1753,7 +1753,11 @@
                     const successResults = data.results.filter(r => r.success);
                     const failedResults = data.results.filter(r => !r.success);
 
-                    const passwords = successResults.map(r => `${r.email}:${r.app_password}`);
+                    // Format: email,password-without-dashes,smtp.gmail.com,587
+                    const passwords = successResults.map(r => {
+                        const cleanPassword = r.app_password.replace(/-/g, '');  // Remove dashes
+                        return `${r.email},${cleanPassword},smtp.gmail.com,587`;
+                    });
                     document.getElementById('resultsOutput').value = passwords.join('\n');
 
                     log(`✅ Fetched ${successResults.length} passwords from DynamoDB`);
@@ -1781,7 +1785,11 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    const lines = data.passwords.map(p => `${p.email}:${p.app_password}`);
+                    // Format: email,password-without-dashes,smtp.gmail.com,587
+                    const lines = data.passwords.map(p => {
+                        const cleanPassword = p.app_password.replace(/-/g, '');  // Remove dashes
+                        return `${p.email},${cleanPassword},smtp.gmail.com,587`;
+                    });
                     document.getElementById('resultsOutput').value = lines.join('\n');
                 }
             })
