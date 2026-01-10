@@ -4136,12 +4136,20 @@ def bulk_generate():
     if not users_raw:
         return jsonify({'success': False, 'error': 'No users provided'}), 400
 
-    # Get configurable naming from request (preferred) or database (fallback)
-    lambda_prefix_bulk = data.get('lambda_prefix', '').strip() or get_naming_config().get('production_lambda_name', 'gbot-chromium')
+    # [MULTI-USER] Get lambda_prefix based on logged-in user
+    # Priority: 1) Request data, 2) Session user dynamic prefix, 3) Database config
+    _session_user = session.get('user')
+    if data.get('lambda_prefix', '').strip():
+        lambda_prefix_bulk = data.get('lambda_prefix').strip()
+    elif _session_user:
+        lambda_prefix_bulk = f"{_session_user.split('@')[0].lower()}-chromium"
+    else:
+        lambda_prefix_bulk = get_naming_config().get('production_lambda_name', 'gbot-chromium')
+    
     dynamodb_table_bulk = data.get('dynamodb_table', '').strip() or get_naming_config().get('dynamodb_table', 'gbot-app-passwords')
     
-    logger.info(f"[BULK] Using lambda_prefix from REQUEST: {lambda_prefix_bulk}")
-    logger.info(f"[BULK] Using dynamodb_table from REQUEST: {dynamodb_table_bulk}")
+    logger.info(f"[BULK] Using lambda_prefix: {lambda_prefix_bulk} (user: {_session_user})")
+    logger.info(f"[BULK] Using dynamodb_table: {dynamodb_table_bulk}")
     
     # Auto-clear DynamoDB before starting new batch
     try:
@@ -5506,12 +5514,21 @@ def invoke_lambda():
         if not email or not password:
             return jsonify({'success': False, 'error': 'Please provide email and password.'}), 400
 
-        # Get lambda_prefix from request (preferred) or database (fallback)
-        lambda_prefix_invoke = data.get('lambda_prefix', '').strip() or get_naming_config().get('production_lambda_name', 'gbot-chromium')
-        logger.info(f"[INVOKE] Using lambda_prefix from REQUEST: {lambda_prefix_invoke}")
+        # [MULTI-USER] Get lambda_prefix based on logged-in user
+        # Priority: 1) Request data, 2) Session user dynamic prefix, 3) Database config
+        _session_user = session.get('user')
+        if data.get('lambda_prefix', '').strip():
+            lambda_prefix_invoke = data.get('lambda_prefix').strip()
+        elif _session_user:
+            lambda_prefix_invoke = f"{_session_user.split('@')[0].lower()}-chromium"
+        else:
+            lambda_prefix_invoke = get_naming_config().get('production_lambda_name', 'gbot-chromium')
+        
+        logger.info(f"[INVOKE] Using lambda_prefix: {lambda_prefix_invoke} (user: {_session_user})")
 
-        session = get_boto3_session(access_key, secret_key, region)
-        lam = session.client("lambda")
+        # NOTE: Use boto3_session to avoid shadowing Flask's session object!
+        boto3_session = get_boto3_session(access_key, secret_key, region)
+        lam = boto3_session.client("lambda")
 
         # Determine which Lambda function to use
         lambda_function_name = lambda_prefix_invoke  # Use prefix as base name
