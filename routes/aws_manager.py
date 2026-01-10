@@ -4148,8 +4148,14 @@ def bulk_generate():
     
     dynamodb_table_bulk = data.get('dynamodb_table', '').strip() or get_naming_config().get('dynamodb_table', 'gbot-app-passwords')
     
+    # CRITICAL: Pre-compute role_name BEFORE thread starts (while session is available)
+    # This avoids "Working outside of request context" error in background thread
+    naming_config_precomputed = get_naming_config()
+    lambda_role_name_bulk = naming_config_precomputed.get('lambda_role_name', 'gbot-app-password-lambda-role')
+    
     logger.info(f"[BULK] Using lambda_prefix: {lambda_prefix_bulk} (user: {_session_user})")
     logger.info(f"[BULK] Using dynamodb_table: {dynamodb_table_bulk}")
+    logger.info(f"[BULK] Using lambda_role_name: {lambda_role_name_bulk}")
     
     # Auto-clear DynamoDB before starting new batch
     try:
@@ -4207,7 +4213,7 @@ def bulk_generate():
     # We pass app_context explicitly if needed, but db operations need app context inside the thread
     from app import app
     
-    def background_process(app, job_id, users, access_key, secret_key, region, lambda_prefix_bulk):
+    def background_process(app, job_id, users, access_key, secret_key, region, lambda_prefix_bulk, lambda_role_name_bulk, dynamodb_table_bulk):
         """Background process to handle bulk user processing across geos"""
         # --- PROOF OF LIFE LOGGING ---
         print("\n" + "!"*80, flush=True)
@@ -4806,7 +4812,8 @@ def bulk_generate():
                                     else:
                                         logger.info(f"[BULK] [{geo}] ✓ Function {func_name} found in region {geo}")
                                         try:
-                                            role_arn = ensure_lambda_role(session_boto)
+                                            # Use pre-computed role_name (computed before thread started) to avoid session access
+                                            role_arn = ensure_lambda_role(session_boto, role_name=lambda_role_name_bulk)
                                             # Use configurable DynamoDB table name from bulk_generate scope
                                             chromium_env = {
                                                 "DYNAMODB_TABLE_NAME": dynamodb_table_bulk,  # Use configurable table name
@@ -5210,7 +5217,7 @@ def bulk_generate():
         try:
             print(f"[THREAD_START] Starting background thread for job {job_id}", flush=True)
             logger.info(f"[BULK] Thread wrapper: About to call background_process for job {job_id}")
-            background_process(app, job_id, users, access_key, secret_key, region, lambda_prefix_bulk)
+            background_process(app, job_id, users, access_key, secret_key, region, lambda_prefix_bulk, lambda_role_name_bulk, dynamodb_table_bulk)
             logger.info(f"[BULK] Thread wrapper: background_process completed for job {job_id}")
             print(f"[THREAD_START] Background thread completed for job {job_id}", flush=True)
         except Exception as thread_start_err:
