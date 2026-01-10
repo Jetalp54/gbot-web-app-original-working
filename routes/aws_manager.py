@@ -5557,13 +5557,10 @@ def invoke_lambda():
                 logger.info(f"[INVOKE] Using Lambda function {lambda_function_name} in {region} for {email}")
             else:
                 # No matching functions found in this region - try to find in other regions
-                logger.warning(f"[INVOKE] No matching Lambda functions found in {region}, searching other regions...")
+                logger.warning(f"[INVOKE] No matching Lambda functions found in {region}, searching all geo regions...")
                 
-                # List of common AWS regions to search
-                search_regions = [
-                    'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-                    'eu-west-1', 'eu-central-1', 'ap-southeast-1', 'ap-northeast-1'
-                ]
+                # Use the full AVAILABLE_GEO_REGIONS list to find Lambdas in any geo
+                search_regions = AVAILABLE_GEO_REGIONS
                 
                 found_function = False
                 for search_region in search_regions:
