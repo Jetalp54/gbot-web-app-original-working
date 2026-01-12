@@ -921,6 +921,11 @@ def create_dynamodb_table():
         session = get_boto3_session(access_key, secret_key, dynamodb_region)
         dynamodb = session.client('dynamodb')
         
+        # [DEBUG] Check Account ID
+        sts = session.client('sts')
+        account_id = sts.get_caller_identity()['Account']
+        logger.info(f"[DYNAMODB] Operating on Account ID: {account_id}, Region: {dynamodb_region}")
+        
         # Get table name from request (preferred) or database (fallback)
         table_name = data.get('table_name', '').strip() or get_naming_config().get('dynamodb_table', 'gbot-app-passwords')
         logger.info(f"[DYNAMODB] Using table name from REQUEST: {table_name} in region {dynamodb_region}")
@@ -951,7 +956,11 @@ def create_dynamodb_table():
             waiter.wait(TableName=table_name, WaiterConfig={'Delay': 2, 'MaxAttempts': 30})
             
             logger.info(f"[DYNAMODB] ✓ Table {table_name} created successfully")
-            return jsonify({'success': True, 'message': f'Table {table_name} created successfully'})
+            return jsonify({
+                'success': True, 
+                'message': f'Table {table_name} created successfully',
+                'account_id': account_id
+            })
             
     except Exception as e:
         logger.error(f"Error creating DynamoDB table: {e}")
@@ -6922,6 +6931,11 @@ def delete_dynamodb_table():
         session = get_boto3_session(access_key, secret_key, dynamodb_region)
         dynamodb = session.client('dynamodb')
         
+        # [DEBUG] Check Account ID
+        sts = session.client('sts')
+        account_id = sts.get_caller_identity()['Account']
+        logger.info(f"[DYNAMODB DELETE] Operating on Account ID: {account_id}, Region: {dynamodb_region}")
+        
         try:
             dynamodb.delete_table(TableName=table_name)
             logger.info(f"[DYNAMODB] ✓ Deleted table '{table_name}' in {dynamodb_region}")
@@ -6934,7 +6948,7 @@ def delete_dynamodb_table():
             if error_code == 'ResourceNotFoundException':
                 return jsonify({
                     'success': False,
-                    'error': f'DynamoDB table {table_name} does not exist in {dynamodb_region}.'
+                    'error': f'DynamoDB table {table_name} does not exist in {dynamodb_region} (Account: {account_id}).'
                 }), 404
             raise e
     except Exception as e:
