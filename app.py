@@ -2035,8 +2035,8 @@ def api_create_gsuite_user():
         
         if result.get('success'):
             try:
-                # Mark domain as used
-                domain = email.split('@')[1]
+                # Mark domain as used (ensure lowercase)
+                domain = email.split('@')[1].lower()
                 used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
                 if used_domain:
                     used_domain.ever_used = True
@@ -2112,14 +2112,15 @@ def api_create_random_admin_users():
         
         if result['success']:
             try:
-                # Mark domain as used
-                used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                # Mark domain as used (ensure lowercase)
+                domain_lower = domain.lower()
+                used_domain = UsedDomain.query.filter_by(domain_name=domain_lower).first()
                 if used_domain:
                     used_domain.ever_used = True
                     used_domain.updated_at = db.func.current_timestamp()
                 else:
                     new_used_domain = UsedDomain(
-                        domain_name=domain,
+                        domain_name=domain_lower,
                         ever_used=True,
                         is_verified=True,
                         user_count=num_users
@@ -3811,6 +3812,121 @@ def api_retrieve_domains_for_account():
         
     except Exception as e:
         logger.error(f"Error retrieving domains for account: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/mark-used-domains', methods=['POST'])
+@login_required
+def api_mark_used_domains():
+    """
+    Scans all configured accounts (Service Accounts and Google Accounts) for users,
+    identifies their domains, and marks them as 'used' in the database.
+    This acts as a repair/sync tool for domain persistence.
+    """
+    try:
+        from database import ServiceAccount, GoogleAccount, UsedDomain
+        
+        updated_count = 0
+        created_count = 0
+        processed_domains = set()
+        
+        # 1. Process Service Accounts
+        service_accounts = ServiceAccount.query.all()
+        for sa in service_accounts:
+            try:
+                logging.info(f"Scanning Service Account: {sa.name}")
+                from services.google_domains_service import GoogleDomainsService
+                domains_service = GoogleDomainsService(sa.name)
+                admin_service = domains_service._get_admin_service()
+                
+                # List all users
+                page_token = None
+                while True:
+                    users_result = admin_service.users().list(
+                        customer='my_customer',
+                        maxResults=500,
+                        pageToken=page_token
+                    ).execute()
+                    
+                    users = users_result.get('users', [])
+                    for user in users:
+                        email = user.get('primaryEmail', '')
+                        if email and '@' in email:
+                            domain = email.split('@')[1].lower()
+                            processed_domains.add(domain)
+                    
+                    page_token = users_result.get('nextPageToken')
+                    if not page_token:
+                        break
+            except Exception as e:
+                logging.error(f"Error scanning Service Account {sa.name}: {e}")
+        
+        # 2. Process Google Accounts (Legacy/OAuth)
+        google_accounts = GoogleAccount.query.all()
+        for ga in google_accounts:
+            try:
+                logging.info(f"Scanning Google Account: {ga.account_name}")
+                if google_api.authenticate_with_tokens(ga.account_name):
+                    page_token = None
+                    while True:
+                        users_result = google_api.service.users().list(
+                            customer='my_customer',
+                            maxResults=500,
+                            pageToken=page_token
+                        ).execute()
+                        
+                        users = users_result.get('users', [])
+                        for user in users:
+                            email = user.get('primaryEmail', '')
+                            if email and '@' in email:
+                                domain = email.split('@')[1].lower()
+                                processed_domains.add(domain)
+                        
+                        page_token = users_result.get('nextPageToken')
+                        if not page_token:
+                            break
+            except Exception as e:
+                logging.error(f"Error scanning Google Account {ga.account_name}: {e}")
+
+        # 3. Update Database
+        logging.info(f"Found {len(processed_domains)} active domains: {processed_domains}")
+        
+        for domain in processed_domains:
+            existing = UsedDomain.query.filter_by(domain_name=domain).first()
+            if existing:
+                if not existing.ever_used:
+                    existing.ever_used = True
+                    existing.updated_at = db.func.current_timestamp()
+                    updated_count += 1
+            else:
+                new_domain = UsedDomain(
+                    domain_name=domain,
+                    ever_used=True,
+                    is_verified=True, # Assume verified if it has users
+                    user_count=0 # Will be updated by retrieve logic
+                )
+                db.session.add(new_domain)
+                created_count += 1
+        
+        db.session.commit()
+        
+        # Get Stats
+        total_used = UsedDomain.query.filter_by(ever_used=True).count()
+        total_available = UsedDomain.query.filter_by(ever_used=False).count()
+        
+        return jsonify({
+            'success': True, 
+            'message': f"Successfully processed {len(processed_domains)} active domains.",
+            'stats': {
+                'updated': updated_count,
+                'created': created_count,
+                'total_used': total_used,
+                'total_available': total_available
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Mark used domains error: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)})
 
