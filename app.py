@@ -2496,14 +2496,15 @@ def api_bulk_create_account_users():
                     
                     if success_count > 0:
                         try:
-                            # Mark domain as used
-                            used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                            # Mark domain as used (ensure lowercase)
+                            domain_lower = domain.lower()
+                            used_domain = UsedDomain.query.filter_by(domain_name=domain_lower).first()
                             if used_domain:
                                 used_domain.ever_used = True
                                 used_domain.updated_at = db.func.current_timestamp()
                             else:
                                 new_used_domain = UsedDomain(
-                                    domain_name=domain,
+                                    domain_name=domain_lower,
                                     ever_used=True,
                                     is_verified=True,
                                     user_count=success_count
@@ -3613,22 +3614,21 @@ def api_retrieve_domains_for_account():
                 for user in all_users:
                     email = user.get('primaryEmail', '')
                     if email and '@' in email:
-                        domain = email.split('@')[1]
+                        domain = email.split('@')[1].lower()
                         domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
                 
                 # Format domains with status information
                 from database import UsedDomain
                 formatted_domains = []
                 
-                # Create a set of domain names from Google API for easy lookup
-                api_domain_names = {d.get('domainName') for d in all_domains}
+                api_domain_names = {d.get('domainName', '').lower() for d in all_domains}
                 
                 # Fetch all used domains from DB
                 db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
                 
                 # Add DB-only domains to all_domains list
                 for db_domain in db_used_domains:
-                    if db_domain.domain_name not in api_domain_names:
+                    if db_domain.domain_name.lower() not in api_domain_names:
                         all_domains.append({
                             'domainName': db_domain.domain_name,
                             'verified': db_domain.is_verified,
@@ -3740,18 +3740,38 @@ def api_retrieve_domains_for_account():
         for user in all_users:
             email = user.get('primaryEmail', '')
             if email and '@' in email:
-                domain = email.split('@')[1]
+                domain = email.split('@')[1].lower()
                 domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
         
         # Format domains with status information
         formatted_domains = []
+        
+        # Create a set of domain names from Google API for easy lookup
+        api_domain_names = {d.get('domainName', '').lower() for d in all_domains if d.get('domainName')}
+        
+        # Fetch all used domains from DB
+        from database import UsedDomain
+        db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
+        
+        # Add DB-only domains to all_domains list
+        for db_domain in db_used_domains:
+            if db_domain.domain_name.lower() not in api_domain_names:
+                all_domains.append({
+                    'domainName': db_domain.domain_name,
+                    'verified': db_domain.is_verified,
+                    'isPrimary': False
+                })
+
         for domain in all_domains:
             domain_name = domain.get('domainName', '')
             if not domain_name:
                 continue
             
-            user_count = domain_user_counts.get(domain_name, 0)
-            domain_record = UsedDomain.query.filter_by(domain_name=domain_name).first()
+            # Use lowercase for lookup
+            domain_name_lower = domain_name.lower()
+            
+            user_count = domain_user_counts.get(domain_name_lower, 0)
+            domain_record = UsedDomain.query.filter_by(domain_name=domain_name_lower).first()
             
             ever_used = False
             if domain_record:

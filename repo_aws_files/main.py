@@ -4194,7 +4194,7 @@ def enable_two_step_verification(driver, email):
 # =====================================================================
 
 
-def generate_app_password(driver, email):
+def generate_app_password(driver, email, dynamodb_table=None):
     """
     Navigate to App Passwords page and generate a new app password.
     Based on reference script G_Ussers_No_Timing.py generate_app_password function.
@@ -4216,7 +4216,7 @@ def generate_app_password(driver, email):
         current_url = driver.current_url
         if "challenge/totp" in current_url:
             logger.info("[STEP] TOTP challenge detected during navigation to app passwords page")
-            known_totp_secret = get_secret_key_from_dynamodb(email)
+            known_totp_secret = get_secret_key_from_dynamodb(email, table_name=dynamodb_table)
             if known_totp_secret:
                 logger.info("[STEP] TOTP secret found in DynamoDB, handling TOTP challenge...")
                 try:
@@ -4636,12 +4636,12 @@ def ensure_dynamodb_table_exists(table_name="dev-app-passwords"):
         logger.error(f"[DYNAMODB] Traceback: {traceback.format_exc()}")
         return False
 
-def get_secret_key_from_dynamodb(email):
+def get_secret_key_from_dynamodb(email, table_name=None):
     """
     Retrieve TOTP secret key from DynamoDB for the given email.
     Returns the full secret key (unmasked) if found, None otherwise.
     """
-    table_name = os.environ.get("DYNAMODB_TABLE_NAME", "dev-app-passwords")
+    table_name = table_name or os.environ.get("DYNAMODB_TABLE_NAME", "dev-app-passwords")
     
     try:
         dynamodb = get_dynamodb_resource()
@@ -4980,7 +4980,7 @@ def handler(event, context):
                         os.environ.pop('PROXY_CONFIG', None)
                     
                     # Process the user again
-                    retry_result = process_single_user(email, password, start_time)
+                    retry_result = process_single_user(email, password, start_time, dynamodb_table=table_name)
                     
                     if retry_result.get("status") == "success":
                         logger.info(f"[RETRY] ✅ SUCCESS on retry: {email}")
@@ -5241,7 +5241,7 @@ def process_single_user(email, password, batch_start_time=None, dynamodb_table=N
         
         while app_password_retry_count <= max_app_password_retries:
             step_start = time.time()
-            success, app_password, error_code, error_message = generate_app_password(driver, email)
+            success, app_password, error_code, error_message = generate_app_password(driver, email, dynamodb_table=dynamodb_table)
             timings["app_password"] = round(time.time() - step_start, 2)
             
             if success:
