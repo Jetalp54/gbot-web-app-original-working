@@ -2032,6 +2032,27 @@ def api_create_gsuite_user():
             return jsonify({'success': False, 'error': 'All fields are required'})
 
         result = google_api.create_gsuite_user(first_name, last_name, email, password)
+        
+        if result.get('success'):
+            try:
+                # Mark domain as used
+                domain = email.split('@')[1]
+                used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                if used_domain:
+                    used_domain.ever_used = True
+                    used_domain.updated_at = db.func.current_timestamp()
+                else:
+                    new_used_domain = UsedDomain(
+                        domain_name=domain,
+                        ever_used=True,
+                        is_verified=True,
+                        user_count=1
+                    )
+                    db.session.add(new_used_domain)
+                db.session.commit()
+            except Exception as db_e:
+                app.logger.error(f"Failed to mark domain {domain} as used: {db_e}")
+                
         return jsonify(result)
 
     except Exception as e:
@@ -2090,6 +2111,25 @@ def api_create_random_admin_users():
         )
         
         if result['success']:
+            try:
+                # Mark domain as used
+                used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                if used_domain:
+                    used_domain.ever_used = True
+                    used_domain.updated_at = db.func.current_timestamp()
+                else:
+                    new_used_domain = UsedDomain(
+                        domain_name=domain,
+                        ever_used=True,
+                        is_verified=True,
+                        user_count=num_users
+                    )
+                    db.session.add(new_used_domain)
+                db.session.commit()
+                logging.info(f"Marked domain {domain} as used (admin users)")
+            except Exception as db_e:
+                logging.error(f"Failed to mark domain {domain} as used: {db_e}")
+
             return jsonify({
                 'success': True,
                 'message': f'Successfully created {num_users} random admin users',
@@ -2103,7 +2143,7 @@ def api_create_random_admin_users():
                 'error': result.get('error', 'Unknown error'),
                 'error_type': result.get('error_type', 'unknown')
             })
-            
+
     except Exception as e:
         logging.error(f"Create random admin users error: {e}")
         return jsonify({'success': False, 'error': str(e)})
@@ -2159,6 +2199,26 @@ def api_create_random_users():
 
         result = google_api.create_random_users(num_users, domain, password)
         signal.alarm(0)  # Cancel timeout
+        
+        if result.get('success') and result.get('successful_count', 0) > 0:
+            try:
+                # Mark domain as used
+                used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                if used_domain:
+                    used_domain.ever_used = True
+                    used_domain.updated_at = db.func.current_timestamp()
+                else:
+                    new_used_domain = UsedDomain(
+                        domain_name=domain,
+                        ever_used=True,
+                        is_verified=True,
+                        user_count=result.get('successful_count', 0)
+                    )
+                    db.session.add(new_used_domain)
+                db.session.commit()
+            except Exception as db_e:
+                app.logger.error(f"Failed to mark domain {domain} as used: {db_e}")
+                
         return jsonify(result)
 
     except Exception as e:
@@ -2431,7 +2491,28 @@ def api_bulk_create_account_users():
                             })
                             app.logger.warning(f"[BULK ACCOUNTS] [{account_name}] ✗ Failed to create user: {error_msg}")
                     
-                    app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Completed: {sum(1 for u in account_result['users'] if u.get('success'))}/{len(account_result['users'])} users created")
+                    success_count = sum(1 for u in account_result['users'] if u.get('success'))
+                    app.logger.info(f"[BULK ACCOUNTS] [{account_name}] ✓ Completed: {success_count}/{len(account_result['users'])} users created")
+                    
+                    if success_count > 0:
+                        try:
+                            # Mark domain as used
+                            used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                            if used_domain:
+                                used_domain.ever_used = True
+                                used_domain.updated_at = db.func.current_timestamp()
+                            else:
+                                new_used_domain = UsedDomain(
+                                    domain_name=domain,
+                                    ever_used=True,
+                                    is_verified=True,
+                                    user_count=success_count
+                                )
+                                db.session.add(new_used_domain)
+                            db.session.commit()
+                            app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Marked domain {domain} as used")
+                        except Exception as db_e:
+                            app.logger.error(f"[BULK ACCOUNTS] [{account_name}] Failed to mark domain {domain} as used: {db_e}")
                     
                 except Exception as e:
                     account_result['error'] = str(e)
@@ -3171,9 +3252,34 @@ def api_update_user_passwords():
 @login_required
 def api_get_domain_info():
     try:
+        # Get live domains from Google
         result = google_api.get_domain_info()
-        return jsonify(result)
+        live_domains = result.get('domains', []) if result.get('success') else []
+        
+        # Get used domains from database
+        db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
+        
+        # Create a set of live domain names for easy lookup
+        live_domain_names = {d.get('domainName') for d in live_domains}
+        
+        # Merge DB domains if they aren't in the live list
+        for db_domain in db_used_domains:
+            if db_domain.domain_name not in live_domain_names:
+                # Add domain from DB to the list
+                live_domains.append({
+                    'domainName': db_domain.domain_name,
+                    'verified': db_domain.is_verified,
+                    'isPrimary': False, # DB-only domains are likely not primary
+                    'source': 'database', # Flag to indicate source
+                    'user_count': db_domain.user_count
+                })
+        
+        # Sort domains by name
+        live_domains.sort(key=lambda x: x.get('domainName', ''))
+        
+        return jsonify({'success': True, 'domains': live_domains})
     except Exception as e:
+        app.logger.error(f"Error fetching domain info: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/add-domain-alias', methods=['POST'])
@@ -3513,6 +3619,22 @@ def api_retrieve_domains_for_account():
                 # Format domains with status information
                 from database import UsedDomain
                 formatted_domains = []
+                
+                # Create a set of domain names from Google API for easy lookup
+                api_domain_names = {d.get('domainName') for d in all_domains}
+                
+                # Fetch all used domains from DB
+                db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
+                
+                # Add DB-only domains to all_domains list
+                for db_domain in db_used_domains:
+                    if db_domain.domain_name not in api_domain_names:
+                        all_domains.append({
+                            'domainName': db_domain.domain_name,
+                            'verified': db_domain.is_verified,
+                            'isPrimary': False
+                        })
+                
                 for domain in all_domains:
                     domain_name = domain.get('domainName', '')
                     if not domain_name:
