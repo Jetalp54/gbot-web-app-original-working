@@ -2071,21 +2071,16 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    log(`DynamoDB table cleanup completed. Deleted: ${data.deleted_count}, Not found: ${data.not_found_regions?.length || 0}, Errors: ${data.error_count}`);
-                    if (data.deleted_regions && data.deleted_regions.length > 0) {
-                        log(`Deleted in regions: ${data.deleted_regions.join(', ')}`);
-                    }
-                    if (data.error_regions && data.error_regions.length > 0) {
-                        log(`Errors in regions: ${data.error_regions.join(', ')}`);
-                    }
-                    alert(`DynamoDB cleanup completed. Deleted: ${data.deleted_count} table(s)`);
+                    // Show actual message from backend
+                    log(`✅ DynamoDB: ${data.message || 'Delete completed'}`);
+                    alert(data.message || 'DynamoDB table deleted successfully!');
                 } else {
-                    log(`ERROR deleting DynamoDB table: ${data.error}`);
+                    log(`❌ ERROR deleting DynamoDB table: ${data.error}`);
                     alert(`Error: ${data.error}`);
                 }
             })
             .catch(error => {
-                log(`ERROR: ${error.message}`);
+                log(`❌ ERROR: ${error.message}`);
                 alert(`Error: ${error.message}`);
             });
     }
