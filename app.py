@@ -112,6 +112,9 @@ def cleanup_old_progress():
 app = Flask(__name__)
 app.config.from_object('config')
 
+# Global lock for Google API calls to prevent multi-thread race conditions
+domain_api_lock = threading.Lock()
+
 # Set secret key for sessions
 if app.config.get('SECRET_KEY'):
     app.secret_key = app.config['SECRET_KEY']
@@ -3724,46 +3727,50 @@ def api_retrieve_domains_for_account():
         logging.info(f"Found GoogleAccount: {account_name} for email {account_email}")
         
         # Authenticate with this account's tokens
-        if google_api.is_token_valid(account_name):
-            success = google_api.authenticate_with_tokens(account_name)
-            if not success:
-                return jsonify({'success': False, 'error': f'Failed to authenticate with saved tokens for {account_name}. Please re-authenticate this account.'})
-        else:
-            return jsonify({'success': False, 'error': f'No valid tokens found for {account_name}. Please re-authenticate this account.'})
-        
-        # Get domains using batched mode
-        all_domains = []
-        next_token = None
-        
-        while True:
-            result = google_api.get_domains_batch(page_token=next_token)
-            if not result['success']:
-                return jsonify({'success': False, 'error': result.get('error', 'Unknown error')})
+        # USE LOCK TO PREVENT RACE CONDITIONS in shared google_api service
+        with domain_api_lock:
+            if google_api.is_token_valid(account_name):
+                success = google_api.authenticate_with_tokens(account_name)
+                if not success:
+                    return jsonify({'success': False, 'error': f'Failed to authenticate with saved tokens for {account_name}. Please re-authenticate this account.'})
+            else:
+                return jsonify({'success': False, 'error': f'No valid tokens found for {account_name}. Please re-authenticate this account.'})
             
-            domains = result.get('domains', [])
-            all_domains.extend(domains)
+            # Get domains using batched mode
+            all_domains = []
+            next_token = None
             
-            next_token = result.get('next_page_token')
-            if not next_token:
-                break
+            while True:
+                result = google_api.get_domains_batch(page_token=next_token)
+                if not result['success']:
+                    return jsonify({'success': False, 'error': result.get('error', 'Unknown error')})
+                
+                domains = result.get('domains', [])
+                all_domains.extend(domains)
+                
+                next_token = result.get('next_page_token')
+                if not next_token:
+                    break
         
         # Get user counts for domains to determine status
         from database import UsedDomain
         all_users = []
         try:
             # Get all users to calculate domain usage
-            page_token = None
-            while True:
-                users_result = google_api.service.users().list(
-                    customer='my_customer',
-                    maxResults=500,
-                    pageToken=page_token
-                ).execute()
-                users = users_result.get('users', [])
-                all_users.extend(users)
-                page_token = users_result.get('nextPageToken')
-                if not page_token:
-                    break
+            # We use the lock here too as getting users might use the service
+            with domain_api_lock:
+                page_token = None
+                while True:
+                    users_result = google_api.service.users().list(
+                        customer='my_customer',
+                        maxResults=500,
+                        pageToken=page_token
+                    ).execute()
+                    users = users_result.get('users', [])
+                    all_users.extend(users)
+                    page_token = users_result.get('nextPageToken')
+                    if not page_token:
+                        break
         except Exception as users_err:
             logger.warning(f"Could not fetch users for domain status: {users_err}")
         
@@ -3778,34 +3785,12 @@ def api_retrieve_domains_for_account():
         # Format domains with status information
         formatted_domains = []
         
+        # NOTE: We DO NOT merge DB-only domains here anymore. This was determining "ownership" 
+        # loosely and causing data leaks between accounts. We strictly show only domains 
+        # returned by Google API for this account.
+        
         # Create a set of domain names from Google API for easy lookup
-        api_domain_names = {d.get('domainName', '').lower() for d in all_domains if d.get('domainName')}
-        
-        # Fetch all used domains from DB
-        from database import UsedDomain
-        db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
-        
-        # Add DB-only domains to all_domains list, BUT ONLY if they belong to this account
-        # We assume a DB domain belongs to this account if it is a subdomain of any live domain
-        live_root_domains = api_domain_names  # Already a set of lowercase domains
-        
-        for db_domain in db_used_domains:
-            if db_domain.domain_name.lower() not in api_domain_names:
-                # Check if it's a subdomain of any live root domain
-                domain_lower = db_domain.domain_name.lower()
-                belongs_to_account = False
-                
-                for root in live_root_domains:
-                    if domain_lower == root or domain_lower.endswith('.' + root):
-                        belongs_to_account = True
-                        break
-                
-                if belongs_to_account:
-                    all_domains.append({
-                        'domainName': db_domain.domain_name,
-                        'verified': db_domain.is_verified,
-                        'isPrimary': False
-                    })
+        # api_domain_names = {d.get('domainName', '').lower() for d in all_domains if d.get('domainName')}
 
         for domain in all_domains:
             domain_name = domain.get('domainName', '')
@@ -4230,19 +4215,21 @@ def api_get_domain_usage_stats():
         
         # If cache miss, fetch from Google API
         if not live_root_domains:
-            # Authenticate if needed
-            if not google_api.service:
-                if google_api.is_token_valid(account_name):
-                    google_api.authenticate_with_tokens(account_name)
-            
             try:
-                # logging.info(f"Fetching fresh domain list from Google for {account_name}...")
-                api_result = google_api.get_domain_info()
-                if api_result.get('success'):
-                    live_domains = api_result.get('domains', [])
-                    live_root_domains = {d.get('domainName', '').lower() for d in live_domains}
-                    # Cache the result
-                    session[cache_key] = list(live_root_domains)
+                # Use lock to prevent race conditions during auth and fetch
+                with domain_api_lock:
+                    # Authenticate if needed
+                    if not google_api.service:
+                        if google_api.is_token_valid(account_name):
+                            google_api.authenticate_with_tokens(account_name)
+                    
+                    # logging.info(f"Fetching fresh domain list from Google for {account_name}...")
+                    api_result = google_api.get_domain_info()
+                    if api_result.get('success'):
+                        live_domains = api_result.get('domains', [])
+                        live_root_domains = {d.get('domainName', '').lower() for d in live_domains}
+                        # Cache the result
+                        session[cache_key] = list(live_root_domains)
             except Exception as e:
                 logging.warning(f"Failed to fetch live domains for filter: {e}")
                 # If API fails, we can't safely filter, so we might return empty or everything.
