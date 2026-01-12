@@ -684,8 +684,9 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    log(`✅ DynamoDB table created: ${naming.dynamodb_table}`);
-                    alert(`DynamoDB table "${naming.dynamodb_table}" created successfully!`);
+                    // Show actual message from backend (could be "created" or "already exists")
+                    log(`✅ DynamoDB: ${data.message || 'Success'}`);
+                    alert(data.message || `DynamoDB table "${naming.dynamodb_table}" operation completed!`);
                 } else {
                     log(`❌ ERROR creating DynamoDB table: ${data.error}`);
                     alert(`Error: ${data.error}`);
