@@ -3785,14 +3785,27 @@ def api_retrieve_domains_for_account():
         from database import UsedDomain
         db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
         
-        # Add DB-only domains to all_domains list
+        # Add DB-only domains to all_domains list, BUT ONLY if they belong to this account
+        # We assume a DB domain belongs to this account if it is a subdomain of any live domain
+        live_root_domains = api_domain_names  # Already a set of lowercase domains
+        
         for db_domain in db_used_domains:
             if db_domain.domain_name.lower() not in api_domain_names:
-                all_domains.append({
-                    'domainName': db_domain.domain_name,
-                    'verified': db_domain.is_verified,
-                    'isPrimary': False
-                })
+                # Check if it's a subdomain of any live root domain
+                domain_lower = db_domain.domain_name.lower()
+                belongs_to_account = False
+                
+                for root in live_root_domains:
+                    if domain_lower == root or domain_lower.endswith('.' + root):
+                        belongs_to_account = True
+                        break
+                
+                if belongs_to_account:
+                    all_domains.append({
+                        'domainName': db_domain.domain_name,
+                        'verified': db_domain.is_verified,
+                        'isPrimary': False
+                    })
 
         for domain in all_domains:
             domain_name = domain.get('domainName', '')
