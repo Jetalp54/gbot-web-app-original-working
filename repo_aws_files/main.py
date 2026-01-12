@@ -4675,16 +4675,16 @@ def get_secret_key_from_dynamodb(email):
         return None
 
 
-def save_to_dynamodb(email, app_password, secret_key=None):
+def save_to_dynamodb(email, app_password, secret_key=None, table_name=None):
     """
     Save app password to DynamoDB for reliable storage and retrieval.
-    Table: dev-app-passwords
+    Table: dev-app-passwords (default) or dynamic
     Primary Key: email
     Attributes: email, app_password, secret_key, created_at, updated_at
     
     Automatically creates the table if it doesn't exist.
     """
-    table_name = os.environ.get("DYNAMODB_TABLE_NAME", "dev-app-passwords")
+    table_name = table_name or os.environ.get("DYNAMODB_TABLE_NAME", "dev-app-passwords")
     
     try:
         # Use shared DynamoDB resource for better connection pooling and performance
@@ -4785,6 +4785,10 @@ def handler(event, context):
     # Check if this is a batch request (new format) or single user (backward compatible)
     users_batch = event.get("users")
     
+    # Get dynamic DynamoDB table from event (priority) or env var
+    dynamodb_table = event.get("dynamodb_table")
+    table_name = dynamodb_table or os.environ.get("DYNAMODB_TABLE_NAME", "dev-app-passwords")
+    
     if users_batch:
         # Batch processing mode - UNLIMITED users, processed in sequential batches of 3
         if not isinstance(users_batch, list):
@@ -4803,7 +4807,6 @@ def handler(event, context):
         logger.info(f"[LAMBDA] Received {total_users} users to process in batches of {PARALLEL_BATCH_SIZE}")
         
         # Ensure DynamoDB table exists before processing
-        table_name = os.environ.get("DYNAMODB_TABLE_NAME", "dev-app-passwords")
         logger.info(f"[LAMBDA] Ensuring DynamoDB table exists: {table_name}")
         ensure_dynamodb_table_exists(table_name)
         
@@ -4811,7 +4814,7 @@ def handler(event, context):
         all_results = []
         total_batches = (total_users + PARALLEL_BATCH_SIZE - 1) // PARALLEL_BATCH_SIZE  # Ceiling division
         
-        def process_user_wrapper(user_data, idx, batch_num, users_in_batch):
+        def process_user_wrapper(user_data, idx, batch_num, users_in_batch, dynamodb_table=None):
             """Wrapper function to process a single user with proper error handling"""
             email = user_data.get("email", "").strip()
             password = user_data.get("password", "").strip()
@@ -4844,7 +4847,7 @@ def handler(event, context):
             
             logger.info(f"[LAMBDA] [BATCH {batch_num}] Starting processing of user {idx + 1}/{users_in_batch}: {email}")
             try:
-                user_result = process_single_user(email, password, start_time)
+                user_result = process_single_user(email, password, start_time, dynamodb_table=dynamodb_table)
                 logger.info(f"[LAMBDA] [BATCH {batch_num}] Completed user {idx + 1}/{users_in_batch}: {email} - Status: {user_result.get('status', 'unknown')}")
                 return user_result
             except Exception as e:
@@ -4884,7 +4887,7 @@ def handler(event, context):
             if sequential_mode:
                 logger.info(f"[LAMBDA] [BATCH {batch_num}] SEQUENTIAL_PROCESSING enabled. Processing {users_in_batch} users one by one.")
                 for idx, user_data in enumerate(current_batch):
-                    result = process_user_wrapper(user_data, idx, batch_num, users_in_batch)
+                    result = process_user_wrapper(user_data, idx, batch_num, users_in_batch, dynamodb_table=table_name)
                     batch_results.append(result)
                     time.sleep(2)  # Cool-down between users
             else:
@@ -4894,7 +4897,7 @@ def handler(event, context):
                 
                 with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
                     future_to_user = {
-                        executor.submit(process_user_wrapper, user_data, idx, batch_num, users_in_batch): (idx, user_data)
+                        executor.submit(process_user_wrapper, user_data, idx, batch_num, users_in_batch, table_name): (idx, user_data)
                         for idx, user_data in enumerate(current_batch)
                     }
                     
@@ -5028,6 +5031,10 @@ def handler(event, context):
         # Single user mode (backward compatible)
         email = event.get("email", os.environ.get("GW_EMAIL"))
         password = event.get("password", os.environ.get("GW_PASSWORD"))
+        
+        # Get dynamic DynamoDB table from event (priority) or env var
+        dynamodb_table = event.get("dynamodb_table")
+        table_name = dynamodb_table or os.environ.get("DYNAMODB_TABLE_NAME", "dev-app-passwords")
     
     if not email or not password:
         return {
@@ -5039,12 +5046,16 @@ def handler(event, context):
             "secret_key": None,
             "timings": timings
         }
-        
-        logger.info(f"[LAMBDA] Single user mode: {email}")
-        return process_single_user(email, password, start_time)
+    
+    logger.info(f"[LAMBDA] Single user mode: {email} (Table: {table_name})")
+    
+    # Ensure DynamoDB table exists
+    ensure_dynamodb_table_exists(table_name)
+    
+    return process_single_user(email, password, start_time, dynamodb_table=table_name)
 
 
-def process_single_user(email, password, batch_start_time=None):
+def process_single_user(email, password, batch_start_time=None, dynamodb_table=None):
     """
     Process a single user account through all steps.
     Returns result dictionary with status, app_password, secret_key, etc.
@@ -5293,7 +5304,7 @@ def process_single_user(email, password, batch_start_time=None):
         
         # Step 4.5: Save App Password to DynamoDB
         step_start = time.time()
-        dynamo_success = save_to_dynamodb(email, app_password, secret_key)
+        dynamo_success = save_to_dynamodb(email, app_password, secret_key, table_name=dynamodb_table)
         timings["dynamodb_save"] = round(time.time() - step_start, 2)
         
         if dynamo_success:

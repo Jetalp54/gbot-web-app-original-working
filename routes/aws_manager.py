@@ -2607,6 +2607,12 @@ def inspect_region_task(access_key, secret_key, region, lambda_prefix=None, ecr_
         # Try exact prefix match first
         prod_funcs = [f for f in func_names if f.startswith(lambda_prefix)]
         
+        # [DEBUG] Log filtering details
+        if func_names:
+            logger.debug(f"[INSPECT] [{region}] Filter Debug: Prefix='{lambda_prefix}'")
+            logger.debug(f"[INSPECT] [{region}] All Functions: {func_names[:5]}... (Total {len(func_names)})")
+            logger.debug(f"[INSPECT] [{region}] Matched Functions: {prod_funcs}")
+
         # [STRICT MODE] Do NOT fall back to searching for other patterns.
         # The user wants to see ONLY their resources.
         if not prod_funcs:
@@ -5547,14 +5553,24 @@ def invoke_lambda():
         # [MULTI-USER] Get lambda_prefix based on logged-in user
         # Priority: 1) Request data, 2) Session user dynamic prefix, 3) Database config
         _session_user = session.get('user')
+        clean_username = _session_user.split('@')[0].lower() if _session_user else None
+        naming_config = get_naming_config(clean_user=clean_username)
+
         if data.get('lambda_prefix', '').strip():
             lambda_prefix_invoke = data.get('lambda_prefix').strip()
-        elif _session_user:
-            lambda_prefix_invoke = f"{_session_user.split('@')[0].lower()}-chromium"
+        elif clean_username:
+            lambda_prefix_invoke = naming_config.get('lambda_prefix', f"{clean_username}-chromium")
         else:
-            lambda_prefix_invoke = get_naming_config().get('production_lambda_name', 'gbot-chromium')
+            lambda_prefix_invoke = naming_config.get('production_lambda_name', 'gbot-chromium')
+            
+        # [MULTI-USER] Get dynamodb_table based on logged-in user
+        if data.get('dynamodb_table', '').strip():
+            dynamodb_table_invoke = data.get('dynamodb_table').strip()
+        else:
+            dynamodb_table_invoke = naming_config.get('dynamodb_table', 'dev-app-passwords')
         
         logger.info(f"[INVOKE] Using lambda_prefix: {lambda_prefix_invoke} (user: {_session_user})")
+        logger.info(f"[INVOKE] Using dynamodb_table: {dynamodb_table_invoke}")
 
         # NOTE: Use boto3_session to avoid shadowing Flask's session object!
         boto3_session = get_boto3_session(access_key, secret_key, region)
@@ -5645,6 +5661,7 @@ def invoke_lambda():
         event = {
             "email": email,
             "password": password,
+            "dynamodb_table": dynamodb_table_invoke,
         }
 
         logger.info(f"[INVOKE] Invoking Lambda function {lambda_function_name} in {lambda_region} (async={async_mode})...")
