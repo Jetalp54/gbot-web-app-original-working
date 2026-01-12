@@ -2967,6 +2967,15 @@
                 </a>
                 {% endif %}
 
+                {% if 'list_management' in user_permissions %}
+                <a href="/list-management"
+                    class="nav-item {% if request.endpoint == 'list_management' %}active{% endif %}"
+                    title="List Management">
+                    <i class="fas fa-clipboard-list"></i>
+                    <span>List Management</span>
+                </a>
+                {% endif %}
+
                 {% if 'settings' in user_permissions %}
                 <a href="/settings" class="nav-item {% if request.endpoint == 'settings' %}active{% endif %}"
                     title="Settings">

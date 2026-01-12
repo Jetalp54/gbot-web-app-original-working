@@ -214,3 +214,52 @@ class DomainVerificationOperation(db.Model):
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp(), index=True)
     
     __table_args__ = (db.Index('idx_domain_verification_op_job_id', 'job_id'),)
+
+class WorkspaceList(db.Model):
+    """Workspace account lists with 14-day lifecycle and 24-hour usage tracking"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    raw_accounts = db.Column(db.Text, nullable=False)  # email:password per line
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    lifetime_expires_at = db.Column(db.DateTime, nullable=False)  # 14-day expiration
+    active_24h_expires_at = db.Column(db.DateTime, nullable=True)  # 24h timer (null = not started)
+    status = db.Column(db.String(50), default='ready')  # ready, in_use, expired
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    
+    def get_account_count(self):
+        """Return the number of accounts in this list"""
+        if not self.raw_accounts:
+            return 0
+        return len([line for line in self.raw_accounts.strip().split('\n') if line.strip() and ':' in line])
+    
+    def compute_status(self):
+        """Compute current status based on timestamps"""
+        from datetime import datetime
+        now = datetime.utcnow()
+        
+        # Check if 14-day lifetime expired
+        if self.lifetime_expires_at and now >= self.lifetime_expires_at:
+            return 'expired'
+        
+        # Check if 24h timer is running
+        if self.active_24h_expires_at:
+            if now < self.active_24h_expires_at:
+                return 'in_use'
+            # 24h timer finished, list is ready again
+        
+        return 'ready'
+    
+    def to_dict(self):
+        """Convert to dictionary for JSON response"""
+        from datetime import datetime
+        return {
+            'id': self.id,
+            'name': self.name,
+            'raw_accounts': self.raw_accounts,
+            'account_count': self.get_account_count(),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'lifetime_expires_at': self.lifetime_expires_at.isoformat() if self.lifetime_expires_at else None,
+            'active_24h_expires_at': self.active_24h_expires_at.isoformat() if self.active_24h_expires_at else None,
+            'status': self.compute_status(),
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }

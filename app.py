@@ -30,7 +30,7 @@ from email.mime.multipart import MIMEMultipart
 import re
 
 from core_logic import google_api
-from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig, ServiceAccount, CloudflareConfig, Notification
+from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig, ServiceAccount, CloudflareConfig, Notification, WorkspaceList
 from routes.dns_manager import dns_manager
 from routes.aws_manager import aws_manager
 
@@ -300,8 +300,8 @@ def login_required(f):
 
 # Role-based permissions configuration
 ROLE_PERMISSIONS = {
-    'admin': ['dashboard', 'aws_management', 'settings', 'users', 'whitelist'],
-    'mailer': ['dashboard', 'aws_management', 'settings'],
+    'admin': ['dashboard', 'aws_management', 'settings', 'users', 'whitelist', 'list_management'],
+    'mailer': ['dashboard', 'aws_management', 'settings', 'list_management'],
     'support': ['dashboard']
 }
 
@@ -872,6 +872,188 @@ def whitelist():
     
     app.logger.info(f"Whitelist access granted: user={session.get('user')}, role={session.get('role')}, emergency_access={session.get('emergency_access')}")
     return render_template('whitelist.html', user=session.get('user'), role=session.get('role'), whitelisted_ips=whitelisted_ips)
+
+# ============================================================================
+# LIST MANAGEMENT - Workspace Account Lists with Lifecycle Tracking
+# ============================================================================
+
+@app.route('/list-management')
+@login_required
+def list_management():
+    """List Management page for managing workspace account lists"""
+    # Check permissions
+    user_id = session.get('user_id')
+    if user_id:
+        user = User.query.get(user_id)
+        if user:
+            user_permissions = ROLE_PERMISSIONS.get(user.role, [])
+            if 'list_management' not in user_permissions:
+                flash("Access denied: insufficient permissions", "danger")
+                return redirect(url_for('dashboard'))
+    
+    return render_template('list_management.html', user=session.get('user'), role=session.get('role'))
+
+@app.route('/api/lists', methods=['GET'])
+@login_required
+def api_get_lists():
+    """Get all workspace lists"""
+    try:
+        lists = WorkspaceList.query.order_by(WorkspaceList.created_at.desc()).all()
+        return jsonify({
+            'success': True,
+            'lists': [lst.to_dict() for lst in lists]
+        })
+    except Exception as e:
+        app.logger.error(f"Error fetching lists: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/lists', methods=['POST'])
+@login_required
+def api_create_list():
+    """Create a new workspace list"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        raw_accounts = data.get('raw_accounts', '').strip()
+        remaining_days = int(data.get('remaining_days', 14))
+        
+        if not name:
+            return jsonify({'success': False, 'error': 'List name is required'})
+        
+        if not raw_accounts:
+            return jsonify({'success': False, 'error': 'Account list is required'})
+        
+        # Calculate expiration date
+        from datetime import timedelta
+        lifetime_expires_at = datetime.utcnow() + timedelta(days=remaining_days)
+        
+        new_list = WorkspaceList(
+            name=name,
+            raw_accounts=raw_accounts,
+            lifetime_expires_at=lifetime_expires_at
+        )
+        
+        db.session.add(new_list)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'List "{name}" created successfully',
+            'list': new_list.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error creating list: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/lists/<int:list_id>', methods=['PUT'])
+@login_required
+def api_update_list(list_id):
+    """Update a workspace list"""
+    try:
+        lst = WorkspaceList.query.get(list_id)
+        if not lst:
+            return jsonify({'success': False, 'error': 'List not found'}), 404
+        
+        data = request.get_json()
+        
+        if 'name' in data:
+            lst.name = data['name'].strip()
+        
+        if 'raw_accounts' in data:
+            lst.raw_accounts = data['raw_accounts'].strip()
+        
+        if 'remaining_days' in data:
+            from datetime import timedelta
+            remaining_days = int(data['remaining_days'])
+            lst.lifetime_expires_at = datetime.utcnow() + timedelta(days=remaining_days)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'List "{lst.name}" updated successfully',
+            'list': lst.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error updating list: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/lists/<int:list_id>', methods=['DELETE'])
+@login_required
+def api_delete_list(list_id):
+    """Delete a workspace list"""
+    try:
+        lst = WorkspaceList.query.get(list_id)
+        if not lst:
+            return jsonify({'success': False, 'error': 'List not found'}), 404
+        
+        name = lst.name
+        db.session.delete(lst)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'List "{name}" deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error deleting list: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/lists/<int:list_id>/start-timer', methods=['POST'])
+@login_required
+def api_start_list_timer(list_id):
+    """Start the 24-hour usage timer for a list"""
+    try:
+        lst = WorkspaceList.query.get(list_id)
+        if not lst:
+            return jsonify({'success': False, 'error': 'List not found'}), 404
+        
+        # Check if list is expired
+        if lst.compute_status() == 'expired':
+            return jsonify({'success': False, 'error': 'Cannot start timer on expired list'})
+        
+        # Set 24h expiration
+        from datetime import timedelta
+        lst.active_24h_expires_at = datetime.utcnow() + timedelta(hours=24)
+        lst.status = 'in_use'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'24-hour timer started for "{lst.name}"',
+            'list': lst.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error starting timer: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/lists/<int:list_id>/reset-timer', methods=['POST'])
+@login_required
+def api_reset_list_timer(list_id):
+    """Reset the 24-hour usage timer for a list"""
+    try:
+        lst = WorkspaceList.query.get(list_id)
+        if not lst:
+            return jsonify({'success': False, 'error': 'List not found'}), 404
+        
+        # Clear 24h timer
+        lst.active_24h_expires_at = None
+        lst.status = 'ready'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'24-hour timer reset for "{lst.name}"',
+            'list': lst.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error resetting timer: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/add-user', methods=['POST'])
 @login_required
