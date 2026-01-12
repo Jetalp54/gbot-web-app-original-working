@@ -3726,22 +3726,22 @@ def api_retrieve_domains_for_account():
         account_name = google_account.account_name
         logging.info(f"Found GoogleAccount: {account_name} for email {account_email}")
         
-        # Authenticate with this account's tokens
-        # USE LOCK TO PREVENT RACE CONDITIONS in shared google_api service
+        # Use new STATELESS service creation to prevent any session leakage
+        # We don't need the lock as much now to protect authentication state, 
+        # but kept for safety if other parts use shared state concurrently.
         with domain_api_lock:
-            if google_api.is_token_valid(account_name):
-                success = google_api.authenticate_with_tokens(account_name)
-                if not success:
-                    return jsonify({'success': False, 'error': f'Failed to authenticate with saved tokens for {account_name}. Please re-authenticate this account.'})
-            else:
-                return jsonify({'success': False, 'error': f'No valid tokens found for {account_name}. Please re-authenticate this account.'})
+            service = google_api.create_service_for_account(account_name)
             
-            # Get domains using batched mode
+            if not service:
+                return jsonify({'success': False, 'error': f'Failed to authenticate for {account_name}. Please re-authenticate.'})
+            
+            # Get domains using batched mode with EXPLICIT service instance
             all_domains = []
             next_token = None
             
             while True:
-                result = google_api.get_domains_batch(page_token=next_token)
+                # Pass service_instance to ensure we use the correct credentials
+                result = google_api.get_domains_batch(page_token=next_token, service_instance=service)
                 if not result['success']:
                     return jsonify({'success': False, 'error': result.get('error', 'Unknown error')})
                 
@@ -3756,21 +3756,20 @@ def api_retrieve_domains_for_account():
         from database import UsedDomain
         all_users = []
         try:
-            # Get all users to calculate domain usage
-            # We use the lock here too as getting users might use the service
-            with domain_api_lock:
-                page_token = None
-                while True:
-                    users_result = google_api.service.users().list(
-                        customer='my_customer',
-                        maxResults=500,
-                        pageToken=page_token
-                    ).execute()
-                    users = users_result.get('users', [])
-                    all_users.extend(users)
-                    page_token = users_result.get('nextPageToken')
-                    if not page_token:
-                        break
+            # We use the explicit service here too
+            # Note: users().list() is a standard googleapiclient method, not our wrapper
+            page_token = None
+            while True:
+                users_result = service.users().list(
+                    customer='my_customer',
+                    maxResults=500,
+                    pageToken=page_token
+                ).execute()
+                users = users_result.get('users', [])
+                all_users.extend(users)
+                page_token = users_result.get('nextPageToken')
+                if not page_token:
+                    break
         except Exception as users_err:
             logger.warning(f"Could not fetch users for domain status: {users_err}")
         
@@ -3785,12 +3784,37 @@ def api_retrieve_domains_for_account():
         # Format domains with status information
         formatted_domains = []
         
-        # NOTE: We DO NOT merge DB-only domains here anymore. This was determining "ownership" 
-        # loosely and causing data leaks between accounts. We strictly show only domains 
-        # returned by Google API for this account.
-        
         # Create a set of domain names from Google API for easy lookup
-        # api_domain_names = {d.get('domainName', '').lower() for d in all_domains if d.get('domainName')}
+        # This is the "Source of Truth" for what the account actually owns
+        api_domain_names = {d.get('domainName', '').lower() for d in all_domains if d.get('domainName')}
+        
+        # Fetch all used domains from DB
+        from database import UsedDomain
+        db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
+        
+        # Add DB-only domains to all_domains list, BUT ONLY if they belong to this account
+        # We assume a DB domain belongs to this account if it is a subdomain of any live root domain
+        # defined in api_domain_names.
+        live_root_domains = api_domain_names
+        
+        for db_domain in db_used_domains:
+            # Only consider domains NOT already returned by API
+            if db_domain.domain_name.lower() not in api_domain_names:
+                # Check if it's a subdomain of any live root domain
+                domain_lower = db_domain.domain_name.lower()
+                belongs_to_account = False
+                
+                for root in live_root_domains:
+                    if domain_lower.endswith('.' + root):
+                        belongs_to_account = True
+                        break
+                
+                if belongs_to_account:
+                    all_domains.append({
+                        'domainName': db_domain.domain_name,
+                        'verified': db_domain.is_verified,
+                        'isPrimary': False
+                    })
 
         for domain in all_domains:
             domain_name = domain.get('domainName', '')
