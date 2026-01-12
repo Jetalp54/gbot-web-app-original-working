@@ -3718,7 +3718,8 @@ def api_retrieve_domains_for_account():
         google_account = GoogleAccount.query.filter_by(account_name=account_email).first()
         
         if not google_account:
-            google_account = GoogleAccount.query.filter(GoogleAccount.account_name.contains(account_email.split('@')[0])).first()
+            # Try looking up by alias if exact match fails
+            pass # Removed fuzzy matching which causes account collisions (e.g. finding 'admin' in multiple emails)
         
         if not google_account:
             return jsonify({'success': False, 'error': f'Account {account_email} not found. Please check the email or authenticate the account first.'})
