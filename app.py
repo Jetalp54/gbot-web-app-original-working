@@ -4195,7 +4195,7 @@ def api_retrieve_domains():
 @app.route('/api/get-domain-usage-stats', methods=['GET'])
 @login_required
 def api_get_domain_usage_stats():
-    """Get domain usage statistics from database"""
+    """Get domain usage statistics from database, filtered by authenticated account"""
     try:
         # Get authenticated account to scope the domains
         if 'current_account_name' not in session:
@@ -4203,39 +4203,68 @@ def api_get_domain_usage_stats():
             
         account_name = session.get('current_account_name')
         
-        # Authenticate if needed
-        if not google_api.service:
-            if google_api.is_token_valid(account_name):
-                google_api.authenticate_with_tokens(account_name)
+        # 1. Get List of Domains Owned by this Account (for Scoping)
+        # Check cache first to avoid slow API calls
+        live_root_domains = set()
+        cache_key = f'domains_{account_name}'
         
-        # Get live domains from Google to act as a filter
-        try:
-            api_result = google_api.get_domain_info()
-            live_domains = api_result.get('domains', []) if api_result.get('success') else []
-            live_root_domains = {d.get('domainName', '').lower() for d in live_domains}
-        except:
-            live_root_domains = set()
+        if cache_key in session and session.get(cache_key):
+            try:
+                live_root_domains = set(session.get(cache_key))
+                # logging.info(f"Using cached domain list for {account_name} ({len(live_root_domains)} domains)")
+            except:
+                live_root_domains = set()
+        
+        # If cache miss, fetch from Google API
+        if not live_root_domains:
+            # Authenticate if needed
+            if not google_api.service:
+                if google_api.is_token_valid(account_name):
+                    google_api.authenticate_with_tokens(account_name)
             
+            try:
+                # logging.info(f"Fetching fresh domain list from Google for {account_name}...")
+                api_result = google_api.get_domain_info()
+                if api_result.get('success'):
+                    live_domains = api_result.get('domains', [])
+                    live_root_domains = {d.get('domainName', '').lower() for d in live_domains}
+                    # Cache the result
+                    session[cache_key] = list(live_root_domains)
+            except Exception as e:
+                logging.warning(f"Failed to fetch live domains for filter: {e}")
+                # If API fails, we can't safely filter, so we might return empty or everything.
+                # Returning empty is safer for privacy.
+                live_root_domains = set()
+
+        # 2. Fetch Status from Database (The Source of Truth)
         from database import UsedDomain
         all_db_domains = UsedDomain.query.all()
         
-        # Filter domains: Keep only if it matches a live domain or is a subdomain of one
+        # 3. Filter DB Results: Only show domains belonging to this account
         domains = []
-        for d in all_db_domains:
-            d_name = d.domain_name.lower()
-            if d_name in live_root_domains:
-                domains.append(d)
-                continue
+        if live_root_domains:
+            for d in all_db_domains:
+                d_name = d.domain_name.lower()
                 
-            for root in live_root_domains:
-                if d_name.endswith('.' + root):
+                # Direct match
+                if d_name in live_root_domains:
                     domains.append(d)
-                    break
+                    continue
+                    
+                # Subdomain match (e.g. sub.example.com belongs to example.com)
+                for root in live_root_domains:
+                    if d_name.endswith('.' + root):
+                        domains.append(d)
+                        break
+        else:
+            # If we couldn't get the domain list (API error), we can't verify ownership.
+            # Fallback: don't show any DB domains to prevent leaking other accounts' data.
+            domains = [] 
         
         # Sort domains by user count (descending) and then by name
         sorted_domains = sorted(domains, key=lambda x: (x.user_count, x.domain_name), reverse=True)
         
-        # Calculate stats with new three-state system (handle missing ever_used column)
+        # Calculate stats with new three-state system
         in_use_domains = [d for d in domains if d.user_count > 0]
         used_domains = []
         available_domains = []
@@ -4249,7 +4278,6 @@ def api_get_domain_usage_stats():
                     else:
                         available_domains.append(d)
                 except:
-                    # Column doesn't exist, treat as available
                     available_domains.append(d)
         
         stats = {
@@ -4263,7 +4291,7 @@ def api_get_domain_usage_stats():
                     'domain_name': d.domain_name,
                     'user_count': d.user_count,
                     'is_verified': d.is_verified,
-                    'is_used': d.user_count > 0,  # For backward compatibility
+                    'is_used': d.user_count > 0,
                     'ever_used': getattr(d, 'ever_used', False),
                     'status': 'in_use' if d.user_count > 0 else ('used' if getattr(d, 'ever_used', False) else 'available'),
                     'status_text': 'IN USE' if d.user_count > 0 else ('USED' if getattr(d, 'ever_used', False) else 'AVAILABLE'),
@@ -4273,8 +4301,6 @@ def api_get_domain_usage_stats():
                 for d in sorted_domains
             ]
         }
-        
-        logging.info(f"Domain usage stats: {stats['total_domains']} domains, {stats['total_users']} users")
         
         return jsonify({'success': True, 'stats': stats})
         
