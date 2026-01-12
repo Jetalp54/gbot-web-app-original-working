@@ -234,7 +234,7 @@
             </div>
 
             <div class="d-flex flex-column gap-3">
-                <button type="button" class="glass-button glass-button-primary py-3 w-100"
+                <button type="button" id="invokeButton" class="glass-button glass-button-primary py-3 w-100"
                     onclick="invokeProductionLambda()">
                     <i class="fas fa-play me-2"></i>Invoke Production Lambda
                 </button>
@@ -1503,13 +1503,24 @@
             console.log('[FRONTEND] Bypassing confirmation to unblock user...');
             console.log('[FRONTEND] Confirmation accepted. Starting job...');
 
-            // Set flag to prevent duplicate clicks
+            // Set flag to prevent duplicate clicks and disable button
             isProcessing = true;
+            const invokeBtn = document.getElementById('invokeButton');
+            if (invokeBtn) {
+                invokeBtn.disabled = true;
+                invokeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+            }
             invokeMultipleAccounts(usersRaw);
         } catch (e) {
             console.error('[FRONTEND] CRITICAL ERROR in invokeProductionLambda:', e);
             alert('Critical Error: ' + e.message);
             isProcessing = false;
+            // Re-enable button on error
+            const invokeBtn = document.getElementById('invokeButton');
+            if (invokeBtn) {
+                invokeBtn.disabled = false;
+                invokeBtn.innerHTML = '<i class="fas fa-play me-2"></i>Invoke Production Lambda';
+            }
         }
     }
 
@@ -1624,6 +1635,12 @@
                     log(`❌ ERROR starting bulk job: ${data.error}`);
                     alert(`Error: ${data.error}`);
                     isProcessing = false; // Reset flag on error
+                    // Re-enable button on error
+                    const invokeBtn = document.getElementById('invokeButton');
+                    if (invokeBtn) {
+                        invokeBtn.disabled = false;
+                        invokeBtn.innerHTML = '<i class="fas fa-play me-2"></i>Invoke Production Lambda';
+                    }
                 }
             })
             .catch(error => {
@@ -1634,6 +1651,12 @@
                     alert(`Error: ${error.message}`);
                 }
                 isProcessing = false; // Reset flag on error
+                // Re-enable button on error
+                const invokeBtn = document.getElementById('invokeButton');
+                if (invokeBtn) {
+                    invokeBtn.disabled = false;
+                    invokeBtn.innerHTML = '<i class="fas fa-play me-2"></i>Invoke Production Lambda';
+                }
             });
     }
 
@@ -1646,6 +1669,12 @@
                 clearInterval(statusInterval);
                 log('⚠️ Polling timeout after 60 minutes. Job may still be running on server.');
                 isProcessing = false;
+                // Re-enable button on timeout
+                const invokeBtn = document.getElementById('invokeButton');
+                if (invokeBtn) {
+                    invokeBtn.disabled = false;
+                    invokeBtn.innerHTML = '<i class="fas fa-play me-2"></i>Invoke Production Lambda';
+                }
                 return;
             }
 
@@ -1678,6 +1707,12 @@
                         if (job.status === 'completed' || job.status === 'failed') {
                             clearInterval(statusInterval);
                             isProcessing = false; // Reset flag when job completes
+                            // Re-enable button when job completes
+                            const invokeBtn = document.getElementById('invokeButton');
+                            if (invokeBtn) {
+                                invokeBtn.disabled = false;
+                                invokeBtn.innerHTML = '<i class="fas fa-play me-2"></i>Invoke Production Lambda';
+                            }
                             log('='.repeat(60));
                             if (job.status === 'completed') {
                                 log('✅ BULK JOB COMPLETED');
