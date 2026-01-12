@@ -86,13 +86,15 @@ def get_naming_config():
     current_user = session.get('user')
     clean_user = None
     dynamic_lambda_prefix = None
+    dynamic_dynamodb_table = None
     
     if current_user:
         # Enforce Lowercase Username (e.g. Angel -> angel)
         clean_user = current_user.split('@')[0].lower()
         dynamic_lambda_prefix = f"{clean_user}-chromium"
+        dynamic_dynamodb_table = f"{clean_user}-app-passwords"
         
-    print(f"[DEBUG] get_naming_config START: user={current_user} -> clean={clean_user}, dynamic_prefix={dynamic_lambda_prefix}, session keys={list(session.keys()) if session else 'None'}", flush=True)
+    print(f"[DEBUG] get_naming_config START: user={current_user} -> clean={clean_user}, dynamic_prefix={dynamic_lambda_prefix}, dynamic_dynamodb={dynamic_dynamodb_table}, session keys={list(session.keys()) if session else 'None'}", flush=True)
 
     try:
         from app import app
@@ -113,9 +115,14 @@ def get_naming_config():
                 # This ensures ECR repo matches the actual created repo (e.g., 'dev1-app-password-worker')
                 ecr_repo = config.ecr_repo_name if config.ecr_repo_name else f"{instance_name}-app-password-worker"
                 s3_bucket = config.s3_bucket or f"{instance_name}-app-passwords"
-                dynamodb_table = config.dynamodb_table or f"{instance_name}-app-passwords"
                 
-                print(f"[DEBUG] get_naming_config DB SUCCESS: lambda_prefix={lambda_prefix}", flush=True)
+                # [MULTI-USER] Scope DynamoDB table to Logged-in User (same as Lambda)
+                if dynamic_dynamodb_table:
+                    dynamodb_table = dynamic_dynamodb_table
+                else:
+                    dynamodb_table = config.dynamodb_table or f"{instance_name}-app-passwords"
+                
+                print(f"[DEBUG] get_naming_config DB SUCCESS: lambda_prefix={lambda_prefix}, dynamodb_table={dynamodb_table}", flush=True)
                 return {
                     'instance_name': instance_name,
                     'lambda_prefix': lambda_prefix,
@@ -140,11 +147,17 @@ def get_naming_config():
         lambda_prefix = dynamic_lambda_prefix
     else:
         lambda_prefix = DEFAULT_PRODUCTION_LAMBDA_NAME
+    
+    # [MULTI-USER] DynamoDB table also uses user-based naming
+    if dynamic_dynamodb_table:
+        dynamodb_table = dynamic_dynamodb_table
+    else:
+        dynamodb_table = f"{DEFAULT_INSTANCE_NAME}-app-passwords"
 
     # Use DEFAULT_INSTANCE_NAME prefix for all fallback resource names
     instance_name = DEFAULT_INSTANCE_NAME
     
-    print(f"[DEBUG] get_naming_config FALLBACK RETURN: lambda_prefix={lambda_prefix}", flush=True)
+    print(f"[DEBUG] get_naming_config FALLBACK RETURN: lambda_prefix={lambda_prefix}, dynamodb_table={dynamodb_table}", flush=True)
     return {
         'instance_name': instance_name,
         'lambda_prefix': lambda_prefix,
@@ -152,7 +165,7 @@ def get_naming_config():
         'production_lambda_name': lambda_prefix,
         'ecr_repo_name': f"{instance_name}-app-password-worker",
         's3_bucket': f"{instance_name}-app-passwords",
-        'dynamodb_table': f"{instance_name}-app-passwords",
+        'dynamodb_table': dynamodb_table,
         'ec2_instance_name': f"{instance_name}-ec2-build-box",
         'ec2_role_name': f"{instance_name}-ec2-build-role",
         'ec2_instance_profile_name': f"{instance_name}-ec2-build-instance-profile",
@@ -167,8 +180,19 @@ def get_naming_config_api():
     """Return saved resource naming configuration from database"""
     try:
         config = get_current_active_config()
+        current_username = get_current_username()
+        
         if config:
             instance_name = config.instance_name or DEFAULT_INSTANCE_NAME
+            
+            # [MULTI-USER] Dynamic naming based on logged-in user
+            if current_username:
+                lambda_prefix = f"{current_username}-chromium"
+                dynamodb_table = f"{current_username}-app-passwords"
+            else:
+                lambda_prefix = config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME
+                dynamodb_table = config.dynamodb_table or f"{instance_name}-app-passwords"
+            
             return jsonify({
                 'success': True,
                 'config': {
@@ -177,24 +201,30 @@ def get_naming_config_api():
                     # Use DB values if set, otherwise construct from instance_name prefix
                     'ecr_repo_name': config.ecr_repo_name if config.ecr_repo_name else f"{instance_name}-app-password-worker",
                     's3_bucket': config.s3_bucket or f"{instance_name}-app-passwords",
-                    'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
-                    'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
-                    'dynamodb_table': config.dynamodb_table or f"{instance_name}-app-passwords",
-                    # [MULTI-USER] Dynamic naming based on logged-in user
-                    'lambda_prefix': f"{get_current_username()}-chromium" if get_current_username() else (config.lambda_prefix or DEFAULT_PRODUCTION_LAMBDA_NAME),
+                    'dynamodb_table': dynamodb_table,
+                    'lambda_prefix': lambda_prefix,
                     'instance_name': instance_name
                 }
             })
         else:
             # No config found - use default instance_name prefix pattern
             instance_name = DEFAULT_INSTANCE_NAME
+            
+            # [MULTI-USER] Dynamic naming based on logged-in user
+            if current_username:
+                lambda_prefix = f"{current_username}-chromium"
+                dynamodb_table = f"{current_username}-app-passwords"
+            else:
+                lambda_prefix = DEFAULT_PRODUCTION_LAMBDA_NAME
+                dynamodb_table = f"{instance_name}-app-passwords"
+            
             return jsonify({
                 'success': True,
                 'config': {
                     'ecr_repo_name': f"{instance_name}-app-password-worker",
                     's3_bucket': f"{instance_name}-app-passwords",
-                    'dynamodb_table': f"{instance_name}-app-passwords",
-                    'lambda_prefix': DEFAULT_PRODUCTION_LAMBDA_NAME,
+                    'dynamodb_table': dynamodb_table,
+                    'lambda_prefix': lambda_prefix,
                     'instance_name': instance_name
                 }
             })

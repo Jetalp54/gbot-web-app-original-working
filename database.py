@@ -230,7 +230,8 @@ class WorkspaceList(db.Model):
         """Return the number of accounts in this list"""
         if not self.raw_accounts:
             return 0
-        return len([line for line in self.raw_accounts.strip().split('\n') if line.strip() and ':' in line])
+        # Support both comma and colon as separators (email,password or email:password)
+        return len([line for line in self.raw_accounts.strip().split('\n') if line.strip() and (',' in line or ':' in line)])
     
     def compute_status(self):
         """Compute current status based on timestamps"""

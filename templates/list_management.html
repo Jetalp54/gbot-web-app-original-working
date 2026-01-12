@@ -594,7 +594,8 @@
     // Update account count display
     function updateAccountCount() {
         const text = document.getElementById('rawAccounts').value;
-        const count = text.split('\n').filter(line => line.trim() && line.includes(',')).length;
+        // Support both comma and colon as separators
+        const count = text.split('\n').filter(line => line.trim() && (line.includes(',') || line.includes(':'))).length;
         document.getElementById('accountCount').textContent = `(${count} account${count !== 1 ? 's' : ''})`;
     }
 
