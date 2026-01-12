@@ -1211,6 +1211,23 @@ def api_delete_users():
                 # Delete user from Google Workspace
                 google_api.service.users().delete(userKey=email).execute()
                 
+                # Update UsedDomain record
+                try:
+                    if '@' in email:
+                        domain = email.split('@')[1].lower()
+                        used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                        if used_domain:
+                            if used_domain.user_count > 0:
+                                used_domain.user_count -= 1
+                            used_domain.ever_used = True  # Ensure it remains marked as used
+                            used_domain.updated_at = db.func.current_timestamp()
+                            db.session.commit()
+                            logging.info(f"Updated domain persistence for {domain}: count={used_domain.user_count}, ever_used=True")
+                except Exception as db_err:
+                    logging.error(f"Failed to update domain persistence for {email}: {db_err}")
+                    # Don't fail the whole request just because domain stats failed
+                    db.session.rollback()
+
                 results.append({
                     'email': email,
                     'result': {'success': True, 'message': f'User {email} deleted successfully'}
