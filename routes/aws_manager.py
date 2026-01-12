@@ -860,32 +860,30 @@ def get_aws_config():
         
         # Get session user for dynamic naming
         _session_user = session.get('user')
+        
+        # [MULTI-USER] Compute lambda_prefix and dynamodb_table based on logged-in user
+        if _session_user:
+            _clean_user = _session_user.split('@')[0].lower()
+            _lambda_prefix = f"{_clean_user}-chromium"
+            _dynamodb_table = f"{_clean_user}-app-passwords"
+        else:
+            _lambda_prefix = naming_config.get('lambda_prefix', 'gbot-chromium')
+            _dynamodb_table = naming_config.get('dynamodb_table', 'gbot-app-passwords')
 
         if not config or not config.is_configured:
             # Return naming config even without AWS credentials configured
-            if _session_user:
-                _lambda_prefix = f"{_session_user.split('@')[0].lower()}-chromium"
-            else:
-                _lambda_prefix = naming_config.get('lambda_prefix', 'gbot-chromium')
-            
             return jsonify({
                 'success': True,
                 'config': {
                     'lambda_prefix': _lambda_prefix,
+                    'dynamodb_table': _dynamodb_table,
                     'instance_name': naming_config.get('instance_name', 'gbot'),
                     's3_bucket': naming_config.get('s3_bucket', 'gbot-app-passwords'),
                     'ecr_repo_name': naming_config.get('ecr_repo_name', 'gbot-app-password-worker'),
-                    'dynamodb_table': naming_config.get('dynamodb_table', 'gbot-app-passwords'),
                     'is_configured': False
                 },
                 'message': 'AWS credentials not configured'
             })
-        
-        # Compute lambda_prefix based on logged-in user
-        if _session_user:
-            _lambda_prefix = f"{_session_user.split('@')[0].lower()}-chromium"
-        else:
-            _lambda_prefix = naming_config.get('lambda_prefix', 'gbot-chromium')
         
         return jsonify({
             'success': True,
@@ -898,7 +896,7 @@ def get_aws_config():
                 'instance_name': naming_config.get('instance_name'),
                 'ecr_repo_name': getattr(config, 'ecr_repo_name', 'gbot-app-password-worker') or 'gbot-app-password-worker',
                 'lambda_prefix': _lambda_prefix,
-                'dynamodb_table': getattr(config, 'dynamodb_table', 'gbot-app-passwords') or 'gbot-app-passwords'
+                'dynamodb_table': _dynamodb_table
             }
         })
     except Exception as e:
