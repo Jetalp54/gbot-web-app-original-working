@@ -2607,26 +2607,10 @@ def inspect_region_task(access_key, secret_key, region, lambda_prefix=None, ecr_
         # Try exact prefix match first
         prod_funcs = [f for f in func_names if f.startswith(lambda_prefix)]
         
-        # If no matches, try to extract prefix from ECR repo name and search again
-        if not prod_funcs and ecr_repo_name:
-            # Extract prefix from ECR repo (e.g., "dev-app-password-worker" -> "dev")
-            ecr_prefix = ecr_repo_name.split('-')[0] if '-' in ecr_repo_name else None
-            if ecr_prefix and ecr_prefix != lambda_prefix:
-                logger.debug(f"[INSPECT] [{region}] No Lambdas found with prefix '{lambda_prefix}', trying prefix '{ecr_prefix}' from ECR repo name")
-                prod_funcs = [f for f in func_names if f.startswith(ecr_prefix)]
-                if prod_funcs:
-                    logger.info(f"[INSPECT] [{region}] Found Lambda functions using prefix '{ecr_prefix}': {prod_funcs}")
-        
-        # If still no matches, try common patterns
+        # [STRICT MODE] Do NOT fall back to searching for other patterns.
+        # The user wants to see ONLY their resources.
         if not prod_funcs:
-            # Try patterns like "*-chromium-*", "*-lambda-*", etc.
-            common_patterns = ['chromium', 'lambda', 'worker', 'app-password']
-            for pattern in common_patterns:
-                pattern_funcs = [f for f in func_names if pattern in f.lower()]
-                if pattern_funcs:
-                    logger.debug(f"[INSPECT] [{region}] Found Lambda functions matching pattern '{pattern}': {pattern_funcs}")
-                    prod_funcs = pattern_funcs
-                    break
+            logger.debug(f"[INSPECT] [{region}] No Lambdas found with prefix '{lambda_prefix}'")
         
         result['lambda_count'] = len(prod_funcs)
         result['lambda_functions_found'] = prod_funcs
