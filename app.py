@@ -3282,16 +3282,30 @@ def api_get_domain_info():
         live_domain_names = {d.get('domainName') for d in live_domains}
         
         # Merge DB domains if they aren't in the live list
+        # Merge DB domains if they aren't in the live list, BUT ONLY if they belong to this account
+        # We assume a DB domain belongs to this account if it is a subdomain of any live domain
+        live_root_domains = {d.lower() for d in live_domain_names}
+        
         for db_domain in db_used_domains:
             if db_domain.domain_name not in live_domain_names:
-                # Add domain from DB to the list
-                live_domains.append({
-                    'domainName': db_domain.domain_name,
-                    'verified': db_domain.is_verified,
-                    'isPrimary': False, # DB-only domains are likely not primary
-                    'source': 'database', # Flag to indicate source
-                    'user_count': db_domain.user_count
-                })
+                # Check if it's a subdomain of any live root domain
+                domain_lower = db_domain.domain_name.lower()
+                belongs_to_account = False
+                
+                for root in live_root_domains:
+                    if domain_lower == root or domain_lower.endswith('.' + root):
+                        belongs_to_account = True
+                        break
+                
+                if belongs_to_account:
+                    # Add domain from DB to the list
+                    live_domains.append({
+                        'domainName': db_domain.domain_name,
+                        'verified': db_domain.is_verified,
+                        'isPrimary': False, # DB-only domains are likely not primary
+                        'source': 'database', # Flag to indicate source
+                        'user_count': db_domain.user_count
+                    })
         
         # Sort domains by name
         live_domains.sort(key=lambda x: x.get('domainName', ''))
@@ -4183,8 +4197,40 @@ def api_retrieve_domains():
 def api_get_domain_usage_stats():
     """Get domain usage statistics from database"""
     try:
+        # Get authenticated account to scope the domains
+        if 'current_account_name' not in session:
+            return jsonify({'success': False, 'error': 'No account authenticated'})
+            
+        account_name = session.get('current_account_name')
+        
+        # Authenticate if needed
+        if not google_api.service:
+            if google_api.is_token_valid(account_name):
+                google_api.authenticate_with_tokens(account_name)
+        
+        # Get live domains from Google to act as a filter
+        try:
+            api_result = google_api.get_domain_info()
+            live_domains = api_result.get('domains', []) if api_result.get('success') else []
+            live_root_domains = {d.get('domainName', '').lower() for d in live_domains}
+        except:
+            live_root_domains = set()
+            
         from database import UsedDomain
-        domains = UsedDomain.query.all()
+        all_db_domains = UsedDomain.query.all()
+        
+        # Filter domains: Keep only if it matches a live domain or is a subdomain of one
+        domains = []
+        for d in all_db_domains:
+            d_name = d.domain_name.lower()
+            if d_name in live_root_domains:
+                domains.append(d)
+                continue
+                
+            for root in live_root_domains:
+                if d_name.endswith('.' + root):
+                    domains.append(d)
+                    break
         
         # Sort domains by user count (descending) and then by name
         sorted_domains = sorted(domains, key=lambda x: (x.user_count, x.domain_name), reverse=True)
