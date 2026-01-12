@@ -3715,17 +3715,13 @@ def api_retrieve_domains_for_account():
                 return jsonify({'success': False, 'error': f'Failed to retrieve domains: {str(sa_err)}'})
         
         # Fallback: try GoogleAccount (legacy OAuth)
-        google_account = GoogleAccount.query.filter_by(account_name=account_email).first()
+        # Use case-insensitive lookup to find the account securely
+        google_account = GoogleAccount.query.filter(db.func.lower(GoogleAccount.account_name) == account_email.lower()).first()
         
         if not google_account:
-            # Try looking up by alias if exact match fails
-            pass # Removed fuzzy matching which causes account collisions (e.g. finding 'admin' in multiple emails)
-        
-        if not google_account:
-            return jsonify({'success': False, 'error': f'Account {account_email} not found. Please check the email or authenticate the account first.'})
+            return jsonify({'success': False, 'error': f'Account {account_email} not found. Please authenticate first.'})
         
         account_name = google_account.account_name
-        logging.info(f"Found GoogleAccount: {account_name} for email {account_email}")
         
         # Use new STATELESS service creation to prevent any session leakage
         # We don't need the lock as much now to protect authentication state, 
@@ -3752,6 +3748,34 @@ def api_retrieve_domains_for_account():
                 next_token = result.get('next_page_token')
                 if not next_token:
                     break
+        
+        # Verify that the returned domains actually belong to this account
+        # This catches cases where the user authenticated as Account B but saved it under Account A's row
+        try:
+            account_domain = account_email.split('@')[1].lower()
+            match_found = False
+            for d in all_domains:
+                d_name = d.get('domainName', '').lower()
+                if not d_name:
+                    continue
+                # Check if account domain matches or is a subdomain of a returned root domain
+                if account_domain == d_name or account_domain.endswith('.' + d_name):
+                    match_found = True
+                    break
+            
+            if not match_found and all_domains:
+                # CRITICAL: The tokens do not match the requested email's domain.
+                # This is the "Leak" - the user authenticated the wrong Google account.
+                found_domains = ", ".join([d.get('domainName', '') for d in all_domains[:3]])
+                return jsonify({
+                    'success': False, 
+                    'error': f'Authentication Mismatch! You are logged in explicitly as a different user. Expected {account_domain}, but Google returned domains for: {found_domains}. Please Re-Authenticate THIS row with the detailed email.'
+                })
+        except Exception as e:
+            logging.error(f"Error checking domain identity: {e}")
+            # Continue if check fails, don't block
+
+
         
         # Get user counts for domains to determine status
         from database import UsedDomain
