@@ -12720,7 +12720,7 @@ def api_change_subdomain_status():
                     'domain_name': subdomain,
                     'user_count': 0,
                     'is_verified': True,
-                    'ever_used': False
+                    'ever_used': True  # ALWAYS mark as used when creating record
                 })
                 
                 # If no row was inserted (conflict), fetch the existing record
@@ -12768,7 +12768,7 @@ def api_change_subdomain_status():
                                 domain_name=subdomain,
                                 user_count=0,
                                 is_verified=True,
-                                ever_used=False
+                                ever_used=True  # ALWAYS mark as used when creating record
                             )
                             db.session.add(domain_record)
                             db.session.flush()
@@ -12795,7 +12795,8 @@ def api_change_subdomain_status():
         # Update the status based on the requested status
         if status == 'available':
             domain_record.user_count = 0
-            domain_record.ever_used = False
+            # NEVER reset ever_used - once used, always marked as used
+            # domain_record.ever_used = False  # REMOVED - this was causing the bug
         elif status == 'in_use':
             domain_record.user_count = 1  # Set to 1 to indicate in use
             domain_record.ever_used = True
