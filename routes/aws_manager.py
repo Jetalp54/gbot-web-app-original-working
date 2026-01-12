@@ -916,12 +916,14 @@ def create_dynamodb_table():
         if not access_key or not secret_key or not region:
             return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
 
-        session = get_boto3_session(access_key, secret_key, region)
+        # DynamoDB is centralized in eu-west-1 (same as delete function)
+        dynamodb_region = 'eu-west-1'
+        session = get_boto3_session(access_key, secret_key, dynamodb_region)
         dynamodb = session.client('dynamodb')
         
         # Get table name from request (preferred) or database (fallback)
         table_name = data.get('table_name', '').strip() or get_naming_config().get('dynamodb_table', 'gbot-app-passwords')
-        logger.info(f"[DYNAMODB] Using table name from REQUEST: {table_name}")
+        logger.info(f"[DYNAMODB] Using table name from REQUEST: {table_name} in region {dynamodb_region}")
         
         try:
             # Check if table exists

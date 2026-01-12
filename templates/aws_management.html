@@ -684,8 +684,8 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    log('✅ DynamoDB table created: gbot-app-passwords');
-                    alert('DynamoDB table created successfully!');
+                    log(`✅ DynamoDB table created: ${naming.dynamodb_table}`);
+                    alert(`DynamoDB table "${naming.dynamodb_table}" created successfully!`);
                 } else {
                     log(`❌ ERROR creating DynamoDB table: ${data.error}`);
                     alert(`Error: ${data.error}`);
