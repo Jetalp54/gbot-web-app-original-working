@@ -6829,6 +6829,13 @@ def get_aws_status():
 @login_required
 def empty_dynamodb_table():
     """Empty (clear all items from) DynamoDB table without deleting the table"""
+    # [PROTECTION] User requested that app passwords never be deleted.
+    # Disabling this dangerous endpoint to prevent accidental data loss.
+    return jsonify({
+        'success': False, 
+        'error': 'This action is disabled to protect app passwords from being deleted.'
+    }), 403
+
     try:
         data = request.get_json()
         access_key = data.get('access_key', '').strip()
