@@ -3105,7 +3105,7 @@ def api_bulk_delete_account_users():
                     })
         
         # Add results for accounts that failed authentication
-        for account in accounts:
+        for account in account_list:
             if account not in authenticated_accounts:
                 all_results.append({
                     'account': account,
