@@ -3618,42 +3618,30 @@ def api_retrieve_domains_for_account():
                         domain = email.split('@')[1].lower()
                         domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
                 
-                # Format domains with status information
-                from database import UsedDomain
+                # Format domains with status information - NO DATABASE MERGING
                 formatted_domains = []
                 
-                api_domain_names = {d.get('domainName', '').lower() for d in all_domains}
-                
-                # Fetch all used domains from DB
-                db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
-                
-                # Add DB-only domains to all_domains list
-                for db_domain in db_used_domains:
-                    if db_domain.domain_name.lower() not in api_domain_names:
-                        all_domains.append({
-                            'domainName': db_domain.domain_name,
-                            'verified': db_domain.is_verified,
-                            'isPrimary': False
-                        })
-                
+                # Strict Filtering: Only include verified domains from API
                 for domain in all_domains:
                     domain_name = domain.get('domainName', '')
                     if not domain_name:
                         continue
                     
-                    user_count = domain_user_counts.get(domain_name, 0)
-                    domain_record = UsedDomain.query.filter_by(domain_name=domain_name).first()
-                    ever_used = getattr(domain_record, 'ever_used', False) if domain_record else False
+                    is_verified = domain.get('verified', False)
+                    # Strict Verified Check
+                    if not is_verified or (str(is_verified).lower() != 'true' and is_verified is not True):
+                        continue
+
+                    # Use lowercase for lookup
+                    domain_name_lower = domain_name.lower()
                     
-                    # Determine domain status
+                    user_count = domain_user_counts.get(domain_name_lower, 0)
+                    
+                    # Determine domain status purely on live data
                     if user_count > 0:
                         status = 'in_use'
                         status_text = 'IN USE'
                         status_color = 'purple'
-                    elif domain_record and ever_used:
-                        status = 'used'
-                        status_text = 'USED'
-                        status_color = 'red'
                     else:
                         status = 'available'
                         status_text = 'AVAILABLE'
@@ -3665,7 +3653,7 @@ def api_retrieve_domains_for_account():
                         'status_text': status_text,
                         'status_color': status_color,
                         'user_count': user_count,
-                        'ever_used': ever_used
+                        'ever_used': False # No longer using historical data
                     })
                 
                 logging.info(f"Retrieved {len(formatted_domains)} domains for ServiceAccount {account_name}")
@@ -3744,52 +3732,29 @@ def api_retrieve_domains_for_account():
                 domain = email.split('@')[1].lower()
                 domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
         
-        # Format domains with status information
+        # Format domains with status information - NO DATABASE MERGING
         formatted_domains = []
         
-        # Create a set of domain names from Google API for easy lookup
-        api_domain_names = {d.get('domainName', '').lower() for d in all_domains if d.get('domainName')}
-        
-        # Fetch all used domains from DB
-        from database import UsedDomain
-        db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
-        
-        # Add DB-only domains to all_domains list
-        for db_domain in db_used_domains:
-            if db_domain.domain_name.lower() not in api_domain_names:
-                all_domains.append({
-                    'domainName': db_domain.domain_name,
-                    'verified': db_domain.is_verified,
-                    'isPrimary': False
-                })
-
         for domain in all_domains:
             domain_name = domain.get('domainName', '')
             if not domain_name:
                 continue
             
+            is_verified = domain.get('verified', False)
+            # Strict Verified Check
+            if not is_verified or (str(is_verified).lower() != 'true' and is_verified is not True):
+                continue
+
             # Use lowercase for lookup
             domain_name_lower = domain_name.lower()
             
             user_count = domain_user_counts.get(domain_name_lower, 0)
-            domain_record = UsedDomain.query.filter_by(domain_name=domain_name_lower).first()
             
-            ever_used = False
-            if domain_record:
-                try:
-                    ever_used = getattr(domain_record, 'ever_used', False)
-                except:
-                    ever_used = False
-            
-            # Determine domain status
+            # Determine domain status purely on live data
             if user_count > 0:
                 status = 'in_use'
                 status_text = 'IN USE'
                 status_color = 'purple'
-            elif domain_record and ever_used:
-                status = 'used'
-                status_text = 'USED'
-                status_color = 'red'
             else:
                 status = 'available'
                 status_text = 'AVAILABLE'
@@ -3801,7 +3766,7 @@ def api_retrieve_domains_for_account():
                 'status_text': status_text,
                 'status_color': status_color,
                 'user_count': user_count,
-                'ever_used': ever_used
+                'ever_used': False
             })
         
         return jsonify({
@@ -3997,51 +3962,30 @@ def api_retrieve_domains():
                 # For batched mode, we'll get user counts separately to avoid timeout
                 # OPTIMIZATION: Only query for domains we actually retrieved
                 # This prevents loading the entire database (Crash Fix) and ensures we only show relevant data
-                from database import UsedDomain
-                domain_names = [d.get('domainName') for d in domains]
-                # Use standard SA filter if list is not empty
-                db_domains = []
-                if domain_names:
-                     db_domains = UsedDomain.query.filter(UsedDomain.domain_name.in_(domain_names)).all()
-                
-                domain_records = {r.domain_name: r for r in db_domains}
-                
                 # Format domains with basic info first (no user counts to avoid timeout)
+                # NO DB USAGE
                 formatted_domains = []
                 for domain in domains:
                     domain_name = domain.get('domainName', '')
                     is_verified = domain.get('verified', False)
                     
-                    # Get ever_used status from database
-                    domain_record = domain_records.get(domain_name)
-                    ever_used = domain_record.ever_used if domain_record else False
-                    
-                    # For batched mode, we'll calculate user counts in a separate API call
-                    # to avoid timeout. For now, set user_count to 0 and status based on ever_used
-                    user_count = 0  # Will be calculated separately
-                    
-                    if ever_used:
-                        # Previously used but no current users (we'll update this with real counts later)
-                        status = 'used'
-                        status_text = 'USED'
-                        status_color = '#FF9800'  # Orange
-                    else:
-                        # Never been used (we'll update this with real counts later)
-                        status = 'available'
-                        status_text = 'AVAILABLE'
-                        status_color = '#4CAF50'  # Green
+                    # Purely live status (user count unknown yet, assume available or check later)
+                    # Since this is batched, we default to available/green until updated
+                    status = 'available'
+                    status_text = 'AVAILABLE'
+                    status_color = '#4CAF50'  # Green
                     
                     formatted_domain = {
                         'domainName': domain_name,
                         'domain_name': domain_name,
                         'verified': is_verified,
-                        'user_count': user_count,
+                        'user_count': 0, # Will be calculated separately
                         'status': status,
                         'status_text': status_text,
                         'status_color': status_color,
-                        'is_used': ever_used,
-                        'ever_used': ever_used,
-                        'needs_user_count': True  # Flag to indicate this needs user count calculation
+                        'is_used': False,
+                        'ever_used': False,
+                        'needs_user_count': True
                     }
                     formatted_domains.append(formatted_domain)
                 
@@ -4110,33 +4054,17 @@ def api_retrieve_domains():
                     domain = email.split('@')[1]
                     domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
             
-            # Format domain data with new three-state system
+            # Format domain data with new three-state system - NO DB USAGE
             formatted_domains = []
             for domain in domains:
                 domain_name = domain.get('domainName', '')
                 user_count = domain_user_counts.get(domain_name, 0)
                 
-                # Get domain status from database
-                from database import UsedDomain
-                domain_record = UsedDomain.query.filter_by(domain_name=domain_name).first()
-                
-                # Check if ever_used column exists (for backward compatibility)
-                ever_used = False
-                if domain_record:
-                    try:
-                        ever_used = getattr(domain_record, 'ever_used', False)
-                    except:
-                        ever_used = False  # Column doesn't exist yet
-                
-                # Determine domain status
+                # Determine domain status purely on live data
                 if user_count > 0:
                     status = 'in_use'  # Purple - currently has users
                     status_text = 'IN USE'
                     status_color = 'purple'
-                elif domain_record and ever_used:
-                    status = 'used'  # Orange - previously used but no current users
-                    status_text = 'USED'
-                    status_color = 'orange'
                 else:
                     status = 'available'  # Green - never been used
                     status_text = 'AVAILABLE'
@@ -4149,49 +4077,10 @@ def api_retrieve_domains():
                     'status': status,
                     'status_text': status_text,
                     'status_color': status_color,
-                    'is_used': user_count > 0,  # For backward compatibility
-                    'ever_used': ever_used
+                    'is_used': user_count > 0,
+                    'ever_used': False
                 }
                 formatted_domains.append(domain_data)
-                
-                # Sync domain data to database
-                try:
-                    if domain_record:
-                        domain_record.user_count = user_count
-                        domain_record.is_verified = domain.get('verified', False)
-                        # If domain currently has users, mark as ever_used (if column exists)
-                        if user_count > 0:
-                            try:
-                                domain_record.ever_used = True
-                            except:
-                                pass  # Column doesn't exist yet
-                        domain_record.updated_at = db.func.current_timestamp()
-                    else:
-                        # Create new domain record
-                        try:
-                            new_domain = UsedDomain(
-                                domain_name=domain_name,
-                                user_count=user_count,
-                                is_verified=domain.get('verified', False),
-                                ever_used=(user_count > 0)  # Mark as ever_used if it has users now
-                            )
-                        except:
-                            # Fallback if ever_used column doesn't exist
-                            new_domain = UsedDomain(
-                                domain_name=domain_name,
-                                user_count=user_count,
-                                is_verified=domain.get('verified', False)
-                            )
-                        db.session.add(new_domain)
-                    
-                    db.session.commit()
-                    logging.debug(f"Synced domain {domain_name}: {user_count} users, status={status}")
-                except Exception as db_error:
-                    logging.warning(f"Failed to sync domain {domain_name} to database: {db_error}")
-                    try:
-                        db.session.rollback()
-                    except:
-                        pass
             
             return jsonify({
                 'success': True,
