@@ -3811,8 +3811,24 @@ def api_retrieve_domains_for_account():
                     # 2. If users == 0 AND in DB (ever_used=True): Status 'used'
                     # 3. If users == 0 AND NOT in DB: Status 'available', DO NOT SAVE
                     
+                    # DEBUG: Log what we're looking up
+                    logging.info(f"[LOAD DOMAINS] Looking up domain: '{domain_name_lower}' (user_count={user_count})")
+                    
                     domain_record = UsedDomain.query.filter_by(domain_name=domain_name_lower).first()
                     ever_used_db = getattr(domain_record, 'ever_used', False) if domain_record else False
+                    
+                    # DEBUG: Log what we found
+                    if domain_record:
+                        logging.info(f"[LOAD DOMAINS] FOUND in DB: domain='{domain_record.domain_name}', ever_used={ever_used_db}")
+                    else:
+                        logging.info(f"[LOAD DOMAINS] NOT FOUND in DB: '{domain_name_lower}'")
+                        # Also check total count of UsedDomain records
+                        total_count = UsedDomain.query.count()
+                        logging.info(f"[LOAD DOMAINS] Total UsedDomain records in DB: {total_count}")
+                        # List first 5 domains in DB
+                        first_five = UsedDomain.query.limit(5).all()
+                        for d in first_five:
+                            logging.info(f"[LOAD DOMAINS] DB has domain: '{d.domain_name}' (ever_used={d.ever_used})")
                     
                     if user_count > 0:
                         status = 'in_use'
@@ -13128,6 +13144,32 @@ def api_save_cloudflare_config():
         
     except Exception as e:
         app.logger.error(f"Error saving Cloudflare config: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+# DEBUG ENDPOINT - View all UsedDomain records
+@app.route('/api/debug/used-domains', methods=['GET'])
+@login_required
+def api_debug_used_domains():
+    """Debug endpoint to view all UsedDomain records in the database"""
+    try:
+        from database import UsedDomain
+        all_domains = UsedDomain.query.all()
+        result = []
+        for d in all_domains:
+            result.append({
+                'domain_name': d.domain_name,
+                'ever_used': getattr(d, 'ever_used', None),
+                'is_verified': getattr(d, 'is_verified', None),
+                'user_count': getattr(d, 'user_count', None),
+                'created_at': str(getattr(d, 'created_at', None)),
+                'updated_at': str(getattr(d, 'updated_at', None))
+            })
+        return jsonify({
+            'success': True,
+            'count': len(result),
+            'domains': result
+        })
+    except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
