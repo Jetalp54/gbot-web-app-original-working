@@ -3967,8 +3967,29 @@ def api_retrieve_domains():
                 raw_domains = result['domains']
                 
                 # STRICT FILTERING: Only show VERIFIED domains
-                # This fixes the issue where 200+ unverified/alias domains show up for an account that only uses 11.
-                domains = [d for d in raw_domains if d.get('verified', False)]
+                # AND prioritize domains matching the account's domain suffix to avoid clutter
+                # Logic: If account is 'user@example.com', we prefer domains ending in 'example.com'
+                # But we must be careful not to hide valid domains if the user manages multiple.
+                # However, the user explicitly asked for "real existing domains" (11 vs 200).
+                # We will filter by VERIFIED status strictly.
+                
+                user_domain_suffix = account_name.split('@')[-1] if '@' in account_name else ''
+                
+                domains = []
+                for d in raw_domains:
+                    is_verified = d.get('verified', False)
+                    d_name = d.get('domainName', '')
+                    
+                    # Strict Verified Check
+                    if not is_verified:
+                        continue
+                        
+                    # Optional: Heuristic to prioritize relevant domains
+                    # If the list is huge (>50), we might want to filter by suffix
+                    # But for now, let's just trust 'verified' is enough, BUT ensure d['verified'] is actually boolean True.
+                    # Some APIs return strings 'true'/'false'.
+                    if str(is_verified).lower() == 'true' or is_verified is True:
+                         domains.append(d)
                 
                 if len(domains) < len(raw_domains):
                     app.logger.info(f"Filtered {len(raw_domains) - len(domains)} unverified domains. Keeping {len(domains)} verified domains.")
@@ -4040,7 +4061,13 @@ def api_retrieve_domains():
             raw_domains = result['domains']
             
             # STRICT FILTERING: Only show VERIFIED domains
-            domains = [d for d in raw_domains if d.get('verified', False)]
+            domains = []
+            for d in raw_domains:
+                is_verified = d.get('verified', False)
+                if not is_verified:
+                    continue
+                if str(is_verified).lower() == 'true' or is_verified is True:
+                     domains.append(d)
             
             app.logger.info(f"API Retrieve (Full): Found {len(raw_domains)} raw domains, filtered to {len(domains)} verified domains.")
             
