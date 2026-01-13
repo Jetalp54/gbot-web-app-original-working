@@ -247,42 +247,16 @@ class WebGoogleAPI:
         except HttpError as e:
             return {"success": False, "error": str(e)}
 
-    def create_service_for_account(self, account_name):
-        """Create and return a service instance for the account without setting global state"""
-        # Try OAuth first
-        creds = self.get_credentials(account_name)
-        if creds:
-            if creds.expired and creds.refresh_token:
-                creds.refresh(google.auth.transport.requests.Request())
-
-            if creds.valid:
-                return build('admin', 'directory_v1', credentials=creds)
-        
-        # Try Service Account
-        service_account = ServiceAccount.query.filter_by(name=account_name).first()
-        if service_account:
-            try:
-                gsa = GoogleServiceAccount(service_account.id)
-                return gsa.build_service('admin', 'directory_v1')
-            except Exception as e:
-                logging.error(f"Failed to authenticate service account {account_name}: {e}")
-                return None
-                
-        return None
-
-    def get_domains_batch(self, page_token=None, service_instance=None):
+    def get_domains_batch(self, page_token=None):
         """Retrieve domains in batches to avoid timeouts with large domain lists.
         
         Args:
             page_token: Optional page token to start from.
-            service_instance: Optional service object to use instead of self.service
             
         Returns:
             dict: { success, domains, next_page_token, total_fetched }
         """
-        service = service_instance if service_instance else self.service
-        
-        if not service:
+        if not self.service:
             raise Exception("Not authenticated or session expired.")
         
         try:
@@ -293,9 +267,7 @@ class WebGoogleAPI:
             if page_token:
                 request_params['pageToken'] = page_token
             
-            # CRITICAL FIX: Use the 'service' variable (which might be the stateless instance)
-            # instead of 'self.service' (which is the shared/cached global)
-            domains_result = service.domains().list(**request_params).execute()
+            domains_result = self.service.domains().list(**request_params).execute()
             domains = domains_result.get('domains', [])
             next_token = domains_result.get('nextPageToken')
             

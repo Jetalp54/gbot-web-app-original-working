@@ -112,9 +112,6 @@ def cleanup_old_progress():
 app = Flask(__name__)
 app.config.from_object('config')
 
-# Global lock for Google API calls to prevent multi-thread race conditions
-domain_api_lock = threading.Lock()
-
 # Set secret key for sessions
 if app.config.get('SECRET_KEY'):
     app.secret_key = app.config['SECRET_KEY']
@@ -1214,23 +1211,6 @@ def api_delete_users():
                 # Delete user from Google Workspace
                 google_api.service.users().delete(userKey=email).execute()
                 
-                # Update UsedDomain record
-                try:
-                    if '@' in email:
-                        domain = email.split('@')[1].lower()
-                        used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
-                        if used_domain:
-                            if used_domain.user_count > 0:
-                                used_domain.user_count -= 1
-                            used_domain.ever_used = True  # Ensure it remains marked as used
-                            used_domain.updated_at = db.func.current_timestamp()
-                            db.session.commit()
-                            logging.info(f"Updated domain persistence for {domain}: count={used_domain.user_count}, ever_used=True")
-                except Exception as db_err:
-                    logging.error(f"Failed to update domain persistence for {email}: {db_err}")
-                    # Don't fail the whole request just because domain stats failed
-                    db.session.rollback()
-
                 results.append({
                     'email': email,
                     'result': {'success': True, 'message': f'User {email} deleted successfully'}
@@ -3285,30 +3265,16 @@ def api_get_domain_info():
         live_domain_names = {d.get('domainName') for d in live_domains}
         
         # Merge DB domains if they aren't in the live list
-        # Merge DB domains if they aren't in the live list, BUT ONLY if they belong to this account
-        # We assume a DB domain belongs to this account if it is a subdomain of any live domain
-        live_root_domains = {d.lower() for d in live_domain_names}
-        
         for db_domain in db_used_domains:
             if db_domain.domain_name not in live_domain_names:
-                # Check if it's a subdomain of any live root domain
-                domain_lower = db_domain.domain_name.lower()
-                belongs_to_account = False
-                
-                for root in live_root_domains:
-                    if domain_lower == root or domain_lower.endswith('.' + root):
-                        belongs_to_account = True
-                        break
-                
-                if belongs_to_account:
-                    # Add domain from DB to the list
-                    live_domains.append({
-                        'domainName': db_domain.domain_name,
-                        'verified': db_domain.is_verified,
-                        'isPrimary': False, # DB-only domains are likely not primary
-                        'source': 'database', # Flag to indicate source
-                        'user_count': db_domain.user_count
-                    })
+                # Add domain from DB to the list
+                live_domains.append({
+                    'domainName': db_domain.domain_name,
+                    'verified': db_domain.is_verified,
+                    'isPrimary': False, # DB-only domains are likely not primary
+                    'source': 'database', # Flag to indicate source
+                    'user_count': db_domain.user_count
+                })
         
         # Sort domains by name
         live_domains.sort(key=lambda x: x.get('domainName', ''))
@@ -3715,77 +3681,49 @@ def api_retrieve_domains_for_account():
                 return jsonify({'success': False, 'error': f'Failed to retrieve domains: {str(sa_err)}'})
         
         # Fallback: try GoogleAccount (legacy OAuth)
-        # Use case-insensitive lookup to find the account securely
-        google_account = GoogleAccount.query.filter(db.func.lower(GoogleAccount.account_name) == account_email.lower()).first()
+        google_account = GoogleAccount.query.filter_by(account_name=account_email).first()
         
         if not google_account:
-            return jsonify({'success': False, 'error': f'Account {account_email} not found. Please authenticate first.'})
+            google_account = GoogleAccount.query.filter(GoogleAccount.account_name.contains(account_email.split('@')[0])).first()
+        
+        if not google_account:
+            return jsonify({'success': False, 'error': f'Account {account_email} not found. Please check the email or authenticate the account first.'})
         
         account_name = google_account.account_name
+        logging.info(f"Found GoogleAccount: {account_name} for email {account_email}")
         
-        # Use new STATELESS service creation to prevent any session leakage
-        # We don't need the lock as much now to protect authentication state, 
-        # but kept for safety if other parts use shared state concurrently.
-        with domain_api_lock:
-            service = google_api.create_service_for_account(account_name)
-            
-            if not service:
-                return jsonify({'success': False, 'error': f'Failed to authenticate for {account_name}. Please re-authenticate.'})
-            
-            # Get domains using batched mode with EXPLICIT service instance
-            all_domains = []
-            next_token = None
-            
-            while True:
-                # Pass service_instance to ensure we use the correct credentials
-                result = google_api.get_domains_batch(page_token=next_token, service_instance=service)
-                if not result['success']:
-                    return jsonify({'success': False, 'error': result.get('error', 'Unknown error')})
-                
-                domains = result.get('domains', [])
-                all_domains.extend(domains)
-                
-                next_token = result.get('next_page_token')
-                if not next_token:
-                    break
+        # Authenticate with this account's tokens
+        if google_api.is_token_valid(account_name):
+            success = google_api.authenticate_with_tokens(account_name)
+            if not success:
+                return jsonify({'success': False, 'error': f'Failed to authenticate with saved tokens for {account_name}. Please re-authenticate this account.'})
+        else:
+            return jsonify({'success': False, 'error': f'No valid tokens found for {account_name}. Please re-authenticate this account.'})
         
-        # Verify that the returned domains actually belong to this account
-        # This catches cases where the user authenticated as Account B but saved it under Account A's row
-        try:
-            account_domain = account_email.split('@')[1].lower()
-            match_found = False
-            for d in all_domains:
-                d_name = d.get('domainName', '').lower()
-                if not d_name:
-                    continue
-                # Check if account domain matches or is a subdomain of a returned root domain
-                if account_domain == d_name or account_domain.endswith('.' + d_name):
-                    match_found = True
-                    break
+        # Get domains using batched mode
+        all_domains = []
+        next_token = None
+        
+        while True:
+            result = google_api.get_domains_batch(page_token=next_token)
+            if not result['success']:
+                return jsonify({'success': False, 'error': result.get('error', 'Unknown error')})
             
-            if not match_found and all_domains:
-                # CRITICAL: The tokens do not match the requested email's domain.
-                # This is the "Leak" - the user authenticated the wrong Google account.
-                found_domains = ", ".join([d.get('domainName', '') for d in all_domains[:3]])
-                return jsonify({
-                    'success': False, 
-                    'error': f'Authentication Mismatch! You are logged in explicitly as a different user. Expected {account_domain}, but Google returned domains for: {found_domains}. Please Re-Authenticate THIS row with the detailed email.'
-                })
-        except Exception as e:
-            logging.error(f"Error checking domain identity: {e}")
-            # Continue if check fails, don't block
-
-
+            domains = result.get('domains', [])
+            all_domains.extend(domains)
+            
+            next_token = result.get('next_page_token')
+            if not next_token:
+                break
         
         # Get user counts for domains to determine status
         from database import UsedDomain
         all_users = []
         try:
-            # We use the explicit service here too
-            # Note: users().list() is a standard googleapiclient method, not our wrapper
+            # Get all users to calculate domain usage
             page_token = None
             while True:
-                users_result = service.users().list(
+                users_result = google_api.service.users().list(
                     customer='my_customer',
                     maxResults=500,
                     pageToken=page_token
@@ -3806,32 +3744,24 @@ def api_retrieve_domains_for_account():
                 domain = email.split('@')[1].lower()
                 domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
         
-        # Implement STRICT RELEVANCE FILTER based on the account email domain
-        # This prevents showing hundreds of unrelated sibling domains.
-        try:
-            account_domain = account_email.split('@')[1].lower()
-            filtered_domains = []
-            
-            for d in all_domains:
-                d_name = d.get('domainName', '').lower()
-                if not d_name:
-                    continue
-                
-                # Loose matching: if one contains the other (handles subdomains and simple variations)
-                if account_domain in d_name or d_name in account_domain:
-                    filtered_domains.append(d)
-                # Also include if explicitly related via strict subdomain check (just in case)
-                elif d_name.endswith('.' + account_domain) or account_domain.endswith('.' + d_name):
-                    filtered_domains.append(d)
-            
-            if filtered_domains:
-                all_domains = filtered_domains
-            # If filter removes everything (unlikely), valid domains might be missed, but this matches "only domains in account" request.
-        except Exception as e:
-            logging.error(f"Error filtering domains for relevance: {e}")
-
         # Format domains with status information
         formatted_domains = []
+        
+        # Create a set of domain names from Google API for easy lookup
+        api_domain_names = {d.get('domainName', '').lower() for d in all_domains if d.get('domainName')}
+        
+        # Fetch all used domains from DB
+        from database import UsedDomain
+        db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
+        
+        # Add DB-only domains to all_domains list
+        for db_domain in db_used_domains:
+            if db_domain.domain_name.lower() not in api_domain_names:
+                all_domains.append({
+                    'domainName': db_domain.domain_name,
+                    'verified': db_domain.is_verified,
+                    'isPrimary': False
+                })
 
         for domain in all_domains:
             domain_name = domain.get('domainName', '')
@@ -3842,13 +3772,24 @@ def api_retrieve_domains_for_account():
             domain_name_lower = domain_name.lower()
             
             user_count = domain_user_counts.get(domain_name_lower, 0)
+            domain_record = UsedDomain.query.filter_by(domain_name=domain_name_lower).first()
             
-            # STATUS LOGIC: PURELY LIVE DATA
-            # We removed 'UsedDomain' database check. Status is now based ONLY on live active users.
+            ever_used = False
+            if domain_record:
+                try:
+                    ever_used = getattr(domain_record, 'ever_used', False)
+                except:
+                    ever_used = False
+            
+            # Determine domain status
             if user_count > 0:
                 status = 'in_use'
                 status_text = 'IN USE'
                 status_color = 'purple'
+            elif domain_record and ever_used:
+                status = 'used'
+                status_text = 'USED'
+                status_color = 'red'
             else:
                 status = 'available'
                 status_text = 'AVAILABLE'
@@ -4223,78 +4164,15 @@ def api_retrieve_domains():
 @app.route('/api/get-domain-usage-stats', methods=['GET'])
 @login_required
 def api_get_domain_usage_stats():
-    """Get domain usage statistics from database, filtered by authenticated account"""
+    """Get domain usage statistics from database"""
     try:
-        # Get authenticated account to scope the domains
-        if 'current_account_name' not in session:
-            return jsonify({'success': False, 'error': 'No account authenticated'})
-            
-        account_name = session.get('current_account_name')
-        
-        # 1. Get List of Domains Owned by this Account (for Scoping)
-        # Check cache first to avoid slow API calls
-        live_root_domains = set()
-        cache_key = f'domains_{account_name}'
-        
-        if cache_key in session and session.get(cache_key):
-            try:
-                live_root_domains = set(session.get(cache_key))
-                # logging.info(f"Using cached domain list for {account_name} ({len(live_root_domains)} domains)")
-            except:
-                live_root_domains = set()
-        
-        # If cache miss, fetch from Google API
-        if not live_root_domains:
-            try:
-                # Use lock to prevent race conditions during auth and fetch
-                with domain_api_lock:
-                    # Authenticate if needed
-                    if not google_api.service:
-                        if google_api.is_token_valid(account_name):
-                            google_api.authenticate_with_tokens(account_name)
-                    
-                    # logging.info(f"Fetching fresh domain list from Google for {account_name}...")
-                    api_result = google_api.get_domain_info()
-                    if api_result.get('success'):
-                        live_domains = api_result.get('domains', [])
-                        live_root_domains = {d.get('domainName', '').lower() for d in live_domains}
-                        # Cache the result
-                        session[cache_key] = list(live_root_domains)
-            except Exception as e:
-                logging.warning(f"Failed to fetch live domains for filter: {e}")
-                # If API fails, we can't safely filter, so we might return empty or everything.
-                # Returning empty is safer for privacy.
-                live_root_domains = set()
-
-        # 2. Fetch Status from Database (The Source of Truth)
         from database import UsedDomain
-        all_db_domains = UsedDomain.query.all()
-        
-        # 3. Filter DB Results: Only show domains belonging to this account
-        domains = []
-        if live_root_domains:
-            for d in all_db_domains:
-                d_name = d.domain_name.lower()
-                
-                # Direct match
-                if d_name in live_root_domains:
-                    domains.append(d)
-                    continue
-                    
-                # Subdomain match (e.g. sub.example.com belongs to example.com)
-                for root in live_root_domains:
-                    if d_name.endswith('.' + root):
-                        domains.append(d)
-                        break
-        else:
-            # If we couldn't get the domain list (API error), we can't verify ownership.
-            # Fallback: don't show any DB domains to prevent leaking other accounts' data.
-            domains = [] 
+        domains = UsedDomain.query.all()
         
         # Sort domains by user count (descending) and then by name
         sorted_domains = sorted(domains, key=lambda x: (x.user_count, x.domain_name), reverse=True)
         
-        # Calculate stats with new three-state system
+        # Calculate stats with new three-state system (handle missing ever_used column)
         in_use_domains = [d for d in domains if d.user_count > 0]
         used_domains = []
         available_domains = []
@@ -4308,6 +4186,7 @@ def api_get_domain_usage_stats():
                     else:
                         available_domains.append(d)
                 except:
+                    # Column doesn't exist, treat as available
                     available_domains.append(d)
         
         stats = {
@@ -4321,7 +4200,7 @@ def api_get_domain_usage_stats():
                     'domain_name': d.domain_name,
                     'user_count': d.user_count,
                     'is_verified': d.is_verified,
-                    'is_used': d.user_count > 0,
+                    'is_used': d.user_count > 0,  # For backward compatibility
                     'ever_used': getattr(d, 'ever_used', False),
                     'status': 'in_use' if d.user_count > 0 else ('used' if getattr(d, 'ever_used', False) else 'available'),
                     'status_text': 'IN USE' if d.user_count > 0 else ('USED' if getattr(d, 'ever_used', False) else 'AVAILABLE'),
@@ -4331,6 +4210,8 @@ def api_get_domain_usage_stats():
                 for d in sorted_domains
             ]
         }
+        
+        logging.info(f"Domain usage stats: {stats['total_domains']} domains, {stats['total_users']} users")
         
         return jsonify({'success': True, 'stats': stats})
         
@@ -12783,7 +12664,83 @@ def api_get_otp_ssh_config():
         return jsonify({'success': False, 'error': str(e)})
 
 
-
+@app.route('/api/mark-used-domains', methods=['POST'])
+@login_required
+def api_mark_used_domains():
+    """Automatically mark all domains that are currently in use as used"""
+    try:
+        # Get all Google accounts to find domains that are actually being used
+        accounts = GoogleAccount.query.all()
+        app.logger.info(f"📊 Found {len(accounts)} Google accounts")
+        
+        # Extract domains from account names
+        used_domains = set()
+        domain_user_counts = {}
+        
+        for account in accounts:
+            account_name = account.account_name
+            if '@' in account_name:
+                domain = account_name.split('@')[1]
+                used_domains.add(domain)
+                domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
+        
+        app.logger.info(f"📋 Found {len(used_domains)} unique domains in use: {sorted(used_domains)}")
+        
+        # Get all existing domain records
+        existing_domains = {d.domain_name: d for d in UsedDomain.query.all()}
+        
+        updated_count = 0
+        created_count = 0
+        
+        # Update or create records for domains that are actually being used
+        for domain in used_domains:
+            user_count = domain_user_counts.get(domain, 0)
+            
+            if domain in existing_domains:
+                # Update existing record
+                domain_record = existing_domains[domain]
+                domain_record.user_count = user_count
+                domain_record.ever_used = True
+                domain_record.is_verified = True
+                domain_record.updated_at = db.func.current_timestamp()
+                updated_count += 1
+            else:
+                # Create new record
+                new_domain = UsedDomain(
+                    domain_name=domain,
+                    user_count=user_count,
+                    is_verified=True,
+                    ever_used=True
+                )
+                db.session.add(new_domain)
+                created_count += 1
+        
+        db.session.commit()
+        
+        # Get final counts
+        used_domains_count = UsedDomain.query.filter(UsedDomain.ever_used == True).count()
+        available_domains_count = UsedDomain.query.filter(
+            UsedDomain.ever_used == False,
+            UsedDomain.user_count == 0
+        ).count()
+        
+        app.logger.info(f"✅ Domain marking completed: {updated_count} updated, {created_count} created")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully marked used domains: {updated_count} updated, {created_count} created',
+            'stats': {
+                'updated': updated_count,
+                'created': created_count,
+                'total_used': used_domains_count,
+                'total_available': available_domains_count
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error marking used domains: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/change-subdomain-status', methods=['POST'])
 @login_required
@@ -12822,7 +12779,7 @@ def api_change_subdomain_status():
                     'domain_name': subdomain,
                     'user_count': 0,
                     'is_verified': True,
-                    'ever_used': True  # ALWAYS mark as used when creating record
+                    'ever_used': False
                 })
                 
                 # If no row was inserted (conflict), fetch the existing record
@@ -12870,7 +12827,7 @@ def api_change_subdomain_status():
                                 domain_name=subdomain,
                                 user_count=0,
                                 is_verified=True,
-                                ever_used=True  # ALWAYS mark as used when creating record
+                                ever_used=False
                             )
                             db.session.add(domain_record)
                             db.session.flush()
@@ -12897,8 +12854,7 @@ def api_change_subdomain_status():
         # Update the status based on the requested status
         if status == 'available':
             domain_record.user_count = 0
-            # NEVER reset ever_used - once used, always marked as used
-            # domain_record.ever_used = False  # REMOVED - this was causing the bug
+            domain_record.ever_used = False
         elif status == 'in_use':
             domain_record.user_count = 1  # Set to 1 to indicate in use
             domain_record.ever_used = True
