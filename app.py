@@ -3964,7 +3964,14 @@ def api_retrieve_domains():
                 if not result['success']:
                     return jsonify({'success': False, 'error': result.get('error', 'Unknown error')})
 
-                domains = result['domains']
+                raw_domains = result['domains']
+                
+                # STRICT FILTERING: Only show VERIFIED domains
+                # This fixes the issue where 200+ unverified/alias domains show up for an account that only uses 11.
+                domains = [d for d in raw_domains if d.get('verified', False)]
+                
+                if len(domains) < len(raw_domains):
+                    app.logger.info(f"Filtered {len(raw_domains) - len(domains)} unverified domains. Keeping {len(domains)} verified domains.")
                 
                 # For batched mode, we'll get user counts separately to avoid timeout
                 # First, get domain records from database to check ever_used status
@@ -4025,7 +4032,12 @@ def api_retrieve_domains():
             if not result['success']:
                 return jsonify({'success': False, 'error': result['error']})
             
-            domains = result['domains']
+            raw_domains = result['domains']
+            
+            # STRICT FILTERING: Only show VERIFIED domains
+            domains = [d for d in raw_domains if d.get('verified', False)]
+            
+            app.logger.info(f"API Retrieve (Full): Found {len(raw_domains)} raw domains, filtered to {len(domains)} verified domains.")
             
             # Get all users to calculate domain usage (handle pagination for large user bases)
             all_users = []
