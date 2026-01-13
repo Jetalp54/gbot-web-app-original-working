@@ -3806,9 +3806,30 @@ def api_retrieve_domains_for_account():
                 domain = email.split('@')[1].lower()
                 domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
         
-        # NOTE: DB Merge logic REMOVED as per user request to "load only real domains from account".
-        # We now rely exclusively on the Google API response (in `all_domains`).
-        
+        # Implement STRICT RELEVANCE FILTER based on the account email domain
+        # This prevents showing hundreds of unrelated sibling domains.
+        try:
+            account_domain = account_email.split('@')[1].lower()
+            filtered_domains = []
+            
+            for d in all_domains:
+                d_name = d.get('domainName', '').lower()
+                if not d_name:
+                    continue
+                
+                # Loose matching: if one contains the other (handles subdomains and simple variations)
+                if account_domain in d_name or d_name in account_domain:
+                    filtered_domains.append(d)
+                # Also include if explicitly related via strict subdomain check (just in case)
+                elif d_name.endswith('.' + account_domain) or account_domain.endswith('.' + d_name):
+                    filtered_domains.append(d)
+            
+            if filtered_domains:
+                all_domains = filtered_domains
+            # If filter removes everything (unlikely), valid domains might be missed, but this matches "only domains in account" request.
+        except Exception as e:
+            logging.error(f"Error filtering domains for relevance: {e}")
+
         # Format domains with status information
         formatted_domains = []
 
@@ -3821,24 +3842,13 @@ def api_retrieve_domains_for_account():
             domain_name_lower = domain_name.lower()
             
             user_count = domain_user_counts.get(domain_name_lower, 0)
-            domain_record = UsedDomain.query.filter_by(domain_name=domain_name_lower).first()
             
-            ever_used = False
-            if domain_record:
-                try:
-                    ever_used = getattr(domain_record, 'ever_used', False)
-                except:
-                    ever_used = False
-            
-            # Determine domain status
+            # STATUS LOGIC: PURELY LIVE DATA
+            # We removed 'UsedDomain' database check. Status is now based ONLY on live active users.
             if user_count > 0:
                 status = 'in_use'
                 status_text = 'IN USE'
                 status_color = 'purple'
-            elif domain_record and ever_used:
-                status = 'used'
-                status_text = 'USED'
-                status_color = 'red'
             else:
                 status = 'available'
                 status_text = 'AVAILABLE'
