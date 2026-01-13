@@ -7116,7 +7116,10 @@
                         const progressBar = document.getElementById('bulk-account-progress-bar');
                         const progressText = document.getElementById('bulk-account-progress-text');
                         if (progressBar) progressBar.style.width = '100%';
-                        if (progressText) progressText.textContent = `✅ Deletion completed! ${data.total_deleted} users deleted from ${data.total_accounts} account(s)`;
+                        const savedDomainsMsg = data.saved_domains && data.saved_domains.length > 0
+                            ? ` | Domains marked as USED: ${data.saved_domains.join(', ')}`
+                            : ' | WARNING: No domains were saved!';
+                        if (progressText) progressText.textContent = `✅ Deletion completed! ${data.total_deleted} users deleted from ${data.total_accounts} account(s)${savedDomainsMsg}`;
 
                         // Display results
                         displayBulkAccountDeletionResults(data);

@@ -2916,6 +2916,7 @@ def api_bulk_delete_account_users():
         
         # IMMEDIATE SAVE: Save all explicitly provided domains to database RIGHT NOW
         # This guarantees domains are marked as 'used' even if deletion fails or users are already gone
+        saved_domains_list = []  # Track what was actually saved
         if domain_map:
             try:
                 from database import UsedDomain, db
@@ -2930,8 +2931,9 @@ def api_bulk_delete_account_users():
                         new_used_domain = UsedDomain(domain_name=target_domain, ever_used=True, is_verified=True, user_count=0)
                         db.session.add(new_used_domain)
                         app.logger.info(f"[BULK DELETE] Created new domain record: {target_domain}")
+                    saved_domains_list.append(target_domain)
                 db.session.commit()
-                app.logger.info(f"[BULK DELETE] IMMEDIATE SAVE: Successfully saved {len(domain_map)} domains to DB")
+                app.logger.info(f"[BULK DELETE] IMMEDIATE SAVE: Successfully saved {len(domain_map)} domains to DB: {saved_domains_list}")
             except Exception as immediate_save_err:
                 app.logger.error(f"[BULK DELETE] IMMEDIATE SAVE FAILED: {immediate_save_err}")
                 db.session.rollback()
@@ -3128,7 +3130,8 @@ def api_bulk_delete_account_users():
             'total_accounts': total_accounts,
             'total_deleted': total_deleted,
             'total_failed': total_failed,
-            'results': all_results
+            'results': all_results,
+            'saved_domains': saved_domains_list  # For debugging - shows what was saved to DB
         })
         
     except Exception as e:
