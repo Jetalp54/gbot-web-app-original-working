@@ -3974,11 +3974,16 @@ def api_retrieve_domains():
                     app.logger.info(f"Filtered {len(raw_domains) - len(domains)} unverified domains. Keeping {len(domains)} verified domains.")
                 
                 # For batched mode, we'll get user counts separately to avoid timeout
-                # First, get domain records from database to check ever_used status
+                # OPTIMIZATION: Only query for domains we actually retrieved
+                # This prevents loading the entire database (Crash Fix) and ensures we only show relevant data
                 from database import UsedDomain
-                domain_records = {}
-                for domain_record in UsedDomain.query.all():
-                    domain_records[domain_record.domain_name] = domain_record
+                domain_names = [d.get('domainName') for d in domains]
+                # Use standard SA filter if list is not empty
+                db_domains = []
+                if domain_names:
+                     db_domains = UsedDomain.query.filter(UsedDomain.domain_name.in_(domain_names)).all()
+                
+                domain_records = {r.domain_name: r for r in db_domains}
                 
                 # Format domains with basic info first (no user counts to avoid timeout)
                 formatted_domains = []
@@ -12681,79 +12686,17 @@ def api_get_otp_ssh_config():
 @login_required
 def api_mark_used_domains():
     """Automatically mark all domains that are currently in use as used"""
-    try:
-        # Get all Google accounts to find domains that are actually being used
-        accounts = GoogleAccount.query.all()
-        app.logger.info(f"📊 Found {len(accounts)} Google accounts")
-        
-        # Extract domains from account names
-        used_domains = set()
-        domain_user_counts = {}
-        
-        for account in accounts:
-            account_name = account.account_name
-            if '@' in account_name:
-                domain = account_name.split('@')[1]
-                used_domains.add(domain)
-                domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
-        
-        app.logger.info(f"📋 Found {len(used_domains)} unique domains in use: {sorted(used_domains)}")
-        
-        # Get all existing domain records
-        existing_domains = {d.domain_name: d for d in UsedDomain.query.all()}
-        
-        updated_count = 0
-        created_count = 0
-        
-        # Update or create records for domains that are actually being used
-        for domain in used_domains:
-            user_count = domain_user_counts.get(domain, 0)
-            
-            if domain in existing_domains:
-                # Update existing record
-                domain_record = existing_domains[domain]
-                domain_record.user_count = user_count
-                domain_record.ever_used = True
-                domain_record.is_verified = True
-                domain_record.updated_at = db.func.current_timestamp()
-                updated_count += 1
-            else:
-                # Create new record
-                new_domain = UsedDomain(
-                    domain_name=domain,
-                    user_count=user_count,
-                    is_verified=True,
-                    ever_used=True
-                )
-                db.session.add(new_domain)
-                created_count += 1
-        
-        db.session.commit()
-        
-        # Get final counts
-        used_domains_count = UsedDomain.query.filter(UsedDomain.ever_used == True).count()
-        available_domains_count = UsedDomain.query.filter(
-            UsedDomain.ever_used == False,
-            UsedDomain.user_count == 0
-        ).count()
-        
-        app.logger.info(f"✅ Domain marking completed: {updated_count} updated, {created_count} created")
-        
-        return jsonify({
-            'success': True,
-            'message': f'Successfully marked used domains: {updated_count} updated, {created_count} created',
-            'stats': {
-                'updated': updated_count,
-                'created': created_count,
-                'total_used': used_domains_count,
-                'total_available': available_domains_count
-            }
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Error marking used domains: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+    # FEATURE DISABLED BY USER REQUEST
+    return jsonify({
+        'success': True,
+        'message': 'Feature disabled by administrator request.',
+        'stats': {'updated': 0, 'created': 0, 'total_used': 0, 'total_available': 0}
+    })
+    
+    # try:
+    #     # Get all Google accounts to find domains that are actually being used
+    #     accounts = GoogleAccount.query.all()
+    # ... (rest of logic disabled)
 
 @app.route('/api/change-subdomain-status', methods=['POST'])
 @login_required
