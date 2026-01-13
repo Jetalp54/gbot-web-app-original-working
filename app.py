@@ -1200,11 +1200,18 @@ def api_delete_users():
         results = []
         successful_deletions = 0
         
+        # Track domains to save status
+        domains_to_save = set()
+
         for email in user_emails:
             email = email.strip()
             if not email:
                 continue
-                
+            
+            # Extract domain for saving
+            if '@' in email:
+                domains_to_save.add(email.split('@')[1].lower())
+
             try:
                 logging.info(f"Deleting user: {email}")
                 
@@ -1225,7 +1232,25 @@ def api_delete_users():
                     'email': email,
                     'result': {'success': False, 'error': error_msg}
                 })
-        
+
+        # SAVE DOMAINS TO DATABASE AS 'USED'
+        if domains_to_save:
+            try:
+                from database import UsedDomain, db
+                for domain in domains_to_save:
+                    used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                    if used_domain:
+                        used_domain.ever_used = True
+                        used_domain.updated_at = db.func.current_timestamp()
+                    else:
+                        new_used_domain = UsedDomain(domain_name=domain, ever_used=True, is_verified=True, user_count=0)
+                        db.session.add(new_used_domain)
+                db.session.commit()
+                logging.info(f"Saved {len(domains_to_save)} domains as USED in DB via api_delete_users")
+            except Exception as db_err:
+                logging.error(f"Failed to save domains to DB in api_delete_users: {db_err}")
+                db.session.rollback()
+
         logging.info(f"User deletion completed. Successfully deleted {successful_deletions} out of {len(user_emails)} users")
         
         return jsonify({
