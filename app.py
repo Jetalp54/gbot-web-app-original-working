@@ -2944,6 +2944,12 @@ def api_bulk_delete_account_users():
                     
                     # Track domains to save status
                     domains_to_save = set()
+                    
+                    # ALWAYS save the domain of the admin account itself, as it implies usage
+                    if '@' in account_name:
+                        admin_domain = account_name.split('@')[1].lower()
+                        domains_to_save.add(admin_domain)
+                        app.logger.info(f"[BULK DELETE] [{account_name}] Added admin domain to save list: {admin_domain}")
 
                     # Delete all users (excluding admin accounts)
                     for user in all_users:
