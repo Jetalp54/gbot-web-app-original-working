@@ -293,7 +293,9 @@ class WebGoogleAPI:
             if page_token:
                 request_params['pageToken'] = page_token
             
-            domains_result = self.service.domains().list(**request_params).execute()
+            # CRITICAL FIX: Use the 'service' variable (which might be the stateless instance)
+            # instead of 'self.service' (which is the shared/cached global)
+            domains_result = service.domains().list(**request_params).execute()
             domains = domains_result.get('domains', [])
             next_token = domains_result.get('nextPageToken')
             
