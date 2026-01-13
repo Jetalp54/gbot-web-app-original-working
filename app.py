@@ -3618,7 +3618,8 @@ def api_retrieve_domains_for_account():
                         domain = email.split('@')[1].lower()
                         domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
                 
-                # Format domains with status information - NO DATABASE MERGING
+                # Format domains with status information - CONDITIONAL DB SAVING
+                from database import UsedDomain, db
                 formatted_domains = []
                 
                 # Strict Filtering: Only include verified domains from API
@@ -3637,11 +3638,44 @@ def api_retrieve_domains_for_account():
                     
                     user_count = domain_user_counts.get(domain_name_lower, 0)
                     
-                    # Determine domain status purely on live data
+                    # Logic:
+                    # 1. If users > 0: Status 'in_use', SAVE/UPDATE to DB (ever_used=True)
+                    # 2. If users == 0 AND in DB (ever_used=True): Status 'used'
+                    # 3. If users == 0 AND NOT in DB: Status 'available', DO NOT SAVE
+                    
+                    domain_record = UsedDomain.query.filter_by(domain_name=domain_name_lower).first()
+                    ever_used_db = getattr(domain_record, 'ever_used', False) if domain_record else False
+                    
                     if user_count > 0:
                         status = 'in_use'
                         status_text = 'IN USE'
                         status_color = 'purple'
+                        
+                        # SAVE/UPDATE to DB
+                        try:
+                            if domain_record:
+                                domain_record.user_count = user_count
+                                domain_record.is_verified = True
+                                try:
+                                    domain_record.ever_used = True
+                                except:
+                                    pass
+                                domain_record.updated_at = db.func.current_timestamp()
+                            else:
+                                try:
+                                    new_domain = UsedDomain(domain_name=domain_name_lower, user_count=user_count, is_verified=True, ever_used=True)
+                                except:
+                                    new_domain = UsedDomain(domain_name=domain_name_lower, user_count=user_count, is_verified=True)
+                                db.session.add(new_domain)
+                            db.session.commit()
+                        except Exception as e:
+                            logging.warning(f"Failed to save domain {domain_name_lower}: {e}")
+                            db.session.rollback()
+
+                    elif domain_record and ever_used_db:
+                        status = 'used'
+                        status_text = 'USED'
+                        status_color = 'red'
                     else:
                         status = 'available'
                         status_text = 'AVAILABLE'
@@ -3653,7 +3687,7 @@ def api_retrieve_domains_for_account():
                         'status_text': status_text,
                         'status_color': status_color,
                         'user_count': user_count,
-                        'ever_used': False # No longer using historical data
+                        'ever_used': ever_used_db or (user_count > 0)
                     })
                 
                 logging.info(f"Retrieved {len(formatted_domains)} domains for ServiceAccount {account_name}")
@@ -3732,7 +3766,8 @@ def api_retrieve_domains_for_account():
                 domain = email.split('@')[1].lower()
                 domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
         
-        # Format domains with status information - NO DATABASE MERGING
+        # Format domains with status information - CONDITIONAL DB SAVING
+        from database import UsedDomain, db
         formatted_domains = []
         
         for domain in all_domains:
@@ -3750,11 +3785,44 @@ def api_retrieve_domains_for_account():
             
             user_count = domain_user_counts.get(domain_name_lower, 0)
             
-            # Determine domain status purely on live data
+            # Logic:
+            # 1. If users > 0: Status 'in_use', SAVE/UPDATE to DB (ever_used=True)
+            # 2. If users == 0 AND in DB (ever_used=True): Status 'used'
+            # 3. If users == 0 AND NOT in DB: Status 'available', DO NOT SAVE
+            
+            domain_record = UsedDomain.query.filter_by(domain_name=domain_name_lower).first()
+            ever_used_db = getattr(domain_record, 'ever_used', False) if domain_record else False
+            
             if user_count > 0:
                 status = 'in_use'
                 status_text = 'IN USE'
                 status_color = 'purple'
+                
+                # SAVE/UPDATE to DB
+                try:
+                    if domain_record:
+                        domain_record.user_count = user_count
+                        domain_record.is_verified = True
+                        try:
+                            domain_record.ever_used = True
+                        except:
+                            pass
+                        domain_record.updated_at = db.func.current_timestamp()
+                    else:
+                        try:
+                            new_domain = UsedDomain(domain_name=domain_name_lower, user_count=user_count, is_verified=True, ever_used=True)
+                        except:
+                            new_domain = UsedDomain(domain_name=domain_name_lower, user_count=user_count, is_verified=True)
+                        db.session.add(new_domain)
+                    db.session.commit()
+                except Exception as e:
+                    logging.warning(f"Failed to save domain {domain_name_lower}: {e}")
+                    db.session.rollback()
+
+            elif domain_record and ever_used_db:
+                status = 'used'
+                status_text = 'USED'
+                status_color = 'red'
             else:
                 status = 'available'
                 status_text = 'AVAILABLE'
@@ -3766,7 +3834,7 @@ def api_retrieve_domains_for_account():
                 'status_text': status_text,
                 'status_color': status_color,
                 'user_count': user_count,
-                'ever_used': False
+                'ever_used': ever_used_db or (user_count > 0)
             })
         
         return jsonify({
@@ -4054,17 +4122,56 @@ def api_retrieve_domains():
                     domain = email.split('@')[1]
                     domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
             
-            # Format domain data with new three-state system - NO DB USAGE
+            # Format domain data with new three-state system - CONDITIONAL DB SAVING
+            from database import UsedDomain, db
             formatted_domains = []
             for domain in domains:
                 domain_name = domain.get('domainName', '')
                 user_count = domain_user_counts.get(domain_name, 0)
                 
-                # Determine domain status purely on live data
+                # Logic:
+                # 1. If users > 0: Status 'in_use', SAVE/UPDATE to DB (ever_used=True)
+                # 2. If users == 0 AND in DB (ever_used=True): Status 'used'
+                # 3. If users == 0 AND NOT in DB: Status 'available', DO NOT SAVE
+                
+                domain_record = UsedDomain.query.filter_by(domain_name=domain_name).first()
+                ever_used_db = getattr(domain_record, 'ever_used', False) if domain_record else False
+                
+                # Determine domain status
                 if user_count > 0:
                     status = 'in_use'  # Purple - currently has users
                     status_text = 'IN USE'
                     status_color = 'purple'
+                    
+                    # SAVE/UPDATE to DB
+                    try:
+                        if domain_record:
+                            domain_record.user_count = user_count
+                            domain_record.is_verified = domain.get('verified', False)
+                            try:
+                                domain_record.ever_used = True
+                            except:
+                                pass
+                            domain_record.updated_at = db.func.current_timestamp()
+                        else:
+                            try:
+                                new_domain = UsedDomain(domain_name=domain_name, user_count=user_count, is_verified=domain.get('verified', False), ever_used=True)
+                            except:
+                                new_domain = UsedDomain(domain_name=domain_name, user_count=user_count, is_verified=domain.get('verified', False))
+                            db.session.add(new_domain)
+                        db.session.commit()
+                        logging.debug(f"Synced domain {domain_name}: {user_count} users, status={status}")
+                    except Exception as db_error:
+                        logging.warning(f"Failed to sync domain {domain_name} to database: {db_error}")
+                        try:
+                            db.session.rollback()
+                        except:
+                            pass
+
+                elif domain_record and ever_used_db:
+                    status = 'used'  # Orange - previously used but no current users
+                    status_text = 'USED'
+                    status_color = 'orange'
                 else:
                     status = 'available'  # Green - never been used
                     status_text = 'AVAILABLE'
@@ -4078,7 +4185,7 @@ def api_retrieve_domains():
                     'status_text': status_text,
                     'status_color': status_color,
                     'is_used': user_count > 0,
-                    'ever_used': False
+                    'ever_used': ever_used_db or (user_count > 0)
                 }
                 formatted_domains.append(domain_data)
             
