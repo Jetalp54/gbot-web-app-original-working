@@ -1161,6 +1161,24 @@ def api_delete_user():
         db.session.delete(user)
         db.session.commit()
         
+        # SAVE DOMAIN TO DATABASE AS 'USED'
+        try:
+            if '@' in username:
+                domain = username.split('@')[1].lower()
+                from database import UsedDomain
+                used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                if used_domain:
+                    used_domain.ever_used = True
+                    used_domain.updated_at = db.func.current_timestamp()
+                else:
+                    new_used_domain = UsedDomain(domain_name=domain, ever_used=True, is_verified=True, user_count=0)
+                    db.session.add(new_used_domain)
+                db.session.commit()
+                app.logger.info(f"Saved domain {domain} as USED in DB via api_delete_user")
+        except Exception as db_err:
+            app.logger.error(f"Failed to save domain to DB in api_delete_user: {db_err}")
+            # Don't rollback the user deletion if domain save fails, just log it.
+        
         return jsonify({'success': True, 'message': f'User {username} deleted successfully'})
         
     except Exception as e:
