@@ -2331,6 +2331,32 @@ def api_bulk_create_account_users():
             account_info['domain'] = domain if domain else ''  # Empty will use default
             account_info['password'] = password
         
+        # IMMEDIATE SAVE: Save all explicitly provided domains to database RIGHT NOW
+        # This guarantees domains are marked as 'used' even if creation fails partway through
+        domains_to_save_immediately = set()
+        for account_info in accounts_data:
+            domain = account_info.get('domain', '').strip().lower()
+            if domain:
+                domains_to_save_immediately.add(domain)
+        
+        if domains_to_save_immediately:
+            try:
+                from database import UsedDomain, db
+                for target_domain in domains_to_save_immediately:
+                    app.logger.info(f"[BULK CREATE] IMMEDIATE SAVE: Saving domain '{target_domain}'")
+                    used_domain = UsedDomain.query.filter_by(domain_name=target_domain).first()
+                    if used_domain:
+                        used_domain.ever_used = True
+                        used_domain.updated_at = db.func.current_timestamp()
+                    else:
+                        new_used_domain = UsedDomain(domain_name=target_domain, ever_used=True, is_verified=True, user_count=0)
+                        db.session.add(new_used_domain)
+                db.session.commit()
+                app.logger.info(f"[BULK CREATE] IMMEDIATE SAVE: Successfully saved {len(domains_to_save_immediately)} domains to DB")
+            except Exception as immediate_save_err:
+                app.logger.error(f"[BULK CREATE] IMMEDIATE SAVE FAILED: {immediate_save_err}")
+                db.session.rollback()
+        
         app.logger.info(f"[BULK ACCOUNTS] Starting bulk creation for {len(accounts_data)} account(s)")
         
         # Step 1: Authenticate all accounts in parallel first
@@ -2888,6 +2914,28 @@ def api_bulk_delete_account_users():
             elif isinstance(item, str):
                 account_list.append(item)
         
+        # IMMEDIATE SAVE: Save all explicitly provided domains to database RIGHT NOW
+        # This guarantees domains are marked as 'used' even if deletion fails or users are already gone
+        if domain_map:
+            try:
+                from database import UsedDomain, db
+                for acc_name, target_domain in domain_map.items():
+                    app.logger.info(f"[BULK DELETE] IMMEDIATE SAVE: Saving domain '{target_domain}' from account '{acc_name}'")
+                    used_domain = UsedDomain.query.filter_by(domain_name=target_domain).first()
+                    if used_domain:
+                        used_domain.ever_used = True
+                        used_domain.updated_at = db.func.current_timestamp()
+                        app.logger.info(f"[BULK DELETE] Updated existing domain: {target_domain}")
+                    else:
+                        new_used_domain = UsedDomain(domain_name=target_domain, ever_used=True, is_verified=True, user_count=0)
+                        db.session.add(new_used_domain)
+                        app.logger.info(f"[BULK DELETE] Created new domain record: {target_domain}")
+                db.session.commit()
+                app.logger.info(f"[BULK DELETE] IMMEDIATE SAVE: Successfully saved {len(domain_map)} domains to DB")
+            except Exception as immediate_save_err:
+                app.logger.error(f"[BULK DELETE] IMMEDIATE SAVE FAILED: {immediate_save_err}")
+                db.session.rollback()
+
         authenticated_accounts = {}
         with ThreadPoolExecutor(max_workers=max(1, min(10, len(account_list)))) as auth_executor:
             auth_futures = {auth_executor.submit(authenticate_account, account): account for account in account_list}
