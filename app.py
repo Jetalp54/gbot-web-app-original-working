@@ -2945,9 +2945,28 @@ def api_bulk_delete_account_users():
                     # Track domains to save status
                     domains_to_save = set()
                     
-                    # ALWAYS save the domain of the admin account itself, as it implies usage
+                    # Resolve domain from Account Name or DB
+                    admin_domain = None
                     if '@' in account_name:
                         admin_domain = account_name.split('@')[1].lower()
+                    else:
+                        # Try to find email from ServiceAccount or GoogleAccount
+                        try:
+                            from database import ServiceAccount, GoogleAccount
+                            sa = ServiceAccount.query.filter_by(name=account_name).first()
+                            if sa and sa.admin_email and '@' in sa.admin_email:
+                                admin_domain = sa.admin_email.split('@')[1].lower()
+                                app.logger.info(f"Resolved domain {admin_domain} from ServiceAccount {account_name}")
+                            else:
+                                ga = GoogleAccount.query.filter_by(account_name=account_name).first()
+                                # Only if account_name is email, which we already checked. 
+                                # But maybe GoogleAccount stores it differently?
+                                # Assuming account_name IS the key.
+                                pass
+                        except Exception as resolve_err:
+                            app.logger.warning(f"Failed to resolve domain from DB for {account_name}: {resolve_err}")
+
+                    if admin_domain:
                         domains_to_save.add(admin_domain)
                         app.logger.info(f"[BULK DELETE] [{account_name}] Added admin domain to save list: {admin_domain}")
 
