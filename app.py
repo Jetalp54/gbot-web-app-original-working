@@ -3806,40 +3806,11 @@ def api_retrieve_domains_for_account():
                 domain = email.split('@')[1].lower()
                 domain_user_counts[domain] = domain_user_counts.get(domain, 0) + 1
         
+        # NOTE: DB Merge logic REMOVED as per user request to "load only real domains from account".
+        # We now rely exclusively on the Google API response (in `all_domains`).
+        
         # Format domains with status information
         formatted_domains = []
-        
-        # Create a set of domain names from Google API for easy lookup
-        # This is the "Source of Truth" for what the account actually owns
-        api_domain_names = {d.get('domainName', '').lower() for d in all_domains if d.get('domainName')}
-        
-        # Fetch all used domains from DB
-        from database import UsedDomain
-        db_used_domains = UsedDomain.query.filter_by(ever_used=True).all()
-        
-        # Add DB-only domains to all_domains list, BUT ONLY if they belong to this account
-        # We assume a DB domain belongs to this account if it is a subdomain of any live root domain
-        # defined in api_domain_names.
-        live_root_domains = api_domain_names
-        
-        for db_domain in db_used_domains:
-            # Only consider domains NOT already returned by API
-            if db_domain.domain_name.lower() not in api_domain_names:
-                # Check if it's a subdomain of any live root domain
-                domain_lower = db_domain.domain_name.lower()
-                belongs_to_account = False
-                
-                for root in live_root_domains:
-                    if domain_lower.endswith('.' + root):
-                        belongs_to_account = True
-                        break
-                
-                if belongs_to_account:
-                    all_domains.append({
-                        'domainName': db_domain.domain_name,
-                        'verified': db_domain.is_verified,
-                        'isPrimary': False
-                    })
 
         for domain in all_domains:
             domain_name = domain.get('domainName', '')
