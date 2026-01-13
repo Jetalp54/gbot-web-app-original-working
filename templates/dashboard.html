@@ -7026,11 +7026,19 @@
             const accounts = [];
             rows.forEach((row, index) => {
                 const accountInput = row.querySelector('input[data-field="account"]');
+                const domainInput = row.querySelector('input[data-field="domain"]'); // Capture explicit domain
+
                 if (accountInput) {
                     const account = accountInput.value.trim();
-                    console.log(`Row ${index}: Found account input value: "${account}"`);
+                    const domain = domainInput ? domainInput.value.trim() : null;
+
+                    console.log(`Row ${index}: Found account="${account}", domain="${domain}"`);
                     if (account && account.includes('@')) {
-                        accounts.push(account);
+                        // Push an object with account AND domain
+                        accounts.push({
+                            account: account,
+                            domain: domain
+                        });
                     } else {
                         console.warn(`Row ${index}: Account value invalid or missing @`);
                     }

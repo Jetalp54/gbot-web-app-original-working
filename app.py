@@ -2870,11 +2870,27 @@ def api_bulk_delete_account_users():
                     app.logger.error(f"[BULK DELETE] [{account_name}] Authentication error: {e}")
                     return {'account': account_name, 'authenticated': False, 'error': str(e)}
         
-        authenticated_accounts = {}
         if not accounts:
             return jsonify({'success': False, 'error': 'No accounts provided'}), 400
-        with ThreadPoolExecutor(max_workers=max(1, min(10, len(accounts)))) as auth_executor:
-            auth_futures = {auth_executor.submit(authenticate_account, account): account for account in accounts}
+
+        # Pre-process accounts to separate account_name and target_domain
+        account_list = []
+        domain_map = {} # account_name -> target_domain
+
+        for item in accounts:
+            if isinstance(item, dict):
+                acc_name = item.get('account')
+                acc_domain = item.get('domain')
+                if acc_name:
+                    account_list.append(acc_name)
+                    if acc_domain:
+                        domain_map[acc_name] = acc_domain.lower()
+            elif isinstance(item, str):
+                account_list.append(item)
+        
+        authenticated_accounts = {}
+        with ThreadPoolExecutor(max_workers=max(1, min(10, len(account_list)))) as auth_executor:
+            auth_futures = {auth_executor.submit(authenticate_account, account): account for account in account_list}
             
             for future in as_completed(auth_futures):
                 account = auth_futures[future]
@@ -2887,7 +2903,7 @@ def api_bulk_delete_account_users():
                 except Exception as e:
                     app.logger.error(f"[BULK DELETE] [{account}] Authentication exception: {e}")
         
-        app.logger.info(f"[BULK DELETE] Authenticated {len(authenticated_accounts)}/{len(accounts)} account(s)")
+        app.logger.info(f"[BULK DELETE] Authenticated {len(authenticated_accounts)}/{len(account_list)} account(s)")
         
         # Step 2: Delete users in parallel across all authenticated accounts
         def delete_account_users(account_name):
@@ -2945,7 +2961,13 @@ def api_bulk_delete_account_users():
                     # Track domains to save status
                     domains_to_save = set()
                     
-                    # Resolve domain from Account Name or DB
+                    # ONE: Check for explicitly provided domain from frontend
+                    explicit_domain = domain_map.get(account_name)
+                    if explicit_domain:
+                         domains_to_save.add(explicit_domain)
+                         app.logger.info(f"[BULK DELETE] [{account_name}] Added EXPLICIT domain to save list: {explicit_domain}")
+
+                    # TWO: Resolve domain from Account Name or DB (Fallback)
                     admin_domain = None
                     if '@' in account_name:
                         admin_domain = account_name.split('@')[1].lower()
@@ -2956,13 +2978,8 @@ def api_bulk_delete_account_users():
                             sa = ServiceAccount.query.filter_by(name=account_name).first()
                             if sa and sa.admin_email and '@' in sa.admin_email:
                                 admin_domain = sa.admin_email.split('@')[1].lower()
-                                app.logger.info(f"Resolved domain {admin_domain} from ServiceAccount {account_name}")
                             else:
                                 ga = GoogleAccount.query.filter_by(account_name=account_name).first()
-                                # Only if account_name is email, which we already checked. 
-                                # But maybe GoogleAccount stores it differently?
-                                # Assuming account_name IS the key.
-                                pass
                         except Exception as resolve_err:
                             app.logger.warning(f"Failed to resolve domain from DB for {account_name}: {resolve_err}")
 
