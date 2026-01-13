@@ -2899,20 +2899,34 @@ def api_bulk_delete_account_users():
         if not accounts:
             return jsonify({'success': False, 'error': 'No accounts provided'}), 400
 
+        # DEBUG: Log exactly what we received
+        app.logger.info(f"[BULK DELETE] RAW ACCOUNTS RECEIVED: {accounts}")
+        app.logger.info(f"[BULK DELETE] TYPE OF ACCOUNTS: {type(accounts)}")
+        if accounts and len(accounts) > 0:
+            app.logger.info(f"[BULK DELETE] FIRST ITEM TYPE: {type(accounts[0])}")
+            app.logger.info(f"[BULK DELETE] FIRST ITEM: {accounts[0]}")
+
         # Pre-process accounts to separate account_name and target_domain
         account_list = []
         domain_map = {} # account_name -> target_domain
 
         for item in accounts:
+            app.logger.info(f"[BULK DELETE] Processing item: {item} (type={type(item).__name__})")
             if isinstance(item, dict):
                 acc_name = item.get('account')
                 acc_domain = item.get('domain')
+                app.logger.info(f"[BULK DELETE] Extracted: acc_name='{acc_name}', acc_domain='{acc_domain}'")
                 if acc_name:
                     account_list.append(acc_name)
                     if acc_domain:
                         domain_map[acc_name] = acc_domain.lower()
+                        app.logger.info(f"[BULK DELETE] Added to domain_map: {acc_name} -> {acc_domain.lower()}")
             elif isinstance(item, str):
                 account_list.append(item)
+                app.logger.info(f"[BULK DELETE] Item is string, no domain: {item}")
+        
+        app.logger.info(f"[BULK DELETE] FINAL domain_map: {domain_map}")
+        app.logger.info(f"[BULK DELETE] FINAL account_list: {account_list}")
         
         # IMMEDIATE SAVE: Save all explicitly provided domains to database RIGHT NOW
         # Using raw SQL to bypass any SQLAlchemy session/threading issues
@@ -3172,7 +3186,8 @@ def api_bulk_delete_account_users():
             'total_failed': total_failed,
             'results': all_results,
             'saved_domains': saved_domains_list,  # For debugging - shows what was verified saved to DB
-            'failed_domains': failed_domains_list  # Domains that failed to save
+            'failed_domains': failed_domains_list,  # Domains that failed to save
+            'domain_map_debug': domain_map  # DEBUG: Show what was extracted from request
         })
         
     except Exception as e:
