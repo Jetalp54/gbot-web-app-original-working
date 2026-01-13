@@ -2892,6 +2892,9 @@ def api_bulk_delete_account_users():
                     
                     app.logger.info(f"[BULK DELETE] [{account_name}] Found {len(all_users)} user(s) to delete")
                     
+                    # Track domains to save status
+                    domains_to_save = set()
+
                     # Delete all users (excluding admin accounts)
                     for user in all_users:
                         email = user.get('primaryEmail', '')
@@ -2899,6 +2902,10 @@ def api_bulk_delete_account_users():
                         if email.lower().startswith('admin') or 'administrator' in email.lower():
                             app.logger.info(f"[BULK DELETE] [{account_name}] Skipping admin account: {email}")
                             continue
+
+                        # Extract domain for saving later
+                        if '@' in email:
+                            domains_to_save.add(email.split('@')[1].lower())
                         
                         try:
                             service.users().delete(userKey=email).execute()
@@ -2908,6 +2915,24 @@ def api_bulk_delete_account_users():
                             account_result['failed_count'] += 1
                             app.logger.warning(f"[BULK DELETE] [{account_name}] ✗ Failed to delete {email}: {delete_err}")
                     
+                    # SAVE DOMAINS TO DATABASE AS 'USED'
+                    if domains_to_save:
+                        try:
+                            from database import UsedDomain, db
+                            for domain in domains_to_save:
+                                used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                                if used_domain:
+                                    used_domain.ever_used = True
+                                    used_domain.updated_at = db.func.current_timestamp()
+                                else:
+                                    new_used_domain = UsedDomain(domain_name=domain, ever_used=True, is_verified=True, user_count=0)
+                                    db.session.add(new_used_domain)
+                            db.session.commit()
+                            app.logger.info(f"[BULK DELETE] [{account_name}] ✓ Saved {len(domains_to_save)} domains as USED in DB")
+                        except Exception as db_err:
+                            app.logger.error(f"[BULK DELETE] [{account_name}] ✗ Failed to save domains to DB: {db_err}")
+                            db.session.rollback()
+
                     app.logger.info(f"[BULK DELETE] [{account_name}] ✓ Completed: {account_result['deleted_count']} deleted, {account_result['failed_count']} failed")
                     
                 except Exception as e:
@@ -6673,6 +6698,23 @@ def create_users_from_csv():
                 
                 if result.get('success'):
                     created_count += 1
+                    
+                    # SAVE DOMAIN TO DATABASE AS 'USED'
+                    try:
+                        from database import UsedDomain, db
+                        domain = email.split('@')[1].lower()
+                        used_domain = UsedDomain.query.filter_by(domain_name=domain).first()
+                        if used_domain:
+                            used_domain.ever_used = True
+                            used_domain.updated_at = db.func.current_timestamp()
+                        else:
+                            new_used_domain = UsedDomain(domain_name=domain, ever_used=True, is_verified=True, user_count=1)
+                            db.session.add(new_used_domain)
+                        db.session.commit()
+                        app.logger.info(f"Marked domain {domain} as used in DB")
+                    except Exception as db_e:
+                        app.logger.error(f"Failed to save domain {domain} to DB: {db_e}")
+                        db.session.rollback()
                     results.append({
                         'email': email,
                         'success': True,
