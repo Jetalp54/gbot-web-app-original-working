@@ -2915,28 +2915,68 @@ def api_bulk_delete_account_users():
                 account_list.append(item)
         
         # IMMEDIATE SAVE: Save all explicitly provided domains to database RIGHT NOW
-        # This guarantees domains are marked as 'used' even if deletion fails or users are already gone
+        # Using raw SQL to bypass any SQLAlchemy session/threading issues
         saved_domains_list = []  # Track what was actually saved
+        failed_domains_list = []  # Track what failed
         if domain_map:
-            try:
-                from database import UsedDomain, db
-                for acc_name, target_domain in domain_map.items():
-                    app.logger.info(f"[BULK DELETE] IMMEDIATE SAVE: Saving domain '{target_domain}' from account '{acc_name}'")
-                    used_domain = UsedDomain.query.filter_by(domain_name=target_domain).first()
-                    if used_domain:
-                        used_domain.ever_used = True
-                        used_domain.updated_at = db.func.current_timestamp()
-                        app.logger.info(f"[BULK DELETE] Updated existing domain: {target_domain}")
+            from database import UsedDomain, db
+            from sqlalchemy import text
+            from datetime import datetime
+            
+            for acc_name, target_domain in domain_map.items():
+                try:
+                    app.logger.info(f"[BULK DELETE] IMMEDIATE SAVE: Attempting to save domain '{target_domain}'")
+                    
+                    # Use raw SQL to INSERT OR REPLACE (upsert)
+                    # This bypasses any SQLAlchemy session weirdness
+                    now = datetime.utcnow()
+                    
+                    # Check if exists first
+                    existing = db.session.execute(
+                        text("SELECT id FROM used_domain WHERE domain_name = :domain"),
+                        {"domain": target_domain}
+                    ).fetchone()
+                    
+                    if existing:
+                        # Update existing
+                        db.session.execute(
+                            text("UPDATE used_domain SET ever_used = 1, updated_at = :now WHERE domain_name = :domain"),
+                            {"domain": target_domain, "now": now}
+                        )
+                        app.logger.info(f"[BULK DELETE] Updated existing domain via raw SQL: {target_domain}")
                     else:
-                        new_used_domain = UsedDomain(domain_name=target_domain, ever_used=True, is_verified=True, user_count=0)
-                        db.session.add(new_used_domain)
-                        app.logger.info(f"[BULK DELETE] Created new domain record: {target_domain}")
-                    saved_domains_list.append(target_domain)
-                db.session.commit()
-                app.logger.info(f"[BULK DELETE] IMMEDIATE SAVE: Successfully saved {len(domain_map)} domains to DB: {saved_domains_list}")
-            except Exception as immediate_save_err:
-                app.logger.error(f"[BULK DELETE] IMMEDIATE SAVE FAILED: {immediate_save_err}")
-                db.session.rollback()
+                        # Insert new
+                        db.session.execute(
+                            text("INSERT INTO used_domain (domain_name, ever_used, is_verified, user_count, created_at, updated_at) VALUES (:domain, 1, 1, 0, :now, :now)"),
+                            {"domain": target_domain, "now": now}
+                        )
+                        app.logger.info(f"[BULK DELETE] Inserted new domain via raw SQL: {target_domain}")
+                    
+                    # COMMIT IMMEDIATELY after each domain to prevent rollback
+                    db.session.commit()
+                    
+                    # VERIFY the save worked
+                    verify = db.session.execute(
+                        text("SELECT domain_name, ever_used FROM used_domain WHERE domain_name = :domain"),
+                        {"domain": target_domain}
+                    ).fetchone()
+                    
+                    if verify:
+                        saved_domains_list.append(target_domain)
+                        app.logger.info(f"[BULK DELETE] VERIFIED: {target_domain} saved successfully (ever_used={verify[1]})")
+                    else:
+                        failed_domains_list.append(target_domain)
+                        app.logger.error(f"[BULK DELETE] VERIFICATION FAILED: {target_domain} not found after commit!")
+                        
+                except Exception as save_err:
+                    failed_domains_list.append(target_domain)
+                    app.logger.error(f"[BULK DELETE] SAVE FAILED for {target_domain}: {save_err}")
+                    try:
+                        db.session.rollback()
+                    except:
+                        pass
+            
+            app.logger.info(f"[BULK DELETE] IMMEDIATE SAVE COMPLETE: saved={saved_domains_list}, failed={failed_domains_list}")
 
         authenticated_accounts = {}
         with ThreadPoolExecutor(max_workers=max(1, min(10, len(account_list)))) as auth_executor:
@@ -3131,7 +3171,8 @@ def api_bulk_delete_account_users():
             'total_deleted': total_deleted,
             'total_failed': total_failed,
             'results': all_results,
-            'saved_domains': saved_domains_list  # For debugging - shows what was saved to DB
+            'saved_domains': saved_domains_list,  # For debugging - shows what was verified saved to DB
+            'failed_domains': failed_domains_list  # Domains that failed to save
         })
         
     except Exception as e:

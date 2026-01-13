@@ -7116,10 +7116,19 @@
                         const progressBar = document.getElementById('bulk-account-progress-bar');
                         const progressText = document.getElementById('bulk-account-progress-text');
                         if (progressBar) progressBar.style.width = '100%';
-                        const savedDomainsMsg = data.saved_domains && data.saved_domains.length > 0
-                            ? ` | Domains marked as USED: ${data.saved_domains.join(', ')}`
-                            : ' | WARNING: No domains were saved!';
-                        if (progressText) progressText.textContent = `✅ Deletion completed! ${data.total_deleted} users deleted from ${data.total_accounts} account(s)${savedDomainsMsg}`;
+
+                        let domainMsg = '';
+                        if (data.saved_domains && data.saved_domains.length > 0) {
+                            domainMsg = ` | ✅ VERIFIED SAVED: ${data.saved_domains.join(', ')}`;
+                        }
+                        if (data.failed_domains && data.failed_domains.length > 0) {
+                            domainMsg += ` | ❌ FAILED TO SAVE: ${data.failed_domains.join(', ')}`;
+                        }
+                        if (!data.saved_domains || data.saved_domains.length === 0) {
+                            domainMsg = ' | ⚠️ WARNING: No domains were verified as saved!';
+                        }
+
+                        if (progressText) progressText.textContent = `✅ Deletion completed! ${data.total_deleted} users deleted from ${data.total_accounts} account(s)${domainMsg}`;
 
                         // Display results
                         displayBulkAccountDeletionResults(data);
