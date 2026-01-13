@@ -3815,9 +3815,10 @@ def api_retrieve_domains_for_account():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/mark-used-domains', methods=['POST'])
-@login_required
-def api_mark_used_domains():
+# @app.route('/api/mark-used-domains', methods=['POST'])
+# @login_required
+def api_mark_used_domains_deprecated():
+
     """
     Scans all configured accounts (Service Accounts and Google Accounts) for users,
     identifies their domains, and marks them as 'used' in the database.
