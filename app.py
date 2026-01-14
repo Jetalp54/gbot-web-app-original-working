@@ -2932,12 +2932,15 @@ def api_bulk_delete_account_users():
         # Using raw SQL to bypass any SQLAlchemy session/threading issues
         saved_domains_list = []  # Track what was actually saved
         failed_domains_list = []  # Track what failed
+        attempted_domains = []  # DEBUG: Track what we attempted to save
+        
         if domain_map:
             from database import UsedDomain, db
             from sqlalchemy import text
             from datetime import datetime
             
             for acc_name, target_domain in domain_map.items():
+                attempted_domains.append(f"ATTEMPTING:{target_domain}")  # Debug marker
                 try:
                     app.logger.info(f"[BULK DELETE] IMMEDIATE SAVE: Attempting to save domain '{target_domain}'")
                     
@@ -3190,7 +3193,8 @@ def api_bulk_delete_account_users():
             'results': all_results,
             'saved_domains': saved_domains_list,  # For debugging - shows what was verified saved to DB
             'failed_domains': failed_domains_list,  # Domains that failed to save
-            'domain_map_debug': domain_map  # DEBUG: Show what was extracted from request
+            'domain_map_debug': domain_map,  # DEBUG: Show what was extracted from request
+            'attempted_domains': attempted_domains  # DEBUG: What domains were attempted
         })
         
     except Exception as e:

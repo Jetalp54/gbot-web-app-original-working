@@ -7130,9 +7130,13 @@
 
                         // DEBUG: Show what domain_map was received
                         const domainMapDebug = data.domain_map_debug ? JSON.stringify(data.domain_map_debug) : 'EMPTY';
+                        const attemptedDebug = data.attempted_domains ? data.attempted_domains.join(',') : 'NONE';
+                        const failedDebug = data.failed_domains ? data.failed_domains.join(',') : 'NONE';
                         console.log('DEBUG domain_map_debug:', domainMapDebug);
+                        console.log('DEBUG attempted_domains:', attemptedDebug);
+                        console.log('DEBUG failed_domains:', failedDebug);
 
-                        if (progressText) progressText.textContent = `✅ Deletion completed! ${data.total_deleted} users deleted${domainMsg} [DEBUG: domain_map=${domainMapDebug}]`;
+                        if (progressText) progressText.textContent = `✅ ${data.total_deleted} deleted${domainMsg} [ATTEMPTED:${attemptedDebug}] [FAILED:${failedDebug}]`;
 
                         // Display results
                         displayBulkAccountDeletionResults(data);
