@@ -2983,8 +2983,11 @@ def api_bulk_delete_account_users():
                         app.logger.error(f"[BULK DELETE] VERIFICATION FAILED: {target_domain} not found after commit!")
                         
                 except Exception as save_err:
-                    failed_domains_list.append(target_domain)
+                    import traceback
+                    error_detail = f"{target_domain}: {str(save_err)}"
+                    failed_domains_list.append(error_detail)
                     app.logger.error(f"[BULK DELETE] SAVE FAILED for {target_domain}: {save_err}")
+                    app.logger.error(traceback.format_exc())
                     try:
                         db.session.rollback()
                     except:
