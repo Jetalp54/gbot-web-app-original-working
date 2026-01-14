@@ -258,6 +258,8 @@
                     <div>
                         <button class="glass-button btn-sm me-2" onclick="fetchFromDynamoDB()"><i
                                 class="fas fa-cloud-download-alt me-1"></i>Fetch DB</button>
+                        <button class="glass-button glass-button-danger btn-sm me-2" onclick="emptyDynamoDBTable()"><i
+                                class="fas fa-trash-alt me-1"></i>Empty Table</button>
                         <button class="glass-button btn-sm" onclick="fetchGeneratedPasswords()"><i
                                 class="fas fa-sync me-1"></i>Refresh Local</button>
                     </div>
@@ -2076,6 +2078,50 @@
                     alert(data.message || 'DynamoDB table deleted successfully!');
                 } else {
                     log(`❌ ERROR deleting DynamoDB table: ${data.error}`);
+                    alert(`Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                log(`❌ ERROR: ${error.message}`);
+                alert(`Error: ${error.message}`);
+            });
+    }
+
+    // Empty DynamoDB Table (for current user)
+    function emptyDynamoDBTable() {
+        const creds = getAwsCredentials();
+        if (!creds) return;
+        const { access_key: accessKey, secret_key: secretKey } = creds;
+
+        // Get expected table name from config (shows user what will be emptied)
+        const naming = getNamingConfig();
+        const expectedTable = naming.dynamodb_table || '(user)-app-passwords';
+
+        if (!confirm(`⚠️ WARNING: This will DELETE ALL ITEMS from your DynamoDB table "${expectedTable}".\n\nThis is based on your logged-in username. This action cannot be undone.\n\nContinue?`)) {
+            return;
+        }
+
+        log(`🗑️ Emptying DynamoDB table: ${expectedTable}...`);
+
+        fetch('/api/aws/empty-dynamodb-table', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                access_key: accessKey,
+                secret_key: secretKey
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    log(`✅ ${data.message}`);
+                    alert(data.message);
+                    // Clear the results output
+                    document.getElementById('resultsOutput').value = '';
+                } else {
+                    log(`❌ ERROR emptying DynamoDB table: ${data.error}`);
                     alert(`Error: ${data.error}`);
                 }
             })

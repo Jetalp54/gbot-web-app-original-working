@@ -967,6 +967,81 @@ def create_dynamodb_table():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@aws_manager.route('/api/aws/empty-dynamodb-table', methods=['POST'])
+@login_required
+def empty_dynamodb_table():
+    """Empty all items from the user's DynamoDB table (based on logged-in username)"""
+    try:
+        data = request.get_json()
+        access_key = data.get('access_key', '').strip()
+        secret_key = data.get('secret_key', '').strip()
+
+        if not access_key or not secret_key:
+            return jsonify({'success': False, 'error': 'Please provide AWS credentials.'}), 400
+
+        # Get the logged-in username and build the table name
+        username = get_current_username()
+        if not username:
+            return jsonify({'success': False, 'error': 'Could not determine logged-in user.'}), 400
+        
+        table_name = f"{username}-app-passwords"
+        
+        # DynamoDB is centralized in eu-west-1
+        dynamodb_region = 'eu-west-1'
+        boto_session = get_boto3_session(access_key, secret_key, dynamodb_region)
+        dynamodb = boto_session.resource('dynamodb', region_name=dynamodb_region)
+        
+        logger.info(f"[DYNAMODB] Emptying table: {table_name} for user: {username}")
+        
+        # Get the table
+        table = dynamodb.Table(table_name)
+        
+        # Verify table exists
+        try:
+            table.load()
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                return jsonify({'success': False, 'error': f'Table {table_name} does not exist.'}), 404
+            raise
+        
+        # Scan and delete all items
+        deleted_count = 0
+        scan_kwargs = {}
+        
+        while True:
+            response = table.scan(**scan_kwargs)
+            items = response.get('Items', [])
+            
+            if not items:
+                break
+            
+            # Batch delete items (DynamoDB allows up to 25 items per batch)
+            with table.batch_writer() as batch:
+                for item in items:
+                    # The primary key is 'email' based on create_dynamodb_table
+                    if 'email' in item:
+                        batch.delete_item(Key={'email': item['email']})
+                        deleted_count += 1
+            
+            # Check if there are more items to scan
+            if 'LastEvaluatedKey' not in response:
+                break
+            scan_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+        
+        logger.info(f"[DYNAMODB] ✓ Emptied table {table_name}: {deleted_count} items deleted")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Table {table_name} emptied successfully. {deleted_count} items deleted.',
+            'table_name': table_name,
+            'deleted_count': deleted_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error emptying DynamoDB table: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 def ensure_user_s3_permissions(session):
     """Ensure the IAM user or role (associated with the access key) has S3 permissions for bucket operations"""
     try:
