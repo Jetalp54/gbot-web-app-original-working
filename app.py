@@ -2948,19 +2948,25 @@ def api_bulk_delete_account_users():
                     # This bypasses any SQLAlchemy session weirdness
                     now = datetime.utcnow()
                     
-                    # Use PostgreSQL UPSERT (INSERT ... ON CONFLICT) for atomic operation
-                    # This handles both insert and update in one statement
-                    db.session.execute(
-                        text("""
-                            INSERT INTO used_domain (domain_name, ever_used, is_verified, user_count, created_at, updated_at) 
-                            VALUES (:domain, TRUE, TRUE, 0, :now, :now)
-                            ON CONFLICT (domain_name) DO UPDATE SET 
-                                ever_used = TRUE, 
-                                updated_at = :now
-                        """),
+                    # Try UPDATE first (in case domain exists)
+                    # This avoids PostgreSQL sequence collision issues
+                    result = db.session.execute(
+                        text("UPDATE used_domain SET ever_used = TRUE, updated_at = :now WHERE domain_name = :domain"),
                         {"domain": target_domain, "now": now}
                     )
-                    app.logger.info(f"[BULK DELETE] UPSERT domain via raw SQL: {target_domain}")
+                    
+                    # Check if UPDATE affected any rows
+                    if result.rowcount == 0:
+                        # Domain doesn't exist, need to INSERT
+                        # First, reset the sequence to avoid collision
+                        db.session.execute(text("SELECT setval('used_domain_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM used_domain), false)"))
+                        db.session.execute(
+                            text("INSERT INTO used_domain (domain_name, ever_used, is_verified, user_count, created_at, updated_at) VALUES (:domain, TRUE, TRUE, 0, :now, :now)"),
+                            {"domain": target_domain, "now": now}
+                        )
+                        app.logger.info(f"[BULK DELETE] INSERTED new domain: {target_domain}")
+                    else:
+                        app.logger.info(f"[BULK DELETE] UPDATED existing domain: {target_domain}")
                     
                     # COMMIT IMMEDIATELY after each domain to prevent rollback
                     db.session.commit()
