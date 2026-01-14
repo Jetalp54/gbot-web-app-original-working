@@ -5429,6 +5429,10 @@ def fetch_from_dynamodb():
         
         try:
             table = dynamodb.Table(table_name)
+            # LOG TABLE ITEM COUNT - TRACKING DATA DISAPPEARANCE ISSUE
+            table_scan = table.scan(Select='COUNT')
+            item_count_before = table_scan.get('Count', 0)
+            logger.info(f"[DYNAMODB] ⚠️ TABLE STATUS BEFORE FETCH: {table_name} has {item_count_before} items")
         except Exception as e:
             return jsonify({'success': False, 'error': f'DynamoDB table {table_name} not found in {dynamodb_region}: {e}'}), 404
         
@@ -5544,6 +5548,17 @@ def fetch_from_dynamodb():
         success_count = sum(1 for r in results if r.get('success'))
         logger.info(f"[DYNAMODB] Fetch complete: {success_count}/{len(emails)} found")
         
+        # LOG TABLE ITEM COUNT AFTER FETCH - TRACKING DATA DISAPPEARANCE ISSUE
+        try:
+            table_scan_after = table.scan(Select='COUNT')
+            item_count_after = table_scan_after.get('Count', 0)
+            logger.info(f"[DYNAMODB] ⚠️ TABLE STATUS AFTER FETCH: {table_name} has {item_count_after} items")
+            if item_count_after < item_count_before:
+                logger.critical(f"[DYNAMODB] 🚨 DATA LOSS DETECTED! Table had {item_count_before} items before fetch, now has {item_count_after} items!")
+        except Exception as count_err:
+            item_count_after = -1
+            logger.warning(f"[DYNAMODB] Could not get item count after fetch: {count_err}")
+        
         return jsonify({
             'success': True, 
             'results': results,
@@ -5551,6 +5566,11 @@ def fetch_from_dynamodb():
                 'total': len(emails),
                 'found': success_count,
                 'not_found': len(emails) - success_count
+            },
+            'table_info': {
+                'table_name': table_name,
+                'items_before_fetch': item_count_before,
+                'items_after_fetch': item_count_after
             }
         })
     except Exception as e:

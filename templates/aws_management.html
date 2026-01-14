@@ -1799,6 +1799,16 @@
                     document.getElementById('resultsOutput').value = passwords.join('\n');
 
                     log(`✅ Fetched ${successResults.length} passwords from DynamoDB`);
+
+                    // Display table item counts to track data disappearance
+                    if (data.table_info) {
+                        const ti = data.table_info;
+                        log(`📊 TABLE STATUS: ${ti.table_name} - Before fetch: ${ti.items_before_fetch} items, After fetch: ${ti.items_after_fetch} items`);
+                        if (ti.items_after_fetch < ti.items_before_fetch) {
+                            log(`🚨 WARNING: DATA LOSS DETECTED! Items decreased from ${ti.items_before_fetch} to ${ti.items_after_fetch}!`);
+                        }
+                    }
+
                     if (failedResults.length > 0) {
                         log(`⚠️ ${failedResults.length} not found (may still be processing)`);
                         failedResults.forEach(r => {
