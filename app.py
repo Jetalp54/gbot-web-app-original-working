@@ -2955,16 +2955,16 @@ def api_bulk_delete_account_users():
                     ).fetchone()
                     
                     if existing:
-                        # Update existing
+                        # Update existing - use TRUE for PostgreSQL boolean
                         db.session.execute(
-                            text("UPDATE used_domain SET ever_used = 1, updated_at = :now WHERE domain_name = :domain"),
+                            text("UPDATE used_domain SET ever_used = TRUE, updated_at = :now WHERE domain_name = :domain"),
                             {"domain": target_domain, "now": now}
                         )
                         app.logger.info(f"[BULK DELETE] Updated existing domain via raw SQL: {target_domain}")
                     else:
-                        # Insert new
+                        # Insert new - use TRUE/FALSE for PostgreSQL boolean columns
                         db.session.execute(
-                            text("INSERT INTO used_domain (domain_name, ever_used, is_verified, user_count, created_at, updated_at) VALUES (:domain, 1, 1, 0, :now, :now)"),
+                            text("INSERT INTO used_domain (domain_name, ever_used, is_verified, user_count, created_at, updated_at) VALUES (:domain, TRUE, TRUE, 0, :now, :now)"),
                             {"domain": target_domain, "now": now}
                         )
                         app.logger.info(f"[BULK DELETE] Inserted new domain via raw SQL: {target_domain}")
