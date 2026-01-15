@@ -8107,8 +8107,12 @@ def test_smtp_credentials_progress():
                 'message': 'Starting SMTP testing...',
                 'results': [],
                 'success_count': 0,
-                'fail_count': 0
+                'fail_count': 0,
+                'timestamp': datetime.now().isoformat()  # Required for cleanup logic
             }
+            app.logger.info(f"[SMTP] Created progress tracker for task {task_id}")
+            app.logger.info(f"[SMTP] Progress tracker now has {len(progress_tracker)} tasks: {list(progress_tracker.keys())}")
+
         
         # Start background task
         import threading
@@ -8261,11 +8265,17 @@ If you received this email, the SMTP credentials are working correctly.
 def get_smtp_progress(task_id):
     """Get SMTP testing progress for a specific task"""
     try:
+        app.logger.info(f"[SMTP] Progress request for task: {task_id}")
+        
         with progress_lock:
+            app.logger.info(f"[SMTP] Available tasks in tracker: {list(progress_tracker.keys())}")
+            
             if task_id not in progress_tracker:
+                app.logger.warning(f"[SMTP] Task {task_id} NOT FOUND in progress tracker")
                 return jsonify({'success': False, 'error': 'Task not found or expired'})
             
             progress = progress_tracker[task_id].copy()
+            app.logger.info(f"[SMTP] Task {task_id} found with status: {progress.get('status')}")
         
         return jsonify({
             'success': True,
@@ -8274,6 +8284,7 @@ def get_smtp_progress(task_id):
     except Exception as e:
         app.logger.error(f"Error getting SMTP progress: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
 
 @app.route('/api/test-simple-mega', methods=['POST'])
 @login_required
