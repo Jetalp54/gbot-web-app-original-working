@@ -103,16 +103,43 @@
 
         <!-- Timer Actions (shown when editing) -->
         <div id="timerActions" class="mt-4 pt-4 border-top border-white-10" style="display: none;">
-            <h6 class="text-muted mb-3"><i class="fas fa-clock me-2"></i>Timer Controls</h6>
+            <h6 class="text-muted mb-3"><i class="fas fa-clock me-2"></i>24h Timer Controls</h6>
+
+            <!-- Current timer display -->
+            <div id="currentTimerDisplay" class="mb-3 p-2 rounded" style="background: rgba(255,255,255,0.05);">
+                <small class="text-muted">Current 24h Timer:</small>
+                <span id="modalTimerValue" class="ms-2 font-monospace" style="color: var(--accent-warning);">Not
+                    started</span>
+            </div>
+
+            <!-- Custom timer input -->
+            <div class="mb-3">
+                <label class="form-label text-muted small">SET CUSTOM 24H TIMER (HH:MM:SS)</label>
+                <div class="d-flex gap-2 align-items-center">
+                    <input type="number" id="timerHours" class="glass-input" style="width: 70px; text-align: center;"
+                        min="0" max="23" value="23" placeholder="HH">
+                    <span class="text-muted">:</span>
+                    <input type="number" id="timerMinutes" class="glass-input" style="width: 70px; text-align: center;"
+                        min="0" max="59" value="59" placeholder="MM">
+                    <span class="text-muted">:</span>
+                    <input type="number" id="timerSeconds" class="glass-input" style="width: 70px; text-align: center;"
+                        min="0" max="59" value="59" placeholder="SS">
+                </div>
+            </div>
+
             <div class="d-flex gap-2">
-                <button type="button" onclick="startTimer()" class="glass-button glass-button-warning flex-grow-1">
-                    <i class="fas fa-play me-2"></i>Start 24h Timer
+                <button type="button" onclick="setCustomTimer()" class="glass-button glass-button-warning flex-grow-1">
+                    <i class="fas fa-clock me-2"></i>Set Custom Timer
                 </button>
-                <button type="button" onclick="resetTimer()" class="glass-button flex-grow-1">
-                    <i class="fas fa-undo me-2"></i>Reset Timer
+                <button type="button" onclick="startTimer()" class="glass-button flex-grow-1">
+                    <i class="fas fa-play me-2"></i>Full 24h
+                </button>
+                <button type="button" onclick="resetTimer()" class="glass-button">
+                    <i class="fas fa-undo"></i>
                 </button>
             </div>
         </div>
+
 
         <!-- Delete Action (shown when editing) -->
         <div id="deleteAction" class="mt-4 pt-4 border-top border-white-10" style="display: none;">
@@ -605,10 +632,37 @@
 
         document.getElementById('rawAccounts').value = list.raw_accounts;
         updateAccountCount();
+
+        // Update 24h timer display and inputs
+        if (list.active_24h_expires_at) {
+            const timerExpires = new Date(list.active_24h_expires_at);
+            const timerRemaining = Math.max(0, timerExpires - now);
+            const hours = Math.floor(timerRemaining / 3600000);
+            const minutes = Math.floor((timerRemaining % 3600000) / 60000);
+            const seconds = Math.floor((timerRemaining % 60000) / 1000);
+
+            document.getElementById('modalTimerValue').textContent =
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            document.getElementById('modalTimerValue').style.color = 'var(--accent-warning)';
+
+            // Populate inputs with current values
+            document.getElementById('timerHours').value = hours;
+            document.getElementById('timerMinutes').value = minutes;
+            document.getElementById('timerSeconds').value = seconds;
+        } else {
+            document.getElementById('modalTimerValue').textContent = 'Not started';
+            document.getElementById('modalTimerValue').style.color = 'var(--text-muted)';
+            // Default to full 24h
+            document.getElementById('timerHours').value = 23;
+            document.getElementById('timerMinutes').value = 59;
+            document.getElementById('timerSeconds').value = 59;
+        }
+
         document.getElementById('timerActions').style.display = 'block';
         document.getElementById('deleteAction').style.display = 'block';
         document.getElementById('listModal').style.display = 'flex';
     }
+
 
 
     // Close modal
@@ -768,12 +822,53 @@
         }
     }
 
-    // Start timer (from modal)
+    // Set custom 24h timer (from modal)
+    async function setCustomTimer() {
+        if (!editingListId) return;
+
+        const hours = parseInt(document.getElementById('timerHours').value) || 0;
+        const minutes = parseInt(document.getElementById('timerMinutes').value) || 0;
+        const seconds = parseInt(document.getElementById('timerSeconds').value) || 0;
+
+        const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+
+        if (totalSeconds <= 0) {
+            showToast('Please enter a valid time', 'error');
+            return;
+        }
+
+        if (totalSeconds > 86400) {
+            showToast('Timer cannot exceed 24 hours', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/lists/${editingListId}/set-timer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ seconds: totalSeconds })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(`Timer set to ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`, 'success');
+                closeModal();
+                loadLists();
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Failed to set timer', 'error');
+        }
+    }
+
+    // Start full 24h timer (from modal)
     async function startTimer() {
         if (!editingListId) return;
         await quickStartTimer(editingListId);
         closeModal();
     }
+
 
     // Reset timer (from modal)
     async function resetTimer() {

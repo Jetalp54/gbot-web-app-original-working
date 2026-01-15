@@ -1031,7 +1031,45 @@ def api_start_list_timer(list_id):
         app.logger.error(f"Error starting timer: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/lists/<int:list_id>/set-timer', methods=['POST'])
+@login_required
+def api_set_list_timer(list_id):
+    """Set a custom 24-hour usage timer for a list"""
+    try:
+        lst = WorkspaceList.query.get(list_id)
+        if not lst:
+            return jsonify({'success': False, 'error': 'List not found'}), 404
+        
+        data = request.get_json()
+        seconds = int(data.get('seconds', 0))
+        
+        if seconds <= 0:
+            return jsonify({'success': False, 'error': 'Invalid time value'})
+        
+        if seconds > 86400:
+            return jsonify({'success': False, 'error': 'Timer cannot exceed 24 hours'})
+        
+        # Set custom expiration time
+        from datetime import timedelta
+        lst.active_24h_expires_at = datetime.utcnow() + timedelta(seconds=seconds)
+        db.session.commit()
+        
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+        
+        return jsonify({
+            'success': True,
+            'message': f'Timer set to {hours:02d}:{minutes:02d}:{secs:02d} for "{lst.name}"',
+            'list': lst.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error setting timer: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/lists/<int:list_id>/reset-timer', methods=['POST'])
+
 @login_required
 def api_reset_list_timer(list_id):
     """Reset the 24-hour usage timer for a list"""
