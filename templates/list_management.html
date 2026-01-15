@@ -74,9 +74,9 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label text-muted small">REMAINING DAYS (14-day lifecycle)</label>
+                <label class="form-label text-muted small">DAYS TO KEEP LIST (Editable)</label>
                 <input type="number" id="remainingDays" class="glass-input w-100" value="14" min="1" max="30">
-                <small class="text-muted">Lists expire after this many days from creation</small>
+                <small class="text-muted">You can edit this to extend/shorten the life of this list</small>
             </div>
 
             <div class="mb-4">
@@ -87,10 +87,50 @@
                         <i class="fas fa-copy me-1"></i>Copy
                     </button>
                 </label>
-                <textarea id="rawAccounts" class="glass-input w-100 font-monospace" rows="12"
+                <textarea id="rawAccounts" class="glass-input w-100 font-monospace" rows="6"
                     placeholder="admin@domain.com,password&#10;user@domain.com,password123&#10;..."
                     oninput="updateAccountCount()"></textarea>
                 <small class="text-muted">One account per line: email,password</small>
+            </div>
+
+            <!-- Timer Actions (shown when editing) -->
+            <div id="timerActions" class="mb-4 pt-4 border-top border-white-10" style="display: none;">
+                <h6 class="text-muted mb-3"><i class="fas fa-clock me-2"></i>24H TIMER (Manual Set)</h6>
+
+                <!-- Current timer display -->
+                <div id="currentTimerDisplay" class="mb-3 p-2 rounded" style="background: rgba(255,255,255,0.05);">
+                    <small class="text-muted">Current 24h Timer:</small>
+                    <span id="modalTimerValue" class="ms-2 font-monospace" style="color: var(--accent-warning);">Not
+                        started</span>
+                </div>
+
+                <!-- Custom timer input -->
+                <div class="mb-3">
+                    <label class="form-label text-muted small">SET CUSTOM 24H TIMER (HH:MM:SS)</label>
+                    <div class="d-flex gap-2 align-items-center">
+                        <input type="number" id="timerHours" class="glass-input"
+                            style="width: 70px; text-align: center;" min="0" max="23" value="23" placeholder="HH">
+                        <span class="text-muted">:</span>
+                        <input type="number" id="timerMinutes" class="glass-input"
+                            style="width: 70px; text-align: center;" min="0" max="59" value="59" placeholder="MM">
+                        <span class="text-muted">:</span>
+                        <input type="number" id="timerSeconds" class="glass-input"
+                            style="width: 70px; text-align: center;" min="0" max="59" value="59" placeholder="SS">
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="button" onclick="setCustomTimer()"
+                        class="glass-button glass-button-warning flex-grow-1">
+                        <i class="fas fa-clock me-2"></i>Set Custom Timer
+                    </button>
+                    <button type="button" onclick="startTimer()" class="glass-button flex-grow-1">
+                        <i class="fas fa-play me-2"></i>Full 24h
+                    </button>
+                    <button type="button" onclick="resetTimer()" class="glass-button">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="d-flex gap-2">
@@ -100,45 +140,6 @@
                 <button type="button" onclick="closeModal()" class="glass-button">Cancel</button>
             </div>
         </form>
-
-        <!-- Timer Actions (shown when editing) -->
-        <div id="timerActions" class="mt-4 pt-4 border-top border-white-10" style="display: none;">
-            <h6 class="text-muted mb-3"><i class="fas fa-clock me-2"></i>24h Timer Controls</h6>
-
-            <!-- Current timer display -->
-            <div id="currentTimerDisplay" class="mb-3 p-2 rounded" style="background: rgba(255,255,255,0.05);">
-                <small class="text-muted">Current 24h Timer:</small>
-                <span id="modalTimerValue" class="ms-2 font-monospace" style="color: var(--accent-warning);">Not
-                    started</span>
-            </div>
-
-            <!-- Custom timer input -->
-            <div class="mb-3">
-                <label class="form-label text-muted small">SET CUSTOM 24H TIMER (HH:MM:SS)</label>
-                <div class="d-flex gap-2 align-items-center">
-                    <input type="number" id="timerHours" class="glass-input" style="width: 70px; text-align: center;"
-                        min="0" max="23" value="23" placeholder="HH">
-                    <span class="text-muted">:</span>
-                    <input type="number" id="timerMinutes" class="glass-input" style="width: 70px; text-align: center;"
-                        min="0" max="59" value="59" placeholder="MM">
-                    <span class="text-muted">:</span>
-                    <input type="number" id="timerSeconds" class="glass-input" style="width: 70px; text-align: center;"
-                        min="0" max="59" value="59" placeholder="SS">
-                </div>
-            </div>
-
-            <div class="d-flex gap-2">
-                <button type="button" onclick="setCustomTimer()" class="glass-button glass-button-warning flex-grow-1">
-                    <i class="fas fa-clock me-2"></i>Set Custom Timer
-                </button>
-                <button type="button" onclick="startTimer()" class="glass-button flex-grow-1">
-                    <i class="fas fa-play me-2"></i>Full 24h
-                </button>
-                <button type="button" onclick="resetTimer()" class="glass-button">
-                    <i class="fas fa-undo"></i>
-                </button>
-            </div>
-        </div>
 
 
         <!-- Delete Action (shown when editing) -->
