@@ -6410,16 +6410,22 @@
         }
 
         // Show progress
-        document.getElementById('bulk-account-progress').style.display = 'block';
-        document.getElementById('bulk-account-progress-bar').style.width = '0%';
-        document.getElementById('bulk-account-progress-text').textContent = `Starting bulk creation for ${accountsData.length} account(s)...`;
+        const progressDiv = document.getElementById('bulk-account-progress');
+        const progressBar = document.getElementById('bulk-account-progress-bar');
+        const progressText = document.getElementById('bulk-account-progress-text');
+
+        if (progressDiv) progressDiv.style.display = 'block';
+        if (progressBar) progressBar.style.width = '0%';
+        if (progressText) progressText.textContent = `Initializing bulk creation for ${accountsData.length} account(s)...`;
 
         // Disable button
         const btn = event.target;
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting Task...';
+        }
 
-        // Call API
+        // Call API to start task
         fetch('/api/bulk-create-account-users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -6427,42 +6433,84 @@
                 accounts_data: accountsData
             })
         })
-            .then(response => {
-                // Check if response is JSON
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    return response.text().then(text => {
-                        console.error('Non-JSON response:', text.substring(0, 500));
-                        // Don't throw error if process is still running - just log it
-                        console.warn('Received non-JSON response, but process may still be running');
-                        // Return a placeholder response to continue
-                        return { success: true, message: 'Process is running, please check results' };
-                    });
-                }
-                return response.json();
-            })
-            .then(data => {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-play"></i> Start Bulk Creation';
+            .then(response => response.json())
+            .then(initialData => {
+                if (initialData.success && initialData.task_id) {
+                    const taskId = initialData.task_id;
+                    console.log(`Task started: ${taskId}. Begin polling...`);
 
-                if (data.success) {
-                    // Update progress
-                    document.getElementById('bulk-account-progress-bar').style.width = '100%';
-                    document.getElementById('bulk-account-progress-text').textContent = '✅ Bulk creation completed!';
+                    if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
 
-                    // Display results
-                    displayBulkAccountResults(data);
+                    // Poll function
+                    const pollProgress = () => {
+                        fetch(`/api/task-progress/${taskId}`)
+                            .then(r => r.json())
+                            .then(progress => {
+                                // Update UI
+                                if (progressBar) progressBar.style.width = `${progress.percentage}%`;
+                                if (progressText) progressText.textContent = progress.message || `Processing... ${progress.percentage}%`;
 
-                    // Keep modal open to show results - don't auto-close
+                                if (progress.status === 'completed') {
+                                    // Task Done
+                                    if (btn) {
+                                        btn.disabled = false;
+                                        btn.innerHTML = '<i class="fas fa-play"></i> Start Bulk Creation';
+                                    }
+
+                                    const data = progress.result_data;
+
+                                    if (data && data.success) {
+                                        if (progressBar) progressBar.style.width = '100%';
+                                        if (progressText) progressText.textContent = '✅ Bulk creation completed!';
+
+                                        // Display results
+                                        displayBulkAccountResults(data);
+
+                                        // Keep modal open to show results - don't auto-close
+                                    } else {
+                                        if (progressText) progressText.textContent = `❌ Error: ${data.error || 'Unknown error'}`;
+                                        alert(`Error: ${data.error || 'Unknown error'}`);
+                                    }
+
+                                } else if (progress.status === 'error') {
+                                    // Task Failed
+                                    if (btn) {
+                                        btn.disabled = false;
+                                        btn.innerHTML = '<i class="fas fa-play"></i> Start Bulk Creation';
+                                    }
+                                    if (progressText) progressText.textContent = `❌ Task Failed: ${progress.message}`;
+                                    alert(`Task Failed: ${progress.message}`);
+
+                                } else {
+                                    // Still running
+                                    setTimeout(pollProgress, 1000); // Poll every 1s
+                                }
+                            })
+                            .catch(err => {
+                                console.error('Polling error:', err);
+                                // Retry on network error
+                                setTimeout(pollProgress, 3000);
+                            });
+                    };
+
+                    // Start polling
+                    pollProgress();
+
                 } else {
-                    document.getElementById('bulk-account-progress-text').textContent = `❌ Error: ${data.error}`;
-                    alert(`Error: ${data.error}`);
+                    // Start failed
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-play"></i> Start Bulk Creation';
+                    }
+                    alert('Failed to start task: ' + (initialData.error || 'Unknown error'));
                 }
             })
             .catch(error => {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-play"></i> Start Bulk Creation';
-                document.getElementById('bulk-account-progress-text').textContent = `❌ Network error: ${error.message}`;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-play"></i> Start Bulk Creation';
+                }
+                if (progressText) progressText.textContent = `❌ Network error: ${error.message}`;
                 alert(`Network error: ${error.message}`);
             });
     }
@@ -7022,27 +7070,33 @@
             }
 
             // Collect account emails from table (only account email is required)
+            const rawAccounts = document.getElementById('bulk-account-input').value;
+            if (!rawAccounts.trim()) {
+                alert('Please enter accounts');
+                return;
+            }
+
+            // Parse accounts
+            const lines = rawAccounts.split('\n');
             const accounts = [];
-            rows.forEach((row, index) => {
-                const accountInput = row.querySelector('input[data-field="account"]');
-                const domainInput = row.querySelector('input[data-field="domain"]'); // Capture explicit domain
 
-                if (accountInput) {
-                    const account = accountInput.value.trim();
-                    const domain = domainInput ? domainInput.value.trim() : null;
-
-                    console.log(`Row ${index}: Found account="${account}", domain="${domain}"`);
-                    if (account && account.includes('@')) {
-                        // Push an object with account AND domain
-                        accounts.push({
-                            account: account,
-                            domain: domain
-                        });
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (trimmed) {
+                    // Try to parse CSV/Split format: account,domain
+                    if (trimmed.includes(',') && !trimmed.includes('{')) { // Simple CSV check, avoiding JSON
+                        const parts = trimmed.split(',');
+                        if (parts.length >= 2) {
+                            accounts.push({
+                                account: parts[0].trim(),
+                                domain: parts[1].trim()
+                            });
+                        } else {
+                            accounts.push(trimmed);
+                        }
                     } else {
-                        console.warn(`Row ${index}: Account value invalid or missing @`);
+                        accounts.push(trimmed);
                     }
-                } else {
-                    console.warn(`Row ${index}: Input input[data-field="account"] not found`);
                 }
             });
 
@@ -7064,85 +7118,119 @@
 
             if (progressDiv) progressDiv.style.display = 'block';
             if (progressBar) progressBar.style.width = '0%';
-            if (progressText) progressText.textContent = `Authenticating and deleting users from ${accounts.length} account(s)...`;
+            if (progressText) progressText.textContent = `Initializing bulk deletion for ${accounts.length} account(s)...`;
 
-            // Disable button - get button from event or find it
+            // Disable button
             let btn = null;
             if (event && event.target) {
                 btn = event.target.closest('button');
             }
             if (!btn) {
-                // Fallback: find the button by its onclick attribute
                 const buttons = document.querySelectorAll('button[onclick*="executeBulkAccountDeletion"]');
                 btn = buttons[0];
             }
 
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting Task...';
             }
 
-            console.log('Starting fetch request to /api/bulk-delete-account-users...');
+            console.log('Starting async task request to /api/bulk-delete-account-users...');
 
-            // Call API
+            // Call API to start task
             fetch('/api/bulk-delete-account-users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    accounts: accounts
-                })
+                body: JSON.stringify({ accounts: accounts })
             })
-                .then(response => {
-                    console.log('Fetch response received:', response.status);
-                    // Check if response is JSON
-                    const contentType = response.headers.get('content-type');
-                    if (!contentType || !contentType.includes('application/json')) {
-                        return response.text().then(text => {
-                            console.error('Non-JSON response:', text);
-                            throw new Error('Server returned non-JSON response. Please check server logs.');
-                        });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('Fetch data received:', data);
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
-                    }
+                .then(response => response.json())
+                .then(initialData => {
+                    if (initialData.success && initialData.task_id) {
+                        const taskId = initialData.task_id;
+                        console.log(`Task started: ${taskId}. Begin polling...`);
 
-                    if (data.success) {
-                        const progressBar = document.getElementById('bulk-account-progress-bar');
-                        const progressText = document.getElementById('bulk-account-progress-text');
-                        if (progressBar) progressBar.style.width = '100%';
+                        if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
 
-                        let domainMsg = '';
-                        if (data.saved_domains && data.saved_domains.length > 0) {
-                            domainMsg = ` | ✅ VERIFIED SAVED: ${data.saved_domains.join(', ')}`;
-                        }
-                        if (data.failed_domains && data.failed_domains.length > 0) {
-                            domainMsg += ` | ❌ FAILED TO SAVE: ${data.failed_domains.join(', ')}`;
-                        }
-                        if (!data.saved_domains || data.saved_domains.length === 0) {
-                            domainMsg = ' | ⚠️ WARNING: No domains were verified as saved!';
-                        }
+                        // Poll function
+                        const pollProgress = () => {
+                            fetch(`/api/task-progress/${taskId}`)
+                                .then(r => r.json())
+                                .then(progress => {
+                                    // Update UI
+                                    if (progressBar) progressBar.style.width = `${progress.percentage}%`;
+                                    if (progressText) progressText.textContent = progress.message || `Processing... ${progress.percentage}%`;
 
-                        // DEBUG: Show what domain_map was received
-                        const domainMapDebug = data.domain_map_debug ? JSON.stringify(data.domain_map_debug) : 'EMPTY';
-                        const attemptedDebug = data.attempted_domains ? data.attempted_domains.join(',') : 'NONE';
-                        const failedDebug = data.failed_domains ? data.failed_domains.join(',') : 'NONE';
-                        console.log('DEBUG domain_map_debug:', domainMapDebug);
-                        console.log('DEBUG attempted_domains:', attemptedDebug);
-                        console.log('DEBUG failed_domains:', failedDebug);
+                                    if (progress.status === 'completed') {
+                                        // Task Done
+                                        if (btn) {
+                                            btn.disabled = false;
+                                            btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
+                                        }
 
-                        if (progressText) progressText.textContent = `✅ ${data.total_deleted} deleted${domainMsg} [ATTEMPTED:${attemptedDebug}] [FAILED:${failedDebug}]`;
+                                        const data = progress.result_data;
 
-                        // Display results
-                        displayBulkAccountDeletionResults(data);
+                                        if (data && data.success) {
+                                            if (progressBar) progressBar.style.width = '100%';
+
+                                            let domainMsg = '';
+                                            if (data.saved_domains && data.saved_domains.length > 0) {
+                                                domainMsg = ` | ✅ VERIFIED SAVED: ${data.saved_domains.join(', ')}`;
+                                            }
+                                            if (data.failed_domains && data.failed_domains.length > 0) {
+                                                domainMsg += ` | ❌ FAILED TO SAVE: ${data.failed_domains.join(', ')}`;
+                                            }
+                                            if (!data.saved_domains || data.saved_domains.length === 0) {
+                                                domainMsg = ' | ⚠️ WARNING: No domains were verified as saved!';
+                                            }
+
+                                            // DEBUG logs
+                                            const domainMapDebug = data.domain_map_debug ? JSON.stringify(data.domain_map_debug) : 'EMPTY';
+                                            const attemptedDebug = data.attempted_domains ? data.attempted_domains.join(',') : 'NONE';
+                                            const failedDebug = data.failed_domains ? data.failed_domains.join(',') : 'NONE';
+                                            console.log('DEBUG domain_map_debug:', domainMapDebug);
+                                            console.log('DEBUG attempted_domains:', attemptedDebug);
+                                            console.log('DEBUG failed_domains:', failedDebug);
+
+                                            if (progressText) progressText.textContent = `✅ ${data.total_deleted} deleted${domainMsg}`;
+
+                                            // Display results
+                                            displayBulkAccountDeletionResults(data);
+                                        } else {
+                                            if (progressText) progressText.textContent = `❌ Error: ${data.error || 'Unknown error'}`;
+                                            alert('Error: ' + (data.error || 'Unknown error'));
+                                        }
+
+                                    } else if (progress.status === 'error') {
+                                        // Task Failed
+                                        if (btn) {
+                                            btn.disabled = false;
+                                            btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
+                                        }
+                                        if (progressText) progressText.textContent = `❌ Task Failed: ${progress.message}`;
+                                        alert('Task Failed: ' + progress.message);
+
+                                    } else {
+                                        // Still running
+                                        setTimeout(pollProgress, 1000);
+                                    }
+                                })
+                                .catch(err => {
+                                    console.error('Polling error:', err);
+                                    // Retry on network error
+                                    setTimeout(pollProgress, 3000);
+                                });
+                        };
+
+                        // Start polling
+                        pollProgress();
+
                     } else {
-                        const progressText = document.getElementById('bulk-account-progress-text');
-                        if (progressText) progressText.textContent = `❌ Error: ${data.error}`;
-                        alert('Error: ' + data.error);
+                        // Start failed
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<i class="fas fa-trash"></i> Authenticate & Delete All Users';
+                        }
+                        alert('Failed to start task: ' + (initialData.error || 'Unknown error'));
                     }
                 })
                 .catch(err => {
@@ -7155,6 +7243,7 @@
                     if (progressText) progressText.textContent = `❌ System Error`;
                     alert('System Error: ' + err.message);
                 });
+
         } catch (e) {
             console.error('CRITICAL ERROR in executeBulkAccountDeletion:', e);
             alert('Critical Frontend Error: ' + e.message);
