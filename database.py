@@ -253,14 +253,19 @@ class WorkspaceList(db.Model):
     def to_dict(self):
         """Convert to dictionary for JSON response"""
         from datetime import datetime
+        # Helper to format datetime as ISO string with UTC indicator
+        def format_utc(dt):
+            return dt.isoformat() + 'Z' if dt else None
+        
         return {
             'id': self.id,
             'name': self.name,
             'raw_accounts': self.raw_accounts,
             'account_count': self.get_account_count(),
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'lifetime_expires_at': self.lifetime_expires_at.isoformat() if self.lifetime_expires_at else None,
-            'active_24h_expires_at': self.active_24h_expires_at.isoformat() if self.active_24h_expires_at else None,
+            'created_at': format_utc(self.created_at),
+            'lifetime_expires_at': format_utc(self.lifetime_expires_at),
+            'active_24h_expires_at': format_utc(self.active_24h_expires_at),
             'status': self.compute_status(),
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': format_utc(self.updated_at)
         }
+
