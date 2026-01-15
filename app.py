@@ -2932,48 +2932,47 @@ def api_bulk_delete_account_users():
                 def authenticate_account(account_name):
                     with app.app_context():
                         try:
-                        from database import ServiceAccount, GoogleAccount
-                        from services.google_domains_service import GoogleDomainsService
-                        
-                        # Service Account Check
-                        service_account = ServiceAccount.query.filter_by(admin_email=account_name).first()
-                        if not service_account:
-                            service_account = ServiceAccount.query.filter_by(name=account_name).first()
-                        
-                        if service_account:
-                            try:
-                                domains_service = GoogleDomainsService(service_account.name)
-                                admin_service = domains_service._get_admin_service()
-                                return {'account': account_name, 'authenticated': True, 'service': admin_service, 'is_service_account': True}
-                            except Exception as sa_err:
-                                return {'account': account_name, 'authenticated': False, 'error': str(sa_err)}
-                        
-                        # OAuth Check
-                        # OAuth Check
-                        if not authenticate_without_session(account_name):
-                            reason = "Auth failed"
-                            try:
-                                from database import ServiceAccount, GoogleAccount
-                                # Diagnostic check
-                                sa = ServiceAccount.query.filter(ServiceAccount.admin_email.ilike(account_name)).first()
-                                ga = GoogleAccount.query.filter(GoogleAccount.account_name.ilike(account_name)).first()
-                                if not sa and not ga:
-                                    reason = f"Account '{account_name}' not found in DB"
-                                elif sa:
-                                    reason = f"ServiceAccount '{sa.admin_email}' found but auth failed (JSON/Scopes?)"
-                                elif ga:
-                                    reason = f"GoogleAccount '{ga.account_name}' found but auth failed (Token?)"
-                            except:
-                                reason = "Auth failed (Diagnostic error)"
-                            return {'account': account_name, 'authenticated': False, 'error': reason}
-                        
-                        service = get_service_without_session(account_name)
-                        if not service:
-                            return {'account': account_name, 'authenticated': False, 'error': 'No service returned'}
-                        
-                        return {'account': account_name, 'authenticated': True, 'service': service}
-                    except Exception as e:
-                        return {'account': account_name, 'authenticated': False, 'error': str(e)}
+                            from database import ServiceAccount, GoogleAccount
+                            from services.google_domains_service import GoogleDomainsService
+                            
+                            # Service Account Check
+                            service_account = ServiceAccount.query.filter_by(admin_email=account_name).first()
+                            if not service_account:
+                                service_account = ServiceAccount.query.filter_by(name=account_name).first()
+                            
+                            if service_account:
+                                try:
+                                    domains_service = GoogleDomainsService(service_account.name)
+                                    admin_service = domains_service._get_admin_service()
+                                    return {'account': account_name, 'authenticated': True, 'service': admin_service, 'is_service_account': True}
+                                except Exception as sa_err:
+                                    return {'account': account_name, 'authenticated': False, 'error': str(sa_err)}
+                            
+                            # OAuth Check
+                            if not authenticate_without_session(account_name):
+                                reason = "Auth failed"
+                                try:
+                                    from database import ServiceAccount, GoogleAccount
+                                    # Diagnostic check
+                                    sa = ServiceAccount.query.filter(ServiceAccount.admin_email.ilike(account_name)).first()
+                                    ga = GoogleAccount.query.filter(GoogleAccount.account_name.ilike(account_name)).first()
+                                    if not sa and not ga:
+                                        reason = f"Account '{account_name}' not found in DB"
+                                    elif sa:
+                                        reason = f"ServiceAccount '{sa.admin_email}' found but auth failed (JSON/Scopes?)"
+                                    elif ga:
+                                        reason = f"GoogleAccount '{ga.account_name}' found but auth failed (Token?)"
+                                except:
+                                    reason = "Auth failed (Diagnostic error)"
+                                return {'account': account_name, 'authenticated': False, 'error': reason}
+                            
+                            service = get_service_without_session(account_name)
+                            if not service:
+                                return {'account': account_name, 'authenticated': False, 'error': 'No service returned'}
+                            
+                            return {'account': account_name, 'authenticated': True, 'service': service}
+                        except Exception as e:
+                            return {'account': account_name, 'authenticated': False, 'error': str(e)}
 
                 auth_failures = []
                 with ThreadPoolExecutor(max_workers=max(1, min(10, len(account_list)))) as auth_executor:
@@ -2998,48 +2997,46 @@ def api_bulk_delete_account_users():
                 
                 def delete_account_users(account_name):
                     with app.app_context():
-                        # Same logic as before
-                    # We can use app.app_context() again or assume outer context
-                    # Simplified for brevity but keeping core logic
-                    account_result = {'account': account_name, 'authenticated': True, 'deleted_count': 0, 'failed_count': 0, 'error': None}
-                    try:
-                        auth_data = authenticated_accounts[account_name]
-                        service = auth_data['service']
-                        
-                        # List users
-                        all_users = []
-                        page_token = None
-                        while True:
-                            try:
-                                if page_token:
-                                    users_result = service.users().list(customer='my_customer', maxResults=500, pageToken=page_token).execute()
-                                else:
-                                    users_result = service.users().list(customer='my_customer', maxResults=500).execute()
-                                all_users.extend(users_result.get('users', []))
-                                page_token = users_result.get('nextPageToken')
-                                if not page_token: break
-                            except: break
-                        
-                        # Delete users
-                        for user in all_users:
-                            email = user.get('primaryEmail', '')
-                            # Skip admin
-                            if email.lower().startswith('admin') or 'administrator' in email.lower(): continue
+                        # We can use app.app_context() again or assume outer context
+                        # Simplified for brevity but keeping core logic
+                        account_result = {'account': account_name, 'authenticated': True, 'deleted_count': 0, 'failed_count': 0, 'error': None}
+                        try:
+                            auth_data = authenticated_accounts[account_name]
+                            service = auth_data['service']
                             
-                            # Domain saving logic (simplified - rely on explicit map mostly)
-                            if '@' in email:
-                                d = email.split('@')[1].lower()
-                                # We could add to domains_to_save here but we effectively did the bulk save earlier
+                            # List users
+                            all_users = []
+                            page_token = None
+                            while True:
+                                try:
+                                    if page_token:
+                                        users_result = service.users().list(customer='my_customer', maxResults=500, pageToken=page_token).execute()
+                                    else:
+                                        users_result = service.users().list(customer='my_customer', maxResults=500).execute()
+                                    all_users.extend(users_result.get('users', []))
+                                    page_token = users_result.get('nextPageToken')
+                                    if not page_token: break
+                                except: break
                             
-                            try:
-                                service.users().delete(userKey=email).execute()
-                                account_result['deleted_count'] += 1
-                            except:
-                                account_result['failed_count'] += 1
+                            # Delete users
+                            for user in all_users:
+                                email = user.get('primaryEmail', '')
+                                # Skip admin
+                                if email.lower().startswith('admin') or 'administrator' in email.lower(): continue
                                 
-                    except Exception as e:
-                        account_result['error'] = str(e)
-                    return account_result
+                                # Domain saving logic (simplified - rely on explicit map mostly)
+                                if '@' in email:
+                                    d = email.split('@')[1].lower()
+                                
+                                try:
+                                    service.users().delete(userKey=email).execute()
+                                    account_result['deleted_count'] += 1
+                                except:
+                                    account_result['failed_count'] += 1
+                                    
+                        except Exception as e:
+                            account_result['error'] = str(e)
+                        return account_result
 
                 # Run deletion in parallel
                 with ThreadPoolExecutor(max_workers=max(1, min(10, len(authenticated_accounts)))) as del_executor:
