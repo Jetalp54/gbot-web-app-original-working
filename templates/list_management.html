@@ -469,7 +469,8 @@
     // Create HTML for a list card
     function createListCard(list) {
         const statusClass = `list-card--${list.status.replace('_', '-')}`;
-        const statusLabel = list.status === 'in_use' ? 'IN USE' : list.status.toUpperCase();
+        const statusLabel = list.status === 'in_use' ? 'USED' : list.status.toUpperCase();
+
 
         return `
             <div class="list-card ${statusClass}" onclick="openEditModal(${list.id})" data-list-id="${list.id}">
