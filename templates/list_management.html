@@ -18,7 +18,8 @@
             <!-- Grid Configuration -->
             <div class="d-flex align-items-center gap-2">
                 <span class="text-muted small">Columns:</span>
-                <select id="gridColumns" class="glass-input" style="width: 60px; padding: 6px 8px;"
+                <select id="gridColumns" class="glass-input"
+                    style="width: 55px; padding: 8px 10px; border-radius: 8px; font-size: 14px; height: auto;"
                     onchange="updateGridColumns()">
                     <option value="2">2</option>
                     <option value="3">3</option>
@@ -26,6 +27,7 @@
                     <option value="5">5</option>
                 </select>
             </div>
+
             <button onclick="openAddModal()" class="glass-button glass-button-primary">
                 <i class="fas fa-plus me-2"></i>Add New List
             </button>
@@ -316,6 +318,12 @@
         border-color: rgba(239, 68, 68, 0.3);
     }
 
+    .card-action-btn.expire-btn:hover {
+        background: rgba(156, 163, 175, 0.15);
+        color: #9ca3af;
+        border-color: rgba(156, 163, 175, 0.3);
+    }
+
     /* Modal Overlay */
     .modal-overlay {
         position: fixed;
@@ -413,10 +421,17 @@
         grid.style.display = 'grid';
         emptyState.style.display = 'none';
 
-        grid.innerHTML = lists.map(list => createListCard(list)).join('');
+        // Sort lists: non-expired first, expired at bottom
+        const sortedLists = [...lists].sort((a, b) => {
+            const aExpired = a.status === 'expired' ? 1 : 0;
+            const bExpired = b.status === 'expired' ? 1 : 0;
+            return aExpired - bExpired;
+        });
+
+        grid.innerHTML = sortedLists.map(list => createListCard(list)).join('');
 
         // Start countdown timers
-        lists.forEach(list => {
+        sortedLists.forEach(list => {
             startCountdown(list.id, list.lifetime_expires_at, list.active_24h_expires_at);
         });
     }
@@ -459,6 +474,11 @@
                     ${list.status !== 'expired' && !list.active_24h_expires_at ? `
                     <button class="card-action-btn start-btn" onclick="quickStartTimer(${list.id})" title="Start 24h Timer">
                         <i class="fas fa-play"></i>
+                    </button>
+                    ` : ''}
+                    ${list.status !== 'expired' ? `
+                    <button class="card-action-btn expire-btn" onclick="quickExpire(${list.id})" title="Mark as Expired">
+                        <i class="fas fa-ban"></i>
                     </button>
                     ` : ''}
                     <button class="card-action-btn copy-btn" onclick="quickCopy(${list.id})" title="Copy Accounts">
@@ -701,6 +721,28 @@
             }
         } catch (error) {
             showToast('Failed to start timer', 'error');
+        }
+    }
+
+    // Quick expire from card
+    async function quickExpire(listId) {
+        const list = lists.find(l => l.id === listId);
+        if (!list) return;
+
+        if (!confirm(`Mark "${list.name}" as expired?\n\nThis will move it to the bottom of the list.`)) return;
+
+        try {
+            const response = await fetch(`/api/lists/${listId}/expire`, { method: 'POST' });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(data.message, 'success');
+                loadLists();
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Failed to expire list', 'error');
         }
     }
 

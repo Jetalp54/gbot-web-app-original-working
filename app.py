@@ -1055,6 +1055,31 @@ def api_reset_list_timer(list_id):
         app.logger.error(f"Error resetting timer: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/lists/<int:list_id>/expire', methods=['POST'])
+@login_required
+def api_expire_list(list_id):
+    """Manually mark a list as expired"""
+    try:
+        lst = WorkspaceList.query.get(list_id)
+        if not lst:
+            return jsonify({'success': False, 'error': 'List not found'}), 404
+        
+        # Set lifetime expiration to now (makes it expired)
+        lst.lifetime_expires_at = datetime.utcnow()
+        lst.status = 'expired'
+        lst.active_24h_expires_at = None  # Clear any active timer
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'"{lst.name}" marked as expired',
+            'list': lst.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error expiring list: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/add-user', methods=['POST'])
 @login_required
 def api_add_user():
@@ -8230,6 +8255,25 @@ If you received this email, the SMTP credentials are working correctly.
     except Exception as e:
         app.logger.error(f"Error starting SMTP testing: {e}")
         return jsonify({'success': False, 'error': f'Server error: {str(e)}'})
+
+@app.route('/api/smtp-progress/<task_id>', methods=['GET'])
+@login_required
+def get_smtp_progress(task_id):
+    """Get SMTP testing progress for a specific task"""
+    try:
+        with progress_lock:
+            if task_id not in progress_tracker:
+                return jsonify({'success': False, 'error': 'Task not found or expired'})
+            
+            progress = progress_tracker[task_id].copy()
+        
+        return jsonify({
+            'success': True,
+            'progress': progress
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting SMTP progress: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/test-simple-mega', methods=['POST'])
 @login_required
