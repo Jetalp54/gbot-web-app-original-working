@@ -35,13 +35,25 @@ from routes.dns_manager import dns_manager
 from routes.aws_manager import aws_manager
 
 # Progress tracking system for domain changes
-progress_tracker = {}
-progress_lock = threading.Lock()
+# Progress tracking system for domain changes
+# Using file-based storage for multi-worker support to avoid "Task not found"
+PROGRESS_DIR = os.path.join(tempfile.gettempdir(), 'gbot_progress')
+if not os.path.exists(PROGRESS_DIR):
+    try:
+        os.makedirs(PROGRESS_DIR)
+    except:
+        pass
+
+def get_task_file(task_id):
+    # Sanitize task_id just in case
+    safe_id = "".join(x for x in str(task_id) if x.isalnum() or x in "-_")
+    return os.path.join(PROGRESS_DIR, f'task_{safe_id}.json')
 
 def update_progress(task_id, current, total, status="processing", message="", result_data=None):
-    """Update progress for a task"""
-    with progress_lock:
-        progress_tracker[task_id] = {
+    """Update progress for a task (File-based)"""
+    try:
+        progress_data = {
+            'task_id': task_id,
             'current': current,
             'total': total,
             'status': status,  # processing, completed, error
@@ -50,65 +62,72 @@ def update_progress(task_id, current, total, status="processing", message="", re
             'timestamp': datetime.now().isoformat(),
             'result_data': result_data
         }
-        logging.info(f"=== PROGRESS UPDATED FOR TASK {task_id}: {status} - {message} ({current}/{total}) ===")
-        logging.info(f"Progress tracker now contains {len(progress_tracker)} tasks: {list(progress_tracker.keys())}")
+        
+        file_path = get_task_file(task_id)
+        # Atomic write (write temp then rename)
+        temp_path = file_path + f".tmp_{uuid.uuid4()}"
+        with open(temp_path, 'w') as f:
+            json.dump(progress_data, f)
+        os.replace(temp_path, file_path)
+            
+        # Log significant updates
+        if status in ['completed', 'error'] or (total > 0 and current % max(1, total // 5) == 0):
+             logging.info(f"=== PROGRESS {task_id}: {status} - {message} ({current}/{total}) ===")
+             
+    except Exception as e:
+        logging.error(f"Failed to update progress file for {task_id}: {e}")
 
 def get_progress(task_id):
     """Get current progress for a task"""
-    with progress_lock:
-        logging.info(f"=== GET_PROGRESS CALLED FOR TASK: {task_id} ===")
-        logging.info(f"Progress tracker contains: {list(progress_tracker.keys())}")
-        logging.info(f"Looking for task: {task_id}")
-        logging.info(f"Task exists: {task_id in progress_tracker}")
+    try:
+        file_path = get_task_file(task_id)
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        logging.error(f"Failed to read progress file for {task_id}: {e}")
         
-        progress = progress_tracker.get(task_id, {
-            'current': 0,
-            'total': 0,
-            'status': 'not_found',
-            'message': 'Task not found',
-            'percentage': 0,
-            'timestamp': datetime.now().isoformat()
-        })
-        
-        if progress['status'] == 'not_found':
-            logging.warning(f"=== TASK {task_id} NOT FOUND IN PROGRESS TRACKER ===")
-            logging.warning(f"Available tasks: {list(progress_tracker.keys())}")
-            logging.warning(f"Progress tracker size: {len(progress_tracker)}")
-        else:
-            logging.info(f"Task {task_id} found with status: {progress['status']}")
-        
-        return progress
+    return {
+        'current': 0, 'total': 0, 
+        'status': 'not_found', 
+        'message': 'Task not found', 
+        'percentage': 0, 
+        'result_data': None
+    }
 
 def clear_progress(task_id):
-    """Clear progress for a task"""
-    with progress_lock:
-        if task_id in progress_tracker:
-            del progress_tracker[task_id]
+    """Clear progress file"""
+    try:
+        file_path = get_task_file(task_id)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    except:
+        pass
 
 def cleanup_old_progress():
-    """Clean up old progress entries to prevent memory leaks"""
-    with progress_lock:
-        current_time = datetime.now()
-        expired_tasks = []
-        
-        for task_id, progress in progress_tracker.items():
-            # Much less aggressive cleanup: Remove tasks older than 24 hours or completed/error tasks older than 1 hour
-            task_time = datetime.fromisoformat(progress['timestamp'])
-            age_minutes = (current_time - task_time).total_seconds() / 60
+    """Clean up old progress files"""
+    try:
+        if not os.path.exists(PROGRESS_DIR):
+            return
             
-            # Only clean up very old tasks or completed tasks that are quite old
-            if age_minutes > 1440 or (progress['status'] in ['completed', 'error'] and age_minutes > 60):
-                expired_tasks.append(task_id)
-                logging.info(f"Marking task {task_id} for cleanup: age={age_minutes:.1f}min, status={progress['status']}")
-        
-        for task_id in expired_tasks:
-            del progress_tracker[task_id]
-            logging.info(f"Cleaned up expired task: {task_id}")
-        
-        if expired_tasks:
-            logging.info(f"Cleaned up {len(expired_tasks)} expired tasks")
-        else:
-            logging.info("No tasks needed cleanup")
+        current_time = datetime.now()
+        for filename in os.listdir(PROGRESS_DIR):
+            if not filename.endswith('.json'):
+                continue
+                
+            file_path = os.path.join(PROGRESS_DIR, filename)
+            try:
+                mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+                age_minutes = (current_time - mtime).total_seconds() / 60
+                
+                # Cleanup > 24 hours
+                if age_minutes > 1440:
+                    os.remove(file_path)
+                    logging.info(f"Cleaned up old task file: {filename}")
+            except:
+                pass
+    except Exception as e:
+        logging.error(f"Cleanup failed: {e}")
 
 app = Flask(__name__)
 app.config.from_object('config')

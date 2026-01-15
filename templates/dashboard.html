@@ -7069,33 +7069,16 @@
                 return;
             }
 
-            // Collect account emails from table (only account email is required)
-            const rawAccounts = document.getElementById('bulk-account-input').value;
-            if (!rawAccounts.trim()) {
-                alert('Please enter accounts');
-                return;
-            }
-
-            // Parse accounts
-            const lines = rawAccounts.split('\n');
+            // Collect account emails directly from table rows (More robust)
             const accounts = [];
-
-            lines.forEach(line => {
-                const trimmed = line.trim();
-                if (trimmed) {
-                    // Try to parse CSV/Split format: account,domain
-                    if (trimmed.includes(',') && !trimmed.includes('{')) { // Simple CSV check, avoiding JSON
-                        const parts = trimmed.split(',');
-                        if (parts.length >= 2) {
-                            accounts.push({
-                                account: parts[0].trim(),
-                                domain: parts[1].trim()
-                            });
-                        } else {
-                            accounts.push(trimmed);
-                        }
-                    } else {
-                        accounts.push(trimmed);
+            rows.forEach(row => {
+                const accountInput = row.querySelector('input[data-field="account"]');
+                if (accountInput) {
+                    const val = accountInput.value.trim();
+                    if (val && val.length > 0) {
+                        // Just in case user pasted "email,password" into the field
+                        const email = val.split(',')[0].trim();
+                        if (email) accounts.push(email);
                     }
                 }
             });
