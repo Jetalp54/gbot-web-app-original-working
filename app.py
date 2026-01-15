@@ -302,7 +302,7 @@ def login_required(f):
 ROLE_PERMISSIONS = {
     'admin': ['dashboard', 'aws_management', 'settings', 'users', 'whitelist', 'list_management'],
     'mailer': ['dashboard', 'aws_management', 'settings', 'list_management'],
-    'support': ['dashboard']
+    'support': ['dashboard', 'list_management']
 }
 
 def permission_required(permission):
