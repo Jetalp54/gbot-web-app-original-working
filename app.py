@@ -11418,7 +11418,7 @@ def authenticate_without_session(account_name):
         # First try ServiceAccount (newer approach)
         service_account = ServiceAccount.query.filter(
             (ServiceAccount.name == account_name) |
-            (ServiceAccount.admin_email == account_name)
+            (ServiceAccount.admin_email.ilike(account_name))
         ).first()
         
         if service_account and service_account.json_content:
@@ -11458,7 +11458,7 @@ def authenticate_without_session(account_name):
             return True
         
         # Fallback to GoogleAccount (OAuth - legacy)
-        account = GoogleAccount.query.filter_by(account_name=account_name).first()
+        account = GoogleAccount.query.filter(GoogleAccount.account_name.ilike(account_name)).first()
         if not account or not account.tokens:
             app.logger.warning(f"No account found for {account_name} (checked ServiceAccount and GoogleAccount)")
             return False
