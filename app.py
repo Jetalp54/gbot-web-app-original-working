@@ -2930,7 +2930,8 @@ def api_bulk_delete_account_users():
                 authenticated_accounts = {}
                 
                 def authenticate_account(account_name):
-                    try:
+                    with app.app_context():
+                        try:
                         from database import ServiceAccount, GoogleAccount
                         from services.google_domains_service import GoogleDomainsService
                         
@@ -2996,7 +2997,8 @@ def api_bulk_delete_account_users():
                 update_progress(task_id, 0, len(authenticated_accounts), "deleting", f"Deleting users from {len(authenticated_accounts)} accounts...")
                 
                 def delete_account_users(account_name):
-                    # Same logic as before
+                    with app.app_context():
+                        # Same logic as before
                     # We can use app.app_context() again or assume outer context
                     # Simplified for brevity but keeping core logic
                     account_result = {'account': account_name, 'authenticated': True, 'deleted_count': 0, 'failed_count': 0, 'error': None}
