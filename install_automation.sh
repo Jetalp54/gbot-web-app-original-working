@@ -1212,9 +1212,37 @@ echo ""
 echo "  1. Configure Google OAuth in $APP_DIR/.env"
 echo "  2. Configure AWS credentials: aws configure"
 echo "  3. Access the application at http://$SERVER_IP"
-echo "  4. Optional: Set up SSL with Let's Encrypt:"
-echo "     sudo apt install certbot python3-certbot-nginx"
-echo "     sudo certbot --nginx -d yourdomain.com"
+echo ""
+echo "  4. ⚠️  To set up SSL/HTTPS, run these commands (replace YOUR_DOMAIN):"
+echo ""
+echo "     # Step 1: Create domain-specific Nginx config"
+echo "     sudo nano /etc/nginx/sites-available/YOUR_DOMAIN"
+echo ""
+echo "     # Step 2: Add this content (replace YOUR_DOMAIN):"
+cat << 'SSL_EXAMPLE'
+     server {
+         listen 80;
+         server_name YOUR_DOMAIN www.YOUR_DOMAIN;
+
+         location / {
+             proxy_pass http://127.0.0.1:5000;
+             proxy_set_header Host $host;
+             proxy_set_header X-Real-IP $remote_addr;
+             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+             proxy_set_header X-Forwarded-Proto $scheme;
+         }
+     }
+SSL_EXAMPLE
+echo ""
+echo "     # Step 3: Enable the site"
+echo "     sudo ln -s /etc/nginx/sites-available/YOUR_DOMAIN /etc/nginx/sites-enabled/"
+echo ""
+echo "     # Step 4: Test and reload Nginx"
+echo "     sudo nginx -t && sudo systemctl reload nginx"
+echo ""
+echo "     # Step 5: Install SSL certificate"
+echo "     sudo apt install -y certbot python3-certbot-nginx"
+echo "     sudo certbot --nginx -d YOUR_DOMAIN -d www.YOUR_DOMAIN"
 echo ""
 
 print_success "Installation completed at: $(date)"
