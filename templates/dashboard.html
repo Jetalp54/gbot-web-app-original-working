@@ -1560,17 +1560,16 @@
 
         <div class="form-group-github" style="margin-bottom: 20px;">
             <label for="smtp-credentials" class="form-label-github">
-                <i class="fas fa-key"></i> SMTP Credentials (email,password,smtp_server,port)
+                <i class="fas fa-key"></i> SMTP Credentials (email:password format)
                 <span id="smtp-sync-status" style="margin-left: 8px; font-size: 12px; color: #6a737d;"></span>
             </label>
             <textarea id="smtp-credentials" class="form-control-github" rows="5"
-                placeholder="user1@gmail.com,password123,smtp.gmail.com,587&#10;user2@outlook.com,apppassword456,smtp.outlook.com,587&#10;user3@yahoo.com,secretpass789,smtp.mail.yahoo.com,587"
-                onchange="syncSMTPToAppPasswords()" oninput="autoSyncSMTPCredentials()"></textarea>
+                placeholder="user1@gmail.com:password123&#10;user2@outlook.com:apppassword456&#10;user3@yahoo.com:secretpass789"></textarea>
             <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
                 <i class="fas fa-info-circle"></i>
-                Credentials are automatically synced to App Password Management. Use format:
-                email,password,smtp_server,port (one per line)
+                Use format: email:password (one per line). Click "Sync to App Passwords" to save.
             </small>
+
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
@@ -8864,8 +8863,11 @@
         logSMTPResult(`🖥️ Server: ${server}:${port}`);
         logSMTPResult('─'.repeat(50));
 
-        // Start SMTP testing with progress tracking
-        fetch('/api/test-smtp-progress', {
+        const credentialLines = credentials.split('\n').filter(line => line.trim());
+        logSMTPResult(`📊 Testing ${credentialLines.length} credentials...`);
+
+        // Use synchronous API call that returns all results at once
+        fetch('/api/test-smtp-sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -8877,62 +8879,24 @@
         })
             .then(response => response.json())
             .then(data => {
+                smtpTesting = false;
+
                 if (data.success) {
-                    const taskId = data.task_id;
-                    logSMTPResult(`📊 Testing ${credentials.split('\n').filter(line => line.trim()).length} credentials...`);
+                    const results = data.results || [];
 
-                    // Poll for progress updates
-                    const progressInterval = setInterval(() => {
-                        fetch(`/api/smtp-progress/${taskId}`)
-                            .then(response => response.json())
-                            .then(progressData => {
-                                if (progressData.success) {
-                                    const progress = progressData.progress;
+                    // Display each result
+                    results.forEach((result, i) => {
+                        if (result.status === 'success') {
+                            logSMTPResult(`✅ [${i + 1}/${results.length}] ${result.email}: Email sent successfully`);
+                        } else {
+                            logSMTPResult(`❌ [${i + 1}/${results.length}] ${result.email}: ${result.error}`);
+                        }
+                    });
 
-                                    // Update progress message
-                                    if (progress.current_email) {
-                                        logSMTPResult(`🔄 [${progress.progress}/${progress.total}] Testing ${progress.current_email}...`);
-                                    } else {
-                                        logSMTPResult(`🔄 [${progress.progress}/${progress.total}] ${progress.message}`);
-                                    }
-
-                                    // Show results as they come in
-                                    if (progress.results && progress.results.length > 0) {
-                                        const latestResult = progress.results[progress.results.length - 1];
-                                        if (latestResult.status === 'success') {
-                                            logSMTPResult(`✅ [${progress.progress}/${progress.total}] ${latestResult.email}: ${latestResult.message || 'Success'}`);
-                                        } else {
-                                            logSMTPResult(`❌ [${progress.progress}/${progress.total}] ${latestResult.email}: ${latestResult.error}`);
-                                        }
-                                    }
-
-                                    // Check if completed
-                                    if (progress.status === 'completed') {
-                                        clearInterval(progressInterval);
-                                        smtpTesting = false;
-                                        logSMTPResult('─'.repeat(50));
-                                        logSMTPResult(`📈 Final Summary: ${progress.success_count}/${progress.total} credentials working`);
-                                    } else if (progress.status === 'error') {
-                                        clearInterval(progressInterval);
-                                        smtpTesting = false;
-                                        logSMTPResult(`❌ SMTP testing failed: ${progress.message}`);
-                                    }
-                                } else {
-                                    clearInterval(progressInterval);
-                                    smtpTesting = false;
-                                    logSMTPResult(`❌ Progress tracking failed: ${progressData.error}`);
-                                }
-                            })
-                            .catch(error => {
-                                clearInterval(progressInterval);
-                                smtpTesting = false;
-                                logSMTPResult(`❌ Progress check error: ${error.message}`);
-                            });
-                    }, 1000); // Check every second
-
+                    logSMTPResult('─'.repeat(50));
+                    logSMTPResult(`📈 Final Summary: ${data.success_count}/${data.total} credentials working`);
                 } else {
-                    smtpTesting = false;
-                    logSMTPResult(`❌ Failed to start SMTP testing: ${data.error}`);
+                    logSMTPResult(`❌ SMTP testing failed: ${data.error}`);
                 }
             })
             .catch(error => {
@@ -8941,6 +8905,7 @@
                 console.error('SMTP Test Error:', error);
             });
     }
+
 
     function interruptSMTPTesting() {
         if (smtpTesting) {
