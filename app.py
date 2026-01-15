@@ -2948,17 +2948,33 @@ def api_bulk_delete_account_users():
                                 return {'account': account_name, 'authenticated': False, 'error': str(sa_err)}
                         
                         # OAuth Check
+                        # OAuth Check
                         if not authenticate_without_session(account_name):
-                            return {'account': account_name, 'authenticated': False, 'error': 'Auth failed'}
+                            reason = "Auth failed"
+                            try:
+                                from database import ServiceAccount, GoogleAccount
+                                # Diagnostic check
+                                sa = ServiceAccount.query.filter(ServiceAccount.admin_email.ilike(account_name)).first()
+                                ga = GoogleAccount.query.filter(GoogleAccount.account_name.ilike(account_name)).first()
+                                if not sa and not ga:
+                                    reason = f"Account '{account_name}' not found in DB"
+                                elif sa:
+                                    reason = f"ServiceAccount '{sa.admin_email}' found but auth failed (JSON/Scopes?)"
+                                elif ga:
+                                    reason = f"GoogleAccount '{ga.account_name}' found but auth failed (Token?)"
+                            except:
+                                reason = "Auth failed (Diagnostic error)"
+                            return {'account': account_name, 'authenticated': False, 'error': reason}
                         
                         service = get_service_without_session(account_name)
                         if not service:
-                            return {'account': account_name, 'authenticated': False, 'error': 'No service'}
+                            return {'account': account_name, 'authenticated': False, 'error': 'No service returned'}
                         
                         return {'account': account_name, 'authenticated': True, 'service': service}
                     except Exception as e:
                         return {'account': account_name, 'authenticated': False, 'error': str(e)}
 
+                auth_failures = []
                 with ThreadPoolExecutor(max_workers=max(1, min(10, len(account_list)))) as auth_executor:
                     auth_futures = {auth_executor.submit(authenticate_account, acc): acc for acc in account_list}
                     for i, future in enumerate(as_completed(auth_futures)):
@@ -2966,11 +2982,14 @@ def api_bulk_delete_account_users():
                         res = future.result()
                         if res['authenticated']:
                             authenticated_accounts[acc] = res
+                        else:
+                            auth_failures.append(res)
                         update_progress(task_id, i+1, len(account_list), "authenticating", f"Authenticated {i+1}/{len(account_list)} accounts...")
 
                 if not authenticated_accounts:
-                    result_data = {'success': False, 'error': 'No authenticated accounts', 'results': []}
-                    update_progress(task_id, len(account_list), len(account_list), "completed", "No authenticated accounts", result_data)
+                    first_err = auth_failures[0]['error'] if auth_failures else "Unknown"
+                    result_data = {'success': False, 'error': f"All {len(account_list)} accounts failed auth. First error: {first_err}", 'results': auth_failures}
+                    update_progress(task_id, len(account_list), len(account_list), "completed", f"Auth Failed: {first_err}", result_data)
                     return
 
                 # Step 2: Delete Users
