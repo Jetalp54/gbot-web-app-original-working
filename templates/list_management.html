@@ -600,12 +600,16 @@
         const remainingDays = Math.max(1, Math.ceil((expires - now) / 86400000));
         document.getElementById('remainingDays').value = remainingDays;
 
+        // Store original value to detect changes
+        document.getElementById('remainingDays').dataset.originalValue = remainingDays;
+
         document.getElementById('rawAccounts').value = list.raw_accounts;
         updateAccountCount();
         document.getElementById('timerActions').style.display = 'block';
         document.getElementById('deleteAction').style.display = 'block';
         document.getElementById('listModal').style.display = 'flex';
     }
+
 
     // Close modal
     function closeModal() {
@@ -624,7 +628,8 @@
     // Save list (create or update)
     async function saveList() {
         const name = document.getElementById('listName').value.trim();
-        const remainingDays = parseInt(document.getElementById('remainingDays').value);
+        const remainingDaysInput = document.getElementById('remainingDays');
+        const remainingDays = parseInt(remainingDaysInput.value);
         const rawAccounts = document.getElementById('rawAccounts').value.trim();
 
         if (!name || !rawAccounts) {
@@ -632,7 +637,21 @@
             return;
         }
 
-        const payload = { name, remaining_days: remainingDays, raw_accounts: rawAccounts };
+        // Build payload based on whether we're creating or editing
+        let payload;
+        if (editingListId) {
+            // For edits, only include remaining_days if it was actually changed
+            const originalValue = parseInt(remainingDaysInput.dataset.originalValue || '0');
+            payload = { name, raw_accounts: rawAccounts };
+
+            if (remainingDays !== originalValue) {
+                payload.remaining_days = remainingDays;
+                console.log(`Remaining days changed from ${originalValue} to ${remainingDays}`);
+            }
+        } else {
+            // For new lists, always include remaining_days
+            payload = { name, remaining_days: remainingDays, raw_accounts: rawAccounts };
+        }
 
         try {
             let response;
@@ -664,6 +683,7 @@
             console.error('Error:', error);
         }
     }
+
 
     // Copy accounts
     function copyAccounts() {
