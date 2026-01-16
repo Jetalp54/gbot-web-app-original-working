@@ -2972,6 +2972,7 @@ def create_lambdas():
             "APP_PASSWORDS_S3_BUCKET": s3_bucket,
             "APP_PASSWORDS_S3_KEY": "app-passwords.txt",
             "INSTANCE_NAME": instance_name,  # Instance identifier for multi-tenant support
+            "PARALLEL_BATCH_SIZE": "4",  # [CUSTOM] Increase parallel browsers inside Lambda to 4
         }
         
         # Add 2Captcha configuration if enabled
@@ -4477,25 +4478,25 @@ def bulk_generate():
                     logger.info(f"[BULK]   - {geo}/{func_name}: {len(batch_users)} user(s)")
                 logger.info("=" * 60)
                 
-                # BATCH PROCESSING: Process 10 users at a time, sequentially within each geo
-                USERS_PER_BATCH = 10
+                # BATCH PROCESSING: Process based on users_per_function (dynamic)
+                # We set a high safety limit here to allow user configuration (e.g. 20)
                 
                 def process_user_batch_sync(user_batch, assigned_function_name, lambda_region=None):
                     """
-                    Process a batch of up to 10 users synchronously (wait for completion).
+                    Process a batch of users synchronously (wait for completion).
                     Returns list of results, one per user.
                     This is used for sequential processing within each geo.
                 
                     Args:
-                        user_batch: List of user dicts to process (MUST be <= 10 users)
+                        user_batch: List of user dicts to process
                         assigned_function_name: Name of Lambda function to invoke
                         lambda_region: AWS region where Lambda function is deployed (defaults to 'region' variable)
                     """
                     with app.app_context():
-                        # CRITICAL: Enforce 10-user limit
-                        MAX_USERS_PER_BATCH = 10
+                        # CRITICAL: Enforce higher safety limit (allow up to 50)
+                        MAX_USERS_PER_BATCH = 50
                         if len(user_batch) > MAX_USERS_PER_BATCH:
-                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ CRITICAL ERROR: Batch has {len(user_batch)} users, exceeding limit of {MAX_USERS_PER_BATCH}!")
+                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ CRITICAL ERROR: Batch has {len(user_batch)} users, exceeding safety limit of {MAX_USERS_PER_BATCH}!")
                             logger.error(f"[BULK] [{assigned_function_name}] Truncating batch to {MAX_USERS_PER_BATCH} users")
                             user_batch = user_batch[:MAX_USERS_PER_BATCH]
                         
