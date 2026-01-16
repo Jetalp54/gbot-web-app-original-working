@@ -4298,7 +4298,7 @@ def bulk_generate():
     # We pass app_context explicitly if needed, but db operations need app context inside the thread
     from app import app
     
-    def background_process(app, job_id, users, access_key, secret_key, region, lambda_prefix_bulk, lambda_role_name_bulk, dynamodb_table_bulk):
+    def background_process(app, job_id, users, access_key, secret_key, region, lambda_prefix_bulk, lambda_role_name_bulk, dynamodb_table_bulk, users_per_function_param):
         """Background process to handle bulk user processing across geos"""
         # --- PROOF OF LIFE LOGGING ---
         print("\n" + "!"*80, flush=True)
@@ -4422,7 +4422,7 @@ def bulk_generate():
                     raise Exception(error_msg)
                 
                 total_users = len(users)
-                USERS_PER_FUNCTION = users_per_function  # Configurable: Users per function (default: 10)
+                USERS_PER_FUNCTION = users_per_function_param  # Uses explicit parameter from caller
                 
                 # Distribute users across ALL existing lambdas
                 # Each lambda gets up to 10 users, distributed round-robin
@@ -5302,7 +5302,7 @@ def bulk_generate():
         try:
             print(f"[THREAD_START] Starting background thread for job {job_id}", flush=True)
             logger.info(f"[BULK] Thread wrapper: About to call background_process for job {job_id}")
-            background_process(app, job_id, users, access_key, secret_key, region, lambda_prefix_bulk, lambda_role_name_bulk, dynamodb_table_bulk)
+            background_process(app, job_id, users, access_key, secret_key, region, lambda_prefix_bulk, lambda_role_name_bulk, dynamodb_table_bulk, users_per_function)
             logger.info(f"[BULK] Thread wrapper: background_process completed for job {job_id}")
             print(f"[THREAD_START] Background thread completed for job {job_id}", flush=True)
         except Exception as thread_start_err:
