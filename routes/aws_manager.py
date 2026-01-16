@@ -4262,14 +4262,21 @@ def bulk_generate():
 
     # Parse users
     users = []
+    logger.info(f"[BULK] [DEBUG] Raw users_raw count: {len(users_raw)}")
+    logger.info(f"[BULK] [DEBUG] Raw users_raw type: {type(users_raw)}")
+    logger.info(f"[BULK] [DEBUG] First 3 raw entries: {users_raw[:3] if len(users_raw) >= 3 else users_raw}")
+    
     for u in users_raw:
         parts = u.split(':', 1)
         if len(parts) == 2:
             users.append({'email': parts[0].strip(), 'password': parts[1].strip()})
+        else:
+            logger.warning(f"[BULK] [DEBUG] Skipped invalid entry (no colon): {u[:50]}...")
     
     if not users:
         return jsonify({'success': False, 'error': 'No valid user:password pairs found'}), 400
 
+    logger.info(f"[BULK] [DEBUG] Parsed users count: {len(users)}")
     logger.info(f"[BULK] Received {len(users_raw)} raw user entries, parsed {len(users)} valid users")
 
     # --- PROOF OF LIFE LOGGING ---
@@ -4455,9 +4462,12 @@ def bulk_generate():
                         current_lambda_idx += 1
                         current_batch_users = []
                 
-                
                 # Log batch summary
-                
+                total_users_in_batches = sum(len(batch[2]) for batch in user_batches)
+                logger.info(f"[BULK] [DEBUG] Total batches created: {len(user_batches)}")
+                logger.info(f"[BULK] [DEBUG] Total users in all batches: {total_users_in_batches}")
+                for i, batch in enumerate(user_batches):
+                    logger.info(f"[BULK] [DEBUG] Batch {i+1}: {batch[1]} has {len(batch[2])} users")
                 if not user_batches:
                     error_msg = f"Failed to create user batches! No batches created for {total_users} users."
                     logger.error(f"[BULK] ❌❌❌ {error_msg}")
