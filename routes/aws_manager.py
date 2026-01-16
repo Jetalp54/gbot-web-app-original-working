@@ -3786,15 +3786,16 @@ def create_lambdas():
         # Start background thread
         # Use 900 seconds (15 minutes) - AWS Lambda maximum timeout
         # This allows processing up to 10 users per batch (each user takes ~30-60 seconds)
-        def create_lambdas_with_tracking(*args, **kwargs):
+        def create_lambdas_with_tracking(**kwargs):
             job_id = kwargs.get('job_id')
             try:
-                create_lambdas_background(*args, job_id=job_id)
+                create_lambdas_background(**kwargs)
                 # Update job status on completion
                 with lambda_creation_lock:
                     if job_id and job_id in lambda_creation_jobs:
-                        lambda_creation_jobs[job_id]['status'] = 'completed'
-                        lambda_creation_jobs[job_id]['completed_at'] = time.time()
+                        if lambda_creation_jobs[job_id]['status'] == 'processing':
+                            lambda_creation_jobs[job_id]['status'] = 'completed'
+                            lambda_creation_jobs[job_id]['completed_at'] = time.time()
             except Exception as e:
                 logger.error(f"[LAMBDA] Critical error in background thread: {e}")
                 logger.error(traceback.format_exc())
@@ -3803,47 +3804,26 @@ def create_lambdas():
                         lambda_creation_jobs[job_id]['status'] = 'failed'
                         lambda_creation_jobs[job_id]['error'] = str(e)
         
-        # [DEBUG] Force SYNCHRONOUS execution to catch errors immediately
-        # Using 900 seconds (15 minutes) - AWS Lambda maximum timeout
-        try:
-            timeout = 900  # Default timeout 15 minutes
-            logger.info("[LAMBDA] [DEBUG] Executing create_lambdas_background SYNCHRONOUSLY...")
-            create_lambdas_background(
-                functions_by_geo_dict=functions_by_geo, 
-                access_key=access_key,
-                secret_key=secret_key, 
-                role_arn=role_arn, 
-                timeout=timeout, 
-                env_vars=chromium_env, 
-                package_type='Image', 
-                base_ecr_uri=ecr_uri,
-                ecr_repo_name=ecr_repo_name,
-                dynamodb_table=dynamodb_table,
-                job_id=creation_job_id
-            )
-            logger.info("[LAMBDA] [DEBUG] Synchronous execution finished.")
-            
-            # Check for errors in the job tracking
-            with lambda_creation_lock:
-                job_data = lambda_creation_jobs.get(creation_job_id)
-                
-                # Check for explicit errors
-                if job_data and job_data.get('errors'):
-                    error_msg = f"Errors occurred during creation: {job_data['errors']}"
-                    logger.error(f"[LAMBDA] {error_msg}")
-                    return jsonify({'success': False, 'error': error_msg}), 500
-                
-                # Check if NO functions were created (silent failure)
-                success_count = job_data.get('success_count', 0) if job_data else 0
-                if success_count == 0:
-                    error_msg = "NO functions were created! The ECR repository likely does not exist in the selected region."
-                    logger.error(f"[LAMBDA] {error_msg}")
-                    return jsonify({'success': False, 'error': error_msg}), 500
-                    
-        except Exception as sync_err:
-            logger.error(f"[LAMBDA] ✗✗✗ CRITICAL SYNC ERROR: {sync_err}")
-            logger.error(traceback.format_exc())
-            return jsonify({'success': False, 'error': str(sync_err)}), 500
+        # Execute ASYNCHRONOUSLY
+        timeout = 900  # Default timeout 15 minutes
+        logger.info(f"[LAMBDA] Starting background thread for job {creation_job_id}")
+        threading.Thread(
+            target=create_lambdas_with_tracking,
+            kwargs={
+                'functions_by_geo_dict': functions_by_geo, 
+                'access_key': access_key,
+                'secret_key': secret_key, 
+                'role_arn': role_arn, 
+                'timeout': timeout, 
+                'env_vars': chromium_env, 
+                'package_type': 'Image', 
+                'base_ecr_uri': ecr_uri,
+                'ecr_repo_name': ecr_repo_name,
+                'dynamodb_table': dynamodb_table,
+                'job_id': creation_job_id
+            },
+            daemon=True
+        ).start()
         
         # Build summary message
         geo_summary = []

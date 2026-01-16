@@ -882,6 +882,59 @@
         setTimeout(() => clearInterval(pollInterval), 600000);
     }
 
+    function pollLambdaCreationStatus(jobId) {
+        log(`⏳ Polling status for job: ${jobId}...`);
+        const pollInterval = setInterval(() => {
+            fetch(`/api/aws/lambda-creation-status/${jobId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.job) {
+                        const job = data.job;
+
+                        // Log intermediate progress if changed? (Simpler: just log "Processing...")
+                        if (job.status === 'processing') {
+                            // Optional: Calculate percentage or show counts
+                            const total = job.total_functions || 0;
+                            const success = job.success_count || 0;
+                            const failed = job.failure_count || 0;
+                            // log(`⏳ Creating Lambdas... ${success} success, ${failed} failed (Total: ${total})`);
+                        } else if (job.status === 'completed' || job.status === 'failed') {
+                            clearInterval(pollInterval);
+                            if (job.status === 'completed') {
+                                log(`✅ Lambda creation completed!`);
+                                log(`   Success: ${job.success_count}`);
+                                log(`   Failed: ${job.failure_count}`);
+                                if (job.success_count > 0 && job.successfully_created_functions) {
+                                    log(`   Created functions: ${job.successfully_created_functions.join(', ')}`);
+                                }
+                                if (job.failure_count > 0) {
+                                    log(`   ⚠️ Some functions failed to create.`);
+                                    if (job.errors) {
+                                        Object.entries(job.errors).forEach(([geo, errs]) => {
+                                            log(`   [${geo}] Errors: ${errs}`);
+                                        });
+                                    }
+                                }
+                                alert(`Lambda creation completed!\n\nSuccess: ${job.success_count}\nFailed: ${job.failure_count}\n\nCheck log for details.`);
+                            } else {
+                                log(`❌ Lambda creation job failed: ${job.error}`, 'error');
+                                alert(`Lambda creation job failed:\n${job.error}`);
+                            }
+                        }
+                    } else {
+                        // Job not found or error
+                        log(`⚠️ Could not get job status: ${data.error || 'Unknown error'}`);
+                    }
+                })
+                .catch(error => {
+                    log(`❌ Error checking status: ${error.message}`, 'error');
+                });
+        }, 5000); // Poll every 5 seconds
+
+        // Stop polling after 15 minutes (Lambda timeout)
+        setTimeout(() => clearInterval(pollInterval), 900000);
+    }
+
     function generateECRPushScript() {
         const creds = getAwsCredentials();
         if (!creds) return;
@@ -1234,31 +1287,18 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    log('PRODUCTION Lambda(s) created/updated successfully.');
-                    log(`Created ${data.num_functions} function(s): ${data.functions_created.join(', ')}`);
-                    log(`Lambda configured using ECR image URI: ${ecrUri}`);
+                    log('PRODUCTION Lambda creation/update STARTED.');
+                    log(`📋 Job ID: ${data.creation_job_id}`);
+                    log(`TARGET: ${data.num_functions} function(s) across regions.`);
 
-                    // Show debug info if available
                     if (data.debug_info) {
-                        log(`[DEBUG] Backend received users_per_function: ${data.debug_info.users_per_function_received}`);
-                        log(`[DEBUG] Backend calculated expected functions: ${data.debug_info.expected_functions}`);
-                        log(`[DEBUG] Backend actual functions planned: ${data.debug_info.actual_functions_planned}`);
+                        log(`[DEBUG] Planned functions: ${data.debug_info.actual_functions_planned}`);
                     }
 
-                    // Show warning if expected vs actual don't match
-                    const expectedFunctions = Math.ceil(userCount / usersPerFunctionValue);
-                    if (data.num_functions !== expectedFunctions) {
-                        log(`⚠️ WARNING: Frontend expected ${expectedFunctions} function(s) but backend planned ${data.num_functions}!`);
-                        if (data.debug_info) {
-                            log(`⚠️ Backend received users_per_function: ${data.debug_info.users_per_function_received} (Frontend sent: ${usersPerFunctionValue})`);
-                            if (data.debug_info.users_per_function_received !== usersPerFunctionValue) {
-                                log(`⚠️ MISMATCH DETECTED! Backend is using ${data.debug_info.users_per_function_received} instead of ${usersPerFunctionValue}`);
-                                log(`⚠️ SOLUTION: Restart your Flask server to pick up the code changes!`);
-                            }
-                        }
-                    }
+                    // Start polling
+                    pollLambdaCreationStatus(data.creation_job_id);
 
-                    alert(`Production Lambda(s) created/updated successfully.\n\nCreated ${data.num_functions} function(s): ${data.functions_created.join(', ')}`);
+                    alert(`Production Lambda creation started!\n\nJob ID: ${data.creation_job_id}\n\nPlease wait and check the log output for progress.\nThe process runs in the background.`);
                 } else {
                     log(`ERROR creating production Lambda(s): ${data.error}`);
                     alert(`Error: ${data.error}`);
