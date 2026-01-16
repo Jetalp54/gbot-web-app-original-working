@@ -8898,7 +8898,7 @@ def mega_upgrade():
                         lock_conn.close()
 
         # Run with reduced workers for better synchronization and multi-machine compatibility
-        max_workers = min(3, len(accounts))  # Reduced workers for better synchronization
+        max_workers = min(4, len(accounts))  # Reduced workers for better synchronization
         max_account_retries = 3  # Increased retries for failed accounts
         app.logger.info(f"Starting synchronized processing with {max_workers} workers for {len(accounts)} accounts")
         app.logger.info(f"Multi-machine compatibility: Using reduced workers and enhanced synchronization")
@@ -8929,7 +8929,7 @@ def mega_upgrade():
             
             if retry_accounts:
                 app.logger.info(f"🔄 Retrying domain change for: {retry_accounts}")
-                with ThreadPoolExecutor(max_workers=min(3, len(retry_accounts))) as retry_executor:
+                with ThreadPoolExecutor(max_workers=min(4, len(retry_accounts))) as retry_executor:
                     retry_futures = [retry_executor.submit(process_account, acc, idx + 1000) for idx, acc in enumerate(retry_accounts)]
                     
                     for f in as_completed(retry_futures):
