@@ -4432,40 +4432,31 @@ def bulk_generate():
                 logger.info(f"[BULK] Each Lambda will process up to {USERS_PER_FUNCTION} user(s)")
                 logger.info(f"[BULK] All lambdas flat list: {all_lambdas_flat[:5]}... (showing first 5)")
                 
-                # IMPROVED Round-robin distribution: Ensure ALL lambdas get batches
-                # Track which lambdas have batches to ensure equal distribution
-                lambda_batch_counts = {lambda_name: 0 for _, lambda_name in all_lambdas_flat}
+                # SEQUENTIAL FILL: Fill each Lambda up to USERS_PER_FUNCTION before moving to next
+                # This ensures each Lambda gets the full batch size before using another Lambda
+                logger.info(f"[BULK] Using SEQUENTIAL FILL distribution (up to {USERS_PER_FUNCTION} users per Lambda)")
+                
+                current_lambda_idx = 0
+                current_batch_users = []
                 
                 for user_idx, user in enumerate(users):
-                    # Determine which lambda should handle this user (round-robin)
-                    lambda_idx = user_idx % len(all_lambdas_flat)
-                    geo, function_name = all_lambdas_flat[lambda_idx]
+                    current_batch_users.append(user)
                     
-                    # Find or create batch for this lambda
-                    batch_found = False
-                    for batch_idx, batch_data in enumerate(user_batches):
-                        batch_geo, batch_func, batch_users = batch_data
-                        if batch_geo == geo and batch_func == function_name and len(batch_users) < USERS_PER_FUNCTION:
-                            user_batches[batch_idx][2].append(user)
-                            batch_found = True
-                            lambda_batch_counts[function_name] += 1
-                            break
-                    
-                    if not batch_found:
-                        # Create new batch for this lambda
-                        user_batches.append([geo, function_name, [user]])
-                        lambda_batch_counts[function_name] += 1
+                    # If we've reached the limit for this Lambda, or this is the last user
+                    if len(current_batch_users) >= USERS_PER_FUNCTION or user_idx == len(users) - 1:
+                        # Get the Lambda for this batch
+                        geo, function_name = all_lambdas_flat[current_lambda_idx % len(all_lambdas_flat)]
+                        
+                        # Add the batch
+                        user_batches.append([geo, function_name, current_batch_users.copy()])
+                        logger.info(f"[BULK] Created batch for {function_name}: {len(current_batch_users)} users")
+                        
+                        # Move to next Lambda and reset batch
+                        current_lambda_idx += 1
+                        current_batch_users = []
                 
-                # Verify ALL lambdas have at least one batch
-                lambdas_without_batches = [lambda_name for lambda_name, count in lambda_batch_counts.items() if count == 0]
-                if lambdas_without_batches:
-                    logger.warning(f"[BULK] ⚠️ Some lambdas have no batches: {lambdas_without_batches}")
-                    logger.warning(f"[BULK] This may indicate uneven distribution. Total users: {total_users}, Total lambdas: {total_existing_lambdas}")
                 
-                # Log distribution statistics
-                logger.info(f"[BULK] Lambda batch distribution:")
-                for lambda_name, count in sorted(lambda_batch_counts.items()):
-                    logger.info(f"[BULK]   - {lambda_name}: {count} batch(es)")
+                # Log batch summary
                 
                 if not user_batches:
                     error_msg = f"Failed to create user batches! No batches created for {total_users} users."
