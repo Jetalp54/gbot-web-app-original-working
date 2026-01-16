@@ -4276,10 +4276,12 @@ def bulk_generate():
     if not users:
         return jsonify({'success': False, 'error': 'No valid user:password pairs found'}), 400
 
-    logger.info(f"[BULK] [DEBUG] Parsed users count: {len(users)}")
-    logger.info(f"[BULK] Received {len(users_raw)} raw user entries, parsed {len(users)} valid users")
+    logger.info(f"[BULK-V2-FIXED] [DEBUG] Parsed users count: {len(users)}")
+    logger.info(f"[BULK-V2-FIXED] Received {len(users_raw)} raw user entries, parsed {len(users)} valid users")
 
     # --- PROOF OF LIFE LOGGING ---
+    print("\n" + "!"*80, flush=True)
+    print("!!! NEW CODE LOADED - V2 FIXED !!!", flush=True)
     print("\n" + "!"*80, flush=True)
     print("!!! NEW CODE LOADED - RESTORED NESTED PARALLELISM !!!", flush=True)
     print(f"!!! TIMESTAMP: {time.time()} !!!", flush=True)
