@@ -4554,10 +4554,10 @@ def bulk_generate():
                                 processing_emails.add(email)
                     
                         # Prepare batch payload for Lambda
-                        # CRITICAL: Final check - ensure we never send more than 10 users
-                        MAX_USERS_PER_BATCH = 10
+                        # Safety limit - should match the users_per_function validation limit
+                        MAX_USERS_PER_BATCH = 50
                         if len(users_to_process) > MAX_USERS_PER_BATCH:
-                            logger.error(f"[BULK] [{assigned_function_name}] ⚠️ PAYLOAD CHECK: Truncating {len(users_to_process)} users to {MAX_USERS_PER_BATCH}")
+                            logger.warning(f"[BULK] [{assigned_function_name}] ⚠️ PAYLOAD CHECK: Truncating {len(users_to_process)} users to {MAX_USERS_PER_BATCH}")
                             users_to_process = users_to_process[:MAX_USERS_PER_BATCH]
                         
                         batch_payload = {
