@@ -233,6 +233,16 @@
                 <div id="multiStatus" class="small text-success">Ready</div>
             </div>
 
+            <!-- Batch Size Configuration -->
+            <div class="mb-3">
+                <label class="form-label text-muted small">Batch Size (Users per Function)</label>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="number" id="usersPerInvoke" class="glass-input" value="12" min="1" max="50"
+                        style="max-width: 100px;">
+                    <span class="text-muted small">users per Lambda invocation</span>
+                </div>
+            </div>
+
             <div class="d-flex flex-column gap-3">
                 <button type="button" id="invokeButton" class="glass-button glass-button-primary py-3 w-100"
                     onclick="invokeProductionLambda()">
@@ -1641,8 +1651,16 @@
         document.getElementById('resultsOutput').value = ''; // Clear previous results
 
         const naming = getNamingConfig();
+        const usersPerFx = parseInt(document.getElementById('usersPerInvoke')?.value || document.getElementById('usersPerFunction')?.value || '12', 10) || 12;
+
         log(`📦 Using Lambda prefix: ${naming.lambda_prefix}`);
         log(`📦 Using DynamoDB table: ${naming.dynamodb_table}`);
+        log(`📦 Using Users per Function: ${usersPerFx}`);
+
+        if (usersPerFx === 10 && users.length > 10) {
+            log(`⚠️ WARNING: Users per Function is 10, but you have ${users.length} users. This counts as 2 batches!`);
+            log(`👉 Make sure to set "Users per Function" (under Create Lambda options) to ${users.length} if you want 1 batch.`);
+        }
 
         fetch('/api/aws/bulk-generate', {
             method: 'POST',
@@ -1654,7 +1672,7 @@
                 secret_key: secretKey,
                 region: region,
                 users: users,
-                users_per_function: parseInt(document.getElementById('usersPerFunction')?.value || '10', 10) || 10,
+                users_per_function: usersPerFx,
                 lambda_prefix: naming.lambda_prefix,
                 dynamodb_table: naming.dynamodb_table
             })

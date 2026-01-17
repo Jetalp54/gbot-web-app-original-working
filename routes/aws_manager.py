@@ -4209,9 +4209,9 @@ def bulk_generate():
     # Validate users_per_function
     try:
         users_per_function = int(users_per_function)
-        if users_per_function < 1 or users_per_function > 20:
+        if users_per_function < 1 or users_per_function > 50:
             users_per_function = 10  # Reset to default if invalid
-            logger.warning(f"[BULK] Invalid users_per_function value, using default: 10")
+            logger.warning(f"[BULK] Invalid users_per_function value ({users_per_function}), using default: 10. Allowed range: 1-50")
     except (ValueError, TypeError):
         users_per_function = 10
         logger.warning(f"[BULK] Invalid users_per_function type, using default: 10")
