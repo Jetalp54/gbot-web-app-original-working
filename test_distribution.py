@@ -49,3 +49,11 @@ def test_distribution():
 
 if __name__ == "__main__":
     test_distribution()
+
+import os
+import time
+
+print('
+Checking routes/aws_manager.py timestamp...')
+mtime = os.path.getmtime('routes/aws_manager.py')
+print(f'Last Modified: {time.ctime(mtime)}')
