@@ -1325,6 +1325,7 @@
 
     // Check AWS Limits (Diagnostic Tool)
     function checkAWSLimits() {
+
         const creds = getAwsCredentials();
         if (!creds) return;
         const { access_key: accessKey, secret_key: secretKey, region } = creds;
@@ -2549,6 +2550,19 @@
 
         // Load saved naming config on page load
         loadNamingConfig();
+
+        // Sync Batch Size inputs
+        const invokeInput = document.getElementById('usersPerInvoke');
+        const createInput = document.getElementById('usersPerFunction');
+        if (invokeInput && createInput) {
+            invokeInput.addEventListener('input', (e) => {
+                createInput.value = e.target.value;
+                updateLambdaCalculation();
+            });
+            createInput.addEventListener('input', (e) => {
+                invokeInput.value = e.target.value;
+            });
+        }
 
         // Initial calculation update
         updateLambdaCalculation();
