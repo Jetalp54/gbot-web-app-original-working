@@ -5120,7 +5120,23 @@ def process_single_user(email, password, batch_start_time=None, dynamodb_table=N
             
             # Handle Login Failures
             if error_code == "ACCOUNT_NOT_FOUND":
-                logger.error(f"[LAMBDA] FATAL ERROR: Account not found for {email}. Aborting.")
+                logger.error(f"[LAMBDA] FATAL ERROR: Account not found for {email}. Aborting (no retry).")
+                if driver:
+                    driver.quit()
+                return {
+                    "email": email,
+                    "status": "failed",
+                    "step_completed": step_completed,
+                    "error_step": step_completed,
+                    "error_message": error_message,
+                    "app_password": None,
+                    "secret_key": None,
+                    "timings": timings
+                }
+            
+            # OPTIMIZATION: Skip retries for EMAIL_ERROR (email rejected by Google - permanent failure)
+            if error_code == "EMAIL_ERROR":
+                logger.error(f"[LAMBDA] PERMANENT ERROR: Email rejected by Google for {email}. Aborting (no retry).")
                 if driver:
                     driver.quit()
                 return {
@@ -5135,7 +5151,7 @@ def process_single_user(email, password, batch_start_time=None, dynamodb_table=N
                 }
             
             # For SECURE_BROWSER_BLOCK, CRASHES, TIMEOUTS, or any other error -> RETRY
-            # We treat almost everything as a transient failure worth retrying with a fresh browser
+            # We treat almost everything else as a transient failure worth retrying with a fresh browser
             logger.warning(f"[LAMBDA] Login failed with error: {error_code} - {error_message}")
             logger.warning(f"[LAMBDA] Retrying with fresh browser (Attempt {browser_attempt + 1}/{max_browser_attempts})...")
             
