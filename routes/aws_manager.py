@@ -2016,7 +2016,7 @@ exit 1
                                         'commands': [push_script],
                                         'workingDirectory': ['/home/ec2-user']
                                     },
-                                    TimeoutSeconds=1800  # 30 minutes - optimized for faster processing
+                                    TimeoutSeconds=3600  # 60 minutes - matches max_wait for complete push cycle
                                 )
                                 
                                 command_id = response['Command']['CommandId']
@@ -2024,7 +2024,8 @@ exit 1
                                 logger.info(f"[ECR] [{target_region}] Push script will: 1) Auth, 2) Pull from {source_region}, 3) Tag, 4) Push to {target_region}, 5) Verify")
                                 
                                 # Wait for command to complete (with extended timeout for large images)
-                                max_wait = 1800  # 30 minutes - optimized for faster failure detection
+                                # INCREASED: Large Docker images can take a long time to push across regions
+                                max_wait = 3600  # 60 minutes (increased from 30) for reliable multi-region push
                                 wait_interval = 10  # Check every 10 seconds (faster status updates)
                                 waited = 0
                                 last_status = None
