@@ -1792,6 +1792,15 @@ def push_ecr_to_all_regions():
                     logger.info(f"[ECR] Proceeding to push to {len(regions_to_process)} region(s) that need the image...")
                     logger.info(f"[ECR] Target regions for push: {', '.join(sorted(regions_to_process))}")
                 
+                # FLASK CONTEXT FIX: Capture naming config in main thread before spawning background workers
+                # This prevents "Working outside of request context" error when workers try to access Flask session
+                naming_config_for_workers = None
+                try:
+                    naming_config_for_workers = get_naming_config()
+                    logger.info(f"[ECR] Captured naming config for background workers: {naming_config_for_workers.get('ec2_instance_name')}")
+                except Exception as config_err:
+                    logger.warning(f"[ECR] Could not capture naming config (will use defaults in workers): {config_err}")
+                
                 def push_to_region(target_region):
                     """Push ECR image to a single region (for parallel execution)"""
                     region_result = {'success': False, 'error': None}
@@ -1894,7 +1903,8 @@ def push_ecr_to_all_regions():
                         ec2_error_msg = None # Initialize error message tracking
                         try:
                             logger.info(f"[ECR] [{target_region}] Searching for EC2 build box...")
-                            ec2_instance = find_ec2_build_instance(source_session)
+                            # FLASK CONTEXT FIX: Pass naming_config from main thread to avoid accessing Flask session
+                            ec2_instance = find_ec2_build_instance(source_session, naming_config=naming_config_for_workers)
                             if ec2_instance:
                                 ec2_instance_id = ec2_instance['InstanceId']
                                 ec2_instance_state = ec2_instance.get('State', {}).get('Name', 'unknown')
@@ -7936,14 +7946,27 @@ date
     logger.info(f"[EC2] ✓ Created EC2 instance: {instance_id} with name: {instance_name}")
     return instance_id
 
-def find_ec2_build_instance(session, instance_name=None):
-    """Find EC2 build instance by name tag - tries exact match first, then pattern match"""
+def find_ec2_build_instance(session, instance_name=None, naming_config=None):
+    """Find EC2 build instance by name tag - tries exact match first, then pattern match
+    
+    Args:
+        session: boto3 session to use for EC2 API calls
+        instance_name: Optional name to search for. If not provided, uses naming config.
+        naming_config: Optional pre-fetched naming config dict. If provided, avoids calling get_naming_config()
+                       which accesses Flask session (causing errors in background threads).
+    """
     if instance_name is None:
-        naming_config = get_naming_config()
-        # CORRECTED: ec2_instance_name is the full name like 'default-ec2-build-box'
-        # constructed from instance_name (prefix) + '-ec2-build-box' at line 91
-        instance_name = naming_config.get('ec2_instance_name', 'default-ec2-build-box')
-        logger.info(f"[EC2] Using EC2 instance name from config: {instance_name}")
+        # FLASK CONTEXT FIX: Use provided naming_config if available (from main thread)
+        # Otherwise fall back to get_naming_config() (only works in Flask request context)
+        if naming_config is not None:
+            instance_name = naming_config.get('ec2_instance_name', 'default-ec2-build-box')
+            logger.info(f"[EC2] Using EC2 instance name from provided config: {instance_name}")
+        else:
+            naming_config = get_naming_config()
+            # CORRECTED: ec2_instance_name is the full name like 'default-ec2-build-box'
+            # constructed from instance_name (prefix) + '-ec2-build-box' at line 91
+            instance_name = naming_config.get('ec2_instance_name', 'default-ec2-build-box')
+            logger.info(f"[EC2] Using EC2 instance name from config: {instance_name}")
     
     logger.info(f"[EC2] Searching for instance with Name tag: {instance_name}")
     ec2 = session.client("ec2")
