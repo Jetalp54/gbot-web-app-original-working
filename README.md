@@ -53,6 +53,12 @@ sudo ./install_automation.sh
 > If you just run `git clone <url>` without specifying the directory, it will create
 > `/opt/gbot-web-app-original-working` which is NOT where the app runs.
 
+**Fix if you cloned incorrectly:**
+If you see a folder named `gbot-web-app-original-working` in `/opt`, run this command to fix it:
+```bash
+sudo mv /opt/gbot-web-app-original-working /opt/gbot-web-app
+```
+
 The script will:
 1. Install all system dependencies
 2. Create PostgreSQL database with secure password
