@@ -1501,6 +1501,15 @@ def push_ecr_to_all_regions():
         logger.info(f"[ECR] Target regions: {', '.join(target_regions)}")
         logger.info("=" * 60)
         
+        # FLASK CONTEXT FIX: Capture naming config HERE in Flask request context
+        # This will be passed to the background thread to avoid accessing Flask session
+        naming_config_for_background = None
+        try:
+            naming_config_for_background = get_naming_config()
+            logger.info(f"[ECR] Captured naming config for background thread: {naming_config_for_background.get('ec2_instance_name')}")
+        except Exception as config_err:
+            logger.warning(f"[ECR] Could not capture naming config (will use defaults): {config_err}")
+        
         # Create job for tracking
         job_id = f"ecr_push_{int(time.time())}"
         with lambda_creation_lock:
@@ -1792,14 +1801,8 @@ def push_ecr_to_all_regions():
                     logger.info(f"[ECR] Proceeding to push to {len(regions_to_process)} region(s) that need the image...")
                     logger.info(f"[ECR] Target regions for push: {', '.join(sorted(regions_to_process))}")
                 
-                # FLASK CONTEXT FIX: Capture naming config in main thread before spawning background workers
-                # This prevents "Working outside of request context" error when workers try to access Flask session
-                naming_config_for_workers = None
-                try:
-                    naming_config_for_workers = get_naming_config()
-                    logger.info(f"[ECR] Captured naming config for background workers: {naming_config_for_workers.get('ec2_instance_name')}")
-                except Exception as config_err:
-                    logger.warning(f"[ECR] Could not capture naming config (will use defaults in workers): {config_err}")
+                # Use naming_config_for_background passed from main Flask thread
+                # (already captured before this background function was called)
                 
                 def push_to_region(target_region):
                     """Push ECR image to a single region (for parallel execution)"""
@@ -1904,7 +1907,7 @@ def push_ecr_to_all_regions():
                         try:
                             logger.info(f"[ECR] [{target_region}] Searching for EC2 build box...")
                             # FLASK CONTEXT FIX: Pass naming_config from main thread to avoid accessing Flask session
-                            ec2_instance = find_ec2_build_instance(source_session, naming_config=naming_config_for_workers)
+                            ec2_instance = find_ec2_build_instance(source_session, naming_config=naming_config_for_background)
                             if ec2_instance:
                                 ec2_instance_id = ec2_instance['InstanceId']
                                 ec2_instance_state = ec2_instance.get('State', {}).get('Name', 'unknown')
