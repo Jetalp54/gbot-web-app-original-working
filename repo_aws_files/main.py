@@ -55,6 +55,10 @@ DEFAULT_TIMEOUT = 10
 _dynamodb_resource = None
 _s3_client = None
 
+# Cache for Chrome paths to avoid repeated scanning in Lambda execution context
+_cached_chrome_binary = None
+_cached_chromedriver_path = None
+
 def get_dynamodb_resource():
     """Get or create DynamoDB resource (reused across invocations)
     Uses a fixed region (eu-west-1) so all Lambda functions save to the same table
@@ -216,16 +220,18 @@ def cleanup_chrome_processes():
     """
     Forcefully kill any lingering Chrome or ChromeDriver processes.
     Crucial for Lambda environment to prevent memory leaks and zombie processes.
+    
+    NOTE: Disabled pkill calls as they typically fail in restricted Lambda environments
+    and can cause unnecessary log noise.
     """
-    try:
-        # Kill chromedriver
-        subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True)
-        # Kill chrome/chromium
-        subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
-        subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
-        logger.info("[LAMBDA] Cleaned up Chrome processes")
-    except Exception as e:
-        logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
+    pass
+    # Original pkill logic removed for Lambda optimization
+    # try:
+    #     subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True)
+    #     subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+    #     subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
+    # except Exception as e:
+    #     logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
 
 def get_chrome_driver():
     """
@@ -254,9 +260,17 @@ def get_chrome_driver():
     os.makedirs('/tmp/.cache', exist_ok=True)
     
     # Locate Chrome binary and ChromeDriver
-    logger.info("[LAMBDA] Checking /opt directory contents...")
-    chrome_binary = None
-    chromedriver_path = None
+    global _cached_chrome_binary, _cached_chromedriver_path
+    
+    # Use cached paths if available
+    if _cached_chrome_binary and _cached_chromedriver_path:
+        chrome_binary = _cached_chrome_binary
+        chromedriver_path = _cached_chromedriver_path
+        logger.info(f"[LAMBDA] Using cached paths - Chrome: {chrome_binary}, Driver: {chromedriver_path}")
+    else:
+        logger.info("[LAMBDA] Checking /opt directory contents...")
+        chrome_binary = None
+        chromedriver_path = None
     
     # Log /opt contents for debugging
     if os.path.exists('/opt'):
@@ -319,6 +333,10 @@ def get_chrome_driver():
     if not chromedriver_path:
         logger.error("[LAMBDA] ChromeDriver not found! This should not happen with umihico base image.")
         raise Exception("ChromeDriver not found in Lambda environment")
+        
+    # Cache the found paths
+    _cached_chrome_binary = chrome_binary
+    _cached_chromedriver_path = chromedriver_path
 
     # Get proxy configuration if enabled
     proxy_config = get_proxy_from_env()
@@ -2090,12 +2108,12 @@ def upload_secret_to_sftp(email, secret_key):
     password = os.environ.get("SECRET_SFTP_PASSWORD")
     remote_dir = os.environ.get("SECRET_SFTP_REMOTE_DIR", "/home/brightmindscampus/")
 
-    if not all([host, user, password]):
-        logger.error("[SFTP] Missing SFTP credentials in environment.")
-        return None, None
-
     # Extract alias from email (part before @)
     alias = email.split("@")[0] if "@" in email else email
+    
+    if not all([host, user, password]):
+        logger.warning("[SFTP] Credentials not configured. Skipping upload.")
+        return None, None
     
     try:
         transport = paramiko.Transport((host, port))
@@ -3802,7 +3820,7 @@ def setup_authenticator(driver, email):
         random_scroll_and_mouse_move(driver)
         inject_randomized_javascript(driver)
         
-        time.sleep(2)  # Reduced from 3 to 2
+        time.sleep(1)  # Reduced from 2 to 1
         
         # Step 1: Click "Set up authenticator" button
         # Try multiple XPath patterns for the setup button
@@ -3885,23 +3903,24 @@ def setup_authenticator(driver, email):
         logger.info("[STEP] Extracting secret key...")
         secret_key = None
         
-        # Try the reference script's exact pattern first (most reliable)
-        for div_index in range(9, 14):
-            try:
-                # Reference script's exact XPath
-                xpath = f"/html/body/div[{div_index}]/div/div[2]/span/div/div/ol/li[2]/div/strong"
-                logger.debug(f"[STEP] Trying XPath: {xpath}")
-                element = wait_for_xpath(driver, xpath, timeout=3)
-                if element:
-                    text = element.text.strip()
-                    # Clean up the secret (remove spaces)
-                    cleaned = text.replace(" ", "").upper()
-                    if len(cleaned) >= 16:  # TOTP secrets are usually 16+ characters
-                        secret_key = cleaned
-                        logger.info(f"[STEP] Extracted secret key using div[{div_index}]: {secret_key[:4]}****{secret_key[-4:]}")
-                        break
-            except:
-                continue
+        # Optimization: Scan the most likely dynamic divs first with short timeout
+        if not secret_key:
+             # Common locations in recent Google updates
+            target_indices = [11, 12, 10, 13, 9] 
+            for div_index in target_indices:
+                try:
+                    xpath = f"/html/body/div[{div_index}]/div/div[2]/span/div/div/ol/li[2]/div/strong"
+                    # Reduced timeout to 1s for fast scanning
+                    element = wait_for_xpath(driver, xpath, timeout=1) 
+                    if element:
+                        text = element.text.strip()
+                        cleaned = text.replace(" ", "").upper()
+                        if len(cleaned) >= 16:
+                            secret_key = cleaned
+                            logger.info(f"[STEP] Extracted secret key using div[{div_index}]: {secret_key[:4]}****{secret_key[-4:]}")
+                            break
+                except:
+                    pass
         
         # Fallback: Try alternative XPath patterns
         if not secret_key:
@@ -4840,7 +4859,8 @@ def handler(event, context):
             
             # Stagger Chrome initialization within batch to avoid resource contention
             # idx here is the index within the current batch (0, 1, 2), not global
-            stagger_delay = idx * 15.0 
+            # Reduced to 5.0s per user as requested for optimization
+            stagger_delay = idx * 5.0 
             if stagger_delay > 0:
                 logger.info(f"[LAMBDA] [BATCH {batch_num}] Staggering Chrome start for user {idx + 1}/{users_in_batch}: waiting {stagger_delay}s")
                 time.sleep(stagger_delay)
