@@ -4857,15 +4857,16 @@ def handler(event, context):
                     "secret_key": None
                 }
             
-            # Stagger Chrome initialization within batch to avoid resource contention
-            # idx here is the index within the current batch (0, 1, 2), not global
-            # Reduced to 5.0s per user as requested for optimization
-            stagger_delay = idx * 5.0 
-            if stagger_delay > 0:
-                logger.info(f"[LAMBDA] [BATCH {batch_num}] Staggering Chrome start for user {idx + 1}/{users_in_batch}: waiting {stagger_delay}s")
-                time.sleep(stagger_delay)
+            # OPTIMIZED STAGGER: Only stagger the first 4 users to avoid resource spike
+            # After that, workers are naturally staggered as they complete at different times
+            # In dynamic mode (batch_num=1 for all), idx is the global user index
+            if idx < 4:
+                stagger_delay = idx * 5.0  # 0s, 5s, 10s, 15s for first 4 users
+                if stagger_delay > 0:
+                    logger.info(f"[LAMBDA] Staggering Chrome start for user {idx + 1}: waiting {stagger_delay}s")
+                    time.sleep(stagger_delay)
             
-            logger.info(f"[LAMBDA] [BATCH {batch_num}] Starting processing of user {idx + 1}/{users_in_batch}: {email}")
+            logger.info(f"[LAMBDA] Starting processing of user {idx + 1}/{users_in_batch}: {email}")
             try:
                 user_result = process_single_user(email, password, start_time, dynamodb_table=dynamodb_table)
                 logger.info(f"[LAMBDA] [BATCH {batch_num}] Completed user {idx + 1}/{users_in_batch}: {email} - Status: {user_result.get('status', 'unknown')}")
@@ -4884,74 +4885,64 @@ def handler(event, context):
         # Check for SEQUENTIAL_PROCESSING override for maximum stability
         sequential_mode = os.environ.get('SEQUENTIAL_PROCESSING', 'false').lower() == 'true'
         
-        # Process users in sequential batches
-        for batch_num in range(1, total_batches + 1):
-            batch_start_idx = (batch_num - 1) * PARALLEL_BATCH_SIZE
-            batch_end_idx = min(batch_start_idx + PARALLEL_BATCH_SIZE, total_users)
-            current_batch = users_batch[batch_start_idx:batch_end_idx]
-            users_in_batch = len(current_batch)
+        if sequential_mode:
+            # SEQUENTIAL MODE: Process one user at a time
+            logger.info(f"[LAMBDA] SEQUENTIAL_PROCESSING enabled. Processing {total_users} users one by one.")
+            for idx, user_data in enumerate(users_batch):
+                result = process_user_wrapper(user_data, idx, 1, total_users, dynamodb_table=table_name)
+                all_results.append(result)
+                time.sleep(2)  # Cool-down between users
+        else:
+            # DYNAMIC PARALLEL MODE: Always maintain 4 concurrent workers
+            # This ensures that as soon as 1 worker finishes, it immediately picks up the next user
+            logger.info(f"[LAMBDA] DYNAMIC PARALLEL MODE: Maintaining {PARALLEL_BATCH_SIZE} concurrent workers")
+            logger.info(f"[LAMBDA] Processing {total_users} users with rolling window approach")
             
-            logger.info(f"\n{'='*60}")
-            logger.info(f"[LAMBDA] Starting BATCH {batch_num}/{total_batches}: Users {batch_start_idx + 1}-{batch_end_idx} of {total_users}")
-            logger.info(f"{'='*60}")
-            
-            # Clean /tmp before each batch to prevent disk exhaustion
+            # Clean /tmp before starting
             try:
                 subprocess.run(['rm', '-rf', '/tmp/chrome-data', '/tmp/data-path', '/tmp/cache-dir'], capture_output=True)
                 os.makedirs('/tmp/chrome-data', exist_ok=True)
             except:
                 pass
             
-            batch_results = []
+            completed_count = 0
             
-            if sequential_mode:
-                logger.info(f"[LAMBDA] [BATCH {batch_num}] SEQUENTIAL_PROCESSING enabled. Processing {users_in_batch} users one by one.")
-                for idx, user_data in enumerate(current_batch):
-                    result = process_user_wrapper(user_data, idx, batch_num, users_in_batch, dynamodb_table=table_name)
-                    batch_results.append(result)
-                    time.sleep(2)  # Cool-down between users
-            else:
-                # Parallel Processing within this batch
-                max_concurrent = min(PARALLEL_BATCH_SIZE, users_in_batch)
-                logger.info(f"[LAMBDA] [BATCH {batch_num}] Using {max_concurrent} concurrent workers for {users_in_batch} users")
+            with ThreadPoolExecutor(max_workers=PARALLEL_BATCH_SIZE) as executor:
+                # Submit all users to the executor
+                # The executor will automatically maintain max_workers concurrent tasks
+                future_to_user = {
+                    executor.submit(process_user_wrapper, user_data, idx, 1, total_users, table_name): (idx, user_data)
+                    for idx, user_data in enumerate(users_batch)
+                }
                 
-                with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-                    future_to_user = {
-                        executor.submit(process_user_wrapper, user_data, idx, batch_num, users_in_batch, table_name): (idx, user_data)
-                        for idx, user_data in enumerate(current_batch)
-                    }
+                # Process results as they complete
+                # This ensures workers immediately pick up new tasks when they finish
+                for future in as_completed(future_to_user):
+                    idx, user_data = future_to_user[future]
+                    email = user_data.get("email", "unknown")
+                    completed_count += 1
                     
-                    completed_results = {}
-                    for future in as_completed(future_to_user):
-                        idx, user_data = future_to_user[future]
-                        try:
-                            result = future.result()
-                            completed_results[idx] = result
-                        except Exception as e:
-                            email = user_data.get("email", "unknown")
-                            logger.error(f"[LAMBDA] [BATCH {batch_num}] Future exception for user {idx + 1}: {email} - {str(e)}")
-                            completed_results[idx] = {
-                                "email": email,
-                                "status": "failed",
-                                "error_message": f"Future exception: {str(e)}",
-                                "app_password": None,
-                                "secret_key": None
-                            }
+                    try:
+                        result = future.result()
+                        all_results.append(result)
+                        status = result.get('status', 'unknown')
+                        logger.info(f"[LAMBDA] ✓ Completed {completed_count}/{total_users}: {email} - Status: {status}")
+                    except Exception as e:
+                        logger.error(f"[LAMBDA] ✗ Future exception for user {idx + 1}: {email} - {str(e)}")
+                        all_results.append({
+                            "email": email,
+                            "status": "failed",
+                            "error_message": f"Future exception: {str(e)}",
+                            "app_password": None,
+                            "secret_key": None
+                        })
                     
-                    batch_results = [completed_results[idx] for idx in sorted(completed_results.keys())]
-            
-            # Add batch results to all results
-            all_results.extend(batch_results)
-            
-            # Log batch completion
-            batch_success = sum(1 for r in batch_results if r.get("status") == "success")
-            batch_failed = len(batch_results) - batch_success
-            logger.info(f"[LAMBDA] [BATCH {batch_num}] Completed: {batch_success} success, {batch_failed} failed")
-            
-            # If more batches remain, add a brief delay
-            if batch_num < total_batches:
-                logger.info(f"[LAMBDA] Preparing for next batch...")
-                time.sleep(3)  # Brief cooldown between batches
+                    # Log progress every 25%
+                    if completed_count % max(1, total_users // 4) == 0 or completed_count == total_users:
+                        logger.info(f"[LAMBDA] Progress: {completed_count}/{total_users} users completed ({int(completed_count/total_users*100)}%)")
+        
+        logger.info(f"[LAMBDA] All {total_users} users have been processed")
+
         
         # =====================================================================
         # RETRY MECHANISM: Retry failed users once at the end
