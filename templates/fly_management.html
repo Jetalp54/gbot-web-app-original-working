@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Fly.io Management - GBot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="h3 mb-4 text-gray-800">✈️ Fly.io Management</h1>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Configuration -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 bg-white">
+                <h6 class="m-0 font-weight-bold text-primary">Configuration</h6>
+            </div>
+            <div class="card-body">
+                <div class="form-group mb-3">
+                    <label for="flyToken">Fly API Token</label>
+                    <input type="password" class="form-control" id="flyToken"
+                        placeholder="Enter output of 'fly auth token'">
+                    <small class="form-text text-muted">Run <code>fly auth token</code> in your terminal to get
+                        this.</small>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="appName">App Name</label>
+                    <input type="text" class="form-control" id="appName" value="gbot-fly-worker">
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 bg-white">
+                <h6 class="m-0 font-weight-bold text-primary">App Management</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" onclick="launchApp()">🚀 Launch App (Create)</button>
+                    <button class="btn btn-warning" onclick="deployApp()">🏗️ Deploy (Build & Push)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Batch Processing -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 bg-white">
+                <h6 class="m-0 font-weight-bold text-primary">Batch Processing</h6>
+            </div>
+            <div class="card-body">
+                <div class="form-group mb-3">
+                    <label for="accountsInput">Accounts (email:password[:recovery])</label>
+                    <textarea class="form-control" id="accountsInput" rows="5"
+                        placeholder="user1@gmail.com:pass1:rec1&#10;user2@gmail.com:pass2:rec2"></textarea>
+                </div>
+                <div class="row mb-3">
+                    <div class="col">
+                        <label for="batchSize">Batch Size</label>
+                        <input type="number" class="form-control" id="batchSize" value="10">
+                    </div>
+                </div>
+                <button class="btn btn-success w-100" onclick="startProcessing()">▶️ Start Processing</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Logs / Output -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 bg-white">
+                <h6 class="m-0 font-weight-bold text-primary">Console Output</h6>
+            </div>
+            <div class="card-body bg-dark text-white font-monospace" id="consoleOutput"
+                style="height: 300px; overflow-y: auto;">
+                <div class="text-muted">> Ready...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function log(message, type = 'info') {
+        const consoleEl = document.getElementById('consoleOutput');
+        const color = type === 'error' ? 'text-danger' : (type === 'success' ? 'text-success' : 'text-white');
+        const timestamp = new Date().toLocaleTimeString();
+        consoleEl.innerHTML += `<div class="${color}">[${timestamp}] ${message}</div>`;
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    async function launchApp() {
+        const token = document.getElementById('flyToken').value;
+        const appName = document.getElementById('appName').value;
+
+        if (!appName) return alert("App Name required");
+
+        log(`Launching app '${appName}'...`);
+
+        try {
+            const res = await fetch('/fly/launch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, app_name: appName })
+            });
+            const data = await res.json();
+
+            if (data.status === 'success') {
+                log("✅ Launch Successful:\n" + data.output, 'success');
+            } else {
+                log("❌ Launch Failed:\n" + (data.error_details || data.error), 'error');
+            }
+        } catch (e) {
+            log("❌ Error: " + e, 'error');
+        }
+    }
+
+    async function deployApp() {
+        const token = document.getElementById('flyToken').value;
+        const appName = document.getElementById('appName').value;
+
+        if (!appName) return alert("App Name required");
+
+        log(`Triggering deployment for '${appName}'...`);
+
+        try {
+            const res = await fetch('/fly/deploy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, app_name: appName })
+            });
+            const data = await res.json();
+
+            if (data.status) {
+                log("🚀 " + data.message, 'success');
+            } else {
+                log("❌ Deploy Request Failed: " + data.error, 'error');
+            }
+        } catch (e) {
+            log("❌ Error: " + e, 'error');
+        }
+    }
+
+    async function startProcessing() {
+        const token = document.getElementById('flyToken').value;
+        const appName = document.getElementById('appName').value;
+        const accountsText = document.getElementById('accountsInput').value;
+        const batchSize = document.getElementById('batchSize').value;
+
+        if (!appName || !accountsText) return alert("App Name and Accounts required");
+
+        const accounts = accountsText.split('\n').filter(line => line.trim() !== '');
+
+        log(`Starting processing for ${accounts.length} accounts...`);
+
+        try {
+            const res = await fetch('/fly/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token,
+                    app_name: appName,
+                    accounts: accounts,
+                    batch_size: batchSize
+                })
+            });
+            const data = await res.json();
+
+            if (data.status) {
+                log("✅ " + data.message, 'success');
+            } else {
+                log("❌ Process Request Failed: " + data.error, 'error');
+            }
+        } catch (e) {
+            log("❌ Error: " + e, 'error');
+        }
+    }
+</script>
+{% endblock %}

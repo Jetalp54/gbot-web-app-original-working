@@ -2965,6 +2965,12 @@
                     <i class="fas fa-cloud"></i>
                     <span>AWS Management</span>
                 </a>
+
+                <a href="/fly" class="nav-item {% if request.endpoint == 'fly.index' %}active{% endif %}"
+                    title="Fly.io Management">
+                    <i class="fas fa-plane"></i>
+                    <span>Fly.io</span>
+                </a>
                 {% endif %}
 
                 {% if 'list_management' in user_permissions %}

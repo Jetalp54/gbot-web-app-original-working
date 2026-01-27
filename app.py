@@ -33,6 +33,9 @@ from core_logic import google_api
 from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig, ServiceAccount, CloudflareConfig, Notification, WorkspaceList
 from routes.dns_manager import dns_manager
 from routes.aws_manager import aws_manager
+from routes.fly_manager import fly_bp
+
+# ... imports ...
 
 # Progress tracking system for domain changes
 # Progress tracking system for domain changes
@@ -131,6 +134,11 @@ def cleanup_old_progress():
 
 app = Flask(__name__)
 app.config.from_object('config')
+
+# Register Blueprints
+app.register_blueprint(aws_manager)
+app.register_blueprint(dns_manager)
+app.register_blueprint(fly_bp)
 
 # Set secret key for sessions
 if app.config.get('SECRET_KEY'):
