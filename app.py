@@ -135,10 +135,7 @@ def cleanup_old_progress():
 app = Flask(__name__)
 app.config.from_object('config')
 
-# Register Blueprints
-app.register_blueprint(aws_manager)
-app.register_blueprint(dns_manager)
-app.register_blueprint(fly_bp)
+
 
 # Set secret key for sessions
 if app.config.get('SECRET_KEY'):
@@ -174,6 +171,7 @@ db.init_app(app)
 # Register blueprints
 app.register_blueprint(dns_manager)
 app.register_blueprint(aws_manager)
+app.register_blueprint(fly_bp)
 
 # Global concurrency limiter - REMOVED for unlimited concurrent machines
 # No artificial limits - let the server handle as many requests as possible
