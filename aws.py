@@ -8,7 +8,9 @@ import sys
 import os
 import json
 import time
+import subprocess
 import random
+import base64
 import string
 import logging
 import traceback
@@ -982,6 +984,7 @@ class AwsEducationApp(QMainWindow):
         self._build_ec2_tab()
         self._build_prep_tab()
         self._build_creation_tab()
+        self._build_fly_tab()
         
         splitter.addWidget(top_widget)
         
@@ -1407,6 +1410,240 @@ class AwsEducationApp(QMainWindow):
         tab_layout.addWidget(scroll)
         
         self.tabs.addTab(tab, "5) Account Creation")
+
+    def _build_fly_tab(self):
+        """Build Fly.io Integration tab."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        group = QGroupBox("✈️ Fly.io Management")
+        group_layout = QVBoxLayout(group)
+        
+        # API Token
+        group_layout.addWidget(QLabel("Fly API Token:"))
+        self.fly_token_input = QLineEdit()
+        self.fly_token_input.setEchoMode(QLineEdit.Password)
+        self.fly_token_input.setPlaceholderText("Enter output of 'fly auth token'")
+        group_layout.addWidget(self.fly_token_input)
+        
+        # App Name
+        group_layout.addWidget(QLabel("App Name:"))
+        self.fly_app_input = QLineEdit("gbot-fly-worker")
+        group_layout.addWidget(self.fly_app_input)
+        
+        # Buttons
+        btns_layout = QHBoxLayout()
+        
+        launch_btn = QPushButton("🚀 Launch App (Create)")
+        launch_btn.clicked.connect(self.on_fly_launch)
+        btns_layout.addWidget(launch_btn)
+        
+        deploy_btn = QPushButton("📦 Deploy (Build & Push)")
+        deploy_btn.clicked.connect(self.on_fly_deploy)
+        btns_layout.addWidget(deploy_btn)
+        
+        group_layout.addLayout(btns_layout)
+        
+        # Invocation Section
+        group_layout.addWidget(QLabel("<b>Job Processing</b>"))
+        
+        # Users Input
+        group_layout.addWidget(QLabel("Account Input (email:password:recovery, one per line):"))
+        self.fly_users_input = QTextEdit()
+        self.fly_users_input.setMaximumHeight(120)
+        self.fly_users_input.setPlaceholderText("user@domain.com:password123:recovery@gmail.com")
+        group_layout.addWidget(self.fly_users_input)
+        
+        # Machine Config
+        config_layout = QHBoxLayout()
+        config_layout.addWidget(QLabel("Batch Size:"))
+        self.fly_batch_size = QSpinBox()
+        self.fly_batch_size.setValue(10)
+        self.fly_batch_size.setRange(1, 100)
+        config_layout.addWidget(self.fly_batch_size)
+        
+        config_layout.addWidget(QLabel("Concurrent Machines:"))
+        self.fly_concurrency = QSpinBox()
+        self.fly_concurrency.setValue(1)
+        self.fly_concurrency.setRange(1, 50)
+        config_layout.addWidget(self.fly_concurrency)
+        
+        group_layout.addLayout(config_layout)
+        
+        # Process Button
+        process_btn = QPushButton("▶ Start Processing on Fly.io")
+        process_btn.setStyleSheet("background-color: #6C5CE7; color: white; font-weight: bold; padding: 10px;")
+        process_btn.clicked.connect(self.on_fly_process)
+        group_layout.addWidget(process_btn)
+        
+        layout.addWidget(group)
+        layout.addStretch()
+        self.tabs.addTab(tab, "6) Fly.io")
+
+    def on_fly_launch(self):
+        """Create the Fly.io application."""
+        app_name = self.fly_app_input.text().strip()
+        if not app_name:
+            QMessageBox.warning(self, "Error", "Please enter an App Name.")
+            return
+            
+        cmd = ["fly", "apps", "create", app_name]
+        self.log(f"Creating Fly app: {app_name}")
+        self._run_fly_command_async(cmd, cwd=os.path.join(os.getcwd(), "repo_fly_files"))
+
+    def on_fly_deploy(self):
+        """Deploy the Fly.io application."""
+        app_name = self.fly_app_input.text().strip()
+        
+        # Command to deploy using local Dockerfile and config
+        cmd = ["fly", "deploy", "--local-only", "--config", "fly.toml", "--dockerfile", "Dockerfile.fly"]
+        if app_name:
+             cmd.extend(["--app", app_name])
+             
+        self.log(f"Deploying Fly app: {app_name} (This may take a few minutes)...")
+        self._run_fly_command_async(cmd, cwd=os.path.join(os.getcwd(), "repo_fly_files"))
+
+    def on_fly_process(self):
+        """Process the input accounts using Fly.io Machines."""
+        # 1. Parse Input
+        text = self.fly_users_input.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(self, "Error", "Please enter accounts.")
+            return
+            
+        lines = text.split('\n')
+        users = []
+        for line in lines:
+            line = line.strip()
+            if not line: continue
+            parts = line.split(':')
+            if len(parts) >= 2:
+                u = {"email": parts[0], "password": parts[1]}
+                if len(parts) > 2: u["recovery_email"] = parts[2]
+                users.append(u)
+        
+        if not users:
+            QMessageBox.warning(self, "Error", "No valid accounts found. Format: user:pass[:recovery]")
+            return
+
+        # 2. Configuration
+        app_name = self.fly_app_input.text().strip()
+        if not app_name:
+             QMessageBox.warning(self, "Error", "App Name required.")
+             return
+             
+        batch_size = self.fly_batch_size.value()
+        
+        # 3. Create Batches
+        batches = [users[i:i + batch_size] for i in range(0, len(users), batch_size)]
+        
+        self.log(f"Processing {len(users)} users in {len(batches)} batches using Fly Machines.")
+        
+        # 4. Launch Machines Background
+        threading.Thread(target=self._launch_fly_batches, args=(app_name, batches), daemon=True).start()
+
+    def _launch_fly_batches(self, app_name, batches):
+        """Worker thread to launch machines sequentially."""
+        image_ref = f"registry.fly.io/{app_name}:latest"
+        
+        token = self.fly_token_input.text().strip()
+        env = os.environ.copy()
+        if token:
+            env["FLY_ACCESS_TOKEN"] = token
+            
+        repo_cwd = os.path.join(os.getcwd(), "repo_fly_files")
+
+        for i, batch in enumerate(batches):
+            try:
+                # Unique name
+                machine_name = f"{app_name}-batch-{int(time.time())}-{i+1}"
+                batch_json = json.dumps(batch)
+                batch_b64 = base64.b64encode(batch_json.encode('utf-8')).decode('utf-8')
+                
+                cmd = [
+                    "fly", "machine", "run", image_ref,
+                    "--name", machine_name,
+                    "--region", "yul",
+                    "--app", app_name,
+                    "--detach",
+                    "--autostart",
+                    "-e", f"BATCH_DATA_B64={batch_b64}"
+                ]
+                
+                self.log(f"Launching Batch {i+1}/{len(batches)}...")
+                
+                # Sync execution to throttle launches
+                startupinfo = None
+                if os.name == 'nt':
+                     startupinfo = subprocess.STARTUPINFO()
+                     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                     
+                proc = subprocess.Popen(
+                    cmd,
+                    cwd=repo_cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    env=env,
+                    startupinfo=startupinfo
+                )
+                stdout, stderr = proc.communicate()
+                
+                if proc.returncode == 0:
+                     self.log(f"✅ Batch {i+1} Launched: {machine_name}")
+                else:
+                     self.log(f"❌ Batch {i+1} Launch Failed: {stderr.strip() if stderr else 'Unknown error'}")
+
+                time.sleep(2) # Throttle launches
+                
+            except Exception as e:
+                self.log(f"❌ Exception launching batch {i+1}: {e}")
+
+    def _run_fly_command_async(self, command, cwd=None):
+        """Run a Fly CLI command in a background thread."""
+        def _target():
+            token = self.fly_token_input.text().strip()
+            env = os.environ.copy()
+            if token:
+                env["FLY_ACCESS_TOKEN"] = token
+            
+            # Ensure fly is in path or try to find it? Assumes in PATH.
+            
+            try:
+                startupinfo = None
+                if os.name == 'nt':
+                     startupinfo = subprocess.STARTUPINFO()
+                     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                     
+                proc = subprocess.Popen(
+                    command,
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    env=env,
+                    startupinfo=startupinfo
+                )
+                
+                stdout, stderr = proc.communicate()
+                
+                if stdout:
+                    for line in stdout.splitlines():
+                        self.log(f"[FLY] {line}")
+                if stderr:
+                    for line in stderr.splitlines():
+                        self.log(f"[FLY_STDERR] {line}")
+                        
+                if proc.returncode == 0:
+                    self.log(f"✅ Command successful: {' '.join(command)}")
+                else:
+                    self.log(f"❌ Command failed with code {proc.returncode}")
+                    
+            except Exception as e:
+                self.log(f"❌ Execution exception: {e}")
+                
+        threading.Thread(target=_target, daemon=True).start()
+
 
     # ======================================================================
     # Helper Methods
