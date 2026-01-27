@@ -55,6 +55,10 @@ DEFAULT_TIMEOUT = 10
 _dynamodb_resource = None
 _s3_client = None
 
+# Cache for Chrome paths to avoid repeated scanning in Lambda execution context
+_cached_chrome_binary = None
+_cached_chromedriver_path = None
+
 def get_dynamodb_resource():
     """Get or create DynamoDB resource (reused across invocations)
     Uses a fixed region (eu-west-1) so all Lambda functions save to the same table
@@ -216,16 +220,18 @@ def cleanup_chrome_processes():
     """
     Forcefully kill any lingering Chrome or ChromeDriver processes.
     Crucial for Lambda environment to prevent memory leaks and zombie processes.
+    
+    NOTE: Disabled pkill calls as they typically fail in restricted Lambda environments
+    and can cause unnecessary log noise.
     """
-    try:
-        # Kill chromedriver
-        subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True)
-        # Kill chrome/chromium
-        subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
-        subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
-        logger.info("[LAMBDA] Cleaned up Chrome processes")
-    except Exception as e:
-        logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
+    pass
+    # Original pkill logic removed for Lambda optimization
+    # try:
+    #     subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True)
+    #     subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+    #     subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
+    # except Exception as e:
+    #     logger.warning(f"[LAMBDA] Error cleaning up processes: {e}")
 
 def get_chrome_driver():
     """
@@ -254,9 +260,17 @@ def get_chrome_driver():
     os.makedirs('/tmp/.cache', exist_ok=True)
     
     # Locate Chrome binary and ChromeDriver
-    logger.info("[LAMBDA] Checking /opt directory contents...")
-    chrome_binary = None
-    chromedriver_path = None
+    global _cached_chrome_binary, _cached_chromedriver_path
+    
+    # Use cached paths if available
+    if _cached_chrome_binary and _cached_chromedriver_path:
+        chrome_binary = _cached_chrome_binary
+        chromedriver_path = _cached_chromedriver_path
+        logger.info(f"[LAMBDA] Using cached paths - Chrome: {chrome_binary}, Driver: {chromedriver_path}")
+    else:
+        logger.info("[LAMBDA] Checking /opt directory contents...")
+        chrome_binary = None
+        chromedriver_path = None
     
     # Log /opt contents for debugging
     if os.path.exists('/opt'):
@@ -319,6 +333,10 @@ def get_chrome_driver():
     if not chromedriver_path:
         logger.error("[LAMBDA] ChromeDriver not found! This should not happen with umihico base image.")
         raise Exception("ChromeDriver not found in Lambda environment")
+        
+    # Cache the found paths
+    _cached_chrome_binary = chrome_binary
+    _cached_chromedriver_path = chromedriver_path
 
     # Get proxy configuration if enabled
     proxy_config = get_proxy_from_env()
@@ -2090,12 +2108,12 @@ def upload_secret_to_sftp(email, secret_key):
     password = os.environ.get("SECRET_SFTP_PASSWORD")
     remote_dir = os.environ.get("SECRET_SFTP_REMOTE_DIR", "/home/brightmindscampus/")
 
-    if not all([host, user, password]):
-        logger.error("[SFTP] Missing SFTP credentials in environment.")
-        return None, None
-
     # Extract alias from email (part before @)
     alias = email.split("@")[0] if "@" in email else email
+    
+    if not all([host, user, password]):
+        logger.warning("[SFTP] Credentials not configured. Skipping upload.")
+        return None, None
     
     try:
         transport = paramiko.Transport((host, port))
@@ -2178,6 +2196,45 @@ def handle_post_login_pages(driver, max_attempts=20):
             # Handle Speedbump page (especially gaplustos - Google Terms of Service)
             if "speedbump" in current_url:
                 logger.info(f"[STEP] Speedbump page detected: {current_url}")
+                
+                # Check if it's the NEW Workspace Terms of Service page (added Jan 2026)
+                if "speedbump/workspacetermsofservice" in current_url:
+                    logger.info("[STEP] Workspace Terms of Service speedbump detected (NEW Page)...")
+                    try:
+                        # Try the specific XPath first
+                        workspace_tos_xpath = "/html/body/div[2]/div[1]/div[1]/div[2]/c-wiz/main/div[3]/div/div/div/div/button"
+                        if element_exists(driver, workspace_tos_xpath, timeout=3):
+                            click_xpath(driver, workspace_tos_xpath, timeout=5)
+                            logger.info("[STEP] Clicked 'I understand' button on Workspace TOS page via specific XPath")
+                            time.sleep(2)
+                            continue  # Go to next iteration of main loop
+                        
+                        # Fallback: Look for button with "I understand" text
+                        understand_button_xpaths = [
+                            "//button[contains(., 'I understand')]",
+                            "//button[contains(., 'understand')]",
+                            "//button[contains(., 'I understand')]",
+                            "//button[contains(., 'understand')]",
+                            "//span[contains(text(), 'I understand')]/ancestor::button",
+                            "//div[@role='button' and contains(., 'I understand')]",
+                            "//*[text()='I understand']",
+                        ]
+                        
+                        clicked = False
+                        for xpath in understand_button_xpaths:
+                            if element_exists(driver, xpath, timeout=2):
+                                click_xpath(driver, xpath, timeout=5)
+                                logger.info(f"[STEP] Clicked 'I understand' button via fallback: {xpath}")
+                                time.sleep(2)
+                                clicked = True
+                                break  # Exit the for loop
+                        
+                        if clicked:
+                            continue  # Go to next iteration of main loop
+                        
+                        logger.warning("[STEP] Could not find 'I understand' button on Workspace TOS page")
+                    except Exception as e:
+                        logger.warning(f"[STEP] Failed to click Workspace TOS button: {e}")
                 
                 # Check if it's the gaplustos page specifically
                 if "speedbump/gaplustos" in current_url:
@@ -3802,7 +3859,7 @@ def setup_authenticator(driver, email):
         random_scroll_and_mouse_move(driver)
         inject_randomized_javascript(driver)
         
-        time.sleep(2)  # Reduced from 3 to 2
+        time.sleep(1)  # Reduced from 2 to 1
         
         # Step 1: Click "Set up authenticator" button
         # Try multiple XPath patterns for the setup button
@@ -3885,23 +3942,24 @@ def setup_authenticator(driver, email):
         logger.info("[STEP] Extracting secret key...")
         secret_key = None
         
-        # Try the reference script's exact pattern first (most reliable)
-        for div_index in range(9, 14):
-            try:
-                # Reference script's exact XPath
-                xpath = f"/html/body/div[{div_index}]/div/div[2]/span/div/div/ol/li[2]/div/strong"
-                logger.debug(f"[STEP] Trying XPath: {xpath}")
-                element = wait_for_xpath(driver, xpath, timeout=3)
-                if element:
-                    text = element.text.strip()
-                    # Clean up the secret (remove spaces)
-                    cleaned = text.replace(" ", "").upper()
-                    if len(cleaned) >= 16:  # TOTP secrets are usually 16+ characters
-                        secret_key = cleaned
-                        logger.info(f"[STEP] Extracted secret key using div[{div_index}]: {secret_key[:4]}****{secret_key[-4:]}")
-                        break
-            except:
-                continue
+        # Optimization: Scan the most likely dynamic divs first with short timeout
+        if not secret_key:
+             # Common locations in recent Google updates
+            target_indices = [11, 12, 10, 13, 9] 
+            for div_index in target_indices:
+                try:
+                    xpath = f"/html/body/div[{div_index}]/div/div[2]/span/div/div/ol/li[2]/div/strong"
+                    # Reduced timeout to 1s for fast scanning
+                    element = wait_for_xpath(driver, xpath, timeout=1) 
+                    if element:
+                        text = element.text.strip()
+                        cleaned = text.replace(" ", "").upper()
+                        if len(cleaned) >= 16:
+                            secret_key = cleaned
+                            logger.info(f"[STEP] Extracted secret key using div[{div_index}]: {secret_key[:4]}****{secret_key[-4:]}")
+                            break
+                except:
+                    pass
         
         # Fallback: Try alternative XPath patterns
         if not secret_key:
@@ -4838,14 +4896,16 @@ def handler(event, context):
                     "secret_key": None
                 }
             
-            # Stagger Chrome initialization within batch to avoid resource contention
-            # idx here is the index within the current batch (0, 1, 2), not global
-            stagger_delay = idx * 15.0 
-            if stagger_delay > 0:
-                logger.info(f"[LAMBDA] [BATCH {batch_num}] Staggering Chrome start for user {idx + 1}/{users_in_batch}: waiting {stagger_delay}s")
-                time.sleep(stagger_delay)
+            # OPTIMIZED STAGGER: Only stagger the first 4 users to avoid resource spike
+            # After that, workers are naturally staggered as they complete at different times
+            # In dynamic mode (batch_num=1 for all), idx is the global user index
+            if idx < 4:
+                stagger_delay = idx * 5.0  # 0s, 5s, 10s, 15s for first 4 users
+                if stagger_delay > 0:
+                    logger.info(f"[LAMBDA] Staggering Chrome start for user {idx + 1}: waiting {stagger_delay}s")
+                    time.sleep(stagger_delay)
             
-            logger.info(f"[LAMBDA] [BATCH {batch_num}] Starting processing of user {idx + 1}/{users_in_batch}: {email}")
+            logger.info(f"[LAMBDA] Starting processing of user {idx + 1}/{users_in_batch}: {email}")
             try:
                 user_result = process_single_user(email, password, start_time, dynamodb_table=dynamodb_table)
                 logger.info(f"[LAMBDA] [BATCH {batch_num}] Completed user {idx + 1}/{users_in_batch}: {email} - Status: {user_result.get('status', 'unknown')}")
@@ -4864,74 +4924,64 @@ def handler(event, context):
         # Check for SEQUENTIAL_PROCESSING override for maximum stability
         sequential_mode = os.environ.get('SEQUENTIAL_PROCESSING', 'false').lower() == 'true'
         
-        # Process users in sequential batches
-        for batch_num in range(1, total_batches + 1):
-            batch_start_idx = (batch_num - 1) * PARALLEL_BATCH_SIZE
-            batch_end_idx = min(batch_start_idx + PARALLEL_BATCH_SIZE, total_users)
-            current_batch = users_batch[batch_start_idx:batch_end_idx]
-            users_in_batch = len(current_batch)
+        if sequential_mode:
+            # SEQUENTIAL MODE: Process one user at a time
+            logger.info(f"[LAMBDA] SEQUENTIAL_PROCESSING enabled. Processing {total_users} users one by one.")
+            for idx, user_data in enumerate(users_batch):
+                result = process_user_wrapper(user_data, idx, 1, total_users, dynamodb_table=table_name)
+                all_results.append(result)
+                time.sleep(2)  # Cool-down between users
+        else:
+            # DYNAMIC PARALLEL MODE: Always maintain 4 concurrent workers
+            # This ensures that as soon as 1 worker finishes, it immediately picks up the next user
+            logger.info(f"[LAMBDA] DYNAMIC PARALLEL MODE: Maintaining {PARALLEL_BATCH_SIZE} concurrent workers")
+            logger.info(f"[LAMBDA] Processing {total_users} users with rolling window approach")
             
-            logger.info(f"\n{'='*60}")
-            logger.info(f"[LAMBDA] Starting BATCH {batch_num}/{total_batches}: Users {batch_start_idx + 1}-{batch_end_idx} of {total_users}")
-            logger.info(f"{'='*60}")
-            
-            # Clean /tmp before each batch to prevent disk exhaustion
+            # Clean /tmp before starting
             try:
                 subprocess.run(['rm', '-rf', '/tmp/chrome-data', '/tmp/data-path', '/tmp/cache-dir'], capture_output=True)
                 os.makedirs('/tmp/chrome-data', exist_ok=True)
             except:
                 pass
             
-            batch_results = []
+            completed_count = 0
             
-            if sequential_mode:
-                logger.info(f"[LAMBDA] [BATCH {batch_num}] SEQUENTIAL_PROCESSING enabled. Processing {users_in_batch} users one by one.")
-                for idx, user_data in enumerate(current_batch):
-                    result = process_user_wrapper(user_data, idx, batch_num, users_in_batch, dynamodb_table=table_name)
-                    batch_results.append(result)
-                    time.sleep(2)  # Cool-down between users
-            else:
-                # Parallel Processing within this batch
-                max_concurrent = min(PARALLEL_BATCH_SIZE, users_in_batch)
-                logger.info(f"[LAMBDA] [BATCH {batch_num}] Using {max_concurrent} concurrent workers for {users_in_batch} users")
+            with ThreadPoolExecutor(max_workers=PARALLEL_BATCH_SIZE) as executor:
+                # Submit all users to the executor
+                # The executor will automatically maintain max_workers concurrent tasks
+                future_to_user = {
+                    executor.submit(process_user_wrapper, user_data, idx, 1, total_users, table_name): (idx, user_data)
+                    for idx, user_data in enumerate(users_batch)
+                }
                 
-                with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-                    future_to_user = {
-                        executor.submit(process_user_wrapper, user_data, idx, batch_num, users_in_batch, table_name): (idx, user_data)
-                        for idx, user_data in enumerate(current_batch)
-                    }
+                # Process results as they complete
+                # This ensures workers immediately pick up new tasks when they finish
+                for future in as_completed(future_to_user):
+                    idx, user_data = future_to_user[future]
+                    email = user_data.get("email", "unknown")
+                    completed_count += 1
                     
-                    completed_results = {}
-                    for future in as_completed(future_to_user):
-                        idx, user_data = future_to_user[future]
-                        try:
-                            result = future.result()
-                            completed_results[idx] = result
-                        except Exception as e:
-                            email = user_data.get("email", "unknown")
-                            logger.error(f"[LAMBDA] [BATCH {batch_num}] Future exception for user {idx + 1}: {email} - {str(e)}")
-                            completed_results[idx] = {
-                                "email": email,
-                                "status": "failed",
-                                "error_message": f"Future exception: {str(e)}",
-                                "app_password": None,
-                                "secret_key": None
-                            }
+                    try:
+                        result = future.result()
+                        all_results.append(result)
+                        status = result.get('status', 'unknown')
+                        logger.info(f"[LAMBDA] ✓ Completed {completed_count}/{total_users}: {email} - Status: {status}")
+                    except Exception as e:
+                        logger.error(f"[LAMBDA] ✗ Future exception for user {idx + 1}: {email} - {str(e)}")
+                        all_results.append({
+                            "email": email,
+                            "status": "failed",
+                            "error_message": f"Future exception: {str(e)}",
+                            "app_password": None,
+                            "secret_key": None
+                        })
                     
-                    batch_results = [completed_results[idx] for idx in sorted(completed_results.keys())]
-            
-            # Add batch results to all results
-            all_results.extend(batch_results)
-            
-            # Log batch completion
-            batch_success = sum(1 for r in batch_results if r.get("status") == "success")
-            batch_failed = len(batch_results) - batch_success
-            logger.info(f"[LAMBDA] [BATCH {batch_num}] Completed: {batch_success} success, {batch_failed} failed")
-            
-            # If more batches remain, add a brief delay
-            if batch_num < total_batches:
-                logger.info(f"[LAMBDA] Preparing for next batch...")
-                time.sleep(3)  # Brief cooldown between batches
+                    # Log progress every 25%
+                    if completed_count % max(1, total_users // 4) == 0 or completed_count == total_users:
+                        logger.info(f"[LAMBDA] Progress: {completed_count}/{total_users} users completed ({int(completed_count/total_users*100)}%)")
+        
+        logger.info(f"[LAMBDA] All {total_users} users have been processed")
+
         
         # =====================================================================
         # RETRY MECHANISM: Retry failed users once at the end
@@ -5100,7 +5150,23 @@ def process_single_user(email, password, batch_start_time=None, dynamodb_table=N
             
             # Handle Login Failures
             if error_code == "ACCOUNT_NOT_FOUND":
-                logger.error(f"[LAMBDA] FATAL ERROR: Account not found for {email}. Aborting.")
+                logger.error(f"[LAMBDA] FATAL ERROR: Account not found for {email}. Aborting (no retry).")
+                if driver:
+                    driver.quit()
+                return {
+                    "email": email,
+                    "status": "failed",
+                    "step_completed": step_completed,
+                    "error_step": step_completed,
+                    "error_message": error_message,
+                    "app_password": None,
+                    "secret_key": None,
+                    "timings": timings
+                }
+            
+            # OPTIMIZATION: Skip retries for EMAIL_ERROR (email rejected by Google - permanent failure)
+            if error_code == "EMAIL_ERROR":
+                logger.error(f"[LAMBDA] PERMANENT ERROR: Email rejected by Google for {email}. Aborting (no retry).")
                 if driver:
                     driver.quit()
                 return {
@@ -5115,7 +5181,7 @@ def process_single_user(email, password, batch_start_time=None, dynamodb_table=N
                 }
             
             # For SECURE_BROWSER_BLOCK, CRASHES, TIMEOUTS, or any other error -> RETRY
-            # We treat almost everything as a transient failure worth retrying with a fresh browser
+            # We treat almost everything else as a transient failure worth retrying with a fresh browser
             logger.warning(f"[LAMBDA] Login failed with error: {error_code} - {error_message}")
             logger.warning(f"[LAMBDA] Retrying with fresh browser (Attempt {browser_attempt + 1}/{max_browser_attempts})...")
             

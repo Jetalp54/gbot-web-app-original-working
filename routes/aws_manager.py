@@ -7620,6 +7620,7 @@ def create_ec2_build_box(session, account_id, region, role_arn, sg_id, instance_
         raise Exception(f"Custom main.py not found at {main_py_path}. Please ensure repo_aws_files/main.py exists.")
     
     # Upload main.py
+    logger.info(f"[EC2] Found main.py at local path: {main_py_path}")
     logger.info(f"[EC2] Uploading custom main.py to S3: s3://{s3_bucket_name}/{s3_build_prefix}/main.py")
     
     try:
