@@ -2213,8 +2213,11 @@ def handle_post_login_pages(driver, max_attempts=20):
                         understand_button_xpaths = [
                             "//button[contains(., 'I understand')]",
                             "//button[contains(., 'understand')]",
+                            "//button[contains(., 'I understand')]",
+                            "//button[contains(., 'understand')]",
                             "//span[contains(text(), 'I understand')]/ancestor::button",
                             "//div[@role='button' and contains(., 'I understand')]",
+                            "//*[text()='I understand']",
                         ]
                         
                         clicked = False
