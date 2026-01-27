@@ -2207,7 +2207,7 @@ def handle_post_login_pages(driver, max_attempts=20):
                             click_xpath(driver, workspace_tos_xpath, timeout=5)
                             logger.info("[STEP] Clicked 'I understand' button on Workspace TOS page via specific XPath")
                             time.sleep(2)
-                            continue  # Go to next iteration
+                            continue  # Go to next iteration of main loop
                         
                         # Fallback: Look for button with "I understand" text
                         understand_button_xpaths = [
@@ -2217,12 +2217,17 @@ def handle_post_login_pages(driver, max_attempts=20):
                             "//div[@role='button' and contains(., 'I understand')]",
                         ]
                         
+                        clicked = False
                         for xpath in understand_button_xpaths:
                             if element_exists(driver, xpath, timeout=2):
                                 click_xpath(driver, xpath, timeout=5)
                                 logger.info(f"[STEP] Clicked 'I understand' button via fallback: {xpath}")
                                 time.sleep(2)
-                                continue  # Go to next iteration
+                                clicked = True
+                                break  # Exit the for loop
+                        
+                        if clicked:
+                            continue  # Go to next iteration of main loop
                         
                         logger.warning("[STEP] Could not find 'I understand' button on Workspace TOS page")
                     except Exception as e:
