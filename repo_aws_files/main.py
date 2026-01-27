@@ -2197,6 +2197,37 @@ def handle_post_login_pages(driver, max_attempts=20):
             if "speedbump" in current_url:
                 logger.info(f"[STEP] Speedbump page detected: {current_url}")
                 
+                # Check if it's the NEW Workspace Terms of Service page (added Jan 2026)
+                if "speedbump/workspacetermsofservice" in current_url:
+                    logger.info("[STEP] Workspace Terms of Service speedbump detected (NEW Page)...")
+                    try:
+                        # Try the specific XPath first
+                        workspace_tos_xpath = "/html/body/div[2]/div[1]/div[1]/div[2]/c-wiz/main/div[3]/div/div/div/div/button"
+                        if element_exists(driver, workspace_tos_xpath, timeout=3):
+                            click_xpath(driver, workspace_tos_xpath, timeout=5)
+                            logger.info("[STEP] Clicked 'I understand' button on Workspace TOS page via specific XPath")
+                            time.sleep(2)
+                            continue  # Go to next iteration
+                        
+                        # Fallback: Look for button with "I understand" text
+                        understand_button_xpaths = [
+                            "//button[contains(., 'I understand')]",
+                            "//button[contains(., 'understand')]",
+                            "//span[contains(text(), 'I understand')]/ancestor::button",
+                            "//div[@role='button' and contains(., 'I understand')]",
+                        ]
+                        
+                        for xpath in understand_button_xpaths:
+                            if element_exists(driver, xpath, timeout=2):
+                                click_xpath(driver, xpath, timeout=5)
+                                logger.info(f"[STEP] Clicked 'I understand' button via fallback: {xpath}")
+                                time.sleep(2)
+                                continue  # Go to next iteration
+                        
+                        logger.warning("[STEP] Could not find 'I understand' button on Workspace TOS page")
+                    except Exception as e:
+                        logger.warning(f"[STEP] Failed to click Workspace TOS button: {e}")
+                
                 # Check if it's the gaplustos page specifically
                 if "speedbump/gaplustos" in current_url:
                     logger.info("[STEP] Google+ TOS speedbump detected, using JavaScript click...")
