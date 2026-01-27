@@ -2405,6 +2405,8 @@ echo "=== Creation EC2 Build Complete ==="
         for fname in ["main.py", "Dockerfile"]:
             fpath = os.path.join(repo_folder, fname)
             if os.path.exists(fpath):
+                self.log(f"[EC2] Found {fname} at: {fpath}")
+                self.log(f"[EC2] Uploading {fname} (Size: {os.path.getsize(fpath)} bytes) to S3...")
                 s3.upload_file(fpath, bucket, f"ec2-build-files/{fname}")
         
         user_data = f"""#!/bin/bash
