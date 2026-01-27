@@ -3482,7 +3482,7 @@ def login_google(driver, email, password, known_totp_secret=None):
         wait_interval = 2  # Reduced from 3s to 2s for faster processing
         current_url = None
         speedbump_count = 0  # Counter to prevent infinite speedbump loops
-        max_speedbumps = 5  # Maximum number of speedbump redirects before giving up
+        max_speedbumps = 20  # Maximum number of speedbump redirects before giving up
         
         for attempt in range(max_wait_attempts):
             time.sleep(wait_interval)
@@ -3554,13 +3554,11 @@ def login_google(driver, email, password, known_totp_secret=None):
                 if "speedbump/gaplustos" in current_url:
                     logger.info("[STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...")
                     try:
-                        # Use JavaScript to click the confirm button (more reliable for this page)
                         driver.execute_script("document.querySelector('#confirm').click()")
                         logger.info("[STEP] Clicked #confirm button via JavaScript")
                         time.sleep(2)
                     except Exception as e:
                         logger.warning(f"[STEP] JavaScript click failed, trying XPath: {e}")
-                        # Fallback to XPath click
                         try:
                             if element_exists(driver, "//button[@id='confirm']", timeout=2):
                                 click_xpath(driver, "//button[@id='confirm']", timeout=5)
@@ -3568,6 +3566,42 @@ def login_google(driver, email, password, known_totp_secret=None):
                                 time.sleep(2)
                         except Exception as e2:
                             logger.warning(f"[STEP] XPath click also failed: {e2}")
+                elif "speedbump/workspacetermsofservice" in current_url:
+                    logger.info("[STEP] Workspace TOS speedbump detected, clicking 'I understand'...")
+                    try:
+                        # Try multiple selectors for the "I understand" button
+                        js_clicks = [
+                            "document.querySelector('button[aria-label*=\"understand\"]').click()",
+                            "document.querySelector('button span:contains(\"I understand\")').parentElement.click()",  # Pseudo-selector won't work in pure JS, fixed below
+                            "Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('understand')).click()"
+                        ]
+                        clicked = False
+                        for js in js_clicks:
+                            try:
+                                driver.execute_script(js)
+                                logger.info(f"[STEP] Clicked button via JS: {js}")
+                                clicked = True
+                                break
+                            except:
+                                pass
+                        
+                        if not clicked:
+                            # Fallback to XPath
+                            xpaths = [
+                                "//button[span[contains(text(), 'understand')]]",
+                                "//button[contains(., 'I understand')]",
+                                "//span[contains(text(), 'I understand')]/.."
+                            ]
+                            for xpath in xpaths:
+                                if element_exists(driver, xpath, timeout=2):
+                                    click_xpath(driver, xpath, timeout=5)
+                                    logger.info(f"[STEP] Clicked button via XPath: {xpath}")
+                                    clicked = True
+                                    break
+                        
+                        time.sleep(3)
+                    except Exception as e:
+                        logger.warning(f"[STEP] Failed to click Workspace TOS button: {e}")
                 else:
                     # Generic speedbump handling
                     logger.info("[STEP] Generic speedbump page, attempting to continue...")
