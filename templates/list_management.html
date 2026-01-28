@@ -15,6 +15,21 @@
                 tracking</p>
         </div>
         <div class="d-flex gap-2 align-items-center">
+            <!-- Sort Configuration -->
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-muted" style="font-size: 12px;">Sort:</span>
+                <select id="sortOrder" class="glass-input"
+                    style="width: 120px; padding: 4px 6px; border-radius: 6px; font-size: 12px; height: 28px; line-height: 1;"
+                    onchange="renderLists()">
+                    <option value="ready_first" selected>Ready First</option>
+                    <option value="used_first">Used First</option>
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="name_az">Name A-Z</option>
+                    <option value="name_za">Name Z-A</option>
+                </select>
+            </div>
+
             <!-- Grid Configuration -->
             <div class="d-flex align-items-center gap-1">
                 <span class="text-muted" style="font-size: 12px;">Columns:</span>
@@ -451,11 +466,47 @@
         grid.style.display = 'grid';
         emptyState.style.display = 'none';
 
-        // Sort lists: non-expired first, expired at bottom
+        // Get sort order
+        const sortOrder = document.getElementById('sortOrder')?.value || 'ready_first';
+
+        // Sort lists based on selected order
         const sortedLists = [...lists].sort((a, b) => {
+            // Always put expired at bottom regardless of sort order
             const aExpired = a.status === 'expired' ? 1 : 0;
             const bExpired = b.status === 'expired' ? 1 : 0;
-            return aExpired - bExpired;
+            if (aExpired !== bExpired) return aExpired - bExpired;
+
+            // Apply selected sorting
+            switch (sortOrder) {
+                case 'ready_first':
+                    // Ready (no timer) first, then in_use (timer active)
+                    const aReady = (!a.active_24h_expires_at) ? 0 : 1;
+                    const bReady = (!b.active_24h_expires_at) ? 0 : 1;
+                    if (aReady !== bReady) return aReady - bReady;
+                    return new Date(b.created_at) - new Date(a.created_at); // Newest first as tiebreaker
+
+                case 'used_first':
+                    // In_use (timer active) first, then ready (no timer)
+                    const aUsed = (a.active_24h_expires_at) ? 0 : 1;
+                    const bUsed = (b.active_24h_expires_at) ? 0 : 1;
+                    if (aUsed !== bUsed) return aUsed - bUsed;
+                    return new Date(b.created_at) - new Date(a.created_at); // Newest first as tiebreaker
+
+                case 'newest':
+                    return new Date(b.created_at) - new Date(a.created_at);
+
+                case 'oldest':
+                    return new Date(a.created_at) - new Date(b.created_at);
+
+                case 'name_az':
+                    return a.name.localeCompare(b.name);
+
+                case 'name_za':
+                    return b.name.localeCompare(a.name);
+
+                default:
+                    return 0;
+            }
         });
 
         grid.innerHTML = sortedLists.map(list => createListCard(list)).join('');
