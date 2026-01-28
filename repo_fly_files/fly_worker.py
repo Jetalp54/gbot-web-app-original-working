@@ -817,54 +817,35 @@ def main():
         logger.error("No BATCH_DATA or BATCH_DATA_B64 environment variable found.")
         sys.exit(1)
         
-    # 2. Process users in parallel with multiple browser instances
-    # Max 3 concurrent browsers per machine for optimal performance
-    MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '3'))
-    logger.info(f"Processing {len(users)} users with {MAX_WORKERS} concurrent browsers")
-    
-    def process_user_with_driver(user):
-        """Process single user with dedicated driver instance"""
-        driver = None
-        try:
-            # Each thread gets its own driver
-            driver = get_chrome_driver()
-            result = process_single_user(driver, user)
-            return result
-        except Exception as e:
-            logger.error(f"Failed to process {user.get('email')}: {str(e)}")
-            return {
-                "email": user.get('email'),
-                "status": "error",
-                "error": str(e)
-            }
-        finally:
-            if driver:
-                try:
-                    driver.quit()
-                except:
-                    pass
-    
-    # Process in parallel
-    results = []
+    # 2. Initialize Driver
+    # We use one driver for the batch, maybe rotating proxy if needed?
+    # For now, one driver per batch container is simple.
+    driver = None
     try:
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = {executor.submit(process_user_with_driver, user): user for user in users}
-            
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-                    results.append(result)
-                    logger.info(f"Processed {result.get('email')}: {result.get('status')}")
-                except Exception as e:
-                    logger.error(f"Future exception: {str(e)}")
+        driver = get_chrome_driver()
         
-        logger.info(f"Batch processing complete. Processed {len(results)}/{len(users)} users")
+        results = []
+        for user in users:
+            user_result = process_single_user(driver, user)
+            results.append(user_result)
+            
+            # Small delay between users
+            time.sleep(random.uniform(2, 5))
+            
+            # Clear cookies/session for next user
+            try:
+                driver.delete_all_cookies()
+            except: pass
+            
+        logger.info("Batch processing complete.")
         logger.info(f"Results: {json.dumps(results, indent=2)}")
         
     except Exception as e:
         logger.critical(f"Critical Worker Failure: {e}")
         traceback.print_exc()
     finally:
+        if driver:
+            driver.quit()
         logger.info("Worker exiting.")
 
 if __name__ == "__main__":
