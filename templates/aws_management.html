@@ -1549,11 +1549,8 @@
                 return;
             }
 
-            if (usersRaw.length > 1000) {
-                alert(`Too many users (${usersRaw.length}). Max 1000.`);
-                return;
-            }
-
+            // User limit removed - can now process unlimited users
+            console.log(`[FRONTEND] Processing ${usersRaw.length} users...`);
             console.log('[FRONTEND] Bypassing confirmation to unblock user...');
             console.log('[FRONTEND] Confirmation accepted. Starting job...');
 
