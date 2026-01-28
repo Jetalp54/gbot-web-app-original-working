@@ -5,6 +5,7 @@ import base64
 import logging
 import subprocess
 import threading
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from flask import Blueprint, render_template, request, jsonify, stream_with_context, Response
 
@@ -317,13 +318,14 @@ def cleanup_machines():
 
 @fly_bp.route('/api/fly/process-batch', methods=['POST'])
 def process_batch():
-    """Process batch of accounts using Fly machines."""
+    """Process batch of accounts using Fly machines with production orchestrator."""
     try:
         data = request.json
         token = data.get('token')
         app_name = data.get('app_name')
         accounts = data.get('accounts', [])
         batch_size = int(data.get('batch_size', 10))
+        use_multi_region = data.get('use_multi_region', True)
         
         if not accounts:
             return jsonify({"success": False, "error": "No accounts provided"})
@@ -341,16 +343,41 @@ def process_batch():
         if not users:
             return jsonify({"success": False, "error": "No valid accounts parsed"})
         
-        # Create batches
-        batches = [users[i:i + batch_size] for i in range(0, len(users), batch_size)]
+        logger.info(f"Starting production processing for {len(users)} users")
         
-        # Launch in background
-        threading.Thread(target=_launch_batches_background, 
-                        args=(app_name, token, batches)).start()
+        # Import orchestrator
+        from routes.fly_orchestrator import process_large_batch
         
-        return jsonify({"success": True, 
-                       "message": f"Processing {len(users)} accounts in {len(batches)} batch(es)"})
+        # Run in background thread
+        def _run_processing():
+            try:
+                summary = process_large_batch(
+                    app_name=app_name,
+                    token=token,
+                    users=users,
+                    batch_size=batch_size,
+                    use_multi_region=use_multi_region,
+                    log_buffer=log_buffer
+                )
+                logger.info(f"Processing complete: {summary}")
+            except Exception as e:
+                logger.error(f"Processing failed: {str(e)}")
+                logger.error(traceback.format_exc())
+        
+        threading.Thread(target=_run_processing, daemon=True).start()
+        
+        estimated_machines = (len(users) + batch_size - 1) // batch_size
+        
+        return jsonify({
+            "success": True, 
+            "message": f"Processing {len(users)} accounts across ~{estimated_machines} machines",
+            "estimated_machines": estimated_machines,
+            "users_per_machine": batch_size,
+            "max_duration_minutes": 20,
+            "auto_cleanup": True
+        })
     except Exception as e:
+        logger.error(f"Process batch error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 # ==============================================================================
