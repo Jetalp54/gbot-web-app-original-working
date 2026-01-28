@@ -69,7 +69,7 @@ def deploy_app():
         return jsonify({"error": str(e)}), 500
 
 @fly_bp.route('/fly/process', methods=['POST'])
-def process_batch():
+def process_batch_legacy():
     """Launch batch jobs on Fly Machines."""
     try:
         data = request.json
