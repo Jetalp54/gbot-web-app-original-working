@@ -1,492 +1,784 @@
 {% extends "base.html" %}
 
-{% block title %}Fly.io Orchestrator - GBot{% endblock %}
+{% block title %}Fly.io Management - GBot Web{% endblock %}
 
 {% block content %}
-<div class="fade-in">
-    <!-- Header Section -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 font-weight-bold text-white mb-1">
-                <i class="fas fa-plane-departure me-2 text-indigo-400"></i> Fly.io Orchestrator
-            </h1>
-            <p class="text-gray-400 mb-0">Manage ephemeral worker machines and batch processing</p>
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <h1 class="glass-text-primary mb-0" style="font-size: 2rem; font-weight: 700;">
+        <i class="fas fa-plane-departure me-3"></i>Fly.io Management
+    </h1>
+    <div class="d-flex align-items-center gap-3">
+        <span class="badge badge-success glass-badge px-3 py-2">
+            <i class="fas fa-signal me-1"></i> Platform Online
+        </span>
+    </div>
+</div>
+
+<!-- Info Message -->
+<div class="glass-panel p-4 mb-5" style="border-left: 4px solid var(--accent-secondary) !important;">
+    <div class="d-flex align-items-start gap-3">
+        <div class="glass-orb"
+            style="position: static; width: 24px; height: 24px; background: var(--accent-secondary); filter: blur(10px); opacity: 0.8;">
         </div>
         <div>
-            <span class="badge badge-success glass-badge px-3 py-2">
-                <i class="fas fa-signal me-1"></i> System Active
-            </span>
+            <h5 class="mb-1" style="color: var(--accent-secondary);">Ephemeral Worker Platform</h5>
+            <p class="mb-0 text-muted">
+                Fly.io provides on-demand machines with dedicated IPs for parallel processing.
+                Each machine runs independently and destroys automatically after completion.
+            </p>
         </div>
     </div>
+</div>
 
-    <div class="row">
-        <!-- Left Column: Configuration & Controls -->
-        <div class="col-lg-5 mb-4">
-            <!-- Configuration Panel -->
-            <div class="glass-panel mb-4">
-                <div class="glass-header d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-cogs me-2"></i>Configuration</h6>
-                </div>
-                <div class="glass-body">
-                    <div class="form-group mb-4">
-                        <label class="text-xs font-weight-bold text-uppercase text-gray-400 mb-2">Fly API Token</label>
-                        <div class="input-group">
-                            <span class="input-group-text glass-addon"><i class="fas fa-key"></i></span>
-                            <input type="password" class="form-control glass-input" id="flyToken"
-                                placeholder="Enter output of 'fly auth token'">
-                        </div>
-                        <small class="form-text text-muted mt-1">Run <code class="glass-code">fly auth token</code> in
-                            terminal to retrieve.</small>
+<!-- Main Interface -->
+<div class="glass-panel p-0 overflow-hidden mb-5">
+    <!-- Glass Tabs -->
+    <div class="d-flex border-bottom border-white-10 p-3 gap-3">
+        <button class="glass-button tab-button active" onclick="switchTab('infrastructure')"
+            id="tab-infrastructure-btn">
+            <i class="fas fa-rocket me-2"></i>Infrastructure
+        </button>
+        <button class="glass-button tab-button" onclick="switchTab('machines')" id="tab-machines-btn">
+            <i class="fas fa-server me-2"></i>Machines
+        </button>
+        <button class="glass-button tab-button" onclick="switchTab('processing')" id="tab-processing-btn">
+            <i class="fas fa-cogs me-2"></i>Processing
+        </button>
+        <button class="glass-button tab-button" onclick="switchTab('status')" id="tab-status-btn">
+            <i class="fas fa-chart-bar me-2"></i>Status
+        </button>
+    </div>
+
+    <div class="p-4">
+        <!-- Tab: Infrastructure -->
+        <div id="tab-infrastructure" class="tab-content active">
+            <h4 class="mb-4 glass-text-primary">App Setup & Deployment</h4>
+
+            <!-- Configuration -->
+            <div class="glass-panel p-3 mb-4">
+                <h6 class="mb-3 text-uppercase text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">
+                    Configuration</h6>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Fly API Token</label>
+                        <input type="password" class="glass-input w-100" id="flyApiToken"
+                            placeholder="Run 'fly auth token' to get this">
+                        <small class="text-muted">Required for all Fly.io operations</small>
                     </div>
-                    <div class="form-group mb-0">
-                        <label class="text-xs font-weight-bold text-uppercase text-gray-400 mb-2">App Name</label>
-                        <div class="input-group">
-                            <span class="input-group-text glass-addon"><i class="fas fa-cube"></i></span>
-                            <input type="text" class="form-control glass-input" id="appName" value="gbot-fly-worker">
-                        </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">App Name</label>
+                        <input type="text" class="glass-input w-100" id="flyAppName" value="gbot-fly-worker">
+                        <small class="text-muted">Unique identifier for your Fly app</small>
                     </div>
                 </div>
             </div>
 
-            <!-- Actions Panel -->
-            <div class="glass-panel">
-                <div class="glass-header">
-                    <h6 class="m-0 font-weight-bold text-info"><i class="fas fa-bolt me-2"></i>Actions</h6>
-                </div>
-                <div class="glass-body">
+            <!-- Actions -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <h5 class="mb-3">Setup & Provisioning</h5>
                     <div class="d-grid gap-3">
-                        <button class="glass-button glass-button-primary" onclick="launchApp()">
-                            <i class="fas fa-rocket me-2"></i> Launch App (Create)
+                        <button class="glass-button glass-button-primary w-100" onclick="initializeFlyApp()">
+                            <i class="fas fa-plus-circle me-2"></i>Initialize Fly App
                         </button>
-                        <button class="glass-button glass-button-warning" onclick="deployApp()">
-                            <i class="fas fa-hammer me-2"></i> Deploy (Build & Push)
+                        <button class="glass-button glass-button-primary w-100" onclick="deployFlyImage()">
+                            <i class="fas fa-hammer me-2"></i>Build & Deploy Image
                         </button>
-                        <button class="glass-button glass-button-danger" onclick="cleanupMachines()">
-                            <i class="fas fa-trash-alt me-2"></i> Cleanup Stopped Machines
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h5 class="mb-3">Inspection & Cleanup</h5>
+                    <div class="d-grid gap-3">
+                        <button class="glass-button w-100" onclick="checkFlyAppStatus()">
+                            <i class="fas fa-search me-2"></i>Check App Status
                         </button>
+                        <button class="glass-button glass-button-danger w-100" onclick="destroyFlyApp()">
+                            <i class="fas fa-trash-alt me-2"></i>Destroy App (All Resources)
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-                        <div class="glass-divider my-2"></div>
-
-                        <div class="form-check form-switch d-flex align-items-center justify-content-between p-0">
-                            <label class="form-check-label text-gray-300" for="streamAppLogsToggle">
-                                <i class="fas fa-terminal me-2 text-info"></i> Stream Worker Logs (Verbose)
-                            </label>
-                            <input class="form-check-input ms-3" type="checkbox" id="streamAppLogsToggle"
-                                onchange="toggleAppLogs()" style="cursor: pointer;">
-                        </div>
+            <!-- Resource Configuration -->
+            <div class="glass-panel p-3">
+                <h6 class="mb-3 text-uppercase text-muted" style="font-size: 0.75rem;">Machine Defaults</h6>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">CPU Type</label>
+                        <select class="glass-input w-100" id="cpuType">
+                            <option value="shared">Shared CPU</option>
+                            <option value="performance" selected>Performance (Dedicated)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Memory (GB)</label>
+                        <input type="number" class="glass-input w-100" id="memorySize" value="4" min="1" max="16">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Default Region</label>
+                        <select class="glass-input w-100" id="defaultRegion">
+                            <option value="iad">US East (Ashburn)</option>
+                            <option value="lax">US West (LA)</option>
+                            <option value="lhr" selected>Europe (London)</option>
+                            <option value="fra">Europe (Frankfurt)</option>
+                            <option value="ams">Europe (Amsterdam)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Auto-destroy</label>
+                        <select class="glass-input w-100" id="autoDestroy">
+                            <option value="true" selected>Enabled</option>
+                            <option value="false">Disabled</option>
+                        </select>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right Column: Batch Processing -->
-        <div class="col-lg-7 mb-4">
-            <div class="glass-panel h-100">
-                <div class="glass-header d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold text-success"><i class="fas fa-layer-group me-2"></i>Batch
-                        Processing</h6>
-                </div>
-                <div class="glass-body d-flex flex-column h-100">
-                    <div class="form-group mb-3 flex-grow-1">
-                        <label class="text-xs font-weight-bold text-uppercase text-gray-400 mb-2">Accounts List</label>
-                        <div class="glass-editor-wrapper">
-                            <textarea class="form-control glass-input font-monospace" id="accountsInput" rows="8"
-                                placeholder="user1@example.com:password:recovery&#10;user2@example.com:password:recovery"
-                                style="font-size: 0.85rem; line-height: 1.5;"></textarea>
-                        </div>
-                        <small class="text-muted d-block mt-2">Format: <code>email:password[:recovery]</code> (one per
-                            line)</small>
-                    </div>
+        <!-- Tab: Machines -->
+        <div id="tab-machines" class="tab-content" style="display: none;">
+            <h4 class="mb-4 glass-text-primary">Machine Management</h4>
 
-                    <div class="row align-items-end">
-                        <div class="col-md-6 mb-3 mb-md-0">
-                            <label class="text-xs font-weight-bold text-uppercase text-gray-400 mb-2">Batch Size</label>
-                            <div class="input-group">
-                                <span class="input-group-text glass-addon"><i class="fas fa-sort-numeric-up"></i></span>
-                                <input type="number" class="form-control glass-input" id="batchSize" value="10" min="1"
-                                    max="50">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <button class="glass-button glass-button-success w-100" onclick="startProcessing()">
-                                <i class="fas fa-play me-2"></i> Start Processing
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            <!-- Controls -->
+            <div class="d-grid gap-3 d-md-flex mb-4">
+                <button class="glass-button glass-button-primary flex-grow-1" onclick="createTestMachine()">
+                    <i class="fas fa-plus me-2"></i>Create Test Machine
+                </button>
+                <button class="glass-button flex-grow-1" onclick="listAllMachines()">
+                    <i class="fas fa-list me-2"></i>List All Machines
+                </button>
+                <button class="glass-button glass-button-danger flex-grow-1" onclick="cleanupStoppedMachines()">
+                    <i class="fas fa-broom me-2"></i>Cleanup Stopped
+                </button>
             </div>
-        </div>
-    </div>
 
-    <!-- Live Console -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="glass-panel">
-                <div class="glass-header d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold text-white"><i class="fas fa-code me-2"></i>Live Console</h6>
-                    <button class="glass-icon-btn btn-sm"
-                        onclick="document.getElementById('consoleOutput').innerHTML = ''" title="Clear Console">
-                        <i class="fas fa-eraser"></i>
+            <!-- Machine List -->
+            <div class="glass-panel p-0">
+                <div class="p-3 border-bottom border-white-10 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Active Machines</h6>
+                    <button class="glass-button btn-sm" onclick="listAllMachines()">
+                        <i class="fas fa-sync me-1"></i>Refresh
                     </button>
                 </div>
-                <div class="glass-body p-0">
-                    <div class="console-wrapper bg-black font-monospace p-3 text-white" id="consoleOutput"
-                        style="height: 350px; overflow-y: auto; font-size: 0.85rem; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
-                        <div class="text-gray-500">> System ready. Waiting for commands...</div>
+                <div class="table-responsive">
+                    <table class="table mb-0 text-white" style="background: transparent;">
+                        <thead style="background: rgba(255,255,255,0.05);">
+                            <tr>
+                                <th class="p-3">Machine ID</th>
+                                <th class="p-3">Region</th>
+                                <th class="p-3">State</th>
+                                <th class="p-3">Created</th>
+                                <th class="p-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="machinesTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center p-4 text-muted">No machines created yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Real-time Logs -->
+            <div class="glass-panel p-0 mt-4">
+                <div class="p-3 border-bottom border-white-10 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Live Machine Logs</h6>
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" id="enableLiveLogsToggle"
+                            onchange="toggleLiveLogs()">
+                        <label class="form-check-label text-muted small ms-2">Stream Logs</label>
                     </div>
+                </div>
+                <div id="liveMachineLogs" class="p-3 font-monospace small text-white"
+                    style="height: 250px; overflow-y: auto; background: #000;">
+                    <div class="text-muted">Enable log streaming to view real-time output...</div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Results Table -->
-    <div class="row">
-        <div class="col-12">
-            <div class="glass-panel">
-                <div class="glass-header d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold text-warning"><i class="fas fa-database me-2"></i>Generated App
-                        Passwords</h6>
-                    <button class="glass-button glass-button-sm glass-button-outline-primary" onclick="loadResults()">
-                        <i class="fas fa-sync-alt me-1"></i> Refresh
-                    </button>
-                </div>
-                <div class="glass-body p-0">
-                    <div class="table-responsive">
-                        <table class="table glass-table table-hover mb-0" id="resultsTable">
-                            <thead class="text-xs font-weight-bold text-uppercase text-gray-400">
-                                <tr>
-                                    <th class="border-0 px-4 py-3">Email</th>
-                                    <th class="border-0 px-4 py-3">App Password</th>
-                                    <th class="border-0 px-4 py-3">Created At</th>
-                                    <th class="border-0 px-4 py-3 text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-sm">
-                                <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No results loaded yet.</td>
-                                </tr>
-                            </tbody>
-                        </table>
+        <!-- Tab: Processing -->
+        <div id="tab-processing" class="tab-content" style="display: none;">
+            <h4 class="mb-4 glass-text-primary">Batch Processing</h4>
+
+            <!-- Config -->
+            <div class="glass-panel p-3 mb-4">
+                <h6 class="mb-3 text-uppercase text-muted" style="font-size: 0.75rem;">Processing Configuration</h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-muted small">Batch Size (Users per Machine)</label>
+                        <input type="number" class="glass-input w-100" id="batchSize" value="10" min="1" max="20">
+                        <small class="text-muted">Recommended: 8-12 for best results</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-muted small">Parallel Machines</label>
+                        <input type="number" class="glass-input w-100" id="parallelMachines" value="4" min="1" max="10">
+                        <small class="text-muted">Max concurrent machines</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-muted small">Region Distribution</label>
+                        <select class="glass-input w-100" id="regionDistribution">
+                            <option value="single">Single Region</option>
+                            <option value="multi" selected>Multi-Region (IP Diversity)</option>
+                        </select>
                     </div>
                 </div>
+            </div>
+
+            <!-- Account Input -->
+            <div class="mb-4">
+                <label class="form-label text-muted small">Account Input (email:password[:recovery])</label>
+                <textarea id="accountsInput" class="glass-input w-100 font-monospace mb-2" rows="8"
+                    placeholder="user1@example.com:password1:recovery1&#10;user2@example.com:password2:recovery2"></textarea>
+                <div id="accountsStatus" class="small text-success">Ready to process</div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-grid gap-3">
+                <button type="button" id="processButton" class="glass-button glass-button-primary py-3 w-100"
+                    onclick="startBatchProcessing()">
+                    <i class="fas fa-play me-2"></i>Start Batch Processing
+                </button>
+                <div class="d-flex gap-3">
+                    <button type="button" class="glass-button glass-button-danger flex-grow-1"
+                        onclick="stopAllProcessing()">
+                        <i class="fas fa-stop me-2"></i>Stop All
+                    </button>
+                    <button type="button" class="glass-button flex-grow-1" onclick="clearResults()">
+                        <i class="fas fa-eraser me-2"></i>Clear Results
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="glass-panel p-3 mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">Generated App Passwords</h6>
+                    <div>
+                        <button class="glass-button btn-sm me-2" onclick="fetchResults()">
+                            <i class="fas fa-sync me-1"></i>Refresh
+                        </button>
+                        <button class="glass-button btn-sm" onclick="exportResults()">
+                            <i class="fas fa-download me-1"></i>Export
+                        </button>
+                    </div>
+                </div>
+                <textarea id="resultsOutput" class="glass-input w-100 font-monospace" rows="8" readonly></textarea>
+            </div>
+        </div>
+
+        <!-- Tab: Status -->
+        <div id="tab-status" class="tab-content" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="mb-0">Global Status Overview</h4>
+                <button class="glass-button glass-button-primary" onclick="checkGlobalFlyStatus()">
+                    <i class="fas fa-sync me-2"></i>Refresh Status
+                </button>
+            </div>
+
+            <div id="globalStatusLoading" class="text-center py-5" style="display: none;">
+                <div class="loading-spinner mb-3 mx-auto"></div>
+                <p class="text-muted">Checking all Fly.io resources...</p>
+            </div>
+
+            <!-- Status Cards -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-3">
+                    <div class="glass-panel p-3">
+                        <div class="text-muted small mb-1">Total Apps</div>
+                        <div class="h3 mb-0 text-white" id="statusTotalApps">-</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="glass-panel p-3">
+                        <div class="text-muted small mb-1">Running Machines</div>
+                        <div class="h3 mb-0 text-success" id="statusRunningMachines">-</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="glass-panel p-3">
+                        <div class="text-muted small mb-1">Stopped Machines</div>
+                        <div class="h3 mb-0 text-warning" id="statusStoppedMachines">-</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="glass-panel p-3">
+                        <div class="text-muted small mb-1">Total Regions</div>
+                        <div class="h3 mb-0 text-info" id="statusTotalRegions">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Table -->
+            <div class="table-container glass-panel p-0 overflow-hidden">
+                <table class="table mb-0 text-white" style="background: transparent;">
+                    <thead style="background: rgba(255,255,255,0.05);">
+                        <tr>
+                            <th class="p-3">App Name</th>
+                            <th class="p-3">Status</th>
+                            <th class="p-3">Machines</th>
+                            <th class="p-3">Region(s)</th>
+                            <th class="p-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statusTableBody">
+                        <tr>
+                            <td colspan="5" class="text-center p-4 text-muted">No status data yet. Click "Refresh
+                                Status" to scan.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Log Output -->
+<div class="glass-panel p-0 mt-4">
+    <div class="p-3 border-bottom border-white-10 bg-black-20">
+        <h5 class="m-0 font-monospace text-muted small text-uppercase">
+            <i class="fas fa-terminal me-2"></i>System Log
+        </h5>
+    </div>
+    <div id="logOutput" class="p-3 font-monospace small text-muted"
+        style="height: 300px; overflow-y: auto; white-space: pre-wrap;"></div>
+</div>
+
 <style>
-    /* Scoped Styles for Fly Manager */
-    .glass-editor-wrapper {
-        border-radius: 0.5rem;
-        overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+    .tab-content {
+        display: none;
+        animation: fadeIn 0.3s ease-in-out;
     }
 
-    .glass-code {
-        background: rgba(0, 0, 0, 0.3);
-        padding: 2px 6px;
-        border-radius: 4px;
-        color: #ff7b72;
+    .tab-content.active {
+        display: block;
     }
 
-    .console-wrapper::-webkit-scrollbar {
-        width: 8px;
-    }
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(5px);
+        }
 
-    .console-wrapper::-webkit-scrollbar-track {
-        background: #0d1117;
-    }
-
-    .console-wrapper::-webkit-scrollbar-thumb {
-        background: #30363d;
-        border-radius: 4px;
-    }
-
-    .console-wrapper::-webkit-scrollbar-thumb:hover {
-        background: #58a6ff;
-    }
-
-    .glass-table th {
-        background: rgba(255, 255, 255, 0.05);
-        color: #8b949e;
-    }
-
-    .glass-table td {
-        border-top: 1px solid rgba(255, 255, 255, 0.05);
-        color: #c9d1d9;
-        vertical-align: middle;
-        padding: 12px 24px;
-    }
-
-    .glass-table tr:hover td {
-        background: rgba(255, 255, 255, 0.05);
-    }
-
-    .glass-icon-btn {
-        background: transparent;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: #8b949e;
-        border-radius: 6px;
-        width: 32px;
-        height: 32px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-    }
-
-    .glass-icon-btn:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 </style>
 
 <script>
-    let appLogEventSource = null;
-
-    function log(message, type = 'info') {
-        const consoleEl = document.getElementById('consoleOutput');
-        let color = 'text-gray-300';
-        let icon = '<i class="fas fa-info-circle me-2 text-xs"></i>';
-
-        if (type === 'error') {
-            color = 'text-red-400';
-            icon = '<i class="fas fa-exclamation-circle me-2 text-red-500"></i>';
-        }
-        else if (type === 'success') {
-            color = 'text-green-400';
-            icon = '<i class="fas fa-check-circle me-2 text-green-500"></i>';
-        }
-        else if (type === 'app-log') {
-            color = 'text-blue-300';
-            icon = '<i class="fas fa-terminal me-2 text-blue-500"></i>';
-        }
-
-        const now = new Date();
-        const timestamp = now.toLocaleTimeString('en-US', { hour12: false });
-
-        if (typeof message === 'object') {
-            message = JSON.stringify(message, null, 2);
-        }
-
-        const line = `
-            <div class="d-flex align-items-start mb-1 ${color}" style="animation: fadeIn 0.3s ease;">
-                <span class="text-gray-600 text-xs me-2 font-mono" style="min-width: 60px;">[${timestamp}]</span>
-                <span class="me-1">${icon}</span>
-                <span style="white-space: pre-wrap;">${message}</span>
-            </div>
-        `;
-
-        consoleEl.insertAdjacentHTML('beforeend', line);
-        consoleEl.scrollTop = consoleEl.scrollHeight;
+    // Logging function
+    function log(message) {
+        const logOutput = document.getElementById('logOutput');
+        const timestamp = new Date().toLocaleTimeString();
+        const logLine = `[${timestamp}] ${message}\n`;
+        logOutput.textContent += logLine;
+        logOutput.scrollTop = logOutput.scrollHeight;
+        console.log(logLine);
     }
 
-    // Connect to Main Log Stream
-    document.addEventListener('DOMContentLoaded', () => {
-        // Add fade-in animation style
-        const style = document.createElement('style');
-        style.innerHTML = `
-            @keyframes fadeIn {
-                from { opacity: 0; transform: translateY(5px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-        `;
-        document.head.appendChild(style);
+    // Tab switching
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+            tab.style.display = 'none';
+        });
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
 
-        const eventSource = new EventSource("/fly/stream-logs");
+        const tab = document.getElementById(`tab-${tabId}`);
+        const btn = document.getElementById(`tab-${tabId}-btn`);
 
-        eventSource.onmessage = function (event) {
-            try {
-                const data = JSON.parse(event.data);
-                log(data.message, data.type || 'info');
-            } catch (e) { }
-        };
-
-        // Initial load of results
-        loadResults();
-    });
-
-    // Toggle App Log Stream (Same logic, modern UI hook)
-    function toggleAppLogs() {
-        const enabled = document.getElementById('streamAppLogsToggle').checked;
-        const appName = document.getElementById('appName').value;
-        const token = document.getElementById('flyToken').value;
-
-        if (enabled) {
-            if (!appName) {
-                alert("Please enter an App Name first.");
-                document.getElementById('streamAppLogsToggle').checked = false;
-                return;
-            }
-
-            log("Connecting to Worker Log Stream...", 'info');
-            const url = `/fly/stream-app-logs?app_name=${appName}&token=${token}`;
-            appLogEventSource = new EventSource(url);
-
-            appLogEventSource.onmessage = function (event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    log(data.message, data.type || 'app-log');
-                } catch (e) { }
-            };
-
-            appLogEventSource.onerror = function () {
-                // Optional handling
-            };
-
-        } else {
-            if (appLogEventSource) {
-                appLogEventSource.close();
-                appLogEventSource = null;
-                log("Worker Log Stream disconnected.", 'info');
-            }
+        if (tab) {
+            tab.classList.add('active');
+            tab.style.display = 'block';
+        }
+        if (btn) {
+            btn.classList.add('active');
         }
     }
 
-    async function cleanupMachines() {
-        if (!confirm("⚠️ Are you sure you want to destroy all STOPPED machines? This cannot be undone.")) return;
+    // Initialize
+    log('Fly.io Management Interface Loaded');
 
-        const token = document.getElementById('flyToken').value;
-        const appName = document.getElementById('appName').value;
+    // ============================================================================
+    // INFRASTRUCTURE TAB FUNCTIONS
+    // ============================================================================
 
-        log("Initiating cleanup protocol...", 'info');
+    async function initializeFlyApp() {
+        const token = document.getElementById('flyApiToken').value;
+        const appName = document.getElementById('flyAppName').value;
+
+        if (!token || !appName) {
+            alert('Please provide both API Token and App Name');
+            return;
+        }
+
+        log(`Initializing Fly app: ${appName}...`);
 
         try {
-            const res = await fetch('/fly/cleanup', {
+            const res = await fetch('/api/fly/initialize-app', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token, app_name: appName })
             });
             const data = await res.json();
-            if (data.status) log(data.message, 'success');
-            else log(data.error, 'error');
+
+            if (data.success) {
+                log(`✅ App initialized: ${data.message}`);
+                alert(`Success: ${data.message}`);
+            } else {
+                log(`❌ Failed: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
         } catch (e) {
-            log("Error: " + e, 'error');
+            log(`❌ Error: ${e.message}`);
+            alert(`Error: ${e.message}`);
         }
     }
 
-    async function loadResults() {
-        const btn = document.querySelector('button[onclick="loadResults()"] i');
-        if (btn) btn.classList.add('fa-spin');
+    async function deployFlyImage() {
+        const token = document.getElementById('flyApiToken').value;
+        const appName = document.getElementById('flyAppName').value;
+
+        if (!token || !appName) {
+            alert('Please provide both API Token and App Name');
+            return;
+        }
+
+        log(`Deploying image for ${appName}... This may take several minutes.`);
 
         try {
-            const res = await fetch('/fly/results');
+            const res = await fetch('/api/fly/deploy-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, app_name: appName })
+            });
             const data = await res.json();
 
-            const tbody = document.querySelector('#resultsTable tbody');
+            if (data.success) {
+                log(`✅ Deployment started: ${data.message}`);
+                alert(`Deployment initiated. Check logs for progress.`);
+            } else {
+                log(`❌ Failed: ${data.error}`);
+                alert(`Error: ${data.error}`);
+            }
+        } catch (e) {
+            log(`❌ Error: ${e.message}`);
+            alert(`Error: ${e.message}`);
+        }
+    }
+
+    async function checkFlyAppStatus() {
+        const token = document.getElementById('flyApiToken').value;
+        const appName = document.getElementById('flyAppName').value;
+
+        log(`Checking status for ${appName}...`);
+
+        try {
+            const res = await fetch('/api/fly/check-app-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, app_name: appName })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                log(`✅ Status: ${data.status}`);
+                log(`   Details: ${JSON.stringify(data.details, null, 2)}`);
+            } else {
+                log(`❌ Failed: ${data.error}`);
+            }
+        } catch (e) {
+            log(`❌ Error: ${e.message}`);
+        }
+    }
+
+    async function destroyFlyApp() {
+        if (!confirm('⚠️ This will destroy the entire app and all machines. Continue?')) return;
+
+        const token = document.getElementById('flyApiToken').value;
+        const appName = document.getElementById('flyAppName').value;
+
+        log(`Destroying app: ${appName}...`);
+
+        try {
+            const res = await fetch('/api/fly/destroy-app', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, app_name: appName })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                log(`✅ App destroyed successfully`);
+                alert('App destroyed');
+            } else {
+                log(`❌ Failed: ${data.error}`);
+            }
+        } catch (e) {
+            log(`❌ Error: ${e.message}`);
+        }
+    }
+
+    // ============================================================================
+    // MACHINES TAB FUNCTIONS
+    // ============================================================================
+
+    async function listAllMachines() {
+        const token = document.getElementById('flyApiToken').value;
+        const appName = document.getElementById('flyAppName').value;
+
+        log('Listing all machines...');
+
+        try {
+            const res = await fetch('/api/fly/list-machines', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, app_name: appName })
+            });
+            const data = await res.json();
+
+            const tbody = document.getElementById('machinesTableBody');
             tbody.innerHTML = '';
 
-            if (data.results && data.results.length > 0) {
-                data.results.forEach(row => {
+            if (data.machines && data.machines.length > 0) {
+                data.machines.forEach(m => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
-                        <td><span class="text-white font-weight-bold">${row.email}</span></td>
-                        <td><code class="glass-code user-select-all">${row.app_password}</code></td>
-                        <td>${new Date(row.created_at).toLocaleString()}</td>
-                        <td class="text-center">
-                            <button class="glass-icon-btn btn-sm mx-auto" onclick="navigator.clipboard.writeText('${row.app_password}')" title="Copy Password">
-                                <i class="fas fa-copy"></i>
+                        <td class="p-3"><code>${m.id}</code></td>
+                        <td class="p-3">${m.region}</td>
+                        <td class="p-3"><span class="badge ${m.state === 'started' ? 'badge-success' : 'badge-secondary'}">${m.state}</span></td>
+                        <td class="p-3">${new Date(m.created_at).toLocaleString()}</td>
+                        <td class="p-3">
+                            <button class="glass-button btn-sm" onclick="destroyMachine('${m.id}')">
+                                <i class="fas fa-trash"></i>
                             </button>
                         </td>
                     `;
                     tbody.appendChild(tr);
                 });
+                log(`✅ Found ${data.machines.length} machine(s)`);
             } else {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted"><i class="fas fa-inbox me-2 opacity-50"></i>No results found yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-muted">No machines found.</td></tr>';
+                log('No machines found');
             }
-
         } catch (e) {
-            log("Failed to load results: " + e, 'error');
-        } finally {
-            if (btn) btn.classList.remove('fa-spin');
+            log(`❌ Error: ${e.message}`);
         }
     }
 
-    async function launchApp() {
-        const token = document.getElementById('flyToken').value;
-        const appName = document.getElementById('appName').value;
+    async function createTestMachine() {
+        const token = document.getElementById('flyApiToken').value;
+        const appName = document.getElementById('flyAppName').value;
+        const region = document.getElementById('defaultRegion').value;
 
-        if (!appName) return alert("App Name required");
-
-        log(`🚀 Launching app '${appName}'...`);
+        log(`Creating test machine in region ${region}...`);
 
         try {
-            const res = await fetch('/fly/launch', {
+            const res = await fetch('/api/fly/create-machine', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, app_name: appName, region })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                log(`✅ Machine created: ${data.machine_id}`);
+                listAllMachines();
+            } else {
+                log(`❌ Failed: ${data.error}`);
+            }
+        } catch (e) {
+            log(`❌ Error: ${e.message}`);
+        }
+    }
+
+    async function cleanupStoppedMachines() {
+        if (!confirm('Remove all stopped machines?')) return;
+
+        const token = document.getElementById('flyApiToken').value;
+        const appName = document.getElementById('flyAppName').value;
+
+        log('Cleaning up stopped machines...');
+
+        try {
+            const res = await fetch('/api/fly/cleanup-machines', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token, app_name: appName })
             });
             const data = await res.json();
 
-            if (data.status === 'success') {
-                log("✅ Launch Successful", 'success');
-                log(data.output, 'info');
+            if (data.success) {
+                log(`✅ Cleaned up ${data.removed_count} machine(s)`);
+                listAllMachines();
             } else {
-                log("❌ Launch Failed:\n" + (data.error_details || data.error), 'error');
+                log(`❌ Failed: ${data.error}`);
             }
         } catch (e) {
-            log("❌ Error: " + e, 'error');
+            log(`❌ Error: ${e.message}`);
         }
     }
 
-    async function deployApp() {
-        const token = document.getElementById('flyToken').value;
-        const appName = document.getElementById('appName').value;
+    function toggleLiveLogs() {
+        const enabled = document.getElementById('enableLiveLogsToggle').checked;
 
-        if (!appName) return alert("App Name required");
-
-        log(`🏗️ Triggering deployment for '${appName}'...`);
-
-        try {
-            const res = await fetch('/fly/deploy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token, app_name: appName })
-            });
-            const data = await res.json();
-
-            if (data.status) {
-                log("✅ " + data.message, 'success');
-            } else {
-                log("❌ Deploy Request Failed: " + data.error, 'error');
-            }
-        } catch (e) {
-            log("❌ Error: " + e, 'error');
+        if (enabled) {
+            log('Starting live log stream...');
+            // TODO: Implement EventSource for /api/fly/stream-logs
+        } else {
+            log('Stopping live log stream...');
         }
     }
 
-    async function startProcessing() {
-        const token = document.getElementById('flyToken').value;
-        const appName = document.getElementById('appName').value;
+    // ============================================================================
+    // PROCESSING TAB FUNCTIONS
+    // ============================================================================
+
+    async function startBatchProcessing() {
+        const token = document.getElementById('flyApiToken').value;
+        const appName = document.getElementById('flyAppName').value;
         const accountsText = document.getElementById('accountsInput').value;
-        const batchSize = document.getElementById('batchSize').value;
+        const batchSize = parseInt(document.getElementById('batchSize').value);
 
-        if (!appName || !accountsText) return alert("App Name and Accounts required");
+        if (!accountsText.trim()) {
+            alert('Please provide account list');
+            return;
+        }
 
-        const accounts = accountsText.split('\n').filter(line => line.trim() !== '');
-
-        log(`▶️ Starting processing for ${accounts.length} accounts...`);
+        const accounts = accountsText.split('\n').filter(l => l.trim());
+        log(`Starting batch processing for ${accounts.length} accounts (batch size: ${batchSize})...`);
 
         try {
-            const res = await fetch('/fly/process', {
+            const res = await fetch('/api/fly/process-batch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     token,
                     app_name: appName,
-                    accounts: accounts,
+                    accounts,
                     batch_size: batchSize
                 })
             });
             const data = await res.json();
 
-            if (data.status) {
-                log("✅ " + data.message, 'success');
+            if (data.success) {
+                log(`✅ Processing started: ${data.message}`);
             } else {
-                log("❌ Process Request Failed: " + data.error, 'error');
+                log(`❌ Failed: ${data.error}`);
             }
         } catch (e) {
-            log("❌ Error: " + e, 'error');
+            log(`❌ Error: ${e.message}`);
+        }
+    }
+
+    async function fetchResults() {
+        log('Fetching results from database...');
+
+        try {
+            const res = await fetch('/api/fly/results');
+            const data = await res.json();
+
+            const output = document.getElementById('resultsOutput');
+            if (data.results && data.results.length > 0) {
+                output.value = data.results.map(r => `${r.email}:${r.app_password}`).join('\n');
+                log(`✅ Loaded ${data.results.length} result(s)`);
+            } else {
+                output.value = 'No results yet';
+                log('No results found');
+            }
+        } catch (e) {
+            log(`❌ Error: ${e.message}`);
+        }
+    }
+
+    function exportResults() {
+        const text = document.getElementById('resultsOutput').value;
+        if (!text || text === 'No results yet') {
+            alert('No results to export');
+            return;
+        }
+
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `fly_results_${new Date().getTime()}.txt`;
+        a.click();
+        log('✅ Results exported');
+    }
+
+    function clearResults() {
+        if (!confirm('Clear all results from database?')) return;
+        // TODO: Implement
+        log('Clear results not yet implemented');
+    }
+
+    function stopAllProcessing() {
+        // TODO: Implement
+        log('Stop processing not yet implemented');
+    }
+
+    // ============================================================================
+    // STATUS TAB FUNCTIONS
+    // ============================================================================
+
+    async function checkGlobalFlyStatus() {
+        const loading = document.getElementById('globalStatusLoading');
+        loading.style.display = 'block';
+
+        log('Checking global Fly.io status...');
+
+        try {
+            const res = await fetch('/api/fly/global-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: document.getElementById('flyApiToken').value
+                })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                // Update status cards
+                document.getElementById('statusTotalApps').textContent = data.total_apps || 0;
+                document.getElementById('statusRunningMachines').textContent = data.running_machines || 0;
+                document.getElementById('statusStoppedMachines').textContent = data.stopped_machines || 0;
+                document.getElementById('statusTotalRegions').textContent = data.total_regions || 0;
+
+                // Update table
+                const tbody = document.getElementById('statusTableBody');
+                tbody.innerHTML = '';
+
+                if (data.apps && data.apps.length > 0) {
+                    data.apps.forEach(app => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="p-3">${app.name}</td>
+                            <td class="p-3"><span class="badge badge-${app.status === 'running' ? 'success' : 'secondary'}">${app.status}</span></td>
+                            <td class="p-3">${app.machine_count}</td>
+                            <td class="p-3">${app.regions.join(', ')}</td>
+                            <td class="p-3">
+                                <button class="glass-button btn-sm" onclick="viewAppDetails('${app.name}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                log(`✅ Status check complete`);
+            } else {
+                log(`❌ Failed: ${data.error}`);
+            }
+        } catch (e) {
+            log(`❌ Error: ${e.message}`);
+        } finally {
+            loading.style.display = 'none';
         }
     }
 </script>

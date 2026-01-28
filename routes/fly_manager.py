@@ -148,6 +148,281 @@ def get_results():
         logger.error(f"Fly Results Error: {e}")
         return jsonify({"error": str(e)}), 500
 
+# ==============================================================================
+# INFRASTRUCTURE TAB ENDPOINTS
+# ==============================================================================
+
+@fly_bp.route('/api/fly/initialize-app', methods=['POST'])
+def initialize_app():
+    """Initialize a new Fly.io app."""
+    try:
+        data = request.json
+        token = data.get('token')
+        app_name = data.get('app_name')
+        
+        if not app_name:
+            return jsonify({"success": False, "error": "App name required"}), 400
+        
+        cmd = ["fly", "apps", "create", app_name, "--org", "personal"]
+        result = _run_fly_command(cmd, token, cwd=FLY_REPO_DIR)
+        
+        if result.get('status') == 'success':
+            return jsonify({"success": True, "message": f"App '{app_name}' created successfully"})
+        else:
+            return jsonify({"success": False, "error": result.get('error', 'Unknown error')})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@fly_bp.route('/api/fly/deploy-image', methods=['POST'])
+def deploy_image():
+    """Build and deploy Docker image to Fly.io."""
+    try:
+        data = request.json
+        token = data.get('token')
+        app_name = data.get('app_name')
+        
+        cmd = ["fly", "deploy", "--local-only", "--config", "fly.toml", 
+               "--dockerfile", "Dockerfile.fly", "--app", app_name]
+        
+        # Run in background and log to buffer
+        threading.Thread(target=_run_fly_command_background, args=(cmd, token, FLY_REPO_DIR)).start()
+        
+        return jsonify({"success": True, "message": "Deployment started. Check logs for progress."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@fly_bp.route('/api/fly/check-app-status', methods=['POST'])
+def check_app_status():
+    """Check status of a Fly.io app."""
+    try:
+        data = request.json
+        token = data.get('token')
+        app_name = data.get('app_name')
+        
+        cmd = ["fly", "status", "--app", app_name, "--json"]
+        result = _run_fly_command(cmd, token, cwd=FLY_REPO_DIR)
+        
+        if result.get('status') == 'success':
+            try:
+                status_data = json.loads(result.get('output', '{}'))
+                return jsonify({"success": True, "status": "running", "details": status_data})
+            except:
+                return jsonify({"success": True, "status": "unknown", "details": {}})
+        else:
+            return jsonify({"success": False, "error": result.get('error')})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@fly_bp.route('/api/fly/destroy-app', methods=['POST'])
+def destroy_app():
+    """Destroy a Fly.io app and all its resources."""
+    try:
+        data = request.json
+        token = data.get('token')
+        app_name = data.get('app_name')
+        
+        cmd = ["fly", "apps", "destroy", app_name, "--yes"]
+        result = _run_fly_command(cmd, token, cwd=FLY_REPO_DIR)
+        
+        if result.get('status') == 'success':
+            return jsonify({"success": True, "message": "App destroyed successfully"})
+        else:
+            return jsonify({"success": False, "error": result.get('error')})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ==============================================================================
+# MACHINES TAB ENDPOINTS
+# ==============================================================================
+
+@fly_bp.route('/api/fly/list-machines', methods=['POST'])
+def list_machines():
+    """List all machines for an app."""
+    try:
+        data = request.json
+        token = data.get('token')
+        app_name = data.get('app_name')
+        
+        cmd = ["fly", "machine", "list", "--app", app_name, "--json"]
+        result = _run_fly_command(cmd, token, cwd=FLY_REPO_DIR)
+        
+        if result.get('status') == 'success':
+            try:
+                machines = json.loads(result.get('output', '[]'))
+                return jsonify({"success": True, "machines": machines})
+            except:
+                return jsonify({"success": True, "machines": []})
+        else:
+            return jsonify({"success": False, "error": result.get('error')})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@fly_bp.route('/api/fly/create-machine', methods=['POST'])
+def create_machine():
+    """Create a single test machine."""
+    try:
+        data = request.json
+        token = data.get('token')
+        app_name = data.get('app_name')
+        region = data.get('region', 'lhr')
+        
+        cmd = ["fly", "machine", "run", "--app", app_name, "--region", region, 
+               "--env", "TEST_MODE=true"]
+        result = _run_fly_command(cmd, token, cwd=FLY_REPO_DIR)
+        
+        if result.get('status') == 'success':
+            # Extract machine ID from output
+            output = result.get('output', '')
+            machine_id = 'unknown'
+            # Try to parse machine ID from output
+            return jsonify({"success": True, "machine_id": machine_id})
+        else:
+            return jsonify({"success": False, "error": result.get('error')})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@fly_bp.route('/api/fly/cleanup-machines', methods=['POST'])
+def cleanup_machines():
+    """Clean up stopped machines."""
+    try:
+        data = request.json
+        token = data.get('token')
+        app_name = data.get('app_name')
+        
+        # First list machines
+        cmd_list = ["fly", "machine", "list", "--app", app_name, "--json"]
+        result = _run_fly_command(cmd_list, token, cwd=FLY_REPO_DIR)
+        
+        if result.get('status') != 'success':
+            return jsonify({"success": False, "error": "Failed to list machines"})
+        
+        try:
+            machines = json.loads(result.get('output', '[]'))
+            stopped = [m for m in machines if m.get('state') == 'stopped']
+            
+            # Run cleanup in background
+            threading.Thread(target=_cleanup_machines_background, 
+                           args=(app_name, token, stopped)).start()
+            
+            return jsonify({"success": True, "removed_count": len(stopped), 
+                          "message": f"Removing {len(stopped)} stopped machine(s)"})
+        except:
+            return jsonify({"success": False, "error": "Failed to parse machine list"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ==============================================================================
+# PROCESSING TAB ENDPOINTS
+# ==============================================================================
+
+@fly_bp.route('/api/fly/process-batch', methods=['POST'])
+def process_batch():
+    """Process batch of accounts using Fly machines."""
+    try:
+        data = request.json
+        token = data.get('token')
+        app_name = data.get('app_name')
+        accounts = data.get('accounts', [])
+        batch_size = int(data.get('batch_size', 10))
+        
+        if not accounts:
+            return jsonify({"success": False, "error": "No accounts provided"})
+        
+        # Parse accounts
+        users = []
+        for line in accounts:
+            parts = line.split(':')
+            if len(parts) >= 2:
+                u = {"email": parts[0], "password": parts[1]}
+                if len(parts) > 2:
+                    u["recovery_email"] = parts[2]
+                users.append(u)
+        
+        if not users:
+            return jsonify({"success": False, "error": "No valid accounts parsed"})
+        
+        # Create batches
+        batches = [users[i:i + batch_size] for i in range(0, len(users), batch_size)]
+        
+        # Launch in background
+        threading.Thread(target=_launch_batches_background, 
+                        args=(app_name, token, batches)).start()
+        
+        return jsonify({"success": True, 
+                       "message": f"Processing {len(users)} accounts in {len(batches)} batch(es)"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ==============================================================================
+# STATUS TAB ENDPOINTS
+# ==============================================================================
+
+@fly_bp.route('/api/fly/global-status', methods=['POST'])
+def global_status():
+    """Get global status of all Fly.io apps."""
+    try:
+        data = request.json
+        token = data.get('token')
+        
+        # List all apps
+        cmd = ["fly", "apps", "list", "--json"]
+        result = _run_fly_command(cmd, token, cwd=os.getcwd())
+        
+        if result.get('status') != 'success':
+            return jsonify({"success": False, "error": "Failed to list apps"})
+        
+        try:
+            apps_data = json.loads(result.get('output', '[]'))
+            
+            # For each app, get machine count
+            apps = []
+            total_running = 0
+            total_stopped = 0
+            regions_set = set()
+            
+            for app in apps_data:
+                app_name = app.get('Name', app.get('name', ''))
+                
+                # Get machines for this app
+                cmd_machines = ["fly", "machine", "list", "--app", app_name, "--json"]
+                machines_result = _run_fly_command(cmd_machines, token, cwd=os.getcwd())
+                
+                machines = []
+                app_regions = []
+                if machines_result.get('status') == 'success':
+                    try:
+                        machines = json.loads(machines_result.get('output', '[]'))
+                        app_regions = list(set([m.get('region', 'unknown') for m in machines]))
+                        regions_set.update(app_regions)
+                        
+                        running = sum(1 for m in machines if m.get('state') == 'started')
+                        stopped = sum(1 for m in machines if m.get('state') == 'stopped')
+                        total_running += running
+                        total_stopped += stopped
+                    except:
+                        pass
+                
+                apps.append({
+                    "name": app_name,
+                    "status": app.get('Status', 'unknown'),
+                    "machine_count": len(machines),
+                    "regions": app_regions
+                })
+            
+            return jsonify({
+                "success": True,
+                "total_apps": len(apps),
+                "running_machines": total_running,
+                "stopped_machines": total_stopped,
+                "total_regions": len(regions_set),
+                "apps": apps
+            })
+        except Exception as parse_err:
+            return jsonify({"success": False, "error": f"Parse error: {str(parse_err)}"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @fly_bp.route('/fly/cleanup', methods=['POST'])
 def cleanup_machines():
     """Destroy stopped Fly Machines."""
