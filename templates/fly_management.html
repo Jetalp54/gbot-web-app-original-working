@@ -40,6 +40,12 @@
                 <div class="d-grid gap-2">
                     <button class="btn btn-primary" onclick="launchApp()">🚀 Launch App (Create)</button>
                     <button class="btn btn-warning" onclick="deployApp()">🏗️ Deploy (Build & Push)</button>
+                    <button class="btn btn-danger" onclick="cleanupMachines()">🗑️ Cleanup Stopped Machines</button>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" id="streamAppLogsToggle"
+                            onchange="toggleAppLogs()">
+                        <label class="form-check-label" for="streamAppLogsToggle">Stream App Logs (Verbose)</label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -84,19 +90,163 @@
     </div>
 </div>
 
+<!-- Results Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 bg-white d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">Generated App Passwords</h6>
+                <button class="btn btn-sm btn-primary" onclick="loadResults()">🔄 Refresh Results</button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="resultsTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>App Password</th>
+                                <th>Created At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="3" class="text-center">No results loaded.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    let appLogEventSource = null;
+
     function log(message, type = 'info') {
         const consoleEl = document.getElementById('consoleOutput');
-        const color = type === 'error' ? 'text-danger' : (type === 'success' ? 'text-success' : 'text-white');
+        let color = 'text-white';
+
+        if (type === 'error') color = 'text-danger';
+        else if (type === 'success') color = 'text-success';
+        else if (type === 'app-log') color = 'text-info'; // Blue for app logs
+
         const timestamp = new Date().toLocaleTimeString();
+        if (typeof message === 'object') {
+            message = JSON.stringify(message, null, 2);
+        }
         consoleEl.innerHTML += `<div class="${color}">[${timestamp}] ${message}</div>`;
         consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    // Connect to Main Log Stream
+    document.addEventListener('DOMContentLoaded', () => {
+        const eventSource = new EventSource("/fly/stream-logs");
+
+        eventSource.onmessage = function (event) {
+            try {
+                const data = JSON.parse(event.data);
+                log(data.message, data.type || 'info');
+            } catch (e) { }
+        };
+
+        // Initial load of results
+        loadResults();
+    });
+
+    // Toggle App Log Stream
+    function toggleAppLogs() {
+        const enabled = document.getElementById('streamAppLogsToggle').checked;
+        const appName = document.getElementById('appName').value;
+        const token = document.getElementById('flyToken').value;
+
+        if (enabled) {
+            if (!appName) {
+                alert("App Name required for logs");
+                document.getElementById('streamAppLogsToggle').checked = false;
+                return;
+            }
+
+            log("Connecting to App Log Stream...", 'info');
+            // Connect
+            const url = `/fly/stream-app-logs?app_name=${appName}&token=${token}`;
+            appLogEventSource = new EventSource(url);
+
+            appLogEventSource.onmessage = function (event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(data.message, data.type || 'app-log');
+                } catch (e) { }
+            };
+
+            appLogEventSource.onerror = function () {
+                // log("App Log Stream disconnected", 'error');
+                // Optional: Auto-reconnect handling or disable toggle
+            };
+
+        } else {
+            // Disconnect
+            if (appLogEventSource) {
+                appLogEventSource.close();
+                appLogEventSource = null;
+                log("App Log Stream disconnected.", 'info');
+            }
+        }
+    }
+
+    async function cleanupMachines() {
+        if (!confirm("Are you sure you want to destroy all STOPPED machines? This cannot be undone.")) return;
+
+        const token = document.getElementById('flyToken').value;
+        const appName = document.getElementById('appName').value;
+
+        log("Starting cleanup...", 'info');
+
+        try {
+            const res = await fetch('/fly/cleanup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, app_name: appName })
+            });
+            const data = await res.json();
+            if (data.status) log(data.message, 'success');
+            else log(data.error, 'error');
+        } catch (e) {
+            log("Error: " + e, 'error');
+        }
+    }
+
+    async function loadResults() {
+        try {
+            const res = await fetch('/fly/results');
+            const data = await res.json();
+
+            const tbody = document.querySelector('#resultsTable tbody');
+            tbody.innerHTML = '';
+
+            if (data.results && data.results.length > 0) {
+                data.results.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${row.email}</td>
+                        <td><code>${row.app_password}</code></td>
+                        <td>${new Date(row.created_at).toLocaleString()}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center">No results found yet.</td></tr>';
+            }
+
+        } catch (e) {
+            console.error("Failed to load results", e);
+        }
     }
 
     async function launchApp() {
         const token = document.getElementById('flyToken').value;
         const appName = document.getElementById('appName').value;
-
+        // ... existing launchApp code ...
         if (!appName) return alert("App Name required");
 
         log(`Launching app '${appName}'...`);
