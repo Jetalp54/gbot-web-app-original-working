@@ -423,8 +423,9 @@ def global_status():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+
 @fly_bp.route('/fly/cleanup', methods=['POST'])
-def cleanup_machines():
+def cleanup_machines_legacy():
     """Destroy stopped Fly Machines."""
     try:
         data = request.json
@@ -442,6 +443,7 @@ def cleanup_machines():
     except Exception as e:
         logger.error(f"Fly Cleanup Error: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @fly_bp.route('/fly/stream-app-logs')
 def stream_app_logs():
