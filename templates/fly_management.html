@@ -1,146 +1,298 @@
 {% extends "base.html" %}
 
-{% block title %}Fly.io Management - GBot{% endblock %}
+{% block title %}Fly.io Orchestrator - GBot{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="h3 mb-4 text-gray-800">✈️ Fly.io Management</h1>
+<div class="fade-in">
+    <!-- Header Section -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 font-weight-bold text-white mb-1">
+                <i class="fas fa-plane-departure me-2 text-indigo-400"></i> Fly.io Orchestrator
+            </h1>
+            <p class="text-gray-400 mb-0">Manage ephemeral worker machines and batch processing</p>
+        </div>
+        <div>
+            <span class="badge badge-success glass-badge px-3 py-2">
+                <i class="fas fa-signal me-1"></i> System Active
+            </span>
+        </div>
     </div>
-</div>
 
-<div class="row">
-    <!-- Configuration -->
-    <div class="col-md-6 mb-4">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 bg-white">
-                <h6 class="m-0 font-weight-bold text-primary">Configuration</h6>
-            </div>
-            <div class="card-body">
-                <div class="form-group mb-3">
-                    <label for="flyToken">Fly API Token</label>
-                    <input type="password" class="form-control" id="flyToken"
-                        placeholder="Enter output of 'fly auth token'">
-                    <small class="form-text text-muted">Run <code>fly auth token</code> in your terminal to get
-                        this.</small>
+    <div class="row">
+        <!-- Left Column: Configuration & Controls -->
+        <div class="col-lg-5 mb-4">
+            <!-- Configuration Panel -->
+            <div class="glass-panel mb-4">
+                <div class="glass-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-cogs me-2"></i>Configuration</h6>
                 </div>
-                <div class="form-group mb-3">
-                    <label for="appName">App Name</label>
-                    <input type="text" class="form-control" id="appName" value="gbot-fly-worker">
+                <div class="glass-body">
+                    <div class="form-group mb-4">
+                        <label class="text-xs font-weight-bold text-uppercase text-gray-400 mb-2">Fly API Token</label>
+                        <div class="input-group">
+                            <span class="input-group-text glass-addon"><i class="fas fa-key"></i></span>
+                            <input type="password" class="form-control glass-input" id="flyToken"
+                                placeholder="Enter output of 'fly auth token'">
+                        </div>
+                        <small class="form-text text-muted mt-1">Run <code class="glass-code">fly auth token</code> in
+                            terminal to retrieve.</small>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="text-xs font-weight-bold text-uppercase text-gray-400 mb-2">App Name</label>
+                        <div class="input-group">
+                            <span class="input-group-text glass-addon"><i class="fas fa-cube"></i></span>
+                            <input type="text" class="form-control glass-input" id="appName" value="gbot-fly-worker">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Panel -->
+            <div class="glass-panel">
+                <div class="glass-header">
+                    <h6 class="m-0 font-weight-bold text-info"><i class="fas fa-bolt me-2"></i>Actions</h6>
+                </div>
+                <div class="glass-body">
+                    <div class="d-grid gap-3">
+                        <button class="glass-button glass-button-primary" onclick="launchApp()">
+                            <i class="fas fa-rocket me-2"></i> Launch App (Create)
+                        </button>
+                        <button class="glass-button glass-button-warning" onclick="deployApp()">
+                            <i class="fas fa-hammer me-2"></i> Deploy (Build & Push)
+                        </button>
+                        <button class="glass-button glass-button-danger" onclick="cleanupMachines()">
+                            <i class="fas fa-trash-alt me-2"></i> Cleanup Stopped Machines
+                        </button>
+
+                        <div class="glass-divider my-2"></div>
+
+                        <div class="form-check form-switch d-flex align-items-center justify-content-between p-0">
+                            <label class="form-check-label text-gray-300" for="streamAppLogsToggle">
+                                <i class="fas fa-terminal me-2 text-info"></i> Stream Worker Logs (Verbose)
+                            </label>
+                            <input class="form-check-input ms-3" type="checkbox" id="streamAppLogsToggle"
+                                onchange="toggleAppLogs()" style="cursor: pointer;">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Actions -->
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 bg-white">
-                <h6 class="m-0 font-weight-bold text-primary">App Management</h6>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <button class="btn btn-primary" onclick="launchApp()">🚀 Launch App (Create)</button>
-                    <button class="btn btn-warning" onclick="deployApp()">🏗️ Deploy (Build & Push)</button>
-                    <button class="btn btn-danger" onclick="cleanupMachines()">🗑️ Cleanup Stopped Machines</button>
-                    <div class="form-check form-switch mt-2">
-                        <input class="form-check-input" type="checkbox" id="streamAppLogsToggle"
-                            onchange="toggleAppLogs()">
-                        <label class="form-check-label" for="streamAppLogsToggle">Stream App Logs (Verbose)</label>
+        <!-- Right Column: Batch Processing -->
+        <div class="col-lg-7 mb-4">
+            <div class="glass-panel h-100">
+                <div class="glass-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-success"><i class="fas fa-layer-group me-2"></i>Batch
+                        Processing</h6>
+                </div>
+                <div class="glass-body d-flex flex-column h-100">
+                    <div class="form-group mb-3 flex-grow-1">
+                        <label class="text-xs font-weight-bold text-uppercase text-gray-400 mb-2">Accounts List</label>
+                        <div class="glass-editor-wrapper">
+                            <textarea class="form-control glass-input font-monospace" id="accountsInput" rows="8"
+                                placeholder="user1@example.com:password:recovery&#10;user2@example.com:password:recovery"
+                                style="font-size: 0.85rem; line-height: 1.5;"></textarea>
+                        </div>
+                        <small class="text-muted d-block mt-2">Format: <code>email:password[:recovery]</code> (one per
+                            line)</small>
+                    </div>
+
+                    <div class="row align-items-end">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <label class="text-xs font-weight-bold text-uppercase text-gray-400 mb-2">Batch Size</label>
+                            <div class="input-group">
+                                <span class="input-group-text glass-addon"><i class="fas fa-sort-numeric-up"></i></span>
+                                <input type="number" class="form-control glass-input" id="batchSize" value="10" min="1"
+                                    max="50">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="glass-button glass-button-success w-100" onclick="startProcessing()">
+                                <i class="fas fa-play me-2"></i> Start Processing
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Batch Processing -->
-    <div class="col-md-6 mb-4">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 bg-white">
-                <h6 class="m-0 font-weight-bold text-primary">Batch Processing</h6>
-            </div>
-            <div class="card-body">
-                <div class="form-group mb-3">
-                    <label for="accountsInput">Accounts (email:password[:recovery])</label>
-                    <textarea class="form-control" id="accountsInput" rows="5"
-                        placeholder="user1@gmail.com:pass1:rec1&#10;user2@gmail.com:pass2:rec2"></textarea>
+    <!-- Live Console -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="glass-panel">
+                <div class="glass-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-white"><i class="fas fa-code me-2"></i>Live Console</h6>
+                    <button class="glass-icon-btn btn-sm"
+                        onclick="document.getElementById('consoleOutput').innerHTML = ''" title="Clear Console">
+                        <i class="fas fa-eraser"></i>
+                    </button>
                 </div>
-                <div class="row mb-3">
-                    <div class="col">
-                        <label for="batchSize">Batch Size</label>
-                        <input type="number" class="form-control" id="batchSize" value="10">
+                <div class="glass-body p-0">
+                    <div class="console-wrapper bg-black font-monospace p-3 text-white" id="consoleOutput"
+                        style="height: 350px; overflow-y: auto; font-size: 0.85rem; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+                        <div class="text-gray-500">> System ready. Waiting for commands...</div>
                     </div>
                 </div>
-                <button class="btn btn-success w-100" onclick="startProcessing()">▶️ Start Processing</button>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Logs / Output -->
-<div class="row">
-    <div class="col-12">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 bg-white">
-                <h6 class="m-0 font-weight-bold text-primary">Console Output</h6>
-            </div>
-            <div class="card-body bg-dark text-white font-monospace" id="consoleOutput"
-                style="height: 300px; overflow-y: auto;">
-                <div class="text-muted">> Ready...</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Results Table -->
-<div class="row">
-    <div class="col-12">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 bg-white d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">Generated App Passwords</h6>
-                <button class="btn btn-sm btn-primary" onclick="loadResults()">🔄 Refresh Results</button>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered" id="resultsTable" width="100%" cellspacing="0">
-                        <thead>
-                            <tr>
-                                <th>Email</th>
-                                <th>App Password</th>
-                                <th>Created At</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td colspan="3" class="text-center">No results loaded.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+    <!-- Results Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="glass-panel">
+                <div class="glass-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-warning"><i class="fas fa-database me-2"></i>Generated App
+                        Passwords</h6>
+                    <button class="glass-button glass-button-sm glass-button-outline-primary" onclick="loadResults()">
+                        <i class="fas fa-sync-alt me-1"></i> Refresh
+                    </button>
+                </div>
+                <div class="glass-body p-0">
+                    <div class="table-responsive">
+                        <table class="table glass-table table-hover mb-0" id="resultsTable">
+                            <thead class="text-xs font-weight-bold text-uppercase text-gray-400">
+                                <tr>
+                                    <th class="border-0 px-4 py-3">Email</th>
+                                    <th class="border-0 px-4 py-3">App Password</th>
+                                    <th class="border-0 px-4 py-3">Created At</th>
+                                    <th class="border-0 px-4 py-3 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-sm">
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">No results loaded yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    /* Scoped Styles for Fly Manager */
+    .glass-editor-wrapper {
+        border-radius: 0.5rem;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .glass-code {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: #ff7b72;
+    }
+
+    .console-wrapper::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .console-wrapper::-webkit-scrollbar-track {
+        background: #0d1117;
+    }
+
+    .console-wrapper::-webkit-scrollbar-thumb {
+        background: #30363d;
+        border-radius: 4px;
+    }
+
+    .console-wrapper::-webkit-scrollbar-thumb:hover {
+        background: #58a6ff;
+    }
+
+    .glass-table th {
+        background: rgba(255, 255, 255, 0.05);
+        color: #8b949e;
+    }
+
+    .glass-table td {
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        color: #c9d1d9;
+        vertical-align: middle;
+        padding: 12px 24px;
+    }
+
+    .glass-table tr:hover td {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .glass-icon-btn {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #8b949e;
+        border-radius: 6px;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    .glass-icon-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+</style>
 
 <script>
     let appLogEventSource = null;
 
     function log(message, type = 'info') {
         const consoleEl = document.getElementById('consoleOutput');
-        let color = 'text-white';
+        let color = 'text-gray-300';
+        let icon = '<i class="fas fa-info-circle me-2 text-xs"></i>';
 
-        if (type === 'error') color = 'text-danger';
-        else if (type === 'success') color = 'text-success';
-        else if (type === 'app-log') color = 'text-info'; // Blue for app logs
+        if (type === 'error') {
+            color = 'text-red-400';
+            icon = '<i class="fas fa-exclamation-circle me-2 text-red-500"></i>';
+        }
+        else if (type === 'success') {
+            color = 'text-green-400';
+            icon = '<i class="fas fa-check-circle me-2 text-green-500"></i>';
+        }
+        else if (type === 'app-log') {
+            color = 'text-blue-300';
+            icon = '<i class="fas fa-terminal me-2 text-blue-500"></i>';
+        }
 
-        const timestamp = new Date().toLocaleTimeString();
+        const now = new Date();
+        const timestamp = now.toLocaleTimeString('en-US', { hour12: false });
+
         if (typeof message === 'object') {
             message = JSON.stringify(message, null, 2);
         }
-        consoleEl.innerHTML += `<div class="${color}">[${timestamp}] ${message}</div>`;
+
+        const line = `
+            <div class="d-flex align-items-start mb-1 ${color}" style="animation: fadeIn 0.3s ease;">
+                <span class="text-gray-600 text-xs me-2 font-mono" style="min-width: 60px;">[${timestamp}]</span>
+                <span class="me-1">${icon}</span>
+                <span style="white-space: pre-wrap;">${message}</span>
+            </div>
+        `;
+
+        consoleEl.insertAdjacentHTML('beforeend', line);
         consoleEl.scrollTop = consoleEl.scrollHeight;
     }
 
     // Connect to Main Log Stream
     document.addEventListener('DOMContentLoaded', () => {
+        // Add fade-in animation style
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(5px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+
         const eventSource = new EventSource("/fly/stream-logs");
 
         eventSource.onmessage = function (event) {
@@ -154,7 +306,7 @@
         loadResults();
     });
 
-    // Toggle App Log Stream
+    // Toggle App Log Stream (Same logic, modern UI hook)
     function toggleAppLogs() {
         const enabled = document.getElementById('streamAppLogsToggle').checked;
         const appName = document.getElementById('appName').value;
@@ -162,13 +314,12 @@
 
         if (enabled) {
             if (!appName) {
-                alert("App Name required for logs");
+                alert("Please enter an App Name first.");
                 document.getElementById('streamAppLogsToggle').checked = false;
                 return;
             }
 
-            log("Connecting to App Log Stream...", 'info');
-            // Connect
+            log("Connecting to Worker Log Stream...", 'info');
             const url = `/fly/stream-app-logs?app_name=${appName}&token=${token}`;
             appLogEventSource = new EventSource(url);
 
@@ -180,27 +331,25 @@
             };
 
             appLogEventSource.onerror = function () {
-                // log("App Log Stream disconnected", 'error');
-                // Optional: Auto-reconnect handling or disable toggle
+                // Optional handling
             };
 
         } else {
-            // Disconnect
             if (appLogEventSource) {
                 appLogEventSource.close();
                 appLogEventSource = null;
-                log("App Log Stream disconnected.", 'info');
+                log("Worker Log Stream disconnected.", 'info');
             }
         }
     }
 
     async function cleanupMachines() {
-        if (!confirm("Are you sure you want to destroy all STOPPED machines? This cannot be undone.")) return;
+        if (!confirm("⚠️ Are you sure you want to destroy all STOPPED machines? This cannot be undone.")) return;
 
         const token = document.getElementById('flyToken').value;
         const appName = document.getElementById('appName').value;
 
-        log("Starting cleanup...", 'info');
+        log("Initiating cleanup protocol...", 'info');
 
         try {
             const res = await fetch('/fly/cleanup', {
@@ -217,6 +366,9 @@
     }
 
     async function loadResults() {
+        const btn = document.querySelector('button[onclick="loadResults()"] i');
+        if (btn) btn.classList.add('fa-spin');
+
         try {
             const res = await fetch('/fly/results');
             const data = await res.json();
@@ -228,28 +380,35 @@
                 data.results.forEach(row => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
-                        <td>${row.email}</td>
-                        <td><code>${row.app_password}</code></td>
+                        <td><span class="text-white font-weight-bold">${row.email}</span></td>
+                        <td><code class="glass-code user-select-all">${row.app_password}</code></td>
                         <td>${new Date(row.created_at).toLocaleString()}</td>
+                        <td class="text-center">
+                            <button class="glass-icon-btn btn-sm mx-auto" onclick="navigator.clipboard.writeText('${row.app_password}')" title="Copy Password">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </td>
                     `;
                     tbody.appendChild(tr);
                 });
             } else {
-                tbody.innerHTML = '<tr><td colspan="3" class="text-center">No results found yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted"><i class="fas fa-inbox me-2 opacity-50"></i>No results found yet.</td></tr>';
             }
 
         } catch (e) {
-            console.error("Failed to load results", e);
+            log("Failed to load results: " + e, 'error');
+        } finally {
+            if (btn) btn.classList.remove('fa-spin');
         }
     }
 
     async function launchApp() {
         const token = document.getElementById('flyToken').value;
         const appName = document.getElementById('appName').value;
-        // ... existing launchApp code ...
+
         if (!appName) return alert("App Name required");
 
-        log(`Launching app '${appName}'...`);
+        log(`🚀 Launching app '${appName}'...`);
 
         try {
             const res = await fetch('/fly/launch', {
@@ -260,7 +419,8 @@
             const data = await res.json();
 
             if (data.status === 'success') {
-                log("✅ Launch Successful:\n" + data.output, 'success');
+                log("✅ Launch Successful", 'success');
+                log(data.output, 'info');
             } else {
                 log("❌ Launch Failed:\n" + (data.error_details || data.error), 'error');
             }
@@ -275,7 +435,7 @@
 
         if (!appName) return alert("App Name required");
 
-        log(`Triggering deployment for '${appName}'...`);
+        log(`🏗️ Triggering deployment for '${appName}'...`);
 
         try {
             const res = await fetch('/fly/deploy', {
@@ -286,7 +446,7 @@
             const data = await res.json();
 
             if (data.status) {
-                log("🚀 " + data.message, 'success');
+                log("✅ " + data.message, 'success');
             } else {
                 log("❌ Deploy Request Failed: " + data.error, 'error');
             }
@@ -305,7 +465,7 @@
 
         const accounts = accountsText.split('\n').filter(line => line.trim() !== '');
 
-        log(`Starting processing for ${accounts.length} accounts...`);
+        log(`▶️ Starting processing for ${accounts.length} accounts...`);
 
         try {
             const res = await fetch('/fly/process', {
