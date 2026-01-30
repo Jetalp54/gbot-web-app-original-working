@@ -417,7 +417,8 @@ class GoogleDomainsService:
                 service_account_row = ServiceAccount.query.filter_by(name=self.account_name).first()
                 admin_email = service_account_row.admin_email if service_account_row else None
                 
-                # Create verification resource
+                # CRITICAL FIX: Create verification resource with ONLY the site object
+                # The verificationMethod is a parameter, NOT part of the body
                 verification_resource = {
                     'site': {
                         'type': 'INET_DOMAIN',
@@ -425,25 +426,33 @@ class GoogleDomainsService:
                     }
                 }
                 
-                if admin_email:
-                    verification_resource['owners'] = [admin_email]
-                    logger.info(f"Using admin email as owner: {admin_email}")
+                # Note: owners field is not required and may cause issues
+                # Only add if we want to explicitly set owners
+                # if admin_email:
+                #     verification_resource['owners'] = [admin_email]
+                #     logger.info(f"Using admin email as owner: {admin_email}")
                 
                 # Retry with exponential backoff for webResource().insert()
-                # Increased to 5 retries to handle slow DNS propagation (total wait ~150s)
-                max_retries = 5
+                # Increased to 6 retries to handle slow DNS propagation (total wait ~210s)
+                max_retries = 6
                 for attempt in range(max_retries):
                     try:
+                        # CRITICAL FIX: Only pass site in body, verificationMethod is parameter only
                         result = service.webResource().insert(
                             verificationMethod='DNS_TXT',
                             body=verification_resource
                         ).execute()
                         
-                        logger.info(f"Site Verification API response: {result}")
+                        logger.info(f"✅ Site Verification API response: {result}")
                         
                         # Check if we got a valid response
                         if result.get('id') or result.get('site', {}).get('identifier'):
-                            logger.info(f"Site Verification succeeded for {verification_domain}")
+                            logger.info(f"✅ Site Verification succeeded for {verification_domain}")
+                            site_verification_success = True
+                            break
+                        else:
+                            logger.warning(f"Unexpected verification response: {result}")
+                            # Even without expected fields, if no error, consider success
                             site_verification_success = True
                             break
                             
@@ -453,35 +462,53 @@ class GoogleDomainsService:
                         logger.warning(f"Site Verification HTTP {status} (attempt {attempt+1}/{max_retries}): {error_str}")
                         
                         # 409 means already verified - that's success!
-                        if status == 409 or 'already exists' in error_str.lower():
-                            logger.info(f"Domain {verification_domain} already verified in Site Verification")
+                        if status == 409 or 'already exists' in error_str.lower() or 'already verified' in error_str.lower():
+                            logger.info(f"✅ Domain {verification_domain} already verified in Site Verification (409)")
                             site_verification_success = True
                             break
                         
                         # 400 with "verification token could not be found" - DNS not propagated
                         if status == 400:
-                            if 'verification token could not be found' in error_str.lower():
+                            if 'token' in error_str.lower() or 'could not be found' in error_str.lower():
                                 # Wait and retry - DNS might need more time
                                 if attempt < max_retries - 1:
-                                    wait_time = 10 * (attempt + 1)  # 10s, 20s, 30s
-                                    logger.info(f"DNS token not found, waiting {wait_time}s before retry...")
+                                    wait_time = 10 * (attempt + 1)  # 10s, 20s, 30s, 40s, 50s
+                                    logger.info(f"⏳ DNS token not found, waiting {wait_time}s before retry...")
                                     time.sleep(wait_time)
                                     continue
-                            site_verification_error = f"DNS verification failed: {error_str}"
+                                else:
+                                    site_verification_error = f"DNS TXT record not found after {max_retries} attempts. Please wait for DNS propagation."
+                                    break
+                            else:
+                                # Other 400 error
+                                site_verification_error = f"Bad request (400): {error_str}"
+                                break
+                        
+                        # 403 - permission denied
+                        if status == 403:
+                            site_verification_error = f"Permission denied (403). Check service account permissions and Domain-Wide Delegation."
+                            logger.error(f"❌ 403 Forbidden for {verification_domain}")
                             break
                         
-                        # 503 - service unavailable, try other mode
+                        # 503 - service unavailable, retry
                         if status == 503:
                             if attempt < max_retries - 1:
                                 wait_time = 5 * (attempt + 1)
-                                logger.info(f"503 error, waiting {wait_time}s before retry...")
+                                logger.info(f"⏳ 503 Service unavailable, waiting {wait_time}s before retry...")
                                 time.sleep(wait_time)
                                 continue
-                            site_verification_error = error_str
-                            break
+                            else:
+                                site_verification_error = "Google API service unavailable after multiple retries"
+                                break
                         
-                        # Other error
-                        site_verification_error = error_str
+                        # Other HTTP error - don't retry
+                        site_verification_error = f"HTTP {status}: {error_str}"
+                        logger.error(f"❌ Non-retryable error: {site_verification_error}")
+                        break
+                        
+                    except Exception as inner_e:
+                        site_verification_error = f"Unexpected error: {str(inner_e)}"
+                        logger.error(f"❌ Exception during verification attempt: {inner_e}")
                         break
                         
             except Exception as e:

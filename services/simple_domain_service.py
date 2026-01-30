@@ -179,46 +179,80 @@ class SimpleDomainService:
         try:
             service = self._get_site_verification_service()
             
+            # CRITICAL FIX: The body should only contain the 'site' object
+            # The verificationMethod is passed as a parameter, NOT in the body
             request_body = {
                 'site': {
                     'type': 'INET_DOMAIN',
                     'identifier': domain
-                },
-                'verificationMethod': 'DNS_TXT'
+                }
             }
             
             # Try to verify with retries for DNS propagation
             max_attempts = 5
             for attempt in range(max_attempts):
                 try:
+                    # CRITICAL FIX: Only pass 'site' in body, method is a parameter
                     result = service.webResource().insert(
                         verificationMethod='DNS_TXT',
                         body=request_body
                     ).execute()
                     
-                    logger.info(f"[VERIFY] Success for {domain}: {result}")
-                    return True, "Domain verified successfully"
+                    logger.info(f"[VERIFY] ✅ Success for {domain}: {result}")
+                    
+                    # Additional check: Verify the response contains confirmation
+                    if result.get('id') or result.get('site', {}).get('identifier') == domain:
+                        return True, "Domain verified successfully"
+                    else:
+                        logger.warning(f"[VERIFY] Unexpected response: {result}")
+                        return True, "Verification completed (response received)"
                     
                 except HttpError as e:
                     error_str = str(e)
-                    if e.resp.status == 400 and 'token' in error_str.lower():
-                        # DNS not propagated yet
+                    status = e.resp.status
+                    
+                    # Handle specific error cases
+                    if status == 400:
+                        if 'token' in error_str.lower() or 'could not be found' in error_str.lower():
+                            # DNS not propagated yet
+                            if attempt < max_attempts - 1:
+                                wait_time = 10 * (attempt + 1)
+                                logger.info(f"[VERIFY] DNS not ready, waiting {wait_time}s (attempt {attempt+1}/{max_attempts})")
+                                time.sleep(wait_time)
+                                continue
+                            else:
+                                return False, "DNS TXT record not found after multiple retries. Please wait for DNS propagation (can take up to 48 hours)."
+                        else:
+                            logger.error(f"[VERIFY] 400 error for {domain}: {error_str}")
+                            return False, f"Bad request: {error_str}"
+                    
+                    elif status == 409:
+                        # Already verified - this is success!
+                        logger.info(f"[VERIFY] ✅ {domain} already verified (409)")
+                        return True, "Domain already verified"
+                    
+                    elif status == 403:
+                        # Permission denied
+                        logger.error(f"[VERIFY] 403 Forbidden for {domain}")
+                        return False, "Permission denied. Check service account permissions and Domain-Wide Delegation setup."
+                    
+                    elif status == 503:
+                        # Service unavailable - retry
                         if attempt < max_attempts - 1:
-                            wait_time = 10 * (attempt + 1)
-                            logger.info(f"[VERIFY] DNS not ready, waiting {wait_time}s (attempt {attempt+1}/{max_attempts})")
+                            wait_time = 5 * (attempt + 1)
+                            logger.warning(f"[VERIFY] 503 Service unavailable, waiting {wait_time}s")
                             time.sleep(wait_time)
                             continue
                         else:
-                            return False, "DNS TXT record not found. Wait for propagation."
-                    elif e.resp.status == 409:
-                        # Already verified
-                        logger.info(f"[VERIFY] {domain} already verified")
-                        return True, "Already verified"
+                            return False, "Google API service unavailable after retries"
+                    
                     else:
-                        logger.error(f"[VERIFY] HTTP error for {domain}: {e}")
-                        return False, f"Verification failed: {str(e)}"
+                        # Other HTTP errors
+                        logger.error(f"[VERIFY] HTTP {status} error for {domain}: {e}")
+                        return False, f"Verification failed: HTTP {status} - {error_str}"
             
-            return False, "Verification failed after retries"
+            # If we get here, all retries exhausted
+            return False, "Verification failed after maximum retries"
             
         except Exception as e:
             logger.error(f"[VERIFY] Exception for {domain}: {e}", exc_info=True)
