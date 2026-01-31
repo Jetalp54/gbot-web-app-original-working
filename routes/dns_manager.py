@@ -7,7 +7,8 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from flask import Blueprint, request, jsonify, session, redirect, url_for
+import json
+from flask import Blueprint, request, jsonify, session, redirect, url_for, Response, stream_with_context
 from functools import wraps
 from database import db, DomainOperation, GoogleAccount, ServiceAccount, CloudflareConfig
 from services.zone_utils import to_apex
@@ -1041,6 +1042,7 @@ def get_cloudflare_domains():
 def cloudflare_delete_txt_records():
     """
     Delete all TXT records for a specific domain in Cloudflare.
+    Streams progress updates.
     """
     try:
         data = request.get_json()
@@ -1049,17 +1051,14 @@ def cloudflare_delete_txt_records():
         if not domain:
             return jsonify({'success': False, 'error': 'Domain is required'}), 400
             
-        logger.info(f"API: Deleting all TXT records for {domain} in Cloudflare...")
+        logger.info(f"API: Deleting all TXT records for {domain} in Cloudflare (streaming)...")
         
-        dns_service = CloudflareDNSService()
-        result = dns_service.delete_all_txt_records(domain)
+        def generate():
+            dns_service = CloudflareDNSService()
+            for progress in dns_service.yield_delete_all_txt_records(domain):
+                yield f"data: {json.dumps(progress)}\n\n"
         
-        if result['success']:
-            logger.info(f"API: Successfully deleted {result['deleted']} TXT records for {domain}")
-            return jsonify(result)
-        else:
-            logger.error(f"API: Failed to delete TXT records for {domain}: {result.get('error')}")
-            return jsonify(result), 500
+        return Response(stream_with_context(generate()), mimetype='text/event-stream')
             
     except Exception as e:
         logger.error(f"Error in delete-txt-records endpoint: {e}", exc_info=True)

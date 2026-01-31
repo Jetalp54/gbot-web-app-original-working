@@ -344,3 +344,67 @@ class CloudflareDNSService:
         except Exception as e:
             logger.error(f"Error deleting all TXT records for {domain}: {e}")
             return {'success': False, 'error': str(e)}
+
+    def yield_delete_all_txt_records(self, domain: str):
+        """
+        Yield deletion progress for all TXT records of a domain.
+        
+        Args:
+            domain: The domain name
+            
+        Yields:
+            Dict details about progress/result
+        """
+        try:
+            # 1. Get Zone ID
+            yield {'type': 'info', 'message': f"Fetching zone ID for {domain}..."}
+            zone_id = self.get_zone_id(domain)
+            if not zone_id:
+                yield {'type': 'error', 'message': f"Zone not found for {domain}"}
+                return
+            
+            # 2. Get all TXT records
+            yield {'type': 'info', 'message': "Fetching existing TXT records..."}
+            records = self.get_dns_records(zone_id, type='TXT')
+            if not records:
+                yield {'type': 'success', 'message': 'No TXT records found to delete.'}
+                return
+            
+            yield {'type': 'info', 'message': f"Found {len(records)} TXT records. Starting deletion..."}
+            
+            # 3. Delete each record
+            deleted_count = 0
+            errors = []
+            
+            for i, record in enumerate(records, 1):
+                try:
+                    self.delete_record(zone_id, record['id'])
+                    deleted_count += 1
+                    yield {'type': 'progress', 'message': f"Deleted {i}/{len(records)}: {record['name']}", 'current': i, 'total': len(records)}
+                except Exception as e:
+                    error_msg = f"Failed to delete {record['name']}: {str(e)}"
+                    errors.append(error_msg)
+                    yield {'type': 'warning', 'message': error_msg}
+            
+            if errors:
+                yield {
+                    'type': 'complete',
+                    'success': False, 
+                    'deleted': deleted_count, 
+                    'total': len(records),
+                    'errors': errors,
+                    'message': f"Finished with {len(errors)} errors. Deleted {deleted_count}/{len(records)}."
+                }
+            else:
+                yield {
+                    'type': 'complete',
+                    'success': True, 
+                    'deleted': deleted_count, 
+                    'total': len(records),
+                    'message': f"Successfully deleted all {deleted_count} TXT records."
+                }
+            
+        except Exception as e:
+            logger.error(f"Error yielding delete all TXT records for {domain}: {e}")
+            yield {'type': 'error', 'message': str(e)}
+

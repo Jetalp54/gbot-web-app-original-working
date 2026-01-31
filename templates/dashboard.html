@@ -1979,15 +1979,15 @@
                 <label for="cloudflare-delete-domain" class="form-label-github">
                     <i class="fas fa-globe"></i> Domain to Clean
                 </label>
-                <input type="text" id="cloudflare-delete-domain" class="form-control-github" 
-                    placeholder="example.com">
+                <input type="text" id="cloudflare-delete-domain" class="form-control-github" placeholder="example.com">
                 <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
                     <i class="fas fa-exclamation-triangle" style="color: var(--color-danger-fg);"></i>
-                    <strong>Warning:</strong> This will delete ALL TXT records for this domain in Cloudflare. This action cannot be undone.
+                    <strong>Warning:</strong> This will delete ALL TXT records for this domain in Cloudflare. This
+                    action cannot be undone.
                 </small>
             </div>
 
-            <button onclick="deleteCloudflareTXTRecords()" class="btn-github" 
+            <button onclick="deleteCloudflareTXTRecords()" class="btn-github"
                 style="background-color: var(--color-danger-emphasis); border-color: var(--color-danger-emphasis); color: #ffffff;">
                 <i class="fas fa-trash"></i> Delete All TXT Records
             </button>
@@ -2001,24 +2001,37 @@
 </div>
 
 <script>
-    async function deleteCloudflareTXTRecords() {
+    // Make function globally available
+    window.deleteCloudflareTXTRecords = async function () {
         const domainInput = document.getElementById('cloudflare-delete-domain');
         const domain = domainInput.value.trim();
         const resultDiv = document.getElementById('cloudflare-delete-result');
         const contentDiv = document.getElementById('cloudflare-delete-content');
-        
+
         if (!domain) {
             alert('Please enter a domain.');
             return;
         }
-        
+
         if (!confirm(`Are you sure you want to delete ALL TXT records for ${domain}? This cannot be undone.`)) {
             return;
         }
-        
+
         resultDiv.style.display = 'block';
-        contentDiv.innerHTML = '<div style="color: var(--color-fg-default);"><i class="fas fa-spinner fa-spin"></i> Processing...</div>';
-        
+        contentDiv.innerHTML = '<div style="color: var(--color-fg-default); padding: 8px; background: var(--color-canvas-subtle); border-radius: 6px; font-family: monospace; max-height: 200px; overflow-y: auto;" id="cloudflare-streaming-log"></div>';
+        const logContainer = document.getElementById('cloudflare-streaming-log');
+
+        function appendLog(text, color = 'var(--color-fg-default)') {
+            const div = document.createElement('div');
+            div.style.color = color;
+            div.style.marginBottom = '2px';
+            div.textContent = `> ${text}`;
+            logContainer.appendChild(div);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        appendLog('Starting process...', 'var(--color-accent-fg)');
+
         try {
             const response = await fetch('/api/cloudflare/delete-txt-records', {
                 method: 'POST',
@@ -2027,51 +2040,62 @@
                 },
                 body: JSON.stringify({ domain: domain })
             });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                let msg = `
-                    <div style="padding: 8px; background: var(--color-success-subtle); border-radius: 6px; color: var(--color-success-fg);">
-                        <i class="fas fa-check-circle"></i> 
-                        <strong>Success:</strong> ${data.message} (${data.deleted} deleted)
-                    </div>
-                `;
-                if(data.errors && data.errors.length > 0) {
-                     msg += '<div style="margin-top:8px; color:var(--color-danger-fg);"><small>Some errors occurred:</small><ul>';
-                     data.errors.forEach(e => msg += `<li>${e}</li>`);
-                     msg += '</ul></div>';
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.substring(6));
+
+                            switch (data.type) {
+                                case 'info':
+                                    appendLog(data.message, 'var(--color-fg-default)');
+                                    break;
+                                case 'progress':
+                                    // Optional: update a progress bar here
+                                    appendLog(data.message, 'var(--color-accent-fg)');
+                                    break;
+                                case 'success':
+                                    appendLog(data.message, 'var(--color-success-fg)');
+                                    break;
+                                case 'warning':
+                                    appendLog(data.message, 'var(--color-attention-fg)');
+                                    break;
+                                case 'error':
+                                    appendLog(data.message, 'var(--color-danger-fg)');
+                                    break;
+                                case 'complete':
+                                    if (data.success) {
+                                        appendLog(data.message, 'var(--color-success-fg)');
+                                        appendLog('✅ Operation completed successfully.', 'var(--color-success-fg)');
+                                    } else {
+                                        appendLog(data.message, 'var(--color-danger-fg)');
+                                        appendLog('❌ Operation completed with errors.', 'var(--color-danger-fg)');
+                                    }
+                                    break;
+                            }
+                        } catch (e) {
+                            console.error('Error parsing stream data:', e);
+                        }
+                    }
                 }
-                contentDiv.innerHTML = msg;
-            } else {
-                let errorHtml = `
-                    <div style="padding: 8px; background: var(--color-danger-subtle); border-radius: 6px; color: var(--color-danger-fg);">
-                        <i class="fas fa-times-circle"></i> 
-                        <strong>Error:</strong> ${data.error || 'Unknown error'}
-                    </div>
-                `;
-                
-                if (data.errors && data.errors.length > 0) {
-                    errorHtml += '<ul style="margin-top: 8px; font-size: 12px; color: var(--color-danger-fg);">';
-                    data.errors.forEach(err => {
-                        errorHtml += `<li>${err}</li>`;
-                    });
-                    errorHtml += '</ul>';
-                }
-                
-                contentDiv.innerHTML = errorHtml;
             }
-            
+
         } catch (error) {
             console.error('Error deleting records:', error);
-            contentDiv.innerHTML = `
-                <div style="padding: 8px; background: var(--color-danger-subtle); border-radius: 6px; color: var(--color-danger-fg);">
-                    <i class="fas fa-times-circle"></i> 
-                    <strong>System Error:</strong> ${error.message}
-                </div>
-            `;
+            appendLog(`System Error: ${error.message}`, 'var(--color-danger-fg)');
         }
     }
+</script>
 
 
 
