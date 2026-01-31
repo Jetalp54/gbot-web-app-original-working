@@ -293,3 +293,54 @@ class CloudflareDNSService:
         except Exception as e:
             logger.error(f"Error getting Cloudflare zones: {e}")
             raise
+
+    def delete_all_txt_records(self, domain: str) -> Dict:
+        """
+        Delete ALL TXT records for a domain in Cloudflare.
+        
+        Args:
+            domain: The domain name
+            
+        Returns:
+            Dict details about deleted records
+        """
+        try:
+            # 1. Get Zone ID
+            zone_id = self.get_zone_id(domain)
+            if not zone_id:
+                return {'success': False, 'error': f"Zone not found for {domain}"}
+            
+            # 2. Get all TXT records
+            records = self.get_dns_records(zone_id, type='TXT')
+            if not records:
+                return {'success': True, 'deleted': 0, 'message': 'No TXT records found'}
+            
+            # 3. Delete each record
+            deleted_count = 0
+            errors = []
+            
+            for record in records:
+                try:
+                    self.delete_record(zone_id, record['id'])
+                    deleted_count += 1
+                except Exception as e:
+                    errors.append(f"Failed to delete {record['name']}: {str(e)}")
+            
+            if errors:
+                return {
+                    'success': False, 
+                    'deleted': deleted_count, 
+                    'total': len(records),
+                    'errors': errors
+                }
+                
+            return {
+                'success': True, 
+                'deleted': deleted_count, 
+                'total': len(records),
+                'message': f"Successfully deleted {deleted_count} TXT records"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error deleting all TXT records for {domain}: {e}")
+            return {'success': False, 'error': str(e)}

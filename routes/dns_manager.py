@@ -1035,3 +1035,33 @@ def get_cloudflare_domains():
             'error': error_msg
         }), 500
 
+
+@dns_manager.route('/api/cloudflare/delete-txt-records', methods=['POST'])
+@login_required
+def cloudflare_delete_txt_records():
+    """
+    Delete all TXT records for a specific domain in Cloudflare.
+    """
+    try:
+        data = request.get_json()
+        domain = data.get('domain')
+        
+        if not domain:
+            return jsonify({'success': False, 'error': 'Domain is required'}), 400
+            
+        logger.info(f"API: Deleting all TXT records for {domain} in Cloudflare...")
+        
+        dns_service = CloudflareDNSService()
+        result = dns_service.delete_all_txt_records(domain)
+        
+        if result['success']:
+            logger.info(f"API: Successfully deleted {result['deleted']} TXT records for {domain}")
+            return jsonify(result)
+        else:
+            logger.error(f"API: Failed to delete TXT records for {domain}: {result.get('error')}")
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"Error in delete-txt-records endpoint: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
