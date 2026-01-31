@@ -1041,22 +1041,43 @@ def get_cloudflare_domains():
 @login_required
 def cloudflare_delete_txt_records():
     """
-    Delete all TXT records for a specific domain in Cloudflare.
+    Delete all TXT records for specific domains in Cloudflare.
     Streams progress updates.
     """
     try:
         data = request.get_json()
-        domain = data.get('domain')
+        input_domains = data.get('domains') or data.get('domain')
         
-        if not domain:
-            return jsonify({'success': False, 'error': 'Domain is required'}), 400
+        if not input_domains:
+            return jsonify({'success': False, 'error': 'Domains are required'}), 400
             
-        logger.info(f"API: Deleting all TXT records for {domain} in Cloudflare (streaming)...")
+        # Normalize to list
+        if isinstance(input_domains, str):
+            domains_list = [d.strip() for d in input_domains.split('\n') if d.strip()]
+        elif isinstance(input_domains, list):
+            domains_list = [d.strip() for d in input_domains if d.strip()]
+        else:
+            return jsonify({'success': False, 'error': 'Invalid domains format'}), 400
+            
+        if not domains_list:
+             return jsonify({'success': False, 'error': 'No valid domains provided'}), 400
+
+        logger.info(f"API: Deleting all TXT records for {len(domains_list)} domains in Cloudflare (streaming)...")
         
         def generate():
             dns_service = CloudflareDNSService()
-            for progress in dns_service.yield_delete_all_txt_records(domain):
-                yield f"data: {json.dumps(progress)}\n\n"
+            total_domains = len(domains_list)
+            
+            for i, domain in enumerate(domains_list, 1):
+                yield f"data: {json.dumps({'type': 'info', 'message': f'Processing domain {i}/{total_domains}: {domain}'})}\n\n"
+                
+                # Yield progress from the service
+                for progress in dns_service.yield_delete_all_txt_records(domain):
+                    yield f"data: {json.dumps(progress)}\n\n"
+                    
+                yield f"data: {json.dumps({'type': 'info', 'message': '----------------------------------------'})}\n\n"
+
+            yield f"data: {json.dumps({'type': 'complete', 'success': True, 'message': 'All domains processed.'})}\n\n"
         
         return Response(stream_with_context(generate()), mimetype='text/event-stream')
             

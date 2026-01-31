@@ -1977,12 +1977,13 @@
         <div style="margin-bottom: 20px;">
             <div class="form-group-github" style="margin-bottom: 16px;">
                 <label for="cloudflare-delete-domain" class="form-label-github">
-                    <i class="fas fa-globe"></i> Domain to Clean
+                    <i class="fas fa-globe"></i> Domains to Clean (one per line)
                 </label>
-                <input type="text" id="cloudflare-delete-domain" class="form-control-github" placeholder="example.com">
+                <textarea id="cloudflare-delete-domain" class="form-control-github" rows="5"
+                    placeholder="example.com&#10;domain2.com&#10;sub.domain3.org"></textarea>
                 <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
                     <i class="fas fa-exclamation-triangle" style="color: var(--color-danger-fg);"></i>
-                    <strong>Warning:</strong> This will delete ALL TXT records for this domain in Cloudflare. This
+                    <strong>Warning:</strong> This will delete ALL TXT records for these domains in Cloudflare. This
                     action cannot be undone.
                 </small>
             </div>
@@ -2004,16 +2005,23 @@
     // Make function globally available
     window.deleteCloudflareTXTRecords = async function () {
         const domainInput = document.getElementById('cloudflare-delete-domain');
-        const domain = domainInput.value.trim();
+        const contentRaw = domainInput.value.trim();
         const resultDiv = document.getElementById('cloudflare-delete-result');
         const contentDiv = document.getElementById('cloudflare-delete-content');
 
-        if (!domain) {
-            alert('Please enter a domain.');
+        if (!contentRaw) {
+            alert('Please enter at least one domain.');
             return;
         }
 
-        if (!confirm(`Are you sure you want to delete ALL TXT records for ${domain}? This cannot be undone.`)) {
+        const domainList = contentRaw.split('\n').map(d => d.trim()).filter(d => d);
+
+        if (domainList.length === 0) {
+            alert('Please enter valid domains.');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to delete ALL TXT records for ${domainList.length} domains? This cannot be undone.`)) {
             return;
         }
 
@@ -2030,7 +2038,7 @@
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
-        appendLog('Starting process...', 'var(--color-accent-fg)');
+        appendLog(`Starting process for ${domainList.length} domains...`, 'var(--color-accent-fg)');
 
         try {
             const response = await fetch('/api/cloudflare/delete-txt-records', {
@@ -2038,7 +2046,7 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ domain: domain })
+                body: JSON.stringify({ domains: contentRaw })
             });
 
             const reader = response.body.getReader();

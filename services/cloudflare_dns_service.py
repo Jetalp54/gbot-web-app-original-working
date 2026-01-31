@@ -117,21 +117,43 @@ class CloudflareDNSService:
         """
         try:
             url = f"{self.BASE_URL}/zones/{zone_id}/dns_records"
-            params = {'per_page': 100}
+            params = {'per_page': 100, 'page': 1}
             if type:
                 params['type'] = type
             if name:
                 params['name'] = name
-                
-            response = requests.get(url, headers=self._headers, params=params, timeout=30)
-            response.raise_for_status()
             
-            data = response.json()
-            if not data.get('success'):
-                logger.error(f"Cloudflare API error getting records: {data.get('errors')}")
-                return []
+            all_records = []
+            
+            while True:
+                response = requests.get(url, headers=self._headers, params=params, timeout=30)
+                response.raise_for_status()
                 
-            return data.get('result', [])
+                data = response.json()
+                if not data.get('success'):
+                    logger.error(f"Cloudflare API error getting records: {data.get('errors')}")
+                    # If partial failure, maybe break? Or just return what we have? 
+                    # Returning empty list or raising might be better depending on severity.
+                    # For now, let's stop and log
+                    break
+                    
+                records = data.get('result', [])
+                if not records:
+                    break
+                    
+                all_records.extend(records)
+                
+                # Check pagination
+                result_info = data.get('result_info', {})
+                total_pages = result_info.get('total_pages', 1)
+                current_page = result_info.get('page', params['page'])
+                
+                if current_page >= total_pages:
+                    break
+                    
+                params['page'] += 1
+                
+            return all_records
             
         except Exception as e:
             logger.error(f"Error getting DNS records: {e}")
