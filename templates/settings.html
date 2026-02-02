@@ -3,944 +3,960 @@
 {% block title %}Settings - GBot Web{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div style="margin-bottom: 24px;">
-        <h1 class="github-card-title">
-            <i class="fas fa-cog"></i>
-            Settings
-        </h1>
-        <p style="color: #656d76; margin: 8px 0 0 0; font-size: 14px;">
-            Configure application settings and server connections
-        </p>
-    </div>
-
-    <!-- Settings Content Wrapper for Drag & Drop -->
-    <style>
-        /* NUCLEAR LAYOUT FIX */
-        #settings-sortable-container {
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 24px !important;
-            width: 100% !important;
-            max-width: 100% !important;
-        }
-
-        .draggable-card {
-            width: 100% !important;
-            display: block !important;
-            margin-bottom: 24px !important;
-            flex: 0 0 auto !important;
-        }
-    </style>
-    <div id="settings-sortable-container" style="display: flex; flex-direction: column; gap: 24px;">
-
-        <!-- Server Configuration Section -->
-        <div class="github-card draggable-card" data-id="server-config" style="margin-bottom: 24px;">
-            <div class="github-card-header" style="cursor: move;">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-server"></i>
-                    Server Configuration
-                </h3>
-            </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Configure the server connection for importing accounts from JSON files.
-                This server should contain the credential JSON files for Google Workspace accounts.
+<div class="main-container">
+    <div class="container-fluid" style="max-width: 100%;">
+        <div style="margin-bottom: 24px;">
+            <h1 class="github-card-title">
+                <i class="fas fa-cog"></i>
+                Settings
+            </h1>
+            <p style="color: #656d76; margin: 8px 0 0 0; font-size: 14px;">
+                Configure application settings and server connections
             </p>
-
-            <form id="server-config-form">
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="server_host" class="form-label-github">
-                            <i class="fas fa-globe"></i> Server Host/IP
-                        </label>
-                        <input type="text" class="form-control-github w-100" id="server_host"
-                            placeholder="192.168.1.100 or server.domain.com" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            IP address or hostname of the server
-                        </small>
-                    </div>
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="server_port" class="form-label-github">
-                            <i class="fas fa-plug"></i> Port
-                        </label>
-                        <input type="number" class="form-control-github w-100" id="server_port" value="22" min="1"
-                            max="65535" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            SSH port (default: 22)
-                        </small>
-                    </div>
-                </div>
-
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="server_username" class="form-label-github">
-                            <i class="fas fa-user"></i> Username
-                        </label>
-                        <input type="text" class="form-control-github w-100" id="server_username"
-                            placeholder="ubuntu or root" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            SSH username for server access
-                        </small>
-                    </div>
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="server_auth_method" class="form-label-github">
-                            <i class="fas fa-lock"></i> Authentication Method
-                        </label>
-                        <select class="form-control-github w-100" id="server_auth_method" required>
-                            <option value="password">Password</option>
-                            <option value="key">SSH Key</option>
-                        </select>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Choose authentication method
-                        </small>
-                    </div>
-                </div>
-
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" id="password-field" style="min-width: 250px;">
-                        <label for="server_password" class="form-label-github">
-                            <i class="fas fa-key"></i> Password
-                        </label>
-                        <input type="password" class="form-control-github w-100" id="server_password"
-                            placeholder="Server password">
-                        <small style="color: #656d76; font-size: 12px;">
-                            SSH password (if using password auth)
-                        </small>
-                    </div>
-                    <div class="flex-grow-1" id="key-field" style="display: none; min-width: 250px;">
-                        <label for="server_private_key" class="form-label-github">
-                            <i class="fas fa-key"></i> Private Key
-                        </label>
-                        <textarea class="form-control-github w-100" id="server_private_key" rows="4"
-                            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
-                            style="resize: vertical; font-family: 'Courier New', monospace; font-size: 12px;"></textarea>
-                        <small style="color: #656d76; font-size: 12px;">
-                            SSH private key content (if using key auth)
-                        </small>
-                    </div>
-                </div>
-
-                <div class="form-group-github">
-                    <label for="server_json_path" class="form-label-github">
-                        <i class="fas fa-folder"></i> JSON Files Directory Structure
-                    </label>
-                    <div
-                        style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
-                        <code style="color: #0969da; font-size: 14px;">/home/brightmindscampus/{account}/*.json</code>
-                    </div>
-                    <small style="color: #656d76; font-size: 12px;">
-                        Each account has its own directory containing JSON credential files. The system will
-                        automatically
-                        look for JSON files in each account's directory.
-                    </small>
-                </div>
-
-                <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
-                    <button type="button" class="btn-github" onclick="testServerConnection()">
-                        <i class="fas fa-search"></i> Test Connection
-                    </button>
-                    <button type="submit" class="btn-github btn-github-primary">
-                        <i class="fas fa-save"></i> Save Configuration
-                    </button>
-                </div>
-            </form>
         </div>
 
-        <!-- Namecheap DNS Configuration Section -->
-        <div class="github-card draggable-card" data-id="namecheap-config" style="margin-bottom: 24px;">
-            <div class="github-card-header" style="cursor: move;">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-globe"></i>
-                    Namecheap DNS Configuration
-                </h3>
+        <!-- Settings Content Wrapper for Drag & Drop -->
+        <style>
+            /* NUCLEAR LAYOUT FIX */
+            #settings-sortable-container {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 24px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+
+            .draggable-card {
+                width: 100% !important;
+                display: block !important;
+                margin-bottom: 24px !important;
+                flex: 0 0 auto !important;
+            }
+        </style>
+        <div id="settings-sortable-container" style="display: flex; flex-direction: column; gap: 24px;">
+
+            <!-- Server Configuration Section -->
+            <div class="github-card draggable-card" data-id="server-config" style="margin-bottom: 24px;">
+                <div class="github-card-header" style="cursor: move;">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-server"></i>
+                        Server Configuration
+                    </h3>
+                </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Configure the server connection for importing accounts from JSON files.
+                    This server should contain the credential JSON files for Google Workspace accounts.
+                </p>
+
+                <form id="server-config-form">
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="server_host" class="form-label-github">
+                                <i class="fas fa-globe"></i> Server Host/IP
+                            </label>
+                            <input type="text" class="form-control-github w-100" id="server_host"
+                                placeholder="192.168.1.100 or server.domain.com" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                IP address or hostname of the server
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="server_port" class="form-label-github">
+                                <i class="fas fa-plug"></i> Port
+                            </label>
+                            <input type="number" class="form-control-github w-100" id="server_port" value="22" min="1"
+                                max="65535" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                SSH port (default: 22)
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="server_username" class="form-label-github">
+                                <i class="fas fa-user"></i> Username
+                            </label>
+                            <input type="text" class="form-control-github w-100" id="server_username"
+                                placeholder="ubuntu or root" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                SSH username for server access
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="server_auth_method" class="form-label-github">
+                                <i class="fas fa-lock"></i> Authentication Method
+                            </label>
+                            <select class="form-control-github w-100" id="server_auth_method" required>
+                                <option value="password">Password</option>
+                                <option value="key">SSH Key</option>
+                            </select>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Choose authentication method
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" id="password-field" style="min-width: 250px;">
+                            <label for="server_password" class="form-label-github">
+                                <i class="fas fa-key"></i> Password
+                            </label>
+                            <input type="password" class="form-control-github w-100" id="server_password"
+                                placeholder="Server password">
+                            <small style="color: #656d76; font-size: 12px;">
+                                SSH password (if using password auth)
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" id="key-field" style="display: none; min-width: 250px;">
+                            <label for="server_private_key" class="form-label-github">
+                                <i class="fas fa-key"></i> Private Key
+                            </label>
+                            <textarea class="form-control-github w-100" id="server_private_key" rows="4"
+                                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
+                                style="resize: vertical; font-family: 'Courier New', monospace; font-size: 12px;"></textarea>
+                            <small style="color: #656d76; font-size: 12px;">
+                                SSH private key content (if using key auth)
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="form-group-github">
+                        <label for="server_json_path" class="form-label-github">
+                            <i class="fas fa-folder"></i> JSON Files Directory Structure
+                        </label>
+                        <div
+                            style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
+                            <code
+                                style="color: #0969da; font-size: 14px;">/home/brightmindscampus/{account}/*.json</code>
+                        </div>
+                        <small style="color: #656d76; font-size: 12px;">
+                            Each account has its own directory containing JSON credential files. The system will
+                            automatically
+                            look for JSON files in each account's directory.
+                        </small>
+                    </div>
+
+                    <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+                        <button type="button" class="btn-github" onclick="testServerConnection()">
+                            <i class="fas fa-search"></i> Test Connection
+                        </button>
+                        <button type="submit" class="btn-github btn-github-primary">
+                            <i class="fas fa-save"></i> Save Configuration
+                        </button>
+                    </div>
+                </form>
             </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Configure Namecheap API credentials for DNS management. These credentials are used for automated domain
-                verification via TXT records.
-                <strong>Note:</strong> Your client IP must be whitelisted in your Namecheap account settings.
-            </p>
 
-            <form id="namecheap-config-form">
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="namecheap_api_user" class="form-label-github">
-                            <i class="fas fa-user"></i> API User
-                        </label>
-                        <input type="text" class="form-control-github w-100" id="namecheap_api_user"
-                            placeholder="your_api_user" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Your Namecheap API username
-                        </small>
-                    </div>
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="namecheap_username" class="form-label-github">
-                            <i class="fas fa-user-circle"></i> Account Username
-                        </label>
-                        <input type="text" class="form-control-github w-100" id="namecheap_username"
-                            placeholder="your_namecheap_username" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Your Namecheap account username
-                        </small>
-                    </div>
+            <!-- Namecheap DNS Configuration Section -->
+            <div class="github-card draggable-card" data-id="namecheap-config" style="margin-bottom: 24px;">
+                <div class="github-card-header" style="cursor: move;">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-globe"></i>
+                        Namecheap DNS Configuration
+                    </h3>
                 </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Configure Namecheap API credentials for DNS management. These credentials are used for automated
+                    domain
+                    verification via TXT records.
+                    <strong>Note:</strong> Your client IP must be whitelisted in your Namecheap account settings.
+                </p>
 
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="namecheap_api_key" class="form-label-github">
-                            <i class="fas fa-key"></i> API Key
-                        </label>
-                        <input type="password" class="form-control-github w-100" id="namecheap_api_key"
-                            placeholder="your_api_key" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Your Namecheap API key (found in your account settings)
-                        </small>
+                <form id="namecheap-config-form">
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="namecheap_api_user" class="form-label-github">
+                                <i class="fas fa-user"></i> API User
+                            </label>
+                            <input type="text" class="form-control-github w-100" id="namecheap_api_user"
+                                placeholder="your_api_user" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Your Namecheap API username
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="namecheap_username" class="form-label-github">
+                                <i class="fas fa-user-circle"></i> Account Username
+                            </label>
+                            <input type="text" class="form-control-github w-100" id="namecheap_username"
+                                placeholder="your_namecheap_username" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Your Namecheap account username
+                            </small>
+                        </div>
                     </div>
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="namecheap_client_ip" class="form-label-github">
-                            <i class="fas fa-network-wired"></i> Client IP
-                        </label>
-                        <input type="text" class="form-control-github w-100" id="namecheap_client_ip"
-                            placeholder="1.2.3.4" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Your server's public IP (must be whitelisted in Namecheap)
-                        </small>
+
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="namecheap_api_key" class="form-label-github">
+                                <i class="fas fa-key"></i> API Key
+                            </label>
+                            <input type="password" class="form-control-github w-100" id="namecheap_api_key"
+                                placeholder="your_api_key" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Your Namecheap API key (found in your account settings)
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="namecheap_client_ip" class="form-label-github">
+                                <i class="fas fa-network-wired"></i> Client IP
+                            </label>
+                            <input type="text" class="form-control-github w-100" id="namecheap_client_ip"
+                                placeholder="1.2.3.4" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Your server's public IP (must be whitelisted in Namecheap)
+                            </small>
+                        </div>
                     </div>
+
+                    <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px; flex-wrap: wrap;">
+                        <button type="submit" class="btn-github btn-github-primary">
+                            <i class="fas fa-save"></i> Save Namecheap Configuration
+                        </button>
+                        <button type="button" class="btn-github" onclick="fetchNamecheapDomains()"
+                            id="fetch-domains-btn">
+                            <i class="fas fa-download"></i> Fetch & Retrieve Domains
+                        </button>
+                    </div>
+                </form>
+
+                <div id="namecheap-config-status" style="margin-top: 16px; display: none;"></div>
+            </div>
+
+            <!-- AWS Accounts Management Section -->
+            <div class="github-card draggable-card" data-id="aws-accounts" id="aws-accounts"
+                style="margin-bottom: 24px;">
+                <div class="github-card-header" style="cursor: move;">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fab fa-aws"></i>
+                        AWS Accounts Management
+                    </h3>
                 </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Manage multiple AWS accounts. Add, edit, or remove AWS credentials.
+                    Select the active account to use for AWS operations.
+                </p>
 
-                <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px; flex-wrap: wrap;">
-                    <button type="submit" class="btn-github btn-github-primary">
-                        <i class="fas fa-save"></i> Save Namecheap Configuration
+                <!-- Add Account Button -->
+                <div style="margin-bottom: 16px;">
+                    <button type="button" class="btn-github btn-github-primary" onclick="openAwsAccountModal()">
+                        <i class="fas fa-plus"></i> Add AWS Account
                     </button>
-                    <button type="button" class="btn-github" onclick="fetchNamecheapDomains()" id="fetch-domains-btn">
-                        <i class="fas fa-download"></i> Fetch & Retrieve Domains
-                    </button>
                 </div>
-            </form>
 
-            <div id="namecheap-config-status" style="margin-top: 16px; display: none;"></div>
-        </div>
-
-        <!-- AWS Accounts Management Section -->
-        <div class="github-card draggable-card" data-id="aws-accounts" id="aws-accounts" style="margin-bottom: 24px;">
-            <div class="github-card-header" style="cursor: move;">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fab fa-aws"></i>
-                    AWS Accounts Management
-                </h3>
+                <!-- Accounts Table -->
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid #30363d;">
+                                <th style="padding: 12px; text-align: left; color: #e6edf3;">Account Name</th>
+                                <th style="padding: 12px; text-align: left; color: #e6edf3;">Region</th>
+                                <th style="padding: 12px; text-align: left; color: #e6edf3;">Access Key</th>
+                                <th style="padding: 12px; text-align: left; color: #e6edf3;">Status</th>
+                                <th style="padding: 12px; text-align: right; color: #e6edf3;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="aws-accounts-tbody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 24px; color: #656d76;">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading accounts...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Manage multiple AWS accounts. Add, edit, or remove AWS credentials.
-                Select the active account to use for AWS operations.
-            </p>
 
-            <!-- Add Account Button -->
-            <div style="margin-bottom: 16px;">
-                <button type="button" class="btn-github btn-github-primary" onclick="openAwsAccountModal()">
-                    <i class="fas fa-plus"></i> Add AWS Account
-                </button>
-            </div>
+            <!-- Cloudflare DNS Configuration Section -->
+            <div class="github-card draggable-card" data-id="cloudflare-config" style="margin-bottom: 24px;">
+                <div class="github-card-header" style="cursor: move;">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-cloud"></i>
+                        Cloudflare DNS Configuration
+                    </h3>
+                </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Configure Cloudflare API credentials for DNS management. These credentials are used for automated
+                    domain
+                    verification via TXT records.
+                </p>
 
-            <!-- Accounts Table -->
-            <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid #30363d;">
-                            <th style="padding: 12px; text-align: left; color: #e6edf3;">Account Name</th>
-                            <th style="padding: 12px; text-align: left; color: #e6edf3;">Region</th>
-                            <th style="padding: 12px; text-align: left; color: #e6edf3;">Access Key</th>
-                            <th style="padding: 12px; text-align: left; color: #e6edf3;">Status</th>
-                            <th style="padding: 12px; text-align: right; color: #e6edf3;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="aws-accounts-tbody">
-                        <tr>
-                            <td colspan="5" style="text-align: center; padding: 24px; color: #656d76;">
-                                <i class="fas fa-spinner fa-spin"></i> Loading accounts...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Cloudflare DNS Configuration Section -->
-        <div class="github-card draggable-card" data-id="cloudflare-config" style="margin-bottom: 24px;">
-            <div class="github-card-header" style="cursor: move;">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-cloud"></i>
-                    Cloudflare DNS Configuration
-                </h3>
-            </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Configure Cloudflare API credentials for DNS management. These credentials are used for automated domain
-                verification via TXT records.
-            </p>
-
-            <form id="cloudflare-config-form">
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="cloudflare_api_token" class="form-label-github">
-                            <i class="fas fa-key"></i> API Token
-                        </label>
-                        <input type="password" class="form-control-github w-100" id="cloudflare_api_token"
-                            placeholder="your_api_token" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Your Cloudflare API Token (Edit Zone DNS permissions required)
-                        </small>
+                <form id="cloudflare-config-form">
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="cloudflare_api_token" class="form-label-github">
+                                <i class="fas fa-key"></i> API Token
+                            </label>
+                            <input type="password" class="form-control-github w-100" id="cloudflare_api_token"
+                                placeholder="your_api_token" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Your Cloudflare API Token (Edit Zone DNS permissions required)
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="cloudflare_email" class="form-label-github">
+                                <i class="fas fa-envelope"></i> Email Address
+                            </label>
+                            <input type="email" class="form-control-github w-100" id="cloudflare_email"
+                                placeholder="your_email@example.com" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Your Cloudflare account email address
+                            </small>
+                        </div>
                     </div>
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="cloudflare_email" class="form-label-github">
-                            <i class="fas fa-envelope"></i> Email Address
-                        </label>
-                        <input type="email" class="form-control-github w-100" id="cloudflare_email"
-                            placeholder="your_email@example.com" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Your Cloudflare account email address
-                        </small>
+
+                    <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+                        <button type="submit" class="btn-github btn-github-primary">
+                            <i class="fas fa-save"></i> Save Cloudflare Configuration
+                        </button>
+                        <button type="button" class="btn-github" onclick="fetchCloudflareDomains()"
+                            id="fetch-cf-domains-btn">
+                            <i class="fas fa-download"></i> Fetch & Retrieve Domains
+                        </button>
                     </div>
-                </div>
+                </form>
 
-                <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
-                    <button type="submit" class="btn-github btn-github-primary">
-                        <i class="fas fa-save"></i> Save Cloudflare Configuration
-                    </button>
-                    <button type="button" class="btn-github" onclick="fetchCloudflareDomains()"
-                        id="fetch-cf-domains-btn">
-                        <i class="fas fa-download"></i> Fetch & Retrieve Domains
-                    </button>
-                </div>
-            </form>
+                <div id="cloudflare-config-status" style="margin-top: 16px; display: none;"></div>
+            </div>
 
-            <div id="cloudflare-config-status" style="margin-top: 16px; display: none;"></div>
-        </div>
+            <!-- End settings-sortable-container removed from here -->
 
-        <!-- End settings-sortable-container removed from here -->
-
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                var el = document.getElementById('settings-sortable-container');
-                if (el) {
-                    Sortable.create(el, {
-                        animation: 150,
-                        handle: '.github-card-header',
-                        draggable: '.draggable-card',
-                        ghostClass: 'sortable-ghost',
-                        store: {
-                            get: function (sortable) {
-                                var order = localStorage.getItem('settings-order');
-                                return order ? order.split('|') : [];
-                            },
-                            set: function (sortable) {
-                                var order = sortable.toArray();
-                                localStorage.setItem('settings-order', order.join('|'));
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    var el = document.getElementById('settings-sortable-container');
+                    if (el) {
+                        Sortable.create(el, {
+                            animation: 150,
+                            handle: '.github-card-header',
+                            draggable: '.draggable-card',
+                            ghostClass: 'sortable-ghost',
+                            store: {
+                                get: function (sortable) {
+                                    var order = localStorage.getItem('settings-order');
+                                    return order ? order.split('|') : [];
+                                },
+                                set: function (sortable) {
+                                    var order = sortable.toArray();
+                                    localStorage.setItem('settings-order', order.join('|'));
+                                }
                             }
-                        }
-                    });
-                }
-            });
-        </script>
+                        });
+                    }
+                });
+            </script>
 
-        <!-- Garbage divs removed from here -->
+            <!-- Garbage divs removed from here -->
 
-        <!-- AWS & G-Workspace Credentials Section -->
-        <div class="github-card" style="margin-bottom: 24px;">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-cloud"></i>
-                    AWS & G-Workspace Credentials
-                </h3>
-            </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Configure AWS credentials for Lambda function management and Google Workspace automation. These
-                credentials
-                are saved securely and will be used for all AWS operations.
-            </p>
-
-            <form id="aws-config-form">
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="aws_access_key_id" class="form-label-github">
-                            <i class="fas fa-key"></i> Access Key ID
-                        </label>
-                        <input type="text" class="form-control-github w-100" id="aws_access_key_id"
-                            placeholder="Enter AWS Access Key ID" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Your AWS Access Key ID
-                        </small>
-                    </div>
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="aws_secret_access_key" class="form-label-github">
-                            <i class="fas fa-lock"></i> Secret Access Key
-                        </label>
-                        <input type="password" class="form-control-github w-100" id="aws_secret_access_key"
-                            placeholder="Enter AWS Secret Access Key" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Your AWS Secret Access Key
-                        </small>
-                    </div>
+            <!-- AWS & G-Workspace Credentials Section -->
+            <div class="github-card" style="margin-bottom: 24px;">
+                <div class="github-card-header">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-cloud"></i>
+                        AWS & G-Workspace Credentials
+                    </h3>
                 </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Configure AWS credentials for Lambda function management and Google Workspace automation. These
+                    credentials
+                    are saved securely and will be used for all AWS operations.
+                </p>
 
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="aws_region" class="form-label-github">
-                            <i class="fas fa-globe"></i> AWS Region
+                <form id="aws-config-form">
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="aws_access_key_id" class="form-label-github">
+                                <i class="fas fa-key"></i> Access Key ID
+                            </label>
+                            <input type="text" class="form-control-github w-100" id="aws_access_key_id"
+                                placeholder="Enter AWS Access Key ID" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Your AWS Access Key ID
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="aws_secret_access_key" class="form-label-github">
+                                <i class="fas fa-lock"></i> Secret Access Key
+                            </label>
+                            <input type="password" class="form-control-github w-100" id="aws_secret_access_key"
+                                placeholder="Enter AWS Secret Access Key" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Your AWS Secret Access Key
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="aws_region" class="form-label-github">
+                                <i class="fas fa-globe"></i> AWS Region
+                            </label>
+                            <select class="form-control-github w-100" id="aws_region" required>
+                                <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
+                                <option value="us-east-2">US East (Ohio) - us-east-2</option>
+                                <option value="us-west-1">US West (N. California) - us-west-1</option>
+                                <option value="us-west-2">US West (Oregon) - us-west-2</option>
+                                <option value="af-south-1">Africa (Cape Town) - af-south-1</option>
+                                <option value="ap-east-1">Asia Pacific (Hong Kong) - ap-east-1</option>
+                                <option value="ap-south-1">Asia Pacific (Mumbai) - ap-south-1</option>
+                                <option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
+                                <option value="ap-northeast-2">Asia Pacific (Seoul) - ap-northeast-2</option>
+                                <option value="ap-northeast-3">Asia Pacific (Osaka) - ap-northeast-3</option>
+                                <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
+                                <option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
+                                <option value="ap-southeast-3">Asia Pacific (Jakarta) - ap-southeast-3</option>
+                                <option value="ca-central-1">Canada (Central) - ca-central-1</option>
+                                <option value="eu-central-1">Europe (Frankfurt) - eu-central-1</option>
+                                <option value="eu-west-1" selected>Europe (Ireland) - eu-west-1</option>
+                                <option value="eu-west-2">Europe (London) - eu-west-2</option>
+                                <option value="eu-west-3">Europe (Paris) - eu-west-3</option>
+                                <option value="eu-north-1">Europe (Stockholm) - eu-north-1</option>
+                                <option value="eu-south-1">Europe (Milan) - eu-south-1</option>
+                                <option value="me-south-1">Middle East (Bahrain) - me-south-1</option>
+                                <option value="me-central-1">Middle East (UAE) - me-central-1</option>
+                                <option value="sa-east-1">South America (São Paulo) - sa-east-1</option>
+                            </select>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Select your AWS region
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="aws_s3_bucket" class="form-label-github">
+                                <i class="fas fa-bucket"></i> S3 Bucket (App Passwords)
+                            </label>
+                            <input type="text" class="form-control-github w-100" id="aws_s3_bucket"
+                                value="gbot-app-passwords" placeholder="gbot-app-passwords">
+                            <small style="color: #656d76; font-size: 12px;">
+                                S3 bucket name for app password storage
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="form-group-github" style="margin-bottom: 16px;">
+                        <label for="aws_ecr_uri" class="form-label-github">
+                            <i class="fas fa-box"></i> ECR Image URI (Chromium Lambda)
                         </label>
-                        <select class="form-control-github w-100" id="aws_region" required>
-                            <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
-                            <option value="us-east-2">US East (Ohio) - us-east-2</option>
-                            <option value="us-west-1">US West (N. California) - us-west-1</option>
-                            <option value="us-west-2">US West (Oregon) - us-west-2</option>
-                            <option value="af-south-1">Africa (Cape Town) - af-south-1</option>
-                            <option value="ap-east-1">Asia Pacific (Hong Kong) - ap-east-1</option>
-                            <option value="ap-south-1">Asia Pacific (Mumbai) - ap-south-1</option>
-                            <option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
-                            <option value="ap-northeast-2">Asia Pacific (Seoul) - ap-northeast-2</option>
-                            <option value="ap-northeast-3">Asia Pacific (Osaka) - ap-northeast-3</option>
-                            <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
-                            <option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
-                            <option value="ap-southeast-3">Asia Pacific (Jakarta) - ap-southeast-3</option>
-                            <option value="ca-central-1">Canada (Central) - ca-central-1</option>
-                            <option value="eu-central-1">Europe (Frankfurt) - eu-central-1</option>
-                            <option value="eu-west-1" selected>Europe (Ireland) - eu-west-1</option>
-                            <option value="eu-west-2">Europe (London) - eu-west-2</option>
-                            <option value="eu-west-3">Europe (Paris) - eu-west-3</option>
-                            <option value="eu-north-1">Europe (Stockholm) - eu-north-1</option>
-                            <option value="eu-south-1">Europe (Milan) - eu-south-1</option>
-                            <option value="me-south-1">Middle East (Bahrain) - me-south-1</option>
-                            <option value="me-central-1">Middle East (UAE) - me-central-1</option>
-                            <option value="sa-east-1">South America (São Paulo) - sa-east-1</option>
+                        <input type="text" class="form-control-github" id="aws_ecr_uri" value=""
+                            placeholder="e.g., 123456789.dkr.ecr.eu-west-1.amazonaws.com/my-repo:latest">
+                        <small style="color: #656d76; font-size: 12px;">
+                            Enter your ECR Image URI. Format:
+                            &lt;account-id&gt;.dkr.ecr.&lt;region&gt;.amazonaws.com/&lt;repo-name&gt;:&lt;tag&gt;
+                        </small>
+                    </div>
+
+                    <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+                        <button type="button" class="btn-github" onclick="testAwsConnection()">
+                            <i class="fas fa-plug"></i> Test Connection
+                        </button>
+                        <button type="submit" class="btn-github btn-github-primary">
+                            <i class="fas fa-save"></i> Save Configuration
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- OTP Generator SSH Settings Section -->
+            <div class="github-card" style="margin-bottom: 24px;">
+                <div class="github-card-header">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-key"></i>
+                        OTP Generator SSH Settings
+                    </h3>
+                </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Configure the SSH server connection for OTP generation. This server should contain the authenticator
+                    secret
+                    key files for generating OTP codes.
+                </p>
+
+                <form id="otp-ssh-config-form">
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="otp_server_host" class="form-label-github">
+                                <i class="fas fa-globe"></i> Server Host/IP
+                            </label>
+                            <input type="text" class="form-control-github w-100" id="otp_server_host"
+                                placeholder="91.98.224.35" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                IP address or hostname of the OTP server
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="otp_server_port" class="form-label-github">
+                                <i class="fas fa-plug"></i> Port
+                            </label>
+                            <input type="number" class="form-control-github w-100" id="otp_server_port" value="22"
+                                min="1" max="65535" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                SSH port (default: 22)
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="otp_server_username" class="form-label-github">
+                                <i class="fas fa-user"></i> Username
+                            </label>
+                            <input type="text" class="form-control-github w-100" id="otp_server_username"
+                                placeholder="root" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                SSH username for server access
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="otp_server_auth_method" class="form-label-github">
+                                <i class="fas fa-lock"></i> Authentication Method
+                            </label>
+                            <select class="form-control-github w-100" id="otp_server_auth_method" required>
+                                <option value="password">Password</option>
+                                <option value="key">SSH Key</option>
+                            </select>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Choose authentication method
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" id="otp_password_field" style="min-width: 250px;">
+                            <label for="otp_server_password" class="form-label-github">
+                                <i class="fas fa-key"></i> Password
+                            </label>
+                            <input type="password" class="form-control-github w-100" id="otp_server_password"
+                                placeholder="Server password">
+                            <small style="color: #656d76; font-size: 12px;">
+                                SSH password (if using password auth)
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" id="otp_key_field" style="display: none; min-width: 250px;">
+                            <label for="otp_server_private_key" class="form-label-github">
+                                <i class="fas fa-key"></i> Private Key
+                            </label>
+                            <textarea class="form-control-github w-100" id="otp_server_private_key" rows="4"
+                                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
+                                style="resize: vertical; font-family: 'Courier New', monospace; font-size: 12px;"></textarea>
+                            <small style="color: #656d76; font-size: 12px;">
+                                SSH private key content (if using key auth)
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="form-group-github">
+                        <label for="otp_secret_keys_path" class="form-label-github">
+                            <i class="fas fa-folder"></i> Secret Keys Directory Structure
+                        </label>
+                        <div
+                            style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
+                            <code
+                                style="color: #0969da; font-size: 14px;">/home/brightmindscampus/{account}/{account}_authenticator_secret_key.txt</code>
+                        </div>
+                        <small style="color: #656d76; font-size: 12px;">
+                            Each account has its own directory containing the authenticator secret key file. The system
+                            will
+                            automatically look for the secret key file in each account's directory.
+                        </small>
+                    </div>
+
+                    <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+                        <button type="button" class="btn-github" onclick="testOTPServerConnection()">
+                            <i class="fas fa-search"></i> Test Connection
+                        </button>
+                        <button type="submit" class="btn-github btn-github-primary">
+                            <i class="fas fa-save"></i> Save OTP Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Database Backup Section -->
+            <div class="github-card" style="margin-bottom: 24px;">
+                <div class="github-card-header">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-database"></i>
+                        Database Backup
+                    </h3>
+                </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Create and download complete database backups. This will backup the entire database including all
+                    users,
+                    accounts, tokens, and configurations.
+                </p>
+
+                <div class="d-flex flex-wrap gap-3 mb-4">
+                    <div class="flex-grow-1" style="min-width: 250px;">
+                        <label for="backup_format" class="form-label-github">
+                            <i class="fas fa-file-code"></i> Backup Format
+                        </label>
+                        <select class="form-control-github w-100" id="backup_format">
+                            <option value="sql">SQL Dump (.sql)</option>
+                            <option value="json">JSON Export (.json)</option>
+                            <option value="csv">CSV Export (.csv)</option>
                         </select>
                         <small style="color: #656d76; font-size: 12px;">
-                            Select your AWS region
+                            Choose the format for your database backup
                         </small>
                     </div>
                     <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="aws_s3_bucket" class="form-label-github">
-                            <i class="fas fa-bucket"></i> S3 Bucket (App Passwords)
+                        <label for="backup_include_data" class="form-label-github">
+                            <i class="fas fa-check-square"></i> Include Data
                         </label>
-                        <input type="text" class="form-control-github w-100" id="aws_s3_bucket"
-                            value="gbot-app-passwords" placeholder="gbot-app-passwords">
+                        <select class="form-control-github w-100" id="backup_include_data">
+                            <option value="full">Full Backup (Schema + Data)</option>
+                            <option value="schema">Schema Only</option>
+                            <option value="data">Data Only</option>
+                        </select>
                         <small style="color: #656d76; font-size: 12px;">
-                            S3 bucket name for app password storage
+                            Choose what to include in the backup
                         </small>
                     </div>
                 </div>
 
-                <div class="form-group-github" style="margin-bottom: 16px;">
-                    <label for="aws_ecr_uri" class="form-label-github">
-                        <i class="fas fa-box"></i> ECR Image URI (Chromium Lambda)
+                <div style="display: flex; gap: 16px; justify-content: center; margin-bottom: 24px;">
+                    <button type="button" class="btn-github btn-github-primary" onclick="createDatabaseBackup()">
+                        <i class="fas fa-database"></i> Create Database Backup
+                    </button>
+                    <button type="button" class="btn-github" onclick="testDatabaseBackup()">
+                        <i class="fas fa-search"></i> Test Backup System
+                    </button>
+                    <button type="button" class="btn-github" onclick="refreshBackupFiles()">
+                        <i class="fas fa-sync-alt"></i> Refresh Backup List
+                    </button>
+                </div>
+
+                <div id="backup-progress" style="display: none; margin-bottom: 24px;">
+                    <div class="status-info" style="background: #fff3cd; border-color: #ffeaa7;">
+                        <p><strong>🔄 Creating Database Backup</strong></p>
+                        <p id="backup-progress-text">Preparing backup...</p>
+                        <div
+                            style="background: #f6f8fa; border-radius: 6px; height: 8px; margin-top: 8px; overflow: hidden;">
+                            <div id="backup-progress-bar"
+                                style="background: #0969da; height: 100%; width: 0%; transition: width 0.3s; border-radius: 6px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Available Backups -->
+            <div class="github-card" style="margin-bottom: 24px;">
+                <div class="github-card-header">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-archive"></i>
+                        Available Database Backups
+                    </h3>
+                </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Download previously created database backups. Backups are stored on the server and can be
+                    downloaded.
+                </p>
+
+                <div id="backup-files-list" style="margin-bottom: 24px;">
+                    <div style="text-align: center; padding: 40px; color: #656d76;">
+                        <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i>
+                        Loading backup files...
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 16px; justify-content: center;">
+                    <button type="button" class="btn-github" onclick="refreshBackupFiles()">
+                        <i class="fas fa-sync-alt"></i> Refresh Backup List
+                    </button>
+                    <button type="button" class="btn-github btn-github-danger" onclick="cleanupOldBackups()">
+                        <i class="fas fa-trash"></i> Cleanup Old Backups
+                    </button>
+                </div>
+            </div>
+
+            <!-- Database Restore Section -->
+            <div class="github-card" style="margin-bottom: 24px;">
+                <div class="github-card-header">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-undo"></i>
+                        Database Restore
+                    </h3>
+                </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Restore your database from a previous backup. You can either select from existing backups or upload
+                    a
+                    new
+                    backup file.
+                </p>
+
+                <!-- Restore Options -->
+                <div style="margin-bottom: 24px;">
+                    <div class="form-group-github">
+                        <label class="form-label-github">
+                            <i class="fas fa-list"></i> Restore Method
+                        </label>
+                        <div style="display: flex; gap: 16px; margin-bottom: 16px;">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="radio" name="restore_method" value="existing" checked
+                                    style="margin-right: 8px;">
+                                <span>Select from existing backups</span>
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="radio" name="restore_method" value="upload" style="margin-right: 8px;">
+                                <span>Upload backup file</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Existing Backup Selection -->
+                <div id="existing-backup-section">
+                    <div class="form-group-github">
+                        <label for="backup_select" class="form-label-github">
+                            <i class="fas fa-archive"></i> Select Backup File
+                        </label>
+                        <select class="form-control-github" id="backup_select">
+                            <option value="">Loading backup files...</option>
+                        </select>
+                        <small style="color: #656d76; font-size: 12px;">
+                            Choose a backup file to restore from
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Upload Backup Section -->
+                <div id="upload-backup-section" style="display: none;">
+                    <div class="form-group-github">
+                        <label for="backup_file" class="form-label-github">
+                            <i class="fas fa-upload"></i> Upload Backup File
+                        </label>
+                        <input type="file" class="form-control-github" id="backup_file" accept=".sql,.db,.json,.tar.gz">
+                        <small style="color: #656d76; font-size: 12px;">
+                            Supported formats: .sql, .db, .json, .tar.gz
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Restore Progress -->
+                <div id="restore-progress" style="display: none; margin-bottom: 24px;">
+                    <div class="status-info" style="background: #fff3cd; border-color: #ffeaa7;">
+                        <p><strong>🔄 Restoring Database</strong></p>
+                        <p id="restore-progress-text">Preparing restore...</p>
+                        <div
+                            style="background: #f6f8fa; border-radius: 6px; height: 8px; margin-top: 8px; overflow: hidden;">
+                            <div id="restore-progress-bar"
+                                style="background: #0969da; height: 100%; width: 0%; transition: width 0.3s; border-radius: 6px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Restore Actions -->
+                <div style="display: flex; gap: 16px; justify-content: center; margin-bottom: 24px;">
+                    <button type="button" class="btn-github btn-github-warning" onclick="restoreDatabase()">
+                        <i class="fas fa-undo"></i> Restore Database
+                    </button>
+                    <button type="button" class="btn-github" onclick="refreshBackupList()">
+                        <i class="fas fa-sync-alt"></i> Refresh Backup List
+                    </button>
+                    <button type="button" class="btn-github" onclick="testChunkedUpload()" style="background: #6f42c1;">
+                        <i class="fas fa-bug"></i> Test Chunked Upload
+                    </button>
+                </div>
+
+                <!-- Warning Message -->
+                <div class="status-warning" style="margin-bottom: 24px;">
+                    <p><strong>⚠️ Important Warning</strong></p>
+                    <p>Restoring a database will completely replace your current database with the backup data. This
+                        action
+                        cannot be undone. A backup of your current database will be created automatically before the
+                        restore
+                        process begins.</p>
+                </div>
+            </div>
+
+            <!-- Bulk Account Upload Section -->
+            <div class="github-card" style="margin-bottom: 24px;">
+                <div class="github-card-header">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-upload"></i>
+                        Bulk Account Upload
+                    </h3>
+                </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Upload authenticated Google Workspace accounts in JSON format. The accounts will be automatically
+                    added
+                    to
+                    the system with their tokens.
+                </p>
+
+                <div class="form-group-github">
+                    <label for="bulk-json-upload" class="form-label-github">
+                        <i class="fas fa-file-code"></i> Upload JSON File
                     </label>
-                    <input type="text" class="form-control-github" id="aws_ecr_uri" value=""
-                        placeholder="e.g., 123456789.dkr.ecr.eu-west-1.amazonaws.com/my-repo:latest">
+                    <input type="file" class="form-control-github" id="bulk-json-upload" accept=".json"
+                        style="padding: 12px; border: 2px dashed #d0d7de; background: #f6f8fa;">
                     <small style="color: #656d76; font-size: 12px;">
-                        Enter your ECR Image URI. Format:
-                        &lt;account-id&gt;.dkr.ecr.&lt;region&gt;.amazonaws.com/&lt;repo-name&gt;:&lt;tag&gt;
+                        Select a JSON file containing authenticated Google accounts with tokens, refresh tokens, and
+                        credentials.
                     </small>
                 </div>
 
+                <div id="json-preview" style="display: none; margin: 16px 0;">
+                    <h6 style="font-weight: 600; margin-bottom: 8px; color: #24292f;">
+                        <i class="fas fa-eye"></i> Preview
+                    </h6>
+                    <div id="json-preview-content"
+                        style="background: #f6f8fa; padding: 16px; border-radius: 6px; border: 1px solid #d0d7de; max-height: 200px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px;">
+                    </div>
+                </div>
+
                 <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
-                    <button type="button" class="btn-github" onclick="testAwsConnection()">
-                        <i class="fas fa-plug"></i> Test Connection
+                    <button type="button" id="validate-json-btn" class="btn-github" onclick="validateJsonFile()"
+                        disabled>
+                        <i class="fas fa-check"></i> Validate JSON
                     </button>
-                    <button type="submit" class="btn-github btn-github-primary">
-                        <i class="fas fa-save"></i> Save Configuration
+                    <button type="button" id="upload-accounts-btn" class="btn-github btn-github-primary"
+                        onclick="uploadBulkAccounts()" disabled>
+                        <i class="fas fa-upload"></i> Upload Accounts
                     </button>
                 </div>
-            </form>
-        </div>
 
-        <!-- OTP Generator SSH Settings Section -->
-        <div class="github-card" style="margin-bottom: 24px;">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-key"></i>
-                    OTP Generator SSH Settings
-                </h3>
+                <div id="upload-results" style="display: none; margin-top: 24px;">
+                    <h6 style="font-weight: 600; margin-bottom: 16px; color: #24292f;">
+                        <i class="fas fa-list-check"></i> Upload Results
+                    </h6>
+                    <div id="upload-results-content"
+                        style="background: #f6f8fa; padding: 16px; border-radius: 6px; border: 1px solid #d0d7de;">
+                    </div>
+                </div>
             </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Configure the SSH server connection for OTP generation. This server should contain the authenticator
-                secret
-                key files for generating OTP codes.
-            </p>
 
-            <form id="otp-ssh-config-form">
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="otp_server_host" class="form-label-github">
-                            <i class="fas fa-globe"></i> Server Host/IP
-                        </label>
-                        <input type="text" class="form-control-github w-100" id="otp_server_host"
-                            placeholder="91.98.224.35" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            IP address or hostname of the OTP server
-                        </small>
-                    </div>
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="otp_server_port" class="form-label-github">
-                            <i class="fas fa-plug"></i> Port
-                        </label>
-                        <input type="number" class="form-control-github w-100" id="otp_server_port" value="22" min="1"
-                            max="65535" required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            SSH port (default: 22)
-                        </small>
+            <!-- Current Configuration Display -->
+            <div class="github-card">
+                <div class="github-card-header">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-list"></i>
+                        Current Configuration
+                    </h3>
+                </div>
+                <div id="current-config-display">
+                    <div
+                        style="display: flex; align-items: center; justify-content: center; padding: 40px; color: #656d76;">
+                        <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i>
+                        Loading current configuration...
                     </div>
                 </div>
+            </div>
 
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="otp_server_username" class="form-label-github">
-                            <i class="fas fa-user"></i> Username
-                        </label>
-                        <input type="text" class="form-control-github w-100" id="otp_server_username" placeholder="root"
-                            required>
-                        <small style="color: #656d76; font-size: 12px;">
-                            SSH username for server access
-                        </small>
-                    </div>
-                    <div class="flex-grow-1" style="min-width: 250px;">
-                        <label for="otp_server_auth_method" class="form-label-github">
-                            <i class="fas fa-lock"></i> Authentication Method
-                        </label>
-                        <select class="form-control-github w-100" id="otp_server_auth_method" required>
-                            <option value="password">Password</option>
-                            <option value="key">SSH Key</option>
-                        </select>
-                        <small style="color: #656d76; font-size: 12px;">
-                            Choose authentication method
-                        </small>
-                    </div>
+            <!-- Proxy Configuration Section -->
+            <div class="github-card" style="margin-bottom: 24px;">
+                <div class="github-card-header">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-network-wired"></i>
+                        Proxy Configuration
+                    </h3>
                 </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Configure proxies for Lambda sessions to avoid CAPTCHA and rate limiting.
+                    Format: <code>IP:PORT:USERNAME:PASSWORD</code> (one per line).
+                </p>
 
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div class="flex-grow-1" id="otp_password_field" style="min-width: 250px;">
-                        <label for="otp_server_password" class="form-label-github">
-                            <i class="fas fa-key"></i> Password
-                        </label>
-                        <input type="password" class="form-control-github w-100" id="otp_server_password"
-                            placeholder="Server password">
-                        <small style="color: #656d76; font-size: 12px;">
-                            SSH password (if using password auth)
+                <form id="proxy-config-form">
+                    <div style="margin-bottom: 16px;">
+                        <div class="form-group-github"
+                            style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                            <input type="checkbox" id="proxy_enabled" name="proxy_enabled"
+                                style="width: 20px; height: 20px; cursor: pointer;">
+                            <label for="proxy_enabled"
+                                style="font-weight: 600; color: #24292f; cursor: pointer; margin: 0;">
+                                Enable Proxy Usage
+                            </label>
+                        </div>
+                        <small style="color: #656d76; font-size: 12px; display: block; margin-bottom: 16px;">
+                            When enabled, Lambda sessions will use the configured proxies for login and authentication
+                            setup.
                         </small>
                     </div>
-                    <div class="flex-grow-1" id="otp_key_field" style="display: none; min-width: 250px;">
-                        <label for="otp_server_private_key" class="form-label-github">
-                            <i class="fas fa-key"></i> Private Key
+
+                    <div class="form-group-github">
+                        <label for="proxy_list" class="form-label-github">
+                            <i class="fas fa-list"></i> Proxy List
                         </label>
-                        <textarea class="form-control-github w-100" id="otp_server_private_key" rows="4"
-                            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
+                        <textarea class="form-control-github" id="proxy_list" rows="8"
+                            placeholder="150.241.117.154:5658:ptjboxwt:1wydh3226ef3&#10;150.241.117.71:5575:ptjboxwt:1wydh3226ef3&#10;104.253.199.246:5525:ptjboxwt:1wydh3226ef3"
                             style="resize: vertical; font-family: 'Courier New', monospace; font-size: 12px;"></textarea>
                         <small style="color: #656d76; font-size: 12px;">
-                            SSH private key content (if using key auth)
+                            Enter one proxy per line in the format: <code>IP:PORT:USERNAME:PASSWORD</code>
                         </small>
                     </div>
-                </div>
 
-                <div class="form-group-github">
-                    <label for="otp_secret_keys_path" class="form-label-github">
-                        <i class="fas fa-folder"></i> Secret Keys Directory Structure
-                    </label>
-                    <div
-                        style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
-                        <code
-                            style="color: #0969da; font-size: 14px;">/home/brightmindscampus/{account}/{account}_authenticator_secret_key.txt</code>
+                    <div style="display: flex; gap: 12px; margin-top: 24px;">
+                        <button type="submit" class="btn-github-primary" style="flex: 1;">
+                            <i class="fas fa-save"></i> Save Proxy Configuration
+                        </button>
+                        <button type="button" class="btn-github-secondary" onclick="testProxyConnection()"
+                            style="flex: 1;">
+                            <i class="fas fa-vial"></i> Test Connection
+                        </button>
                     </div>
-                    <small style="color: #656d76; font-size: 12px;">
-                        Each account has its own directory containing the authenticator secret key file. The system will
-                        automatically look for the secret key file in each account's directory.
-                    </small>
-                </div>
-
-                <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
-                    <button type="button" class="btn-github" onclick="testOTPServerConnection()">
-                        <i class="fas fa-search"></i> Test Connection
-                    </button>
-                    <button type="submit" class="btn-github btn-github-primary">
-                        <i class="fas fa-save"></i> Save OTP Settings
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Database Backup Section -->
-        <div class="github-card" style="margin-bottom: 24px;">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-database"></i>
-                    Database Backup
-                </h3>
-            </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Create and download complete database backups. This will backup the entire database including all users,
-                accounts, tokens, and configurations.
-            </p>
-
-            <div class="d-flex flex-wrap gap-3 mb-4">
-                <div class="flex-grow-1" style="min-width: 250px;">
-                    <label for="backup_format" class="form-label-github">
-                        <i class="fas fa-file-code"></i> Backup Format
-                    </label>
-                    <select class="form-control-github w-100" id="backup_format">
-                        <option value="sql">SQL Dump (.sql)</option>
-                        <option value="json">JSON Export (.json)</option>
-                        <option value="csv">CSV Export (.csv)</option>
-                    </select>
-                    <small style="color: #656d76; font-size: 12px;">
-                        Choose the format for your database backup
-                    </small>
-                </div>
-                <div class="flex-grow-1" style="min-width: 250px;">
-                    <label for="backup_include_data" class="form-label-github">
-                        <i class="fas fa-check-square"></i> Include Data
-                    </label>
-                    <select class="form-control-github w-100" id="backup_include_data">
-                        <option value="full">Full Backup (Schema + Data)</option>
-                        <option value="schema">Schema Only</option>
-                        <option value="data">Data Only</option>
-                    </select>
-                    <small style="color: #656d76; font-size: 12px;">
-                        Choose what to include in the backup
-                    </small>
-                </div>
+                </form>
             </div>
 
-            <div style="display: flex; gap: 16px; justify-content: center; margin-bottom: 24px;">
-                <button type="button" class="btn-github btn-github-primary" onclick="createDatabaseBackup()">
-                    <i class="fas fa-database"></i> Create Database Backup
-                </button>
-                <button type="button" class="btn-github" onclick="testDatabaseBackup()">
-                    <i class="fas fa-search"></i> Test Backup System
-                </button>
-                <button type="button" class="btn-github" onclick="refreshBackupFiles()">
-                    <i class="fas fa-sync-alt"></i> Refresh Backup List
-                </button>
-            </div>
+            <!-- 2Captcha Configuration Section -->
+            <div class="github-card" style="margin-bottom: 24px;">
+                <div class="github-card-header">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fas fa-shield-alt"></i>
+                        2Captcha API Configuration
+                    </h3>
+                </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Configure 2Captcha API to automatically solve reCAPTCHA challenges during login.
+                    Get your API key from <a href="https://2captcha.com" target="_blank"
+                        style="color: #0969da;">2captcha.com</a>
+                </p>
 
-            <div id="backup-progress" style="display: none; margin-bottom: 24px;">
-                <div class="status-info" style="background: #fff3cd; border-color: #ffeaa7;">
-                    <p><strong>🔄 Creating Database Backup</strong></p>
-                    <p id="backup-progress-text">Preparing backup...</p>
-                    <div
-                        style="background: #f6f8fa; border-radius: 6px; height: 8px; margin-top: 8px; overflow: hidden;">
-                        <div id="backup-progress-bar"
-                            style="background: #0969da; height: 100%; width: 0%; transition: width 0.3s; border-radius: 6px;">
+                <form id="twocaptcha-config-form">
+                    <div style="margin-bottom: 16px;">
+                        <div class="form-group-github"
+                            style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                            <input type="checkbox" id="twocaptcha_enabled" name="twocaptcha_enabled"
+                                style="width: 20px; height: 20px; cursor: pointer;">
+                            <label for="twocaptcha_enabled"
+                                style="font-weight: 600; color: #24292f; cursor: pointer; margin: 0;">
+                                Enable 2Captcha Solving
+                            </label>
                         </div>
+                        <small style="color: #656d76; font-size: 12px; display: block; margin-bottom: 16px;">
+                            When enabled, Lambda sessions will automatically solve reCAPTCHA challenges using 2Captcha
+                            API.
+                        </small>
                     </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Available Backups -->
-        <div class="github-card" style="margin-bottom: 24px;">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-archive"></i>
-                    Available Database Backups
-                </h3>
-            </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Download previously created database backups. Backups are stored on the server and can be downloaded.
-            </p>
-
-            <div id="backup-files-list" style="margin-bottom: 24px;">
-                <div style="text-align: center; padding: 40px; color: #656d76;">
-                    <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i>
-                    Loading backup files...
-                </div>
-            </div>
-
-            <div style="display: flex; gap: 16px; justify-content: center;">
-                <button type="button" class="btn-github" onclick="refreshBackupFiles()">
-                    <i class="fas fa-sync-alt"></i> Refresh Backup List
-                </button>
-                <button type="button" class="btn-github btn-github-danger" onclick="cleanupOldBackups()">
-                    <i class="fas fa-trash"></i> Cleanup Old Backups
-                </button>
-            </div>
-        </div>
-
-        <!-- Database Restore Section -->
-        <div class="github-card" style="margin-bottom: 24px;">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-undo"></i>
-                    Database Restore
-                </h3>
-            </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Restore your database from a previous backup. You can either select from existing backups or upload a
-                new
-                backup file.
-            </p>
-
-            <!-- Restore Options -->
-            <div style="margin-bottom: 24px;">
-                <div class="form-group-github">
-                    <label class="form-label-github">
-                        <i class="fas fa-list"></i> Restore Method
-                    </label>
-                    <div style="display: flex; gap: 16px; margin-bottom: 16px;">
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input type="radio" name="restore_method" value="existing" checked
-                                style="margin-right: 8px;">
-                            <span>Select from existing backups</span>
+                    <div class="form-group-github">
+                        <label for="twocaptcha_api_key" class="form-label-github">
+                            <i class="fas fa-key"></i> 2Captcha API Key
                         </label>
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input type="radio" name="restore_method" value="upload" style="margin-right: 8px;">
-                            <span>Upload backup file</span>
-                        </label>
+                        <input type="password" class="form-control-github" id="twocaptcha_api_key"
+                            placeholder="Enter your 2Captcha API key"
+                            style="font-family: 'Courier New', monospace; font-size: 12px;">
+                        <small style="color: #656d76; font-size: 12px;">
+                            Your 2Captcha API key (found in your <a href="https://2captcha.com/setting" target="_blank"
+                                style="color: #0969da;">2Captcha account settings</a>)
+                        </small>
                     </div>
-                </div>
-            </div>
 
-            <!-- Existing Backup Selection -->
-            <div id="existing-backup-section">
-                <div class="form-group-github">
-                    <label for="backup_select" class="form-label-github">
-                        <i class="fas fa-archive"></i> Select Backup File
-                    </label>
-                    <select class="form-control-github" id="backup_select">
-                        <option value="">Loading backup files...</option>
-                    </select>
-                    <small style="color: #656d76; font-size: 12px;">
-                        Choose a backup file to restore from
-                    </small>
-                </div>
-            </div>
-
-            <!-- Upload Backup Section -->
-            <div id="upload-backup-section" style="display: none;">
-                <div class="form-group-github">
-                    <label for="backup_file" class="form-label-github">
-                        <i class="fas fa-upload"></i> Upload Backup File
-                    </label>
-                    <input type="file" class="form-control-github" id="backup_file" accept=".sql,.db,.json,.tar.gz">
-                    <small style="color: #656d76; font-size: 12px;">
-                        Supported formats: .sql, .db, .json, .tar.gz
-                    </small>
-                </div>
-            </div>
-
-            <!-- Restore Progress -->
-            <div id="restore-progress" style="display: none; margin-bottom: 24px;">
-                <div class="status-info" style="background: #fff3cd; border-color: #ffeaa7;">
-                    <p><strong>🔄 Restoring Database</strong></p>
-                    <p id="restore-progress-text">Preparing restore...</p>
-                    <div
-                        style="background: #f6f8fa; border-radius: 6px; height: 8px; margin-top: 8px; overflow: hidden;">
-                        <div id="restore-progress-bar"
-                            style="background: #0969da; height: 100%; width: 0%; transition: width 0.3s; border-radius: 6px;">
-                        </div>
+                    <div style="display: flex; gap: 12px; margin-top: 24px;">
+                        <button type="submit" class="btn-github-primary" style="flex: 1;">
+                            <i class="fas fa-save"></i> Save 2Captcha Configuration
+                        </button>
+                        <button type="button" class="btn-github-secondary" onclick="testTwoCaptchaConnection()"
+                            style="flex: 1;">
+                            <i class="fas fa-vial"></i> Test API Key
+                        </button>
                     </div>
-                </div>
+                </form>
             </div>
 
-            <!-- Restore Actions -->
-            <div style="display: flex; gap: 16px; justify-content: center; margin-bottom: 24px;">
-                <button type="button" class="btn-github btn-github-warning" onclick="restoreDatabase()">
-                    <i class="fas fa-undo"></i> Restore Database
-                </button>
-                <button type="button" class="btn-github" onclick="refreshBackupList()">
-                    <i class="fas fa-sync-alt"></i> Refresh Backup List
-                </button>
-                <button type="button" class="btn-github" onclick="testChunkedUpload()" style="background: #6f42c1;">
-                    <i class="fas fa-bug"></i> Test Chunked Upload
-                </button>
-            </div>
-
-            <!-- Warning Message -->
-            <div class="status-warning" style="margin-bottom: 24px;">
-                <p><strong>⚠️ Important Warning</strong></p>
-                <p>Restoring a database will completely replace your current database with the backup data. This action
-                    cannot be undone. A backup of your current database will be created automatically before the restore
-                    process begins.</p>
-            </div>
-        </div>
-
-        <!-- Bulk Account Upload Section -->
-        <div class="github-card" style="margin-bottom: 24px;">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-upload"></i>
-                    Bulk Account Upload
-                </h3>
-            </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Upload authenticated Google Workspace accounts in JSON format. The accounts will be automatically added
-                to
-                the system with their tokens.
-            </p>
-
-            <div class="form-group-github">
-                <label for="bulk-json-upload" class="form-label-github">
-                    <i class="fas fa-file-code"></i> Upload JSON File
-                </label>
-                <input type="file" class="form-control-github" id="bulk-json-upload" accept=".json"
-                    style="padding: 12px; border: 2px dashed #d0d7de; background: #f6f8fa;">
-                <small style="color: #656d76; font-size: 12px;">
-                    Select a JSON file containing authenticated Google accounts with tokens, refresh tokens, and
-                    credentials.
-                </small>
-            </div>
-
-            <div id="json-preview" style="display: none; margin: 16px 0;">
-                <h6 style="font-weight: 600; margin-bottom: 8px; color: #24292f;">
-                    <i class="fas fa-eye"></i> Preview
-                </h6>
-                <div id="json-preview-content"
-                    style="background: #f6f8fa; padding: 16px; border-radius: 6px; border: 1px solid #d0d7de; max-height: 200px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px;">
-                </div>
-            </div>
-
-            <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
-                <button type="button" id="validate-json-btn" class="btn-github" onclick="validateJsonFile()" disabled>
-                    <i class="fas fa-check"></i> Validate JSON
-                </button>
-                <button type="button" id="upload-accounts-btn" class="btn-github btn-github-primary"
-                    onclick="uploadBulkAccounts()" disabled>
-                    <i class="fas fa-upload"></i> Upload Accounts
-                </button>
-            </div>
-
-            <div id="upload-results" style="display: none; margin-top: 24px;">
-                <h6 style="font-weight: 600; margin-bottom: 16px; color: #24292f;">
-                    <i class="fas fa-list-check"></i> Upload Results
-                </h6>
-                <div id="upload-results-content"
-                    style="background: #f6f8fa; padding: 16px; border-radius: 6px; border: 1px solid #d0d7de;">
-                </div>
-            </div>
-        </div>
-
-        <!-- Current Configuration Display -->
-        <div class="github-card">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-list"></i>
-                    Current Configuration
-                </h3>
-            </div>
-            <div id="current-config-display">
-                <div
-                    style="display: flex; align-items: center; justify-content: center; padding: 40px; color: #656d76;">
-                    <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i>
-                    Loading current configuration...
-                </div>
-            </div>
-        </div>
-
-        <!-- Proxy Configuration Section -->
-        <div class="github-card" style="margin-bottom: 24px;">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-network-wired"></i>
-                    Proxy Configuration
-                </h3>
-            </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Configure proxies for Lambda sessions to avoid CAPTCHA and rate limiting.
-                Format: <code>IP:PORT:USERNAME:PASSWORD</code> (one per line).
-            </p>
-
-            <form id="proxy-config-form">
-                <div style="margin-bottom: 16px;">
-                    <div class="form-group-github"
-                        style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-                        <input type="checkbox" id="proxy_enabled" name="proxy_enabled"
-                            style="width: 20px; height: 20px; cursor: pointer;">
-                        <label for="proxy_enabled"
-                            style="font-weight: 600; color: #24292f; cursor: pointer; margin: 0;">
-                            Enable Proxy Usage
-                        </label>
-                    </div>
-                    <small style="color: #656d76; font-size: 12px; display: block; margin-bottom: 16px;">
-                        When enabled, Lambda sessions will use the configured proxies for login and authentication
-                        setup.
-                    </small>
-                </div>
-
-                <div class="form-group-github">
-                    <label for="proxy_list" class="form-label-github">
-                        <i class="fas fa-list"></i> Proxy List
-                    </label>
-                    <textarea class="form-control-github" id="proxy_list" rows="8"
-                        placeholder="150.241.117.154:5658:ptjboxwt:1wydh3226ef3&#10;150.241.117.71:5575:ptjboxwt:1wydh3226ef3&#10;104.253.199.246:5525:ptjboxwt:1wydh3226ef3"
-                        style="resize: vertical; font-family: 'Courier New', monospace; font-size: 12px;"></textarea>
-                    <small style="color: #656d76; font-size: 12px;">
-                        Enter one proxy per line in the format: <code>IP:PORT:USERNAME:PASSWORD</code>
-                    </small>
-                </div>
-
-                <div style="display: flex; gap: 12px; margin-top: 24px;">
-                    <button type="submit" class="btn-github-primary" style="flex: 1;">
-                        <i class="fas fa-save"></i> Save Proxy Configuration
-                    </button>
-                    <button type="button" class="btn-github-secondary" onclick="testProxyConnection()" style="flex: 1;">
-                        <i class="fas fa-vial"></i> Test Connection
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- 2Captcha Configuration Section -->
-        <div class="github-card" style="margin-bottom: 24px;">
-            <div class="github-card-header">
-                <h3 class="github-card-title" style="font-size: 18px;">
-                    <i class="fas fa-shield-alt"></i>
-                    2Captcha API Configuration
-                </h3>
-            </div>
-            <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-                Configure 2Captcha API to automatically solve reCAPTCHA challenges during login.
-                Get your API key from <a href="https://2captcha.com" target="_blank"
-                    style="color: #0969da;">2captcha.com</a>
-            </p>
-
-            <form id="twocaptcha-config-form">
-                <div style="margin-bottom: 16px;">
-                    <div class="form-group-github"
-                        style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-                        <input type="checkbox" id="twocaptcha_enabled" name="twocaptcha_enabled"
-                            style="width: 20px; height: 20px; cursor: pointer;">
-                        <label for="twocaptcha_enabled"
-                            style="font-weight: 600; color: #24292f; cursor: pointer; margin: 0;">
-                            Enable 2Captcha Solving
-                        </label>
-                    </div>
-                    <small style="color: #656d76; font-size: 12px; display: block; margin-bottom: 16px;">
-                        When enabled, Lambda sessions will automatically solve reCAPTCHA challenges using 2Captcha API.
-                    </small>
-                </div>
-
-                <div class="form-group-github">
-                    <label for="twocaptcha_api_key" class="form-label-github">
-                        <i class="fas fa-key"></i> 2Captcha API Key
-                    </label>
-                    <input type="password" class="form-control-github" id="twocaptcha_api_key"
-                        placeholder="Enter your 2Captcha API key"
-                        style="font-family: 'Courier New', monospace; font-size: 12px;">
-                    <small style="color: #656d76; font-size: 12px;">
-                        Your 2Captcha API key (found in your <a href="https://2captcha.com/setting" target="_blank"
-                            style="color: #0969da;">2Captcha account settings</a>)
-                    </small>
-                </div>
-
-                <div style="display: flex; gap: 12px; margin-top: 24px;">
-                    <button type="submit" class="btn-github-primary" style="flex: 1;">
-                        <i class="fas fa-save"></i> Save 2Captcha Configuration
-                    </button>
-                    <button type="button" class="btn-github-secondary" onclick="testTwoCaptchaConnection()"
-                        style="flex: 1;">
-                        <i class="fas fa-vial"></i> Test API Key
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Status Messages -->
-        <div id="status-messages" style="margin-top: 24px;"></div>
-    </div> <!-- Status Messages End -->
-</div> <!-- End settings-sortable-container -->
+            <!-- Status Messages -->
+            <div id="status-messages" style="margin-top: 24px;"></div>
+        </div> <!-- Status Messages End -->
+    </div> <!-- End settings-sortable-container -->
 </div> <!-- End container-fluid -->
 
 <style>

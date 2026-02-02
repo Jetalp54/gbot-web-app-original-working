@@ -23,85 +23,75 @@
     --ease-production: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* THEME: DEFAULT / NEBULA (Vercel Production) */
+/* THEME: iOS (Apple Design) */
 :root,
-[data-theme="nebula"],
-[data-theme="midnight"],
-[data-theme="dark"] {
-    /* Backgrounds - Deep Space */
-    --bg-app: #000000;
-    --bg-gradient: linear-gradient(to bottom, #000000, #000000);
-    /* Flat black base */
+[data-theme="ios"] {
+    /* Backgrounds - Clean iOS Style */
+    --bg-app: #f2f2f7;
+    --bg-gradient: linear-gradient(to bottom, #f2f2f7, #e5e5ea);
 
     /* Surfaces */
-    --bg-panel: rgba(10, 10, 10, 0.6);
-    /* Slightly transparent dark */
-    --bg-modal: #0a0a0a;
+    --bg-panel: rgba(255, 255, 255, 0.85);
+    --bg-modal: rgba(255, 255, 255, 0.98);
 
-    /* Borders - Crisp & Subtle */
-    --border-panel: rgba(255, 255, 255, 0.08);
-    --border-top: rgba(255, 255, 255, 0.12);
-    /* Subtle highlight */
-    --border-bottom: rgba(0, 0, 0, 1);
+    /* Borders - Subtle iOS */
+    --border-panel: rgba(60, 60, 67, 0.12);
+    --border-top: rgba(60, 60, 67, 0.18);
+    --border-bottom: rgba(60, 60, 67, 0.06);
+    --glass-header-bg: rgba(255, 255, 255, 0.9);
 
-    --glass-header-bg: rgba(0, 0, 0, 0.8);
+    /* Primary / Accent - iOS Blue */
+    --accent-primary: #007aff;
+    --accent-secondary: #5856d6;
+    --accent-glow: rgba(0, 122, 255, 0.15);
 
-    /* Primary / Accent - User Controlled */
-    --accent-primary: #ededed;
-    /* Default white for primary actions in dark mode */
-    --accent-secondary: #333333;
-    /* Dark gray for secondary */
-    --accent-glow: rgba(255, 255, 255, 0.15);
-
-    /* Text - High Contrast */
-    --text-primary: #ededed;
-    --text-secondary: #a1a1a1;
-    --text-muted: #666666;
+    /* Text - iOS Typography */
+    --text-primary: #000000;
+    --text-secondary: #3c3c43;
+    --text-muted: #8e8e93;
 
     /* Components */
-    --input-bg: #0a0a0a;
-    --input-border: #333333;
-
-    /* Orbs - Subtle or Removed for Clean Look */
-    --orb-1: rgba(255, 255, 255, 0.03);
-    --orb-2: rgba(255, 255, 255, 0.02);
-    --orb-3: rgba(0, 0, 0, 0);
-}
-
-/* THEME: MIDNIGHT (Neon Void) - REFINED */
-[data-theme="midnight"],
-[data-theme="dark"] {
-    /* Background */
-    --bg-app: #020202;
-    --bg-gradient: radial-gradient(circle at top right, #09090b 0%, #020202 100%);
-
-    /* Glass Surfaces */
-    --bg-panel: rgba(24, 24, 27, 0.6);
-    --bg-modal: rgba(24, 24, 27, 0.95);
-    --border-panel: rgba(168, 85, 247, 0.15);
-    --border-top: rgba(168, 85, 247, 0.3);
-    --border-bottom: rgba(168, 85, 247, 0.05);
-    --glass-header-bg: rgba(2, 2, 2, 0.8);
-
-    /* Primary / Accent */
-    --accent-primary: #e879f9;
-    /* Neon Fuchsia */
-    --accent-secondary: #8b5cf6;
-    /* Electric Violet */
-    --accent-glow: rgba(139, 92, 246, 0.5);
-
-    /* Text */
-    --text-primary: #fafafa;
-    --text-secondary: #d4d4d8;
-    --text-muted: #71717a;
-
-    /* Components */
-    --input-bg: rgba(255, 255, 255, 0.05);
+    --input-bg: rgba(255, 255, 255, 0.9);
+    --input-border: rgba(60, 60, 67, 0.18);
 
     /* Orbs */
-    --orb-1: rgba(232, 121, 249, 0.2);
-    --orb-2: rgba(139, 92, 246, 0.2);
-    --orb-3: rgba(0, 0, 0, 0);
+    --orb-1: rgba(0, 122, 255, 0.08);
+    --orb-2: rgba(88, 86, 214, 0.06);
+    --orb-3: rgba(255, 255, 255, 0.5);
+}
+
+/* THEME: Gmail (Google Material) */
+[data-theme="gmail"] {
+    /* Background - Google Material */
+    --bg-app: #ffffff;
+    --bg-gradient: linear-gradient(to bottom, #ffffff, #f8f9fa);
+
+    /* Glass Surfaces */
+    --bg-panel: rgba(255, 255, 255, 0.95);
+    --bg-modal: rgba(255, 255, 255, 0.98);
+    --border-panel: rgba(0, 0, 0, 0.08);
+    --border-top: rgba(0, 0, 0, 0.12);
+    --border-bottom: rgba(0, 0, 0, 0.04);
+    --glass-header-bg: rgba(255, 255, 255, 0.95);
+
+    /* Primary / Accent - Gmail Red & Blue */
+    --accent-primary: #ea4335;
+    --accent-secondary: #4285f4;
+    --accent-glow: rgba(234, 67, 53, 0.15);
+
+    /* Text - Material Design */
+    --text-primary: #202124;
+    --text-secondary: #5f6368;
+    --text-muted: #9aa0a6;
+
+    /* Components */
+    --input-bg: rgba(241, 243, 244, 0.9);
+    --input-border: rgba(0, 0, 0, 0.12);
+
+    /* Orbs */
+    --orb-1: rgba(234, 67, 53, 0.08);
+    --orb-2: rgba(66, 133, 244, 0.08);
+    --orb-3: rgba(255, 255, 255, 0.5);
 }
 
 /* THEME: AURORA (Ethereal Light) - REFINED */
@@ -140,39 +130,38 @@
     --orb-3: rgba(255, 255, 255, 0.5);
 }
 
-/* THEME: FOREST (Bio-luminescent) - REFINED */
-[data-theme="forest"] {
-    /* Background */
-    --bg-app: #022c22;
-    --bg-gradient: radial-gradient(ellipse at top, #064e3b, #022c22);
+/* THEME: Yahoo (Purple Brand) */
+[data-theme="yahoo"] {
+    /* Background - Yahoo Purple */
+    --bg-app: #fafafa;
+    --bg-gradient: linear-gradient(to bottom, #fafafa, #f0f0f0);
 
     /* Glass Surfaces */
-    --bg-panel: rgba(6, 78, 59, 0.55);
-    --bg-modal: rgba(6, 78, 59, 0.95);
-    --border-panel: rgba(52, 211, 153, 0.18);
-    --border-top: rgba(52, 211, 153, 0.3);
-    --border-bottom: rgba(52, 211, 153, 0.05);
-    --glass-header-bg: rgba(2, 44, 34, 0.8);
+    --bg-panel: rgba(255, 255, 255, 0.9);
+    --bg-modal: rgba(255, 255, 255, 0.98);
+    --border-panel: rgba(104, 63, 216, 0.12);
+    --border-top: rgba(104, 63, 216, 0.2);
+    --border-bottom: rgba(104, 63, 216, 0.06);
+    --glass-header-bg: rgba(255, 255, 255, 0.92);
 
-    /* Primary / Accent */
-    --accent-primary: #34d399;
-    /* Emerald */
-    --accent-secondary: #2dd4bf;
-    /* Teal */
-    --accent-glow: rgba(45, 212, 191, 0.4);
+    /* Primary / Accent - Yahoo Purple */
+    --accent-primary: #683fd8;
+    --accent-secondary: #5721d4;
+    --accent-glow: rgba(104, 63, 216, 0.18);
 
-    /* Text */
-    --text-primary: #ecfdf5;
-    --text-secondary: #a7f3d0;
-    --text-muted: #6ee7b7;
+    /* Text - Clean Typography */
+    --text-primary: #1a1a1a;
+    --text-secondary: #4a4a4a;
+    --text-muted: #8c8c8c;
 
     /* Components */
-    --input-bg: rgba(0, 0, 0, 0.2);
+    --input-bg: rgba(255, 255, 255, 0.95);
+    --input-border: rgba(104, 63, 216, 0.15);
 
     /* Orbs */
-    --orb-1: rgba(52, 211, 153, 0.25);
-    --orb-2: rgba(45, 212, 191, 0.25);
-    --orb-3: rgba(2, 44, 34, 0.5);
+    --orb-1: rgba(104, 63, 216, 0.1);
+    --orb-2: rgba(87, 33, 212, 0.08);
+    --orb-3: rgba(255, 255, 255, 0.5);
 }
 
 /* --- ORBS REMOVED FOR CLEAN VERCEL LOOK --- */
@@ -185,23 +174,39 @@
     display: none !important;
 }
 
-/* Ensure Themes only affect Accent Colors, not Structure */
-/* Crimson Theme */
-[data-theme="crimson"] {
-    --accent-primary: #f43f5e;
-    /* Rose */
-    --accent-secondary: #881337;
-    /* Dark Rose */
-    --accent-glow: rgba(244, 63, 94, 0.2);
-}
+/* THEME: Dark Mode */
+[data-theme="dark"],
+[data-theme="midnight"] {
+    /* Background - Pure Dark */
+    --bg-app: #0d0d0d;
+    --bg-gradient: radial-gradient(ellipse at top, #1a1a1a 0%, #0d0d0d 60%, #000000 100%);
 
-/* Forest Theme */
-[data-theme="forest"] {
-    --accent-primary: #10b981;
-    /* Emerald */
-    --accent-secondary: #064e3b;
-    /* Dark Emerald */
-    --accent-glow: rgba(16, 185, 129, 0.2);
+    /* Glass Surfaces */
+    --bg-panel: rgba(30, 30, 30, 0.9);
+    --bg-modal: rgba(25, 25, 25, 0.98);
+    --border-panel: rgba(255, 255, 255, 0.12);
+    --border-top: rgba(255, 255, 255, 0.18);
+    --border-bottom: rgba(255, 255, 255, 0.06);
+    --glass-header-bg: rgba(25, 25, 25, 0.95);
+
+    /* Primary / Accent - Soft Blue */
+    --accent-primary: #60a5fa;
+    --accent-secondary: #3b82f6;
+    --accent-glow: rgba(96, 165, 250, 0.25);
+
+    /* Text - HIGH CONTRAST for visibility */
+    --text-primary: #f5f5f5;
+    --text-secondary: #e5e5e5;
+    --text-muted: #a1a1a1;
+
+    /* Components */
+    --input-bg: rgba(40, 40, 40, 0.9);
+    --input-border: rgba(255, 255, 255, 0.15);
+
+    /* Orbs */
+    --orb-1: rgba(96, 165, 250, 0.12);
+    --orb-2: rgba(59, 130, 246, 0.1);
+    --orb-3: rgba(0, 0, 0, 0.5);
 }
 
 /* Aurora Theme (Light Mode Mapping) */
@@ -674,6 +679,7 @@
    ========================================= */
 
 .domain-fab-container {
+    /* display: none !important; REVERTED - User requested restore */
     position: fixed;
     /* Auto-Hide Logic:
        Width is 56px.
@@ -981,7 +987,7 @@
     position: relative;
     width: 100%;
     /* Ensure it fills remaining space */
-    max-width: calc(100vw - 260px);
+    /* max-width: calc(100vw - 260px); REMOVED to allow full width */
     /* Explicit max-width for desktop */
 }
 
@@ -2245,4 +2251,40 @@ html body .glass-ui textarea::placeholder {
     color: var(--text-muted);
     padding: 12px 24px;
     background: rgba(0, 0, 0, 0.02);
+}
+
+/* ========== THEME BUTTON STYLING ========== */
+.theme-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+.theme-btn:hover {
+    background: var(--bg-modal);
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.theme-btn.active {
+    background: var(--accent-primary);
+    color: #ffffff;
+    border-color: var(--accent-primary);
+    box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+.theme-palette {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }

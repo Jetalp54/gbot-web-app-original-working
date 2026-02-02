@@ -1,0 +1,236 @@
+/* ============================================
+   MODERN MINIMALIST THEME
+   Based on exact Tailwind config from frontend-saas
+   ============================================ */
+
+/* 1. RESET & BASE STYLES */
+:root {
+    /* Exact HSL Values from reference globals.css */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+}
+
+/* Force Box Sizing */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    line-height: 1.5;
+}
+
+/* 2. RESPONSIVE LAYOUT SYSTEM */
+/* Content Container - Allow fluid width but keep centered */
+.modern-page-container,
+.main-container,
+/* Added legacy class target */
+.container {
+    width: 100%;
+    padding-right: 1rem;
+    padding-left: 1rem;
+    margin-right: auto;
+    margin-left: auto;
+    max-width: none !important;
+    /* Ensure full width */
+}
+
+.container-fluid {
+    width: 100%;
+    padding-right: 1rem;
+    padding-left: 1rem;
+    max-width: none !important;
+    /* Ensure full width */
+}
+
+
+/* 4. COMPONENT OVERRIDES */
+/* Cards */
+.card,
+.github-card,
+.modern-card {
+    background: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    margin-bottom: 1.5rem;
+}
+
+.card-header,
+.github-card-header {
+    background: transparent;
+    border-bottom: 1px solid hsl(var(--border)) !important;
+    padding: 1.5rem !important;
+}
+
+.card-body,
+.github-card-body {
+    padding: 1.5rem !important;
+}
+
+.card-title,
+.github-card-title,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: hsl(var(--foreground)) !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.025em !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* Buttons */
+button,
+.btn,
+.glass-button,
+.modern-btn {
+    border-radius: var(--radius) !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    /* 14px */
+    padding: 0.5rem 1rem !important;
+    transition: all 0.2s !important;
+    height: auto !important;
+    line-height: inherit !important;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
+}
+
+.btn-primary,
+.glass-button-primary,
+.modern-btn-primary {
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    border: 1px solid hsl(var(--primary)) !important;
+}
+
+.btn-primary:hover,
+.glass-button-primary:hover {
+    opacity: 0.9 !important;
+    transform: none !important;
+    /* Remove legacy transform */
+}
+
+/* Inputs */
+input,
+select,
+textarea,
+.form-control,
+.form-control-github {
+    border: 1px solid hsl(var(--input)) !important;
+    border-radius: var(--radius) !important;
+    background: transparent !important;
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.875rem !important;
+    color: hsl(var(--foreground)) !important;
+    height: auto !important;
+    /* prevent fixed height issues */
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 2px solid hsl(var(--ring)) !important;
+    outline-offset: 2px !important;
+    border-color: hsl(var(--input)) !important;
+    box-shadow: none !important;
+}
+
+/* Tables */
+table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+}
+
+th {
+    text-align: left !important;
+    padding: 0.75rem 1rem !important;
+    color: hsl(var(--muted-foreground)) !important;
+    font-weight: 500 !important;
+    border-bottom: 1px solid hsl(var(--border)) !important;
+    font-size: 0.875rem !important;
+}
+
+td {
+    padding: 0.75rem 1rem !important;
+    border-bottom: 1px solid hsl(var(--border)) !important;
+    font-size: 0.875rem !important;
+    color: hsl(var(--foreground)) !important;
+}
+
+/* Sidebar Navigation Items */
+.nav-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+    padding: 0.5rem 0.75rem !important;
+    color: hsl(var(--muted-foreground)) !important;
+    border-radius: calc(var(--radius) - 2px) !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    margin-bottom: 0.25rem !important;
+}
+
+.nav-item:hover {
+    background-color: hsl(var(--accent)) !important;
+    color: hsl(var(--accent-foreground)) !important;
+}
+
+.nav-item.active {
+    background-color: hsl(var(--secondary)) !important;
+    /* Slightly distinct active state */
+    color: hsl(var(--primary)) !important;
+    font-weight: 600 !important;
+}
+
+.nav-item i {
+    width: 1rem !important;
+    height: 1rem !important;
+    text-align: center !important;
+}
+
+/* Helper Utilities */
+.text-muted {
+    color: hsl(var(--muted-foreground)) !important;
+}
+
+.bg-white {
+    background: white !important;
+}
+
+.shadow-sm {
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
+}
