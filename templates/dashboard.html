@@ -8561,82 +8561,90 @@
                 return;
             }
 
-            // Add summary at the top with new three-state system
+            // Add summary at the top
             const totalDomains = domains.length;
             const availableDomains = domains.filter(d => d.status === 'available').length;
             const usedDomains = domains.filter(d => d.status === 'used').length;
             const inUseDomains = domains.filter(d => d.status === 'in_use').length;
-            const totalUsers = domains.reduce((sum, d) => sum + d.user_count, 0);
+            const totalUsers = domains.reduce((sum, d) => sum + (d.user_count || 0), 0);
 
             let html = `
-        <div class="stats-summary">
-            <h3>📊 Domain Summary</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">
-                <div style="text-align: center; padding: 8px; background: white; border-radius: 5px;">
-                    <div style="font-size: 20px; font-weight: bold; color: #2196F3;">${totalDomains}</div>
-                    <div style="font-size: 11px; color: #666;">Total</div>
+                <div class="stats-summary mb-4" style="background: var(--color-canvas-subtle); border: 1px solid var(--color-border-default); border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                    <h3 style="font-size: 16px; margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--color-fg-default);">
+                        <i class="fas fa-chart-pie" style="color: var(--color-accent-fg);"></i> Domain Summary
+                    </h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px;">
+                        <div class="summary-card" style="background: var(--color-canvas-default); border: 1px solid var(--color-border-default); padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: 700; color: var(--color-accent-fg);">${totalDomains}</div>
+                            <div style="font-size: 10px; color: var(--color-fg-muted); text-transform: uppercase;">Total</div>
+                        </div>
+                        <div class="summary-card" style="background: var(--color-canvas-default); border: 1px solid var(--color-border-default); padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: 700; color: #28a745;">${availableDomains}</div>
+                            <div style="font-size: 10px; color: var(--color-fg-muted); text-transform: uppercase;">Available</div>
+                        </div>
+                        <div class="summary-card" style="background: var(--color-canvas-default); border: 1px solid var(--color-border-default); padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: 700; color: #f66a0a;">${usedDomains}</div>
+                            <div style="font-size: 10px; color: var(--color-fg-muted); text-transform: uppercase;">Used</div>
+                        </div>
+                        <div class="summary-card" style="background: var(--color-canvas-default); border: 1px solid var(--color-border-default); padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: 700; color: #8250df;">${inUseDomains}</div>
+                            <div style="font-size: 10px; color: var(--color-fg-muted); text-transform: uppercase;">In Use</div>
+                        </div>
+                        <div class="summary-card" style="background: var(--color-canvas-default); border: 1px solid var(--color-border-default); padding: 10px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: 700; color: var(--color-fg-muted);">${totalUsers}</div>
+                            <div style="font-size: 10px; color: var(--color-fg-muted); text-transform: uppercase;">Users</div>
+                        </div>
+                    </div>
                 </div>
-                <div style="text-align: center; padding: 8px; background: white; border-radius: 5px;">
-                    <div style="font-size: 20px; font-weight: bold; color: #4CAF50;">${availableDomains}</div>
-                    <div style="font-size: 11px; color: #666;">Available</div>
-                </div>
-                <div style="text-align: center; padding: 8px; background: white; border-radius: 5px;">
-                    <div style="font-size: 20px; font-weight: bold; color: #FF9800;">${usedDomains}</div>
-                    <div style="font-size: 11px; color: #666;">Used</div>
-                </div>
-                <div style="text-align: center; padding: 8px; background: white; border-radius: 5px;">
-                    <div style="font-size: 20px; font-weight: bold; color: #9C27B0;">${inUseDomains}</div>
-                    <div style="font-size: 11px; color: #666;">In Use</div>
-                </div>
-                <div style="text-align: center; padding: 8px; background: white; border-radius: 5px;">
-                    <div style="font-size: 20px; font-weight: bold; color: #666;">${totalUsers}</div>
-                    <div style="font-size: 11px; color: #666;">Users</div>
-                </div>
-            </div>
-        </div>
-        <h4 style="margin: 15px 0 10px 0; color: #333;">Domain Details:</h4>
-    `;
+                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--color-fg-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <i class="fas fa-list-ul"></i> Domain Details
+                </h4>
+            `;
 
-            // Sort domains alphabetically by domain name
+            // Sort domains alphabetically
             const sortedDomains = [...domains].sort((a, b) => {
                 return a.domain_name.localeCompare(b.domain_name);
             });
 
-            html += '<div class="custom-scrollbar" style="max-height: 350px; overflow-y: auto; padding-right: 5px;">' + sortedDomains.map(domain => {
-                // New three-state system
-                let statusColor, statusText, domainClass, clickHandler, domainNameColor;
+            html += '<div class="custom-scrollbar" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">' + sortedDomains.map(domain => {
+                let statusBadgeClass, statusText, domainClass, clickHandler;
 
                 if (domain.status === 'in_use') {
-                    // Purple - currently has users
-                    statusColor = '#9C27B0';  // Purple
+                    statusBadgeClass = 'badge-status-inuse';
                     statusText = 'IN USE';
                     domainClass = 'domain-item in-use-domain';
-                    clickHandler = '';  // Not selectable
-                    domainNameColor = '#9C27B0';
+                    clickHandler = '';
                 } else if (domain.status === 'used') {
-                    // Orange - previously used but no current users
-                    statusColor = '#FF9800';  // Orange
+                    statusBadgeClass = 'badge-status-used';
                     statusText = 'USED';
                     domainClass = 'domain-item used-domain';
-                    clickHandler = '';  // Not selectable
-                    domainNameColor = '#FF9800';
+                    clickHandler = '';
                 } else {
-                    // Green - never been used (available)
-                    statusColor = '#4CAF50';  // Green
+                    statusBadgeClass = 'badge-status-available';
                     statusText = 'AVAILABLE';
                     domainClass = 'domain-item';
                     clickHandler = `onclick="selectDomain('${domain.domain_name}')"`;
-                    domainNameColor = 'black';
                 }
 
-                return `<div class="${domainClass}" ${clickHandler}>
-            <strong style="color: ${domainNameColor};">${domain.domain_name}</strong>
-            <span style="float: right; color: #666; font-weight: bold;">${domain.user_count} users</span>
-            <div style="margin-top: 5px;">
-                ${domain.verified ? '<span style="color: green;">✅ Verified</span>' : '<span style="color: red;">❌ Not Verified</span>'}
-                <span style="color: ${statusColor}; margin-left: 10px; font-weight: bold;">${statusText}</span>
-            </div>
-        </div>`;
+                const verificationBadge = domain.verified
+                    ? '<span class="domain-badge badge-verified"><i class="fas fa-check-circle"></i> Verified</span>'
+                    : '<span class="domain-badge badge-unverified"><i class="fas fa-times-circle"></i> Unverified</span>';
+
+                return `
+                    <div class="${domainClass}" ${clickHandler}>
+                        <div class="domain-item-header">
+                            <span class="domain-name">${domain.domain_name}</span>
+                            <span class="user-count-pill">
+                                <i class="fas fa-users"></i> ${domain.user_count || 0}
+                            </span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            ${verificationBadge}
+                            <span class="domain-badge ${statusBadgeClass}">
+                                <i class="fas fa-info-circle"></i> ${statusText}
+                            </span>
+                        </div>
+                    </div>`;
             }).join('') + '</div>';
 
             domainList.innerHTML = html;
@@ -11670,6 +11678,120 @@
             border: solid white;
             border-width: 0 2px 2px 0;
             transform: rotate(45deg);
+        }
+
+        /* Domain Item Modern Styles */
+        .domain-item {
+            background: var(--color-canvas-subtle);
+            border: 1px solid var(--color-border-default);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .domain-item:hover {
+            border-color: var(--color-accent-emphasis);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+            background: var(--color-canvas-default);
+        }
+
+        .domain-item.selected {
+            border-color: var(--color-accent-emphasis);
+            background: var(--color-accent-subtle);
+            box-shadow: inset 0 0 0 1px var(--color-accent-emphasis), 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .domain-item.in-use-domain {
+            border-left: 4px solid #8250df;
+            background: rgba(130, 80, 223, 0.03);
+        }
+
+        .domain-item.used-domain {
+            border-left: 4px solid #f66a0a;
+            background: rgba(246, 106, 10, 0.03);
+            cursor: not-allowed;
+        }
+
+        .domain-item:not(.in-use-domain):not(.used-domain) {
+            border-left: 4px solid #28a745;
+        }
+
+        .domain-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1;
+            gap: 4px;
+        }
+
+        .badge-verified {
+            background: #dafbe1;
+            color: #1a7f37;
+            border: 1px solid rgba(26, 127, 55, 0.2);
+        }
+
+        .badge-unverified {
+            background: #ffebe9;
+            color: #cf222e;
+            border: 1px solid rgba(207, 34, 46, 0.2);
+        }
+
+        .badge-status-available {
+            background: #dafbe1;
+            color: #1a7f37;
+        }
+
+        .badge-status-used {
+            background: #fff5e6;
+            color: #9a6700;
+        }
+
+        .badge-status-inuse {
+            background: #f5f0ff;
+            color: #6e40c9;
+        }
+
+        .domain-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .domain-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--color-fg-default);
+        }
+
+        .user-count-pill {
+            background: var(--color-neutral-subtle);
+            color: var(--color-fg-muted);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .stats-summary .summary-card {
+            transition: all 0.2s ease;
+        }
+
+        .stats-summary .summary-card:hover {
+            border-color: var(--color-accent-muted);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
         }
     </style>
 
