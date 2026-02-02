@@ -10964,15 +10964,18 @@
                                 </div>
                             </div>
                             <div class="user-status" style="
-                                padding: 6px 12px; 
-                                border-radius: 16px; 
-                                font-size: 12px; 
+                                padding: 4px 12px; 
+                                border-radius: 4px; 
+                                font-size: 13px; 
                                 font-weight: 500;
-                                background: ${status === 'Active' ? '#d4edda' : '#f8d7da'};
-                                color: ${status === 'Active' ? '#155724' : '#721c24'};
-                                border: 1px solid ${status === 'Active' ? '#c3e6cb' : '#f5c6cb'};
+                                background: ${status === 'Active' ? '#28a745' : '#dc3545'};
+                                color: white;
+                                border: none;
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
                             ">
-                                <i class="fas fa-${status === 'Active' ? 'check-circle' : 'exclamation-circle'}"></i>
+                                <i class="fas fa-${status === 'Active' ? 'check-square' : 'exclamation-circle'}"></i>
                                 ${status}
                             </div>
                         </div>
