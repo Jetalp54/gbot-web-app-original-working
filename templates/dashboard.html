@@ -4086,8 +4086,8 @@
 
             users.forEach(user => {
                 const statusBadge = user.suspended
-                    ? `<span class="status-badge status-expired"><i class="fas fa-ban me-1"></i>Suspended</span>`
-                    : `<span class="status-badge status-success"><i class="fas fa-check me-1"></i>Active</span>`;
+                    ? `<span style="background-color: #dc3545; color: white; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-ban"></i> SUSPENDED</span>`
+                    : `<span style="background-color: #28a745; color: white; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-check-square"></i> ACTIVE</span>`;
 
                 const adminBadge = user.admin
                     ? `<span class="status-badge status-warning"><i class="fas fa-crown me-1"></i>Admin</span>`
