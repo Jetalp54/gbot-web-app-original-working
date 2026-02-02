@@ -1557,368 +1557,367 @@
             </div>
         </div>
     </div>
-</div>
 
 
-<!-- Results Log (Covers Both Workflows) -->
-<div class="github-card draggable-card" data-id="results-log-combined">
-    <div class="github-card-header" style="cursor: move;">
-        <h3 class="github-card-title">
-            <i class="fas fa-file-alt"></i>
-            Results Log (Covers Both Workflows)
-        </h3>
-    </div>
-
-    <div style="margin-bottom: 16px;">
-        <button onclick="clearBulkDomainLog()" class="btn-github">
-            <i class="fas fa-broom"></i> Clear Log
-        </button>
-    </div>
-
-    <div id="bulk-domain-results" class="data-display" style="font-family: monospace; font-size: 13px;">
-        <div class="status-info">
-            <p><strong><i class="fas fa-file-alt"></i> Processing Results</strong></p>
-            <p>Processing results will appear here...</p>
+    <!-- Results Log (Covers Both Workflows) -->
+    <div class="github-card draggable-card" data-id="results-log-combined">
+        <div class="github-card-header" style="cursor: move;">
+            <h3 class="github-card-title">
+                <i class="fas fa-file-alt"></i>
+                Results Log (Covers Both Workflows)
+            </h3>
         </div>
-    </div>
-</div>
 
-<!-- SMTP Credential Tester -->
-<div class="github-card draggable-card" data-id="smtp-credential-tester" style="margin-top: 32px;">
-    <div class="github-card-header" style="cursor: move;">
-        <h3 class="github-card-title">
-            <i class="fas fa-envelope"></i>
-            SMTP Credential Tester
-        </h3>
-    </div>
-
-    <div class="form-group-github" style="margin-bottom: 20px;">
-        <label for="smtp-credentials" class="form-label-github">
-            <i class="fas fa-key"></i> SMTP Credentials (email:password format)
-            <span id="smtp-sync-status" style="margin-left: 8px; font-size: 12px; color: #6a737d;"></span>
-        </label>
-        <textarea id="smtp-credentials" class="form-control-github" rows="5"
-            placeholder="user1@gmail.com:password123&#10;user2@outlook.com:apppassword456&#10;user3@yahoo.com:secretpass789"></textarea>
-        <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
-            <i class="fas fa-info-circle"></i>
-            Use format: email:password (one per line). Click "Sync to App Passwords" to save.
-        </small>
-
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-        <div class="form-group-github">
-            <label for="smtp-recipient" class="form-label-github">
-                <i class="fas fa-envelope"></i> Recipient Email
-            </label>
-            <input type="email" id="smtp-recipient" class="form-control-github" placeholder="test@domain.com">
+        <div style="margin-bottom: 16px;">
+            <button onclick="clearBulkDomainLog()" class="btn-github">
+                <i class="fas fa-broom"></i> Clear Log
+            </button>
         </div>
-        <div class="form-group-github">
-            <label for="smtp-server" class="form-label-github">
-                <i class="fas fa-server"></i> SMTP Server
-            </label>
-            <input type="text" id="smtp-server" class="form-control-github" value="smtp.gmail.com"
-                placeholder="SMTP Server">
-        </div>
-        <div class="form-group-github">
-            <label for="smtp-port" class="form-label-github">
-                <i class="fas fa-plug"></i> Port
-            </label>
-            <input type="number" id="smtp-port" class="form-control-github" value="587" placeholder="Port">
-        </div>
-    </div>
 
-    <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-        <button onclick="testSMTPCredentials()" class="btn-github btn-github-primary">
-            <i class="fas fa-paper-plane"></i> Send Test Emails
-        </button>
-        <button onclick="syncSMTPToAppPasswords()" class="btn-github"
-            style="background-color: #28a745; border-color: #28a745; color: white;">
-            <i class="fas fa-sync"></i> Sync to App Passwords
-        </button>
-        <button onclick="testSMTPParsing()" class="btn-github"
-            style="background-color: #6f42c1; border-color: #6f42c1; color: white;">
-            <i class="fas fa-bug"></i> Test Parsing
-        </button>
-        <button onclick="interruptSMTPTesting()" class="btn-github"
-            style="background-color: var(--color-warning-emphasis); border-color: var(--color-warning-emphasis); color: #ffffff;">
-            <i class="fas fa-stop"></i> Interrupt Sending
-        </button>
-        <button onclick="clearSMTPResults()" class="btn-github">
-            <i class="fas fa-broom"></i> Clear Log / Reset Files
-        </button>
-    </div>
-
-    <div>
-        <h4
-            style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px;">
-            <i class="fas fa-chart-bar" style="color: var(--color-accent-fg);"></i>
-            SMTP Test Results
-        </h4>
-        <div id="smtp-results-log" class="data-display" style="font-family: monospace; font-size: 13px;">
+        <div id="bulk-domain-results" class="data-display" style="font-family: monospace; font-size: 13px;">
             <div class="status-info">
-                <p><strong><i class="fas fa-envelope"></i> SMTP Testing Results</strong></p>
-                <p>Test results will appear here...</p>
+                <p><strong><i class="fas fa-file-alt"></i> Processing Results</strong></p>
+                <p>Processing results will appear here...</p>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Generate Sample CSV for User Creation -->
-<div class="github-card draggable-card" data-id="generate-sample-csv" style="margin-top: 24px;">
-    <div class="github-card-header" style="cursor: move;">
-        <h3 class="github-card-title">
-            <i class="fas fa-file-csv"></i>
-            Generate Sample CSV for User Creation
-        </h3>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-        <div class="form-group-github">
-            <label for="csv-num-users" class="form-label-github">
-                <i class="fas fa-hashtag"></i> Number of Users
-            </label>
-            <input type="number" id="csv-num-users" class="form-control-github" min="1" max="1000"
-                placeholder="e.g., 50">
+    <!-- SMTP Credential Tester -->
+    <div class="github-card draggable-card" data-id="smtp-credential-tester" style="margin-top: 32px;">
+        <div class="github-card-header" style="cursor: move;">
+            <h3 class="github-card-title">
+                <i class="fas fa-envelope"></i>
+                SMTP Credential Tester
+            </h3>
         </div>
-        <div class="form-group-github">
-            <label for="csv-domain" class="form-label-github">
-                <i class="fas fa-globe"></i> Domain
+
+        <div class="form-group-github" style="margin-bottom: 20px;">
+            <label for="smtp-credentials" class="form-label-github">
+                <i class="fas fa-key"></i> SMTP Credentials (email:password format)
+                <span id="smtp-sync-status" style="margin-left: 8px; font-size: 12px; color: #6a737d;"></span>
             </label>
-            <input type="text" id="csv-domain" class="form-control-github" placeholder="yourdomain.com">
+            <textarea id="smtp-credentials" class="form-control-github" rows="5"
+                placeholder="user1@gmail.com:password123&#10;user2@outlook.com:apppassword456&#10;user3@yahoo.com:secretpass789"></textarea>
+            <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
+                <i class="fas fa-info-circle"></i>
+                Use format: email:password (one per line). Click "Sync to App Passwords" to save.
+            </small>
+
         </div>
-        <div class="form-group-github">
-            <label for="csv-password" class="form-label-github">
-                <i class="fas fa-lock"></i> Default Password
-            </label>
-            <input type="text" id="csv-password" class="form-control-github"
-                placeholder="Default password for all users">
-        </div>
-    </div>
 
-    <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-        <button onclick="generateUserCSV()" class="btn-github btn-github-primary">
-            <i class="fas fa-download"></i> Generate CSV File
-        </button>
-        <button onclick="previewCSV()" class="btn-github">
-            <i class="fas fa-eye"></i> Preview CSV
-        </button>
-    </div>
-
-    <div id="csv-download-area" class="data-display"></div>
-
-    <div id="csv-preview-area" class="csv-preview"></div>
-</div>
-
-<!-- Mega Upgrade: Single Account Workflow -->
-<div class="github-card draggable-card" data-id="mega-upgrade-workflow">
-    <div class="github-card-header" style="cursor: move;">
-        <h3 class="github-card-title">
-            <i class="fas fa-rocket"></i>
-            Mega Upgrade: Single Account Workflow
-        </h3>
-    </div>
-
-    <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
-        Process a single account with automated workflows. Select which features to apply to the account.
-    </p>
-
-    <button onclick="openMegaUpgradeModal()" class="btn-github btn-github-primary"
-        style="width: 100%; padding: 16px; font-size: 16px;">
-        <i class="fas fa-magic"></i> Launch Mega Upgrade Workflow
-    </button>
-
-</div>
-
-<!-- App Password Management -->
-<div class="github-card draggable-card" data-id="app-password-mgmt">
-    <div class="github-card-header" style="cursor: move;">
-        <h3 class="github-card-title">
-            <i class="fas fa-key"></i>
-            App Password Management
-        </h3>
-    </div>
-
-    <div class="form-group-github">
-        <label for="app-passwords-file" class="form-label-github">
-            <i class="fas fa-upload"></i> Upload App Passwords File
-        </label>
-        <input type="file" id="app-passwords-file" class="form-control-github" accept=".txt"
-            onchange="handleAppPasswordsFile(this)">
-        <small class="form-text" style="color: #666; margin-top: 8px;">
-            Upload a .txt file with format: user@domain.com:app_password (one per line)<br>
-            <strong>💡 You can upload multiple files - all passwords will be stored in one place!</strong>
-        </small>
-    </div>
-
-    <div style="display: flex; gap: 12px; margin-top: 16px;">
-        <button onclick="uploadAppPasswords()" class="btn-github btn-github-primary">
-            <i class="fas fa-upload"></i> Upload & Store Passwords
-        </button>
-        <button onclick="downloadAppPasswordsTemplate()" class="btn-github">
-            <i class="fas fa-download"></i> Download Template
-        </button>
-        {% if session.role == 'admin' %}
-        <button onclick="clearAppPasswords()" class="btn-github"
-            style="background-color: #dc3545; border-color: #dc3545; color: white;"
-            onmouseover="this.style.backgroundColor='#c82333'" onmouseout="this.style.backgroundColor='#dc3545'">
-            <i class="fas fa-trash"></i> Clear All Passwords
-        </button>
-        {% else %}
-        <div
-            style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background-color: #f8f9fa; border: 1px solid #d0d7de; border-radius: 6px; color: #656d76; font-size: 13px;">
-            <i class="fas fa-lock"></i>
-            <span>Clear All Passwords (Admin Only)</span>
-        </div>
-        {% endif %}
-    </div>
-
-    <div id="app-passwords-status" class="count-display" style="margin-top: 16px;">
-        <span id="app-passwords-count">No app passwords stored</span>
-    </div>
-
-    <!-- Advanced App Password Management -->
-    <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #d0d7de;">
-        <h4 style="color: #24292f; margin-bottom: 16px; font-size: 16px;">
-            <i class="fas fa-cogs"></i> Advanced Management
-        </h4>
-
-        <!-- Search and Select Users -->
-        <div class="form-group-github">
-            <label for="search-app-passwords" class="form-label-github">
-                <i class="fas fa-search"></i> Search App Password Users
-            </label>
-            <input type="text" id="search-app-passwords" class="form-control-github"
-                placeholder="Search by alias (username)..." onkeyup="searchAppPasswordUsers()">
-            <div style="margin-top: 8px;">
-                <button onclick="debugAppPasswords()" class="btn-github" style="font-size: 12px; padding: 4px 8px;">
-                    <i class="fas fa-bug"></i> Debug Search
-                </button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+            <div class="form-group-github">
+                <label for="smtp-recipient" class="form-label-github">
+                    <i class="fas fa-envelope"></i> Recipient Email
+                </label>
+                <input type="email" id="smtp-recipient" class="form-control-github" placeholder="test@domain.com">
+            </div>
+            <div class="form-group-github">
+                <label for="smtp-server" class="form-label-github">
+                    <i class="fas fa-server"></i> SMTP Server
+                </label>
+                <input type="text" id="smtp-server" class="form-control-github" value="smtp.gmail.com"
+                    placeholder="SMTP Server">
+            </div>
+            <div class="form-group-github">
+                <label for="smtp-port" class="form-label-github">
+                    <i class="fas fa-plug"></i> Port
+                </label>
+                <input type="number" id="smtp-port" class="form-control-github" value="587" placeholder="Port">
             </div>
         </div>
 
-        <!-- User Selection and Management -->
-        <div id="app-passwords-search-results"
-            style="max-height: 200px; overflow-y: auto; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px; margin-bottom: 16px; display: none;">
-            <!-- Search results will be populated here -->
+        <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+            <button onclick="testSMTPCredentials()" class="btn-github btn-github-primary">
+                <i class="fas fa-paper-plane"></i> Send Test Emails
+            </button>
+            <button onclick="syncSMTPToAppPasswords()" class="btn-github"
+                style="background-color: #28a745; border-color: #28a745; color: white;">
+                <i class="fas fa-sync"></i> Sync to App Passwords
+            </button>
+            <button onclick="testSMTPParsing()" class="btn-github"
+                style="background-color: #6f42c1; border-color: #6f42c1; color: white;">
+                <i class="fas fa-bug"></i> Test Parsing
+            </button>
+            <button onclick="interruptSMTPTesting()" class="btn-github"
+                style="background-color: var(--color-warning-emphasis); border-color: var(--color-warning-emphasis); color: #ffffff;">
+                <i class="fas fa-stop"></i> Interrupt Sending
+            </button>
+            <button onclick="clearSMTPResults()" class="btn-github">
+                <i class="fas fa-broom"></i> Clear Log / Reset Files
+            </button>
         </div>
 
-        <!-- Delete Specific Users -->
-        <div class="form-group-github">
-            <label for="delete-app-passwords" class="form-label-github">
-                <i class="fas fa-trash-alt"></i> Delete Specific Users (one per line)
-            </label>
-            <textarea id="delete-app-passwords" class="form-control-github" rows="4"
-                placeholder="Enter usernames or emails to delete (one per line):&#10;user1@domain.com&#10;user2@domain.com&#10;username3"></textarea>
-            <div style="display: flex; gap: 8px; margin-top: 8px;">
-                <button onclick="deleteSpecificAppPasswords()" class="btn-github"
-                    style="background-color: #dc3545; color: white;">
-                    <i class="fas fa-trash"></i> Delete Selected
-                </button>
-                <button onclick="clearDeleteField()" class="btn-github">
-                    <i class="fas fa-times"></i> Clear Field
-                </button>
+        <div>
+            <h4
+                style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-chart-bar" style="color: var(--color-accent-fg);"></i>
+                SMTP Test Results
+            </h4>
+            <div id="smtp-results-log" class="data-display" style="font-family: monospace; font-size: 13px;">
+                <div class="status-info">
+                    <p><strong><i class="fas fa-envelope"></i> SMTP Testing Results</strong></p>
+                    <p>Test results will appear here...</p>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Automation Authentication Process -->
-<div class="github-card draggable-card" data-id="automation-auth-process">
-    <div class="github-card-header" style="cursor: move;">
-        <h3 class="github-card-title">
-            <i class="fas fa-robot"></i>
-            Automation Authentication Process
-        </h3>
-    </div>
-
-    <div class="form-group-github">
-        <label for="automation-accounts-list" class="form-label-github">
-            <i class="fas fa-columns"></i> Accounts to Process (one per line)
-        </label>
-        <textarea id="automation-accounts-list" class="form-control-github" rows="8"
-            placeholder="user1@domain.com&#10;user2@domain.com&#10;user3@domain.com&#10;..."></textarea>
-    </div>
-
-    <div style="display: flex; gap: 12px; margin-top: 16px; margin-bottom: 20px;">
-        <button onclick="executeAutomationProcess()" class="btn-github btn-github-primary">
-            <i class="fas fa-play"></i> Execute Automation Process
-        </button>
-        <button onclick="clearAutomationList()" class="btn-github">
-            <i class="fas fa-trash"></i> Clear List
-        </button>
-    </div>
-
-    <div id="automation-progress" class="progress-container" style="display: none;">
-        <div class="progress-bar">
-            <div id="automation-progress-bar" class="progress-fill"></div>
+    <!-- Generate Sample CSV for User Creation -->
+    <div class="github-card draggable-card" data-id="generate-sample-csv" style="margin-top: 24px;">
+        <div class="github-card-header" style="cursor: move;">
+            <h3 class="github-card-title">
+                <i class="fas fa-file-csv"></i>
+                Generate Sample CSV for User Creation
+            </h3>
         </div>
-        <div id="automation-progress-text" class="progress-text">Starting automation process...</div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+            <div class="form-group-github">
+                <label for="csv-num-users" class="form-label-github">
+                    <i class="fas fa-hashtag"></i> Number of Users
+                </label>
+                <input type="number" id="csv-num-users" class="form-control-github" min="1" max="1000"
+                    placeholder="e.g., 50">
+            </div>
+            <div class="form-group-github">
+                <label for="csv-domain" class="form-label-github">
+                    <i class="fas fa-globe"></i> Domain
+                </label>
+                <input type="text" id="csv-domain" class="form-control-github" placeholder="yourdomain.com">
+            </div>
+            <div class="form-group-github">
+                <label for="csv-password" class="form-label-github">
+                    <i class="fas fa-lock"></i> Default Password
+                </label>
+                <input type="text" id="csv-password" class="form-control-github"
+                    placeholder="Default password for all users">
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+            <button onclick="generateUserCSV()" class="btn-github btn-github-primary">
+                <i class="fas fa-download"></i> Generate CSV File
+            </button>
+            <button onclick="previewCSV()" class="btn-github">
+                <i class="fas fa-eye"></i> Preview CSV
+            </button>
+        </div>
+
+        <div id="csv-download-area" class="data-display"></div>
+
+        <div id="csv-preview-area" class="csv-preview"></div>
     </div>
 
-    <div id="automation-results" class="data-display" style="margin-top: 16px; display: none;">
-        <h4>Automation Results:</h4>
-        <div id="automation-results-content"></div>
-    </div>
+    <!-- Mega Upgrade: Single Account Workflow -->
+    <div class="github-card draggable-card" data-id="mega-upgrade-workflow">
+        <div class="github-card-header" style="cursor: move;">
+            <h3 class="github-card-title">
+                <i class="fas fa-rocket"></i>
+                Mega Upgrade: Single Account Workflow
+            </h3>
+        </div>
 
-</div>
+        <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+            Process a single account with automated workflows. Select which features to apply to the account.
+        </p>
 
-<div id="automation-users-display" class="github-card draggable-card" data-id="automation-users-display"
-    style="margin-top: 16px; display: none;">
-    <div class="github-card-header" style="cursor: move;">
-        <h3 class="github-card-title">
-            <i class="fas fa-users"></i>
-            Retrieved Users
-        </h3>
-    </div>
-    <div id="automation-users-list" class="user-list" style="max-height: 400px; overflow-y: auto;">
-        <!-- Users will be populated here -->
-    </div>
-    <div style="display: flex; gap: 12px; margin-top: 16px; padding: 16px;">
-        <button onclick="copyAutomationUsers()" class="btn-github">
-            <i class="fas fa-copy"></i> Copy All Emails
+        <button onclick="openMegaUpgradeModal()" class="btn-github btn-github-primary"
+            style="width: 100%; padding: 16px; font-size: 16px;">
+            <i class="fas fa-magic"></i> Launch Mega Upgrade Workflow
         </button>
-        <button onclick="exportAutomationUsers()" class="btn-github">
-            <i class="fas fa-download"></i> Export as CSV
-        </button>
-    </div>
-</div>
 
-<!-- Users Text Display Field -->
-<div id="automation-users-text-display" class="github-card draggable-card" data-id="automation-users-text"
-    style="margin-top: 16px; display: none;">
-    <div class="github-card-header" style="cursor: move;
+    </div>
+
+    <!-- App Password Management -->
+    <div class="github-card draggable-card" data-id="app-password-mgmt">
+        <div class="github-card-header" style="cursor: move;">
+            <h3 class="github-card-title">
+                <i class="fas fa-key"></i>
+                App Password Management
+            </h3>
+        </div>
+
+        <div class="form-group-github">
+            <label for="app-passwords-file" class="form-label-github">
+                <i class="fas fa-upload"></i> Upload App Passwords File
+            </label>
+            <input type="file" id="app-passwords-file" class="form-control-github" accept=".txt"
+                onchange="handleAppPasswordsFile(this)">
+            <small class="form-text" style="color: #666; margin-top: 8px;">
+                Upload a .txt file with format: user@domain.com:app_password (one per line)<br>
+                <strong>💡 You can upload multiple files - all passwords will be stored in one place!</strong>
+            </small>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 16px;">
+            <button onclick="uploadAppPasswords()" class="btn-github btn-github-primary">
+                <i class="fas fa-upload"></i> Upload & Store Passwords
+            </button>
+            <button onclick="downloadAppPasswordsTemplate()" class="btn-github">
+                <i class="fas fa-download"></i> Download Template
+            </button>
+            {% if session.role == 'admin' %}
+            <button onclick="clearAppPasswords()" class="btn-github"
+                style="background-color: #dc3545; border-color: #dc3545; color: white;"
+                onmouseover="this.style.backgroundColor='#c82333'" onmouseout="this.style.backgroundColor='#dc3545'">
+                <i class="fas fa-trash"></i> Clear All Passwords
+            </button>
+            {% else %}
+            <div
+                style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background-color: #f8f9fa; border: 1px solid #d0d7de; border-radius: 6px; color: #656d76; font-size: 13px;">
+                <i class="fas fa-lock"></i>
+                <span>Clear All Passwords (Admin Only)</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div id="app-passwords-status" class="count-display" style="margin-top: 16px;">
+            <span id="app-passwords-count">No app passwords stored</span>
+        </div>
+
+        <!-- Advanced App Password Management -->
+        <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #d0d7de;">
+            <h4 style="color: #24292f; margin-bottom: 16px; font-size: 16px;">
+                <i class="fas fa-cogs"></i> Advanced Management
+            </h4>
+
+            <!-- Search and Select Users -->
+            <div class="form-group-github">
+                <label for="search-app-passwords" class="form-label-github">
+                    <i class="fas fa-search"></i> Search App Password Users
+                </label>
+                <input type="text" id="search-app-passwords" class="form-control-github"
+                    placeholder="Search by alias (username)..." onkeyup="searchAppPasswordUsers()">
+                <div style="margin-top: 8px;">
+                    <button onclick="debugAppPasswords()" class="btn-github" style="font-size: 12px; padding: 4px 8px;">
+                        <i class="fas fa-bug"></i> Debug Search
+                    </button>
+                </div>
+            </div>
+
+            <!-- User Selection and Management -->
+            <div id="app-passwords-search-results"
+                style="max-height: 200px; overflow-y: auto; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px; margin-bottom: 16px; display: none;">
+                <!-- Search results will be populated here -->
+            </div>
+
+            <!-- Delete Specific Users -->
+            <div class="form-group-github">
+                <label for="delete-app-passwords" class="form-label-github">
+                    <i class="fas fa-trash-alt"></i> Delete Specific Users (one per line)
+                </label>
+                <textarea id="delete-app-passwords" class="form-control-github" rows="4"
+                    placeholder="Enter usernames or emails to delete (one per line):&#10;user1@domain.com&#10;user2@domain.com&#10;username3"></textarea>
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                    <button onclick="deleteSpecificAppPasswords()" class="btn-github"
+                        style="background-color: #dc3545; color: white;">
+                        <i class="fas fa-trash"></i> Delete Selected
+                    </button>
+                    <button onclick="clearDeleteField()" class="btn-github">
+                        <i class="fas fa-times"></i> Clear Field
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Automation Authentication Process -->
+    <div class="github-card draggable-card" data-id="automation-auth-process">
+        <div class="github-card-header" style="cursor: move;">
+            <h3 class="github-card-title">
+                <i class="fas fa-robot"></i>
+                Automation Authentication Process
+            </h3>
+        </div>
+
+        <div class="form-group-github">
+            <label for="automation-accounts-list" class="form-label-github">
+                <i class="fas fa-columns"></i> Accounts to Process (one per line)
+            </label>
+            <textarea id="automation-accounts-list" class="form-control-github" rows="8"
+                placeholder="user1@domain.com&#10;user2@domain.com&#10;user3@domain.com&#10;..."></textarea>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 16px; margin-bottom: 20px;">
+            <button onclick="executeAutomationProcess()" class="btn-github btn-github-primary">
+                <i class="fas fa-play"></i> Execute Automation Process
+            </button>
+            <button onclick="clearAutomationList()" class="btn-github">
+                <i class="fas fa-trash"></i> Clear List
+            </button>
+        </div>
+
+        <div id="automation-progress" class="progress-container" style="display: none;">
+            <div class="progress-bar">
+                <div id="automation-progress-bar" class="progress-fill"></div>
+            </div>
+            <div id="automation-progress-text" class="progress-text">Starting automation process...</div>
+        </div>
+
+        <div id="automation-results" class="data-display" style="margin-top: 16px; display: none;">
+            <h4>Automation Results:</h4>
+            <div id="automation-results-content"></div>
+        </div>
+
+    </div>
+
+    <div id="automation-users-display" class="github-card draggable-card" data-id="automation-users-display"
+        style="margin-top: 16px; display: none;">
+        <div class="github-card-header" style="cursor: move;">
+            <h3 class="github-card-title">
+                <i class="fas fa-users"></i>
+                Retrieved Users
+            </h3>
+        </div>
+        <div id="automation-users-list" class="user-list" style="max-height: 400px; overflow-y: auto;">
+            <!-- Users will be populated here -->
+        </div>
+        <div style="display: flex; gap: 12px; margin-top: 16px; padding: 16px;">
+            <button onclick="copyAutomationUsers()" class="btn-github">
+                <i class="fas fa-copy"></i> Copy All Emails
+            </button>
+            <button onclick="exportAutomationUsers()" class="btn-github">
+                <i class="fas fa-download"></i> Export as CSV
+            </button>
+        </div>
+    </div>
+
+    <!-- Users Text Display Field -->
+    <div id="automation-users-text-display" class="github-card draggable-card" data-id="automation-users-text"
+        style="margin-top: 16px; display: none;">
+        <div class="github-card-header" style="cursor: move;
                 background: linear-gradient(135deg, #f6f8fa 0%, #e1e8ed 100%);
                 border-bottom: 3px solid #0969da;
                 border-radius: 8px 8px 0 0;
                 padding: 20px;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             ">
-        <div>
-            <h3 class="github-card-title" style="
+            <div>
+                <h3 class="github-card-title" style="
                         margin: 0; 
                         color: #24292f; 
                         font-size: 20px; 
                         font-weight: 700;
                         text-shadow: 0 1px 2px rgba(0,0,0,0.1);
                     ">
-                <i class="fas fa-list-alt" style="color: #0969da; margin-right: 10px; font-size: 22px;"></i>
-                Users List (Text Format)
-            </h3>
-            <div id="users-list-stats" style="margin-top: 16px;">
-                <!-- Statistics will be displayed here -->
+                    <i class="fas fa-list-alt" style="color: #0969da; margin-right: 10px; font-size: 22px;"></i>
+                    Users List (Text Format)
+                </h3>
+                <div id="users-list-stats" style="margin-top: 16px;">
+                    <!-- Statistics will be displayed here -->
+                </div>
             </div>
         </div>
-    </div>
-    <div class="github-card-body" style="padding: 20px;">
-        <div class="form-group-github">
-            <label for="automation-users-text" class="form-label-github"
-                style="font-weight: 600; color: #24292f; margin-bottom: 12px;">
-                <i class="fas fa-file-text" style="color: #0969da; margin-right: 8px;"></i>
-                Retrieved Users (SMTP Format)
-            </label>
-            <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-                <button onclick="copyRetrievedUsersText()" class="btn-github" style="
+        <div class="github-card-body" style="padding: 20px;">
+            <div class="form-group-github">
+                <label for="automation-users-text" class="form-label-github"
+                    style="font-weight: 600; color: #24292f; margin-bottom: 12px;">
+                    <i class="fas fa-file-text" style="color: #0969da; margin-right: 8px;"></i>
+                    Retrieved Users (SMTP Format)
+                </label>
+                <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                    <button onclick="copyRetrievedUsersText()" class="btn-github" style="
                             padding: 8px 16px; 
                             font-size: 13px; 
                             font-weight: 500;
@@ -1931,10 +1930,10 @@
                             align-items: center;
                             gap: 6px;
                             " onmouseover="this.style.background='#0550ae'"
-                    onmouseout="this.style.background='#0969da'">
-                    <i class="fas fa-copy"></i> Copy Text
-                </button>
-                <button onclick="exportAutomationUsers()" class="btn-github" style="
+                        onmouseout="this.style.background='#0969da'">
+                        <i class="fas fa-copy"></i> Copy Text
+                    </button>
+                    <button onclick="exportAutomationUsers()" class="btn-github" style="
                             padding: 8px 16px; 
                             font-size: 13px; 
                             font-weight: 500;
@@ -1947,10 +1946,10 @@
                             align-items: center;
                             gap: 6px;
                             " onmouseover="this.style.background='#1e7e34'"
-                    onmouseout="this.style.background='#28a745'">
-                    <i class="fas fa-download"></i> Export CSV
-                </button>
-                <button onclick="readyToTest();" class="btn-github" style="
+                        onmouseout="this.style.background='#28a745'">
+                        <i class="fas fa-download"></i> Export CSV
+                    </button>
+                    <button onclick="readyToTest();" class="btn-github" style="
                             padding: 8px 16px; 
                             font-size: 13px; 
                             font-weight: 500;
@@ -1963,13 +1962,13 @@
                             align-items: center;
                             gap: 6px;
                             " onmouseover="this.style.background='#e55a2b'"
-                    onmouseout="this.style.background='#ff6b35'">
-                    <i class="fas fa-vial"></i> Ready to Test
-                </button>
-            </div>
-            <div style="position: relative;">
-                <textarea id="automation-users-text" class="form-control-github" rows="15"
-                    placeholder="Users will appear here after automation process..." readonly style="
+                        onmouseout="this.style.background='#ff6b35'">
+                        <i class="fas fa-vial"></i> Ready to Test
+                    </button>
+                </div>
+                <div style="position: relative;">
+                    <textarea id="automation-users-text" class="form-control-github" rows="15"
+                        placeholder="Users will appear here after automation process..." readonly style="
                                     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
                                     font-size: 13px;
                                     line-height: 1.5;
@@ -1980,7 +1979,7 @@
                                     resize: vertical;
                                     min-height: 300px;
                                   "></textarea>
-                <div style="
+                    <div style="
                             position: absolute;
                             top: 8px;
                             right: 8px;
@@ -1991,53 +1990,53 @@
                             color: #656d76;
                             font-weight: 500;
                             ">
-                    <i class="fas fa-lock"></i> Read-only
+                        <i class="fas fa-lock"></i> Read-only
+                    </div>
                 </div>
-            </div>
-            <div
-                style="margin-top: 12px; padding: 12px; background: #f6f8fa; border-radius: 6px; border-left: 4px solid #0969da;">
-                <div style="display: flex; align-items: center; gap: 8px; color: #656d76; font-size: 12px;">
-                    <i class="fas fa-info-circle" style="color: #0969da;"></i>
-                    <span><strong>Format:</strong> email,app_password,smtp.gmail.com,587 (one per line)</span>
+                <div
+                    style="margin-top: 12px; padding: 12px; background: #f6f8fa; border-radius: 6px; border-left: 4px solid #0969da;">
+                    <div style="display: flex; align-items: center; gap: 8px; color: #656d76; font-size: 12px;">
+                        <i class="fas fa-info-circle" style="color: #0969da;"></i>
+                        <span><strong>Format:</strong> email,app_password,smtp.gmail.com,587 (one per line)</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Cloudflare TXT Deletion -->
-<div class="github-card draggable-card" data-id="cloudflare-txt-deletion" style="margin-top: 24px;">
-    <div class="github-card-header" style="cursor: move;">
-        <h3 class="github-card-title">
-            <i class="fas fa-trash-alt"></i>
-            Cloudflare TXT Deletion
-        </h3>
-    </div>
-
-    <div style="margin-bottom: 20px;">
-        <div class="form-group-github" style="margin-bottom: 16px;">
-            <label for="cloudflare-delete-domain" class="form-label-github">
-                <i class="fas fa-globe"></i> Domains to Clean (one per line)
-            </label>
-            <textarea id="cloudflare-delete-domain" class="form-control-github" rows="5"
-                placeholder="example.com&#10;domain2.com&#10;sub.domain3.org"></textarea>
-            <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
-                <i class="fas fa-exclamation-triangle" style="color: var(--color-danger-fg);"></i>
-                <strong>Warning:</strong> This will delete ALL TXT records for these domains in Cloudflare. This
-                action cannot be undone.
-            </small>
+    <!-- Cloudflare TXT Deletion -->
+    <div class="github-card draggable-card" data-id="cloudflare-txt-deletion" style="margin-top: 24px;">
+        <div class="github-card-header" style="cursor: move;">
+            <h3 class="github-card-title">
+                <i class="fas fa-trash-alt"></i>
+                Cloudflare TXT Deletion
+            </h3>
         </div>
 
-        <button onclick="deleteCloudflareTXTRecords()" class="btn-github"
-            style="background-color: var(--color-danger-emphasis); border-color: var(--color-danger-emphasis); color: #ffffff;">
-            <i class="fas fa-trash"></i> Delete All TXT Records
-        </button>
-    </div>
+        <div style="margin-bottom: 20px;">
+            <div class="form-group-github" style="margin-bottom: 16px;">
+                <label for="cloudflare-delete-domain" class="form-label-github">
+                    <i class="fas fa-globe"></i> Domains to Clean (one per line)
+                </label>
+                <textarea id="cloudflare-delete-domain" class="form-control-github" rows="5"
+                    placeholder="example.com&#10;domain2.com&#10;sub.domain3.org"></textarea>
+                <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
+                    <i class="fas fa-exclamation-triangle" style="color: var(--color-danger-fg);"></i>
+                    <strong>Warning:</strong> This will delete ALL TXT records for these domains in Cloudflare. This
+                    action cannot be undone.
+                </small>
+            </div>
 
-    <div id="cloudflare-delete-result" class="data-display" style="display: none; margin-top: 16px;">
-        <div id="cloudflare-delete-content"></div>
+            <button onclick="deleteCloudflareTXTRecords()" class="btn-github"
+                style="background-color: var(--color-danger-emphasis); border-color: var(--color-danger-emphasis); color: #ffffff;">
+                <i class="fas fa-trash"></i> Delete All TXT Records
+            </button>
+        </div>
+
+        <div id="cloudflare-delete-result" class="data-display" style="display: none; margin-top: 16px;">
+            <div id="cloudflare-delete-content"></div>
+        </div>
     </div>
-</div>
 </div>
 
 <script>
