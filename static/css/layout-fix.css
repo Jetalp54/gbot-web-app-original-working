@@ -586,7 +586,8 @@ aside {
 
 .search-and-list {
     flex: 1 !important;
-    min-width: 0 !important; /* Prevent flex overflow */
+    min-width: 0 !important;
+    /* Prevent flex overflow */
 }
 
 .account-actions {
@@ -641,7 +642,7 @@ aside {
     display: flex;
     align-items: center;
     gap: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .stat-icon {
@@ -654,14 +655,44 @@ aside {
     font-size: 18px;
 }
 
-.stat-icon.bg-blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-.stat-icon.bg-green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-.stat-icon.bg-red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-.stat-icon.bg-orange { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.stat-icon.bg-blue {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
 
-.stat-content { display: flex; flex-direction: column; }
-.stat-value { font-size: 20px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
-.stat-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+.stat-icon.bg-green {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.stat-icon.bg-red {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.stat-icon.bg-orange {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.stat-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+}
 
 .user-list-table {
     width: 100%;
@@ -702,5 +733,99 @@ aside {
     color: var(--text-secondary);
     font-size: 14px;
     border: 1px solid var(--border-panel);
+}
+
+
+
+
+
+/* ========== FINAL MODAL FIX (Shifted Strategy - CLEAN) ========== */
+@media (min-width: 992px) {
+
+    /* DEFAULT STATE: HIDDEN & SHIFTED */
+    .modal {
+        padding-left: 0 !important;
+        left: 260px !important;
+        width: calc(100% - 260px) !important;
+        /* Do NOT force display:flex globally. Instead... */
+    }
+
+    /* OPEN STATE: VISIBLE & CENTERED */
+    .modal[style*='block'],
+    .modal[style*='flex'],
+    .modal.show {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    .modal-backdrop {
+        left: 260px !important;
+        width: calc(100% - 260px) !important;
+    }
+
+    /* Ensure content is centered and responsive */
+    .modal-dialog {
+        margin: auto !important;
+        max-width: 95% !important;
+    }
+}
+
+/* GLOBAL SAFETY: Ensure modals without 'show', 'block', or 'flex' are definitely hidden */
+.modal:not(.show):not([style*='block']):not([style*='flex']) {
+    display: none !important;
+}
+
+/* Fix for z-index to ensure it sits above everything else in the main area */
+.modal {
+    z-index: 1055 !important;
+}
+
+.modal-backdrop {
+    z-index: 1050 !important;
+}
+
+/* ========== MODAL TYPOGRAPHY POLISH ========== */
+/* Style code snippets in modals to look professional */
+.modal code, .glass-info-box code {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--accent-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Roboto Mono', 'Menlo', monospace;
+    font-size: 0.9em;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Dark mode support for code snippets */
+[data-theme='dark'] .modal code,
+[data-theme='dark'] .glass-info-box code {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+
+
+/* ========== S3 MODAL CONTENT IMPROVEMENT ========== */
+/* Force better visibility for code snippets in info boxes */
+.glass-info-box code,
+.modal-body code {
+    background-color: rgba(27, 31, 35, 0.08) !important;
+    color: #0969da !important;
+    padding: 0.2em 0.4em !important;
+    margin: 0 !important;
+    font-size: 85% !important;
+    border-radius: 6px !important;
+    font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace !important;
+    word-break: break-word !important;
+    display: inline-block !important; /* Ensures padding is respected */
+    border: 1px solid rgba(27, 31, 35, 0.05) !important;
+}
+
+/* Specific spacing for the S3 instruction box */
+#s3ImportModal .glass-info-box {
+    padding: 16px !important;
+    line-height: 1.6 !important;
 }
 
