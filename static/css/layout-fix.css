@@ -829,3 +829,26 @@ aside {
     line-height: 1.6 !important;
 }
 
+
+
+/* ========== HEADER & NAV POLISH ========== */
+/* Force header to be full width */
+.glass-header {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+}
+
+/* Active state for sidebar dropdown items */
+.dropdown-item.active {
+    color: var(--accent-primary) !important;
+    background-color: rgba(37, 99, 235, 0.1) !important;
+    font-weight: 600 !important;
+}
+
+.dropdown-item.active i {
+    color: var(--accent-primary) !important;
+}
+
