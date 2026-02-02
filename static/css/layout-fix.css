@@ -542,3 +542,84 @@ aside {
     padding: 16px 24px !important;
 }
 
+
+
+/* ========== ACCOUNT SELECTION IMPROVEMENTS ========== */
+/* Account list item hover and selected states */
+.account-item {
+    padding: 12px 16px !important;
+    cursor: pointer !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
+    border: 1px solid transparent !important;
+    margin-bottom: 4px !important;
+}
+
+.account-item:hover {
+    background-color: var(--accent-primary) !important;
+    color: #ffffff !important;
+    border-color: var(--accent-primary) !important;
+    transform: translateX(4px);
+}
+
+.account-item.selected {
+    background-color: var(--accent-primary) !important;
+    color: #ffffff !important;
+    border-color: var(--accent-secondary) !important;
+    font-weight: 600 !important;
+}
+
+.account-item.selected::after {
+    content: '?';
+    float: right;
+    font-weight: bold;
+}
+
+
+
+/* ========== ACCOUNT SELECTION LAYOUT ========== */
+.account-management-area {
+    display: flex !important;
+    gap: 20px !important;
+    align-items: flex-start !important;
+}
+
+.search-and-list {
+    flex: 1 !important;
+    min-width: 0 !important; /* Prevent flex overflow */
+}
+
+.account-actions {
+    width: 260px !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    margin-top: 0 !important;
+}
+
+/* Auth Status Styling */
+#auth-status {
+    margin-top: 16px !important;
+    padding: 12px 16px !important;
+    border-radius: 6px !important;
+    background-color: rgba(16, 185, 129, 0.1) !important;
+    border: 1px solid rgba(16, 185, 129, 0.2) !important;
+    color: #047857 !important;
+    font-weight: 500 !important;
+}
+
+/* Badge style for individual users (to be implemented in JS) */
+.auth-user-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    background-color: #ffffff;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 4px;
+    margin: 0 4px;
+    font-size: 0.85em;
+    color: #059669;
+    font-weight: 600;
+}
+

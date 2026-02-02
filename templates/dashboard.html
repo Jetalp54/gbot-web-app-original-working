@@ -78,7 +78,7 @@
                 </div>
             </div>
 
-            <div class="account-actions d-grid gap-2">
+            <div class="account-actions">
                 <button onclick="authenticateFromList()" class="glass-button w-100 justify-content-center">
                     <i class="fas fa-key me-2"></i> Authenticate Selected
                 </button>
@@ -3843,7 +3843,14 @@
         isAuthenticated = authenticated;
 
         if (authenticated) {
-            statusBox.innerHTML = `<p style="color: green;">✅ Authenticated as: ${account}</p>`;
+            const accounts = account.split(',').map(a => a.trim()).filter(a => a);
+            const badges = accounts.map(acc => `<span class="auth-user-badge"><i class="fas fa-user-check me-1"></i>${acc}</span>`).join('');
+
+            statusBox.innerHTML = `
+                <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <span style="font-weight: 600; color: #047857;">Authenticated as:</span>
+                    ${badges}
+                </div>`;
             statusBox.className = 'status-box success';
         } else {
             statusBox.innerHTML = `<p style="color: red;">❌ ${message || 'Not authenticated'}</p>`;
@@ -6008,7 +6015,14 @@
             item.dataset.accountName = account.account_name;
             item.dataset.accountId = account.id;
             item.textContent = account.account_name;
-            item.onclick = () => selectAccountFromList(account.account_name, account.id);
+            item.onclick = () => {
+                // Remove selected class from all items
+                document.querySelectorAll('.account-item').forEach(el => el.classList.remove('selected'));
+                // Add selected class to clicked item
+                item.classList.add('selected');
+                // Call original selection function
+                selectAccountFromList(account.account_name, account.id);
+            };
             listArea.appendChild(item);
         });
 
