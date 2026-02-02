@@ -1322,207 +1322,216 @@
 
 
 
-    <!-- Domain Addition & Verification -->
-    <div class="github-card draggable-card" data-id="domain-addition-verification">
-        <div class="github-card-header" style="cursor: move;">
-            <h3 class="github-card-title">
-                <i class="fas fa-check-circle"></i>
-                Domain Addition & Verification
-            </h3>
-        </div>
-
-        <div style="margin-bottom: 20px;">
-            <div class="form-group-github" style="margin-bottom: 16px;">
-                <label for="domain-verification-input" class="form-label-github">
-                    <i class="fas fa-list"></i> Paste domains (one per line)
-                </label>
-                <textarea id="domain-verification-input" class="form-control-github" rows="8"
-                    placeholder="example.com&#10;sub.team.example.co.uk&#10;another-domain.io"></textarea>
+    <!-- Domain Verification Grid Layout -->
+    <div class="domains-verification-grid"
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(600px, 1fr)); gap: 24px; align-items: start; margin-bottom: 24px;">
+        <!-- Domain Addition & Verification -->
+        <div class="github-card draggable-card" data-id="domain-addition-verification">
+            <div class="github-card-header" style="cursor: move;">
+                <h3 class="github-card-title">
+                    <i class="fas fa-check-circle"></i>
+                    Domain Addition & Verification
+                </h3>
             </div>
 
-            <!-- DNS Provider Selection -->
-            <div class="form-group-github" style="margin-bottom: 16px;">
-                <label class="form-label-github">
-                    <i class="fas fa-server"></i> DNS Provider
-                </label>
-                <div style="display: flex; gap: 16px; align-items: center;">
+            <div style="margin-bottom: 20px;">
+                <div class="form-group-github" style="margin-bottom: 16px;">
+                    <label for="domain-verification-input" class="form-label-github">
+                        <i class="fas fa-list"></i> Paste domains (one per line)
+                    </label>
+                    <textarea id="domain-verification-input" class="form-control-github" rows="8"
+                        placeholder="example.com&#10;sub.team.example.co.uk&#10;another-domain.io"></textarea>
+                </div>
+
+                <!-- DNS Provider Selection -->
+                <div class="form-group-github" style="margin-bottom: 16px;">
+                    <label class="form-label-github">
+                        <i class="fas fa-server"></i> DNS Provider
+                    </label>
+                    <div style="display: flex; gap: 16px; align-items: center;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="radio" name="dns_provider" value="namecheap" checked
+                                onchange="toggleProviderSettings()">
+                            <span>Namecheap</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="radio" name="dns_provider" value="cloudflare"
+                                onchange="toggleProviderSettings()">
+                            <span>Cloudflare</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="radio" name="dns_provider" value="namecheap" checked
-                            onchange="toggleProviderSettings()">
-                        <span>Namecheap</span>
+                        <input type="checkbox" id="domain-verification-dry-run" style="cursor: pointer;">
+                        <span>Dry-run (no DNS writes)</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="radio" name="dns_provider" value="cloudflare" onchange="toggleProviderSettings()">
-                        <span>Cloudflare</span>
+                        <input type="checkbox" id="domain-verification-skip-verified" checked style="cursor: pointer;">
+                        <span>Skip if domain already verified</span>
                     </label>
+                </div>
+
+                <button
+                    onclick="console.log('Button clicked!'); if(typeof window.startDomainVerification === 'function') { window.startDomainVerification(); } else { alert('Error: startDomainVerification function not found! Check console for details.'); console.error('startDomainVerification is:', typeof window.startDomainVerification); }"
+                    class="btn-github btn-github-primary" id="domain-verification-start-btn">
+                    <i class="fas fa-play"></i> Start Process
+                </button>
+                <button onclick="stopDomainVerification()" class="btn-github" id="domain-verification-stop-btn"
+                    style="background-color: var(--color-danger-emphasis); border-color: var(--color-danger-emphasis); color: #ffffff; margin-left: 8px;">
+                    <i class="fas fa-stop"></i> Stop Process
+                </button>
+                <button onclick="verifyUnverifiedDomains()" class="btn-github" id="verify-unverified-btn"
+                    style="background-color: #6f42c1; border-color: #6f42c1; color: #ffffff; margin-left: 8px;">
+                    <i class="fas fa-check-double"></i> Verify Unverified Domains
+                </button>
+            </div>
+
+            <!-- Status Table -->
+            <div id="domain-verification-status" style="display: none; margin-top: 24px;">
+                <h4 style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0 0 16px 0;">
+                    <i class="fas fa-table"></i> Status
+                </h4>
+                <div style="overflow-x: auto;">
+                    <table id="domain-verification-table"
+                        style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr class="glass-table-header">
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Domain</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Workspace Add</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">DNS TXT</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Verification</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Message</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="domain-verification-table-body">
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                    <input type="checkbox" id="domain-verification-dry-run" style="cursor: pointer;">
-                    <span>Dry-run (no DNS writes)</span>
-                </label>
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                    <input type="checkbox" id="domain-verification-skip-verified" checked style="cursor: pointer;">
-                    <span>Skip if domain already verified</span>
-                </label>
-            </div>
-
-            <button
-                onclick="console.log('Button clicked!'); if(typeof window.startDomainVerification === 'function') { window.startDomainVerification(); } else { alert('Error: startDomainVerification function not found! Check console for details.'); console.error('startDomainVerification is:', typeof window.startDomainVerification); }"
-                class="btn-github btn-github-primary" id="domain-verification-start-btn">
-                <i class="fas fa-play"></i> Start Process
-            </button>
-            <button onclick="stopDomainVerification()" class="btn-github" id="domain-verification-stop-btn"
-                style="background-color: var(--color-danger-emphasis); border-color: var(--color-danger-emphasis); color: #ffffff; margin-left: 8px;">
-                <i class="fas fa-stop"></i> Stop Process
-            </button>
-            <button onclick="verifyUnverifiedDomains()" class="btn-github" id="verify-unverified-btn"
-                style="background-color: #6f42c1; border-color: #6f42c1; color: #ffffff; margin-left: 8px;">
-                <i class="fas fa-check-double"></i> Verify Unverified Domains
-            </button>
-        </div>
-
-        <!-- Status Table -->
-        <div id="domain-verification-status" style="display: none; margin-top: 24px;">
-            <h4 style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0 0 16px 0;">
-                <i class="fas fa-table"></i> Status
-            </h4>
-            <div style="overflow-x: auto;">
-                <table id="domain-verification-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                    <thead>
-                        <tr class="glass-table-header">
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Domain</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Workspace Add</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">DNS TXT</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Verification</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Message</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Last Updated</th>
-                        </tr>
-                    </thead>
-                    <tbody id="domain-verification-table-body">
-                    </tbody>
-                </table>
+            <!-- Log Panel -->
+            <div id="domain-verification-log-container" style="margin-top: 24px; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h4 style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0;">
+                        <i class="fas fa-file-alt"></i> Log Panel
+                    </h4>
+                    <button onclick="toggleDomainVerificationLog()" class="btn-github"
+                        style="padding: 4px 12px; font-size: 12px;">
+                        <i class="fas fa-chevron-down" id="domain-verification-log-toggle-icon"></i> Toggle
+                    </button>
+                </div>
+                <div id="domain-verification-log" class="glass-code-block"
+                    style="display: none; max-height: 300px; overflow-y: auto; white-space: pre-wrap;">
+                </div>
             </div>
         </div>
 
-        <!-- Log Panel -->
-        <div id="domain-verification-log-container" style="margin-top: 24px; display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <h4 style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0;">
-                    <i class="fas fa-file-alt"></i> Log Panel
+        <!-- Bulk Multi-Account Domain Verification -->
+        <div class="github-card draggable-card" data-id="bulk-multi-account-verification">
+            <div class="github-card-header" style="cursor: move;">
+                <h3 class="github-card-title">
+                    <i class="fas fa-layer-group"></i>
+                    Bulk Multi-Account Domain Verification
+                </h3>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div class="form-group-github" style="margin-bottom: 16px;">
+                    <label for="bulk-multi-account-input" class="form-label-github">
+                        <i class="fas fa-list"></i> Paste accounts with domains (one per line)
+                    </label>
+                    <textarea id="bulk-multi-account-input" class="form-control-github" rows="8"
+                        placeholder="Format: admin@account.com,newdomain.fun&#10;admin@yklqssgbjeympegr.boldvisiongroup.co.uk,eaxi263oyz7ji6gf.lunervanexta.fun&#10;admin@torrrimvlrojsppo.boldvisiongroup.co.uk,3kg4j2chiuc6fykm.lunervanexta.fun"></textarea>
+                    <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
+                        <i class="fas fa-info-circle"></i>
+                        Format: <code>account_name,domain</code> or <code>admin_email,domain</code> - Uses stored JSON
+                        credentials (no password needed)
+                    </small>
+                </div>
+
+                <!-- DNS Provider Selection for Bulk -->
+                <div class="form-group-github" style="margin-bottom: 16px;">
+                    <label class="form-label-github">
+                        <i class="fas fa-server"></i> DNS Provider
+                    </label>
+                    <div style="display: flex; gap: 16px; align-items: center;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="radio" name="bulk_dns_provider" value="namecheap" checked>
+                            <span>Namecheap</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="radio" name="bulk_dns_provider" value="cloudflare">
+                            <span>Cloudflare</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                    <button onclick="parseBulkMultiAccountDomains()" class="btn-github btn-github-primary">
+                        <i class="fas fa-list-check"></i> Parse & Preview
+                    </button>
+                    <button onclick="startBulkMultiAccountVerification()" class="btn-github"
+                        style="background-color: #28a745; border-color: #28a745; color: #ffffff;"
+                        id="bulk-multi-start-btn">
+                        <i class="fas fa-play"></i> Start All
+                    </button>
+                    <button onclick="stopBulkMultiAccountVerification()" class="btn-github"
+                        style="background-color: var(--color-danger-emphasis); border-color: var(--color-danger-emphasis); color: #ffffff;"
+                        id="bulk-multi-stop-btn">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                    <button onclick="clearBulkMultiAccountInput()" class="btn-github">
+                        <i class="fas fa-broom"></i> Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Parsed Schedule Table -->
+            <div id="bulk-multi-schedule" style="display: none; margin-top: 24px;">
+                <h4 style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0 0 16px 0;">
+                    <i class="fas fa-table"></i> Schedule (<span id="bulk-multi-count">0</span> entries)
                 </h4>
-                <button onclick="toggleDomainVerificationLog()" class="btn-github"
-                    style="padding: 4px 12px; font-size: 12px;">
-                    <i class="fas fa-chevron-down" id="domain-verification-log-toggle-icon"></i> Toggle
-                </button>
+                <div style="overflow-x: auto;">
+                    <table id="bulk-multi-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr class="glass-table-header">
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">#</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Domain</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Account</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Auth</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Workspace</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">DNS TXT</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Verify</th>
+                                <th style="padding: 8px; text-align: left; font-weight: 600;">Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bulk-multi-table-body">
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div id="domain-verification-log" class="glass-code-block"
-                style="display: none; max-height: 300px; overflow-y: auto; white-space: pre-wrap;">
+
+            <!-- Log Panel -->
+            <div id="bulk-multi-log-container" style="margin-top: 24px; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h4 style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0;">
+                        <i class="fas fa-file-alt"></i> Log
+                    </h4>
+                    <button onclick="toggleBulkMultiLog()" class="btn-github"
+                        style="padding: 4px 12px; font-size: 12px;">
+                        <i class="fas fa-chevron-down" id="bulk-multi-log-toggle-icon"></i> Toggle
+                    </button>
+                </div>
+                <div id="bulk-multi-log" class="glass-code-block"
+                    style="max-height: 300px; overflow-y: auto; white-space: pre-wrap;">
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Bulk Multi-Account Domain Verification -->
-    <div class="github-card draggable-card" data-id="bulk-multi-account-verification">
-        <div class="github-card-header" style="cursor: move;">
-            <h3 class="github-card-title">
-                <i class="fas fa-layer-group"></i>
-                Bulk Multi-Account Domain Verification
-            </h3>
-        </div>
-
-        <div style="margin-bottom: 20px;">
-            <div class="form-group-github" style="margin-bottom: 16px;">
-                <label for="bulk-multi-account-input" class="form-label-github">
-                    <i class="fas fa-list"></i> Paste accounts with domains (one per line)
-                </label>
-                <textarea id="bulk-multi-account-input" class="form-control-github" rows="8"
-                    placeholder="Format: admin@account.com,newdomain.fun&#10;admin@yklqssgbjeympegr.boldvisiongroup.co.uk,eaxi263oyz7ji6gf.lunervanexta.fun&#10;admin@torrrimvlrojsppo.boldvisiongroup.co.uk,3kg4j2chiuc6fykm.lunervanexta.fun"></textarea>
-                <small style="color: #656d76; font-size: 12px; margin-top: 8px; display: block;">
-                    <i class="fas fa-info-circle"></i>
-                    Format: <code>account_name,domain</code> or <code>admin_email,domain</code> - Uses stored JSON
-                    credentials (no password needed)
-                </small>
-            </div>
-
-            <!-- DNS Provider Selection for Bulk -->
-            <div class="form-group-github" style="margin-bottom: 16px;">
-                <label class="form-label-github">
-                    <i class="fas fa-server"></i> DNS Provider
-                </label>
-                <div style="display: flex; gap: 16px; align-items: center;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="radio" name="bulk_dns_provider" value="namecheap" checked>
-                        <span>Namecheap</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="radio" name="bulk_dns_provider" value="cloudflare">
-                        <span>Cloudflare</span>
-                    </label>
-                </div>
-            </div>
-
-            <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
-                <button onclick="parseBulkMultiAccountDomains()" class="btn-github btn-github-primary">
-                    <i class="fas fa-list-check"></i> Parse & Preview
-                </button>
-                <button onclick="startBulkMultiAccountVerification()" class="btn-github"
-                    style="background-color: #28a745; border-color: #28a745; color: #ffffff;" id="bulk-multi-start-btn">
-                    <i class="fas fa-play"></i> Start All
-                </button>
-                <button onclick="stopBulkMultiAccountVerification()" class="btn-github"
-                    style="background-color: var(--color-danger-emphasis); border-color: var(--color-danger-emphasis); color: #ffffff;"
-                    id="bulk-multi-stop-btn">
-                    <i class="fas fa-stop"></i> Stop
-                </button>
-                <button onclick="clearBulkMultiAccountInput()" class="btn-github">
-                    <i class="fas fa-broom"></i> Clear
-                </button>
-            </div>
-        </div>
-
-        <!-- Parsed Schedule Table -->
-        <div id="bulk-multi-schedule" style="display: none; margin-top: 24px;">
-            <h4 style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0 0 16px 0;">
-                <i class="fas fa-table"></i> Schedule (<span id="bulk-multi-count">0</span> entries)
-            </h4>
-            <div style="overflow-x: auto;">
-                <table id="bulk-multi-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                    <thead>
-                        <tr class="glass-table-header">
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">#</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Domain</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Account</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Auth</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Workspace</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">DNS TXT</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Verify</th>
-                            <th style="padding: 8px; text-align: left; font-weight: 600;">Message</th>
-                        </tr>
-                    </thead>
-                    <tbody id="bulk-multi-table-body">
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Log Panel -->
-        <div id="bulk-multi-log-container" style="margin-top: 24px; display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <h4 style="font-size: 16px; font-weight: 600; color: var(--color-fg-default); margin: 0;">
-                    <i class="fas fa-file-alt"></i> Log
-                </h4>
-                <button onclick="toggleBulkMultiLog()" class="btn-github" style="padding: 4px 12px; font-size: 12px;">
-                    <i class="fas fa-chevron-down" id="bulk-multi-log-toggle-icon"></i> Toggle
-                </button>
-            </div>
-            <div id="bulk-multi-log" class="glass-code-block"
-                style="max-height: 300px; overflow-y: auto; white-space: pre-wrap;">
-            </div>
-        </div>
-    </div>
 
     <!-- Results Log (Covers Both Workflows) -->
     <div class="github-card draggable-card" data-id="results-log-combined">
