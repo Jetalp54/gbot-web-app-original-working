@@ -1398,12 +1398,15 @@
                         style="width: 100%; border-collapse: collapse; font-size: 13px;">
                         <thead>
                             <tr class="glass-table-header">
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Domain</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Workspace Add</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">DNS TXT</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Verification</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Message</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Last Updated</th>
+                                <th style="padding: 8px; width: 180px;">Domain</th>
+                                <th style="padding: 8px; width: 40px; text-align: center;" title="Workspace Add"><i
+                                        class="fas fa-briefcase"></i></th>
+                                <th style="padding: 8px; width: 40px; text-align: center;" title="DNS TXT"><i
+                                        class="fas fa-globe"></i></th>
+                                <th style="padding: 8px; width: 40px; text-align: center;" title="Verification"><i
+                                        class="fas fa-check-circle"></i></th>
+                                <th style="padding: 8px;">Message</th>
+                                <th style="padding: 8px;">Last Updated</th>
                             </tr>
                         </thead>
                         <tbody id="domain-verification-table-body">
@@ -12396,26 +12399,26 @@
             row.style.borderBottom = '1px solid var(--color-border-default)';
 
             const getStatusBadge = (status) => {
-                const colors = {
-                    'success': '#2da44e',
-                    'failed': '#cf222e',
-                    'pending': '#656d76',
-                    'skipped': '#bf8700',
-                    'dry-run': '#0969da'
+                const statusMap = {
+                    'pending': '<i class="fas fa-circle text-muted" style="font-size: 8px; opacity: 0.5;"></i>',
+                    'running': '<i class="fas fa-spinner fa-spin status-pulse" style="color: #0969da; font-size: 14px;"></i>',
+                    'success': '<i class="fas fa-check-circle" style="color: #2da44e; font-size: 14px;"></i>',
+                    'failed': '<i class="fas fa-times-circle" style="color: #cf222e; font-size: 14px;"></i>',
+                    'skipped': '<i class="fas fa-forward" style="color: #bf8700; font-size: 12px;"></i>',
+                    'dry-run': '<i class="fas fa-flask" style="color: #0969da; font-size: 12px;"></i>'
                 };
-                const color = colors[status] || '#656d76';
-                return `<span style="background-color: ${color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">${status.toUpperCase()}</span>`;
+                return statusMap[status] || statusMap['pending'];
             };
 
             // Escape HTML in message to prevent XSS
             const safeMessage = (result.message || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
             row.innerHTML = `
-            <td style="padding: 8px;">${result.domain}</td>
-            <td style="padding: 8px;">${getStatusBadge(result.workspace)}</td>
-            <td style="padding: 8px;">${getStatusBadge(result.dns)}</td>
-            <td style="padding: 8px;">${getStatusBadge(result.verify)}</td>
-            <td style="padding: 8px; max-width: 300px; word-wrap: break-word;">${safeMessage}</td>
+            <td style="padding: 8px;"><span class="text-truncate-cell" title="${result.domain}" style="max-width: 170px;">${result.domain}</span></td>
+            <td style="padding: 8px; text-align: center;">${getStatusBadge(result.workspace)}</td>
+            <td style="padding: 8px; text-align: center;">${getStatusBadge(result.dns)}</td>
+            <td style="padding: 8px; text-align: center;">${getStatusBadge(result.verify)}</td>
+            <td style="padding: 8px;" class="text-truncate-cell" title="${safeMessage}">${safeMessage}</td>
             <td style="padding: 8px; font-size: 11px; color: var(--color-fg-muted);">${result.updated_at ? new Date(result.updated_at).toLocaleString() : '-'}</td>
         `;
 
