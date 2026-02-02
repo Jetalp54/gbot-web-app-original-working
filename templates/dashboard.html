@@ -8473,7 +8473,7 @@
                 return a.domain_name.localeCompare(b.domain_name);
             });
 
-            html += sortedDomains.map(domain => {
+            html += '<div class="custom-scrollbar" style="max-height: 350px; overflow-y: auto; padding-right: 5px;">' + sortedDomains.map(domain => {
                 // New three-state system
                 let statusColor, statusText, domainClass, domainNameColor;
 
@@ -8506,7 +8506,7 @@
                 </div>
                 ${domain.last_updated ? `<div style="font-size: 11px; color: #999; margin-top: 3px;">Last updated: ${new Date(domain.last_updated).toLocaleString()}</div>` : ''}
             </div>`;
-            }).join('');
+            }).join('') + '</div>';
         }
 
         domainList.innerHTML = html;
@@ -8561,7 +8561,7 @@
             return a.domain_name.localeCompare(b.domain_name);
         });
 
-        html += sortedDomains.map(domain => {
+        html += '<div class="custom-scrollbar" style="max-height: 350px; overflow-y: auto; padding-right: 5px;">' + sortedDomains.map(domain => {
             // New three-state system
             let statusColor, statusText, domainClass, clickHandler, domainNameColor;
 
@@ -8596,7 +8596,7 @@
                 <span style="color: ${statusColor}; margin-left: 10px; font-weight: bold;">${statusText}</span>
             </div>
         </div>`;
-        }).join('');
+        }).join('') + '</div>';
 
         domainList.innerHTML = html;
     }
