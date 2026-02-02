@@ -852,3 +852,29 @@ aside {
     color: var(--accent-primary) !important;
 }
 
+
+/* Pulse Animation for Live Status */
+@keyframes statusPulse {
+    0% { opacity: 0.6; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0.6; transform: scale(0.98); }
+}
+
+.status-pulse {
+    animation: statusPulse 1.5s infinite ease-in-out;
+    box-shadow: 0 0 8px rgba(9, 105, 218, 0.4);
+}
+
+.text-truncate-cell {
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+
+.compact-icon-header {
+    text-align: center !important;
+    width: 40px;
+}
+

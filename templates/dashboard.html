@@ -1498,14 +1498,18 @@
                     <table id="bulk-multi-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
                         <thead>
                             <tr class="glass-table-header">
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">#</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Domain</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Account</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Auth</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Workspace</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">DNS TXT</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Verify</th>
-                                <th style="padding: 8px; text-align: left; font-weight: 600;">Message</th>
+                                <th style="padding: 8px; width: 40px; text-align: center;">#</th>
+                                <th style="padding: 8px; width: 180px;">Domain</th>
+                                <th style="padding: 8px; width: 180px;">Account</th>
+                                <th style="padding: 8px; width: 40px; text-align: center;" title="Authentication"><i
+                                        class="fas fa-key"></i></th>
+                                <th style="padding: 8px; width: 40px; text-align: center;" title="Workspace"><i
+                                        class="fas fa-briefcase"></i></th>
+                                <th style="padding: 8px; width: 40px; text-align: center;" title="DNS TXT"><i
+                                        class="fas fa-globe"></i></th>
+                                <th style="padding: 8px; width: 40px; text-align: center;" title="Verify"><i
+                                        class="fas fa-check-circle"></i></th>
+                                <th style="padding: 8px;">Message</th>
                             </tr>
                         </thead>
                         <tbody id="bulk-multi-table-body">
@@ -12074,14 +12078,14 @@
             const row = document.createElement('tr');
             row.id = `bulk-multi-row-${entry.index}`;
             row.innerHTML = `
-                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">${entry.index}</td>
-                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">${entry.domain}</td>
-                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">${entry.adminEmail}</td>
-                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">PENDING</span></td>
-                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">PENDING</span></td>
-                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">PENDING</span></td>
-                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);"><span class="status-badge status-pending">PENDING</span></td>
-                <td style="padding: 8px; border-bottom: 1px solid var(--color-border-default);">${entry.message}</td>
+                <td style="padding: 8px; text-align: center; color: #666; font-size: 11px;">${entry.index}</td>
+                <td style="padding: 8px;"><span class="text-truncate-cell" title="${entry.domain}" style="max-width: 170px;">${entry.domain}</span></td>
+                <td style="padding: 8px;"><span class="text-truncate-cell" title="${entry.adminEmail}" style="max-width: 170px;">${entry.adminEmail}</span></td>
+                <td style="padding: 8px; text-align: center;"><i class="fas fa-circle text-muted" style="font-size: 8px; opacity: 0.5;"></i></td>
+                <td style="padding: 8px; text-align: center;"><i class="fas fa-circle text-muted" style="font-size: 8px; opacity: 0.5;"></i></td>
+                <td style="padding: 8px; text-align: center;"><i class="fas fa-circle text-muted" style="font-size: 8px; opacity: 0.5;"></i></td>
+                <td style="padding: 8px; text-align: center;"><i class="fas fa-circle text-muted" style="font-size: 8px; opacity: 0.5;"></i></td>
+                <td style="padding: 8px; font-size: 11px; color: #666;" class="text-truncate-cell" title="${entry.message}">${entry.message}</td>
             `;
             tbody.appendChild(row);
         });
@@ -12263,11 +12267,11 @@
 
     function getStatusBadge(status) {
         const statusMap = {
-            'pending': '<span class="status-badge status-pending">PENDING</span>',
-            'running': '<span class="status-badge" style="background-color:#0969da;color:#fff;">RUNNING</span>',
-            'success': '<span class="status-badge status-success">SUCCESS</span>',
-            'failed': '<span class="status-badge status-failed">FAILED</span>',
-            'skipped': '<span class="status-badge" style="background-color:#6c757d;color:#fff;">SKIPPED</span>'
+            'pending': '<i class="fas fa-circle text-muted" style="font-size: 8px; opacity: 0.5;"></i>',
+            'running': '<i class="fas fa-spinner fa-spin status-pulse" style="color: #0969da; font-size: 14px;"></i>',
+            'success': '<i class="fas fa-check-circle" style="color: #2da44e; font-size: 14px;"></i>',
+            'failed': '<i class="fas fa-times-circle" style="color: #cf222e; font-size: 14px;"></i>',
+            'skipped': '<i class="fas fa-forward" style="color: #bf8700; font-size: 12px;"></i>'
         };
         return statusMap[status] || statusMap['pending'];
     }
