@@ -2400,8 +2400,8 @@ def api_bulk_create_account_users():
         if not users_per_account or int(users_per_account) < 1 or int(users_per_account) > 1000:
             return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Users per account must be between 1 and 1000'})
         
-        if not password or len(password) < 8:
-            return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Password must be at least 8 characters long'})
+        if not password or len(password) < 12:
+            return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Password must be at least 12 characters long (strong password required)'})
         
         # Clean domain if provided
         if domain:
@@ -2567,36 +2567,47 @@ def api_bulk_create_account_users():
                                     random_num = ''.join(random.choices(string.digits, k=4))
                                     email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
                                     
-                                    user_body = {
-                                        "primaryEmail": email,
-                                        "name": { "givenName": first_name, "familyName": last_name },
-                                        "password": password,
-                                        "changePasswordAtNextLogin": False
-                                    }
+                                    # Use core_logic method for license-free creation with password validation
+                                    result = google_api.create_gsuite_user(first_name, last_name, email, password, force=force_create)
                                     
-                                    service.users().insert(body=user_body).execute()
+                                    if result.get('success'):
+                                        account_result['users'].append({
+                                            'email': email,
+                                            'password': password,
+                                            'first_name': first_name,
+                                            'last_name': last_name,
+                                            'success': True
+                                        })
+                                    else:
+                                        # Handle failure
+                                        error_msg = result.get('error', 'Unknown error')
+                                        is_license_error = result.get('is_license_error', False)
+                                        
+                                        account_result['users'].append({
+                                            'email': email,
+                                            'password': password,
+                                            'success': False,
+                                            'error': error_msg,
+                                            'is_license_error': is_license_error
+                                        })
+                                        
+                                        if is_license_error:
+                                            app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. User creation failed but continuing...")
+                                            
+                                except Exception as user_err:
+                                    error_msg = str(user_err)
+                                    is_license_error = "Domain user limit reached" in error_msg or "limitExceeded" in error_msg
                                     
                                     account_result['users'].append({
-                                        'email': email,
-                                        'password': password,
-                                        'first_name': first_name,
-                                        'last_name': last_name,
-                                        'success': True
-                                    })
-                                except Exception as user_err:
-                                     error_msg = str(user_err)
-                                     is_license_error = "Domain user limit reached" in error_msg or "limitExceeded" in error_msg
-                                     
-                                     account_result['users'].append({
-                                        'email': f'failed_{i}@{domain}' if not is_license_error else f'unlicensed_{i}@{domain}',
+                                        'email': f'failed_{i}@{domain}',
                                         'password': password,
                                         'success': False,
                                         'error': error_msg,
                                         'is_license_error': is_license_error
                                     })
-                                     
-                                     if is_license_error:
-                                         app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. Creation failed for this user.")
+                                    
+                                    if is_license_error:
+                                        app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. Creation failed for this user.")
                             
                             # Domain update (already done mostly, but update user count/verified)
                             success_count = sum(1 for u in account_result['users'] if u.get('success'))
@@ -2657,8 +2668,10 @@ def api_bulk_create_account_users():
                     'total_accounts_processed': total_accounts,
                     'successful_accounts': successful_accounts,
                     'failed_accounts': failed_accounts,
-                    'total_successful_users': total_users_created,
-                    'total_failed_users': total_users_failed,
+                    'total_successful_users': total_created,
+                    'total_failed_users': total_failed,
+                    'license_failures': license_failures,
+                    'summary': summary_msg,
                     'results': all_results
                 }
                 
