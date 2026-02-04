@@ -2163,16 +2163,17 @@ def api_complete_oauth():
 @login_required
 def api_create_gsuite_user():
     try:
-        data = request.get_json()
+        data = request.json
         first_name = data.get('first_name')
         last_name = data.get('last_name')
         email = data.get('email')
         password = data.get('password')
+        force = data.get('force', False)
 
         if not all([first_name, last_name, email, password]):
             return jsonify({'success': False, 'error': 'All fields are required'})
 
-        result = google_api.create_gsuite_user(first_name, last_name, email, password)
+        result = google_api.create_gsuite_user(first_name, last_name, email, password, force=force)
         
         if result.get('success'):
             try:
@@ -2307,6 +2308,7 @@ def api_create_random_users():
         num_users = data.get('num_users')
         domain = data.get('domain')
         password = data.get('password', 'SecurePass123')
+        force = data.get('force', False)
 
         if not num_users or num_users <= 0:
             return jsonify({'success': False, 'error': 'Number of users must be greater than 0'})
@@ -2339,7 +2341,7 @@ def api_create_random_users():
         if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', domain):
             return jsonify({'success': False, 'error': 'Domain contains invalid characters'})
 
-        result = google_api.create_random_users(num_users, domain, password)
+        result = google_api.create_random_users(num_users, domain, password, force=force)
         signal.alarm(0)  # Cancel timeout
         
         if result.get('success') and result.get('successful_count', 0) > 0:
@@ -2376,6 +2378,7 @@ def api_bulk_create_account_users():
     cleanup_old_progress()
     data = request.get_json()
     accounts_data = data.get('accounts_data', [])
+    force_create = data.get('force_create', False)
     
     # Validation
     if not accounts_data or len(accounts_data) == 0:
@@ -2418,7 +2421,7 @@ def api_bulk_create_account_users():
     task_id = str(uuid.uuid4())
     update_progress(task_id, 0, len(accounts_data), "starting", "Initializing bulk creation...")
     
-    def background_task(task_id, accounts_data):
+    def background_task(task_id, accounts_data, force_create=False):
         with app.app_context():
             from concurrent.futures import ThreadPoolExecutor, as_completed
             import random
@@ -2578,12 +2581,19 @@ def api_bulk_create_account_users():
                                         'success': True
                                     })
                                 except Exception as user_err:
+                                     error_msg = str(user_err)
+                                     is_license_error = "Domain user limit reached" in error_msg or "limitExceeded" in error_msg
+                                     
                                      account_result['users'].append({
-                                        'email': f'failed_{i}@{domain}',
+                                        'email': f'failed_{i}@{domain}' if not is_license_error else f'unlicensed_{i}@{domain}',
                                         'password': password,
                                         'success': False,
-                                        'error': str(user_err)
+                                        'error': error_msg,
+                                        'is_license_error': is_license_error
                                     })
+                                     
+                                     if is_license_error:
+                                         app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. Creation failed for this user.")
                             
                             # Domain update (already done mostly, but update user count/verified)
                             success_count = sum(1 for u in account_result['users'] if u.get('success'))
@@ -2627,8 +2637,15 @@ def api_bulk_create_account_users():
 
                 # Summary
                 total_accounts = len(all_results)
-                total_users_created = sum(sum(1 for u in r.get('users', []) if u.get('success')) for r in all_results)
-                total_users_failed = sum(sum(1 for u in r.get('users', []) if not u.get('success')) for r in all_results)
+                # Final Summary
+                total_created = sum(sum(1 for u in acc['users'] if u.get('success')) for acc in all_results)
+                total_failed = sum(len(acc['users']) - sum(1 for u in acc['users'] if u.get('success')) for acc in all_results)
+                license_failures = sum(sum(1 for u in acc['users'] if u.get('is_license_error')) for acc in all_results)
+                
+                summary_msg = f"Task completed: {total_created} users created, {total_failed} failed."
+                if license_failures > 0:
+                    summary_msg += f" ({license_failures} failed due to license limits. TIP: Disable 'Auto-assign licenses' in Google Admin to force creation without seats.)"
+                
                 successful_accounts = sum(1 for r in all_results if r.get('authenticated') and len(r.get('users', [])) > 0)
                 failed_accounts = total_accounts - successful_accounts
 
@@ -2651,7 +2668,7 @@ def api_bulk_create_account_users():
                 app.logger.error(traceback.format_exc())
                 update_progress(task_id, 0, 0, "error", f"Task failed: {str(e)}")
 
-    threading.Thread(target=background_task, args=(task_id, accounts_data)).start()
+    threading.Thread(target=background_task, args=(task_id, accounts_data, force_create)).start()
     return jsonify({'success': True, 'task_id': task_id})
 
 @app.route('/api/bulk-retrieve-account-users', methods=['POST'])
