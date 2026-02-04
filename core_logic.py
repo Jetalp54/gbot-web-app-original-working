@@ -171,7 +171,7 @@ class WebGoogleAPI:
             logging.error(f"No valid tokens for account {account_name}")
             return False
 
-    def create_gsuite_user(self, first_name, last_name, email, password, force=False):
+    def create_gsuite_user(self, first_name, last_name, email, password, force=False, is_admin=False):
         if not self.service:
             raise Exception("Not authenticated or session expired.")
         
@@ -182,7 +182,8 @@ class WebGoogleAPI:
                 "familyName": last_name
             },
             "password": password,
-            "changePasswordAtNextLogin": False
+            "changePasswordAtNextLogin": False,
+            "isAdmin": is_admin
         }
         
         try:
@@ -462,46 +463,29 @@ class WebGoogleAPI:
                 last_name = random.choice(last_names)
                 email = f"{first_name.lower()}.{last_name.lower()}{random.randint(100, 999)}@{domain}"
                 
-                user_body = {
-                    'name': { 'givenName': first_name, 'familyName': last_name },
-                    'primaryEmail': email,
-                    'password': password,
-                    'isAdmin': True,
-                    'orgUnitPath': '/'
-                }
+                # Create the user using unified method
+                result = self.create_gsuite_user(first_name, last_name, email, password, force=force, is_admin=True)
                 
-                created_user = self.service.users().insert(body=user_body).execute()
+                if result.get('success'):
+                    results.append({
+                        'email': email,
+                        'admin_role': admin_role,
+                        'result': {
+                            'success': True,
+                            'user_id': result.get('user', {}).get('id'),
+                            'message': f'Admin user created successfully.'
+                        }
+                    })
+                    successful_count += 1
+                else:
+                    results.append({
+                        'email': email,
+                        'admin_role': admin_role,
+                        'result': result
+                    })
                 
-                results.append({
-                    'email': email,
-                    'admin_role': admin_role,
-                    'result': {
-                        'success': True,
-                        'user_id': created_user.get('id'),
-                        'message': f'Admin user created successfully.'
-                    }
-                })
-                successful_count += 1
                 time.sleep(0.2)
                 
-            except HttpError as e:
-                error_message = str(e)
-                is_license_error = "Domain user limit reached" in error_message or "limitExceeded" in error_message
-                
-                if is_license_error:
-                    error_msg = "Domain user limit reached (Force: %s)" % force
-                else:
-                    error_msg = error_message
-                    
-                results.append({
-                    'email': email if 'email' in locals() else f'admin{i}@{domain}',
-                    'admin_role': admin_role,
-                    'result': {
-                        'success': False,
-                        'error': error_msg,
-                        'is_license_error': is_license_error
-                    }
-                })
             except Exception as e:
                 results.append({
                     'email': email if 'email' in locals() else f'admin{i}@{domain}',
