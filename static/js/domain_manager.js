@@ -75,15 +75,15 @@ window.fetchCloudflareDomains = function() {
                             const row = document.createElement('tr');
                             row.style.borderBottom = '1px solid var(--border-subtle)';
                             row.innerHTML = `
-                            <td style="padding: 12px; font-family: monospace; color: var(--text-primary);">${domain.name}</td>
-                            <td style="padding: 12px;">
+                            <td style="padding: 6px 10px; font-family: monospace; color: var(--text-primary); font-size: 13px;">${domain.name}</td>
+                            <td style="padding: 6px 10px;">
                                 <span style="background: ${domain.status === 'active' ? 'rgba(46, 160, 67, 0.15)' : 'rgba(110, 118, 129, 0.15)'}; 
                                              color: ${domain.status === 'active' ? '#3fb950' : '#8b949e'}; 
-                                             padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                                             padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">
                                     ${domain.status}
                                 </span>
                             </td>
-                            <td style="padding: 12px; font-family: monospace; font-size: 12px; color: var(--text-muted);">${domain.id}</td>
+                            <td style="padding: 6px 10px; font-family: monospace; font-size: 11px; color: var(--text-muted);">${domain.id}</td>
                         `;
                             tbody.appendChild(row);
                         });
@@ -212,13 +212,13 @@ window.displayNamecheapDomains = function(domains) {
         domains.forEach((domain, index) => {
             const domainName = domain.name || domain;
             html += `
-            <div style="padding: 10px; border-bottom: 1px solid var(--border-subtle); cursor: pointer; transition: background-color 0.2s;"
+            <div class="domain-item-row" style="padding: 6px 10px; border-bottom: 1px solid var(--border-subtle); cursor: pointer; transition: background-color 0.2s; display: flex; justify-content: space-between; align-items: center;"
                  onmouseover="this.style.backgroundColor='var(--bg-panel)'"
                  onmouseout="this.style.backgroundColor='transparent'"
                  onclick="copyDomainToClipboard('${domainName}')"
                  title="Click to copy">
-                <span style="color: var(--accent-fg); font-weight: 500;">${domainName}</span>
-                ${domain.expire_date ? `<span style="color: var(--text-muted); font-size: 11px; margin-left: 12px;">Expires: ${domain.expire_date}</span>` : ''}
+                <span class="domain-name-text" style="color: var(--accent-fg); font-weight: 500; font-size: 13px;">${domainName}</span>
+                ${domain.expire_date ? `<span style="color: var(--text-muted); font-size: 11px;">Expires: ${domain.expire_date}</span>` : ''}
             </div>
         `;
         });
@@ -300,6 +300,49 @@ window.copyDomainToClipboard = function(domain) {
              if (typeof showStatus === 'function') showStatus(`✅ Copied: ${domain}`, 'success');
         } catch (err) { }
         document.body.removeChild(textArea);
+    }
+}
+
+/* ==========================================
+   SEARCH / FILTER FUNCTIONS
+   ========================================== */
+
+window.filterNamecheapDomains = function() {
+    const input = document.getElementById('namecheap-search');
+    const filter = input.value.toUpperCase();
+    const list = document.getElementById('namecheap-domains-list');
+    const items = list.getElementsByClassName('domain-item-row');
+    
+    for (let i = 0; i < items.length; i++) {
+        const span = items[i].querySelector('.domain-name-text');
+        if (span) {
+            const txtValue = span.textContent || span.innerText;
+            if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                items[i].style.display = "flex";
+            } else {
+                items[i].style.display = "none";
+            }
+        }
+    }
+}
+
+window.filterCloudflareDomains = function() {
+    const input = document.getElementById('cloudflare-search');
+    const filter = input.value.toUpperCase();
+    const list = document.getElementById('cloudflare-domains-list');
+    const rows = list.getElementsByTagName('tr');
+    
+    for (let i = 0; i < rows.length; i++) {
+        // Search in first column (Domain name)
+        const td = rows[i].getElementsByTagName('td')[0];
+        if (td) {
+            const txtValue = td.textContent || td.innerText;
+            if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                rows[i].style.display = "";
+            } else {
+                rows[i].style.display = "none";
+            }
+        }
     }
 }
 
