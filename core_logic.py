@@ -15,6 +15,68 @@ from config import SCOPES
 # Use a more robust session service storage
 _session_services = {}
 
+def validate_strong_password(password):
+    """
+    Validate that a password meets strong password requirements.
+    Requirements:
+    - Minimum 12 characters
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one digit
+    - At least one symbol
+    
+    Returns: (is_valid: bool, error_message: str)
+    """
+    import re
+    
+    if len(password) < 12:
+        return False, "Password must be at least 12 characters long"
+    
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+    
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+    
+    if not re.search(r'\d', password):
+        return False, "Password must contain at least one digit"
+    
+    if not re.search(r'[!@#$%^&*()_+\-=\[\]{};:\'",.<>?/\\|`~]', password):
+        return False, "Password must contain at least one symbol"
+    
+    return True, ""
+
+def generate_strong_password(length=16):
+    """
+    Generate a strong random password.
+    Default length: 16 characters
+    """
+    import random
+    import string
+    
+    # Character sets
+    uppercase = string.ascii_uppercase
+    lowercase = string.ascii_lowercase
+    digits = string.digits
+    symbols = '!@#$%^&*()_+-='
+    
+    # Ensure at least one character from each category
+    password = [
+        random.choice(uppercase),
+        random.choice(lowercase),
+        random.choice(digits),
+        random.choice(symbols)
+    ]
+    
+    # Fill the rest with random characters from all categories
+    all_chars = uppercase + lowercase + digits + symbols
+    password.extend(random.choice(all_chars) for _ in range(length - 4))
+    
+    # Shuffle to avoid predictable patterns
+    random.shuffle(password)
+    
+    return ''.join(password)
+
 class WebGoogleAPI:
     def get_credentials(self, account_name):
         account = GoogleAccount.query.filter_by(account_name=account_name).first()
@@ -171,9 +233,18 @@ class WebGoogleAPI:
             logging.error(f"No valid tokens for account {account_name}")
             return False
 
-    def create_gsuite_user(self, first_name, last_name, email, password, force=False, is_admin=False):
+    def create_gsuite_user(self, first_name, last_name, email, password, force=False):
         if not self.service:
             raise Exception("Not authenticated or session expired.")
+        
+        # Validate password strength
+        is_valid, error_msg = validate_strong_password(password)
+        if not is_valid:
+            return {
+                "success": False,
+                "error": f"Password does not meet requirements: {error_msg}",
+                "error_type": "weak_password"
+            }
         
         user_body = {
             "primaryEmail": email,
@@ -182,8 +253,7 @@ class WebGoogleAPI:
                 "familyName": last_name
             },
             "password": password,
-            "changePasswordAtNextLogin": False,
-            "isAdmin": is_admin
+            "changePasswordAtNextLogin": True  # Force password change on first login for security
         }
         
         try:
@@ -197,7 +267,7 @@ class WebGoogleAPI:
             if "Domain user limit reached" in error_message or "limitExceeded" in error_message:
                 return {
                     "success": False, 
-                    "error": "Domain user limit reached. Please disable 'Auto-licensing' in Google Admin or use Cloud Identity Free if you want to force creation without a license." if force else "Domain user limit reached. Please upgrade to a paid Google Workspace subscription to create more users.",
+                    "error": "Domain user limit reached. To create license-free users: 1) Disable 'Auto-licensing' in Google Admin (Billing → Subscriptions), 2) Enable Cloud Identity Free." if force else "Domain user limit reached. Please upgrade to a paid Google Workspace subscription to create more users.",
                     "error_type": "domain_limit",
                     "raw_error": error_message,
                     "is_license_error": True
@@ -230,7 +300,6 @@ class WebGoogleAPI:
                     "raw_error": error_message
                 }
             
-            # Default error handling
             else:
                 return {
                     "success": False, 
@@ -403,9 +472,19 @@ class WebGoogleAPI:
         import random
         import string
         
-        # Use provided password or generate a random one
-        if not password:
-            password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+        # Use provided password or generate a strong one
+        if password:
+            # Validate provided password
+            is_valid, error_msg = validate_strong_password(password)
+            if not is_valid:
+                return {
+                    "success": False,
+                    "error": f"Provided password does not meet requirements: {error_msg}",
+                    "error_type": "weak_password"
+                }
+        else:
+            # Generate a strong password
+            password = generate_strong_password(16)
         
         first_names = ["James", "John", "Robert", "Michael", "William", "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth"]
         last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"]
@@ -447,9 +526,19 @@ class WebGoogleAPI:
         import time
         from googleapiclient.errors import HttpError
         
-        # Use provided password or generate a random one
-        if not password:
-            password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+        # Use provided password or generate a strong one
+        if password:
+            # Validate provided password
+            is_valid, error_msg = validate_strong_password(password)
+            if not is_valid:
+                return {
+                    "success": False,
+                    "error": f"Provided password does not meet requirements: {error_msg}",
+                    "error_type": "weak_password"
+                }
+        else:
+            # Generate a strong password
+            password = generate_strong_password(16)
             
         first_names = ["James", "John", "Robert", "Michael", "William", "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth"]
         last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"]
@@ -463,29 +552,47 @@ class WebGoogleAPI:
                 last_name = random.choice(last_names)
                 email = f"{first_name.lower()}.{last_name.lower()}{random.randint(100, 999)}@{domain}"
                 
-                # Create the user using unified method
-                result = self.create_gsuite_user(first_name, last_name, email, password, force=force, is_admin=True)
+                user_body = {
+                    'name': { 'givenName': first_name, 'familyName': last_name },
+                    'primaryEmail': email,
+                    'password': password,
+                    'changePasswordAtNextLogin': True,  # Force password change on first login
+                    'isAdmin': True,
+                    'orgUnitPath': '/'
+                }
                 
-                if result.get('success'):
-                    results.append({
-                        'email': email,
-                        'admin_role': admin_role,
-                        'result': {
-                            'success': True,
-                            'user_id': result.get('user', {}).get('id'),
-                            'message': f'Admin user created successfully.'
-                        }
-                    })
-                    successful_count += 1
-                else:
-                    results.append({
-                        'email': email,
-                        'admin_role': admin_role,
-                        'result': result
-                    })
+                created_user = self.service.users().insert(body=user_body).execute()
                 
+                results.append({
+                    'email': email,
+                    'admin_role': admin_role,
+                    'result': {
+                        'success': True,
+                        'user_id': created_user.get('id'),
+                        'message': f'Admin user created successfully.'
+                    }
+                })
+                successful_count += 1
                 time.sleep(0.2)
                 
+            except HttpError as e:
+                error_message = str(e)
+                is_license_error = "Domain user limit reached" in error_message or "limitExceeded" in error_message
+                
+                if is_license_error:
+                    error_msg = "Domain user limit reached (Force: %s)" % force
+                else:
+                    error_msg = error_message
+                    
+                results.append({
+                    'email': email if 'email' in locals() else f'admin{i}@{domain}',
+                    'admin_role': admin_role,
+                    'result': {
+                        'success': False,
+                        'error': error_msg,
+                        'is_license_error': is_license_error
+                    }
+                })
             except Exception as e:
                 results.append({
                     'email': email if 'email' in locals() else f'admin{i}@{domain}',

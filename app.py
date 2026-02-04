@@ -2194,6 +2194,9 @@ def api_create_gsuite_user():
                 db.session.commit()
             except Exception as db_e:
                 app.logger.error(f"Failed to mark domain {domain} as used: {db_e}")
+            
+            # Add informative message about license-free creation
+            result['message'] = f"User {email} created successfully. User will receive Cloud Identity Free (no Workspace services). Ensure auto-licensing is disabled in Google Admin Console."
                 
         return jsonify(result)
 
@@ -2224,7 +2227,6 @@ def api_create_random_admin_users():
         domain = req.get('domain', '')
         password = req.get('password', '')
         admin_role = req.get('admin_role', 'SUPER_ADMIN')
-        force = req.get('force', False)
         
         if not domain or '.' not in domain:
             return jsonify({'success': False, 'error': 'Please provide a valid domain'})
@@ -2250,8 +2252,7 @@ def api_create_random_admin_users():
             num_users=num_users,
             domain=domain,
             password=password,
-            admin_role=admin_role,
-            force=force
+            admin_role=admin_role
         )
         
         if result['success']:
@@ -2566,41 +2567,36 @@ def api_bulk_create_account_users():
                                     random_num = ''.join(random.choices(string.digits, k=4))
                                     email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
                                     
-                                    # Try to create the user using unified method
-                                    result = google_api.create_gsuite_user(first_name, last_name, email, password, force=force_create)
+                                    user_body = {
+                                        "primaryEmail": email,
+                                        "name": { "givenName": first_name, "familyName": last_name },
+                                        "password": password,
+                                        "changePasswordAtNextLogin": False
+                                    }
                                     
-                                    if result.get('success'):
-                                        account_result['users'].append({
-                                            'email': email,
-                                            'password': password,
-                                            'first_name': first_name,
-                                            'last_name': last_name,
-                                            'success': True
-                                        })
-                                    else:
-                                        error_msg = result.get('error', 'Unknown error')
-                                        is_license_error = result.get('is_license_error', False)
-                                        
-                                        account_result['users'].append({
-                                           'email': f'failed_{i}@{domain}' if not is_license_error else f'unlicensed_{i}@{domain}',
-                                           'password': password,
-                                           'success': False,
-                                           'error': error_msg,
-                                           'is_license_error': is_license_error
-                                        })
-                                        
-                                        if is_license_error:
-                                            app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. {error_msg}")
+                                    service.users().insert(body=user_body).execute()
+                                    
+                                    account_result['users'].append({
+                                        'email': email,
+                                        'password': password,
+                                        'first_name': first_name,
+                                        'last_name': last_name,
+                                        'success': True
+                                    })
                                 except Exception as user_err:
                                      error_msg = str(user_err)
+                                     is_license_error = "Domain user limit reached" in error_msg or "limitExceeded" in error_msg
+                                     
                                      account_result['users'].append({
-                                        'email': f'error_{i}@{domain}',
+                                        'email': f'failed_{i}@{domain}' if not is_license_error else f'unlicensed_{i}@{domain}',
                                         'password': password,
                                         'success': False,
                                         'error': error_msg,
-                                        'is_license_error': False
+                                        'is_license_error': is_license_error
                                     })
-                                     app.logger.error(f"[BULK ACCOUNTS] Error creating user {email}: {error_msg}")
+                                     
+                                     if is_license_error:
+                                         app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. Creation failed for this user.")
                             
                             # Domain update (already done mostly, but update user count/verified)
                             success_count = sum(1 for u in account_result['users'] if u.get('success'))
@@ -6709,8 +6705,6 @@ def create_users_from_csv():
         if not file.filename.endswith('.csv'):
             return jsonify({'success': False, 'error': 'Only .csv files are allowed'})
         
-        force = request.form.get('force', 'false').lower() == 'true'
-        
         # Read and parse CSV content
         content = file.read().decode('utf-8')
         lines = content.strip().split('\n')
@@ -6821,7 +6815,7 @@ def create_users_from_csv():
                 app.logger.info(f"Clean password: '{clean_password}'")
                 
                 # Try to create the user
-                result = google_api.create_gsuite_user(first_name, last_name, email, clean_password, force=force)
+                result = google_api.create_gsuite_user(first_name, last_name, email, clean_password)
                 
                 if result.get('success'):
                     created_count += 1
