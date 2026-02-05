@@ -2310,7 +2310,7 @@ def api_create_random_users():
         data = request.get_json()
         num_users = data.get('num_users')
         domain = data.get('domain')
-        password = data.get('password', 'SecurePass123')
+        password = data.get('password') or 'SecurePass123'
         force = data.get('force', False)
 
         if not num_users or num_users <= 0:

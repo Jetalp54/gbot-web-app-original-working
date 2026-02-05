@@ -17,32 +17,12 @@ _session_services = {}
 
 def validate_strong_password(password):
     """
-    Validate that a password meets strong password requirements.
+    Validate that a password meets strength requirements.
     Requirements:
-    - Minimum 12 characters
-    - At least one uppercase letter
-    - At least one lowercase letter
-    - At least one digit
-    - At least one symbol
-    
-    Returns: (is_valid: bool, error_message: str)
+    - Minimum 12 characters (Relaxed for user preference)
     """
-    import re
-    
     if len(password) < 12:
         return False, "Password must be at least 12 characters long"
-    
-    if not re.search(r'[A-Z]', password):
-        return False, "Password must contain at least one uppercase letter"
-    
-    if not re.search(r'[a-z]', password):
-        return False, "Password must contain at least one lowercase letter"
-    
-    if not re.search(r'\d', password):
-        return False, "Password must contain at least one digit"
-    
-    if not re.search(r'[!@#$%^&*()_+\-=\[\]{};:\'",.<>?/\\|`~]', password):
-        return False, "Password must contain at least one symbol"
     
     return True, ""
 
