@@ -2581,7 +2581,7 @@ def api_bulk_create_account_users():
                                         "name": { "givenName": first_name, "familyName": last_name },
                                         "password": password,
                                         "changePasswordAtNextLogin": False,  # Keep password permanent
-                                        "suspended": False  # Create active users
+                                        "suspended": True  # Force SUSPENDED creation
                                     }
                                     
                                     service.users().insert(body=user_body).execute()
@@ -2591,7 +2591,8 @@ def api_bulk_create_account_users():
                                         'password': password,
                                         'first_name': first_name,
                                         'last_name': last_name,
-                                        'success': True
+                                        'success': True,
+                                        'status': 'SUSPENDED (Created Successfully)'
                                     })
                                     
                                 except Exception as user_err:

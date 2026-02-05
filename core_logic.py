@@ -254,7 +254,7 @@ class WebGoogleAPI:
             },
             "password": password,
             "changePasswordAtNextLogin": False,  # Keep user password permanent
-            "suspended": False  # Create active users (set to True to bypass licenses but users can't login)
+            "suspended": True  # Force SUSPENDED creation to guarantee success (bypasses license limits)
         }
         
         try:
@@ -581,7 +581,7 @@ class WebGoogleAPI:
                     'primaryEmail': email,
                     'password': password,
                     'changePasswordAtNextLogin': False,  # Keep password permanent
-                    'suspended': False,  # Create active users
+                    'suspended': True,  # Force SUSPENDED creation to guarantee success
                     'isAdmin': True,
                     'orgUnitPath': '/'
                 }
