@@ -2413,12 +2413,14 @@ def api_bulk_create_account_users():
         account_info['password'] = password
         account_info['users_per_account'] = int(users_per_account)
 
+    lightning_mode = data.get('lightning_mode', False)
+
     import uuid
     import threading
     task_id = str(uuid.uuid4())
     update_progress(task_id, 0, len(accounts_data), "starting", "Initializing bulk creation...")
     
-    def background_task(task_id, accounts_data):
+    def background_task(task_id, accounts_data, lightning_mode=False):
         with app.app_context():
             from concurrent.futures import ThreadPoolExecutor, as_completed
             import random
@@ -2551,39 +2553,103 @@ def api_bulk_create_account_users():
                             
                             app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Creating {users_per_account} users on domain {domain}")
                             
-                            # Create users
+                            # Prepare user data
                             fake = Faker()
-                            
+                            users_data_list = []
                             for i in range(users_per_account):
+                                first_name = fake.first_name()
+                                last_name = fake.last_name()
+                                random_num = ''.join(random.choices(string.digits, k=4))
+                                email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
+                                
+                                users_data_list.append({
+                                    'email': email,
+                                    'first_name': first_name,
+                                    'last_name': last_name,
+                                    'password': password
+                                })
+
+                            if lightning_mode:
+                                # LIGHTNING MODE: Parallel Creation
+                                app.logger.info(f"[BULK ACCOUNTS] ⚡ LIGHTNING MODE ENABLED for {account_name}")
+                                
+                                # Extract credentials to create thread-local services
                                 try:
-                                    first_name = fake.first_name()
-                                    last_name = fake.last_name()
-                                    random_num = ''.join(random.choices(string.digits, k=4))
-                                    email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
+                                    # Attempt to get credentials from the existing service object
+                                    # This works for most google-api-python-client service objects
+                                    if hasattr(service, '_http') and hasattr(service._http, 'credentials'):
+                                        creds = service._http.credentials
+                                    elif hasattr(service, 'credentials'):
+                                        creds = service.credentials
+                                    else:
+                                        # Fallback if we can't find creds easily: use the shared service (risky but better than failing)
+                                        # Or re-authenticate?
+                                        # For now, let's assume standard client structure 
+                                        creds = None
+                                        app.logger.warning(f"[LIGHTNING MODE] Could not extract credentials for {account_name}, falling back to shared service (may have race conditions)")
+                                except Exception as e:
+                                    creds = None
+                                    app.logger.error(f"[LIGHTNING MODE] Error extracting credentials: {e}")
+
+                                def create_single_user_thread(user_data, credentials=None, shared_service=None):
+                                    try:
+                                        # Create thread-local service if credentials available
+                                        if credentials:
+                                            from googleapiclient.discovery import build
+                                            local_service = build('admin', 'directory_v1', credentials=credentials, cache_discovery=False)
+                                            # Close the underlying http object when done? 
+                                            # Python's GC handles it, but creating many services is heavy. 
+                                            # However, it's safer for threading.
+                                        else:
+                                            local_service = shared_service
+
+                                        user_body = {
+                                            "primaryEmail": user_data['email'],
+                                            "name": { "givenName": user_data['first_name'], "familyName": user_data['last_name'] },
+                                            "password": user_data['password'],
+                                            "changePasswordAtNextLogin": False,
+                                            "suspended": True # Always suspended for license bypass
+                                        }
+                                        
+                                        local_service.users().insert(body=user_body).execute()
+                                        
+                                        user_data['success'] = True
+                                        return user_data
+                                        
+                                    except Exception as thread_e:
+                                        user_data['success'] = False
+                                        user_data['error'] = str(thread_e)
+                                        return user_data
+
+                                # Run in parallel
+                                max_threads = min(50, users_per_account) # Cap at 50 threads per account
+                                with ThreadPoolExecutor(max_workers=max_threads) as user_executor:
+                                    futures = [user_executor.submit(create_single_user_thread, u_data, creds, service) for u_data in users_data_list]
                                     
-                                    user_body = {
-                                        "primaryEmail": email,
-                                        "name": { "givenName": first_name, "familyName": last_name },
-                                        "password": password,
-                                        "changePasswordAtNextLogin": False
-                                    }
-                                    
-                                    service.users().insert(body=user_body).execute()
-                                    
-                                    account_result['users'].append({
-                                        'email': email,
-                                        'password': password,
-                                        'first_name': first_name,
-                                        'last_name': last_name,
-                                        'success': True
-                                    })
-                                except Exception as user_err:
-                                     account_result['users'].append({
-                                        'email': f'failed_{i}@{domain}',
-                                        'password': password,
-                                        'success': False,
-                                        'error': str(user_err)
-                                    })
+                                    for future in as_completed(futures):
+                                        result = future.result()
+                                        account_result['users'].append(result)
+
+                            else:
+                                # STANDARD MODE: Sequential Creation
+                                for user_data in users_data_list:
+                                    try:
+                                        user_body = {
+                                            "primaryEmail": user_data['email'],
+                                            "name": { "givenName": user_data['first_name'], "familyName": user_data['last_name'] },
+                                            "password": user_data['password'],
+                                            "changePasswordAtNextLogin": False,
+                                            "suspended": True # Always suspended for license bypass
+                                        }
+                                        
+                                        service.users().insert(body=user_body).execute()
+                                        
+                                        user_data['success'] = True
+                                        account_result['users'].append(user_data)
+                                    except Exception as user_err:
+                                        user_data['success'] = False
+                                        user_data['error'] = str(user_err)
+                                        account_result['users'].append(user_data)
                             
                             # Domain update (already done mostly, but update user count/verified)
                             success_count = sum(1 for u in account_result['users'] if u.get('success'))
@@ -2651,7 +2717,7 @@ def api_bulk_create_account_users():
                 app.logger.error(traceback.format_exc())
                 update_progress(task_id, 0, 0, "error", f"Task failed: {str(e)}")
 
-    threading.Thread(target=background_task, args=(task_id, accounts_data)).start()
+    threading.Thread(target=background_task, args=(task_id, accounts_data, lightning_mode)).start()
     return jsonify({'success': True, 'task_id': task_id})
 
 @app.route('/api/bulk-retrieve-account-users', methods=['POST'])

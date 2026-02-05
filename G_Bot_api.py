@@ -12,6 +12,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+import concurrent.futures
+import threading
+
 
 # --- PyQt5 Imports ---
 from PyQt5.QtWidgets import (
@@ -66,6 +69,8 @@ class GWorkspaceWorker(QObject):
         self.campaign_state = "stopped"  # stopped, preparing, ready, sending, paused
         self.prepared_emails = []  # Store prepared emails for lightning mode
         self.campaign_threads = []  # Store active sending threads
+        self.csv_lock = threading.Lock()
+
 
     def _parse_gsuite_error(self, e):
         if isinstance(e, HttpError):
@@ -202,34 +207,119 @@ class GWorkspaceWorker(QObject):
         self.task_result.emit("Action Complete", f"Performed '{action}' on {total} user(s).")
         self.finished.emit()
     
-    @pyqtSlot(str, int, str)
-    def create_multiple_users(self, domain, num_users, org_unit_path):
+    @pyqtSlot(str, int, str, bool)
+    def create_multiple_users(self, domain, num_users, org_unit_path, lightning_mode=False):
         data = self._load_user_data()
         if not data: return self.finished.emit()
-        created, used_names = 0, set()
-        for i in range(num_users):
-            self.progress_update.emit(i + 1, num_users)
-            full_name = ""
-            for _ in range(10): # Try 10 times to find a unique name
-                gender = random.choice(['male', 'female'])
-                first_name = random.choice(data[f"{gender}_first_names"])
-                last_name = random.choice(data['last_names'])
-                full_name = f"{first_name} {last_name}"
-                if full_name not in used_names:
-                    used_names.add(full_name); break
-            else:
-                self.log_message.emit("Could not generate a unique name, skipping.", QColor("orange"))
-                continue
-            email = self._sanitize_email(f"{first_name.lower()}.{last_name.lower()}@{domain}")
-            password = self._generate_password()
-            try:
-                user_body = {"primaryEmail": email, "name": {"givenName": first_name, "familyName": last_name}, "password": password, "changePasswordAtNextLogin": True, "orgUnitPath": org_unit_path}
-                self.service.users().insert(body=user_body).execute()
-                created += 1; self._save_to_csv(email, password, domain)
-            except Exception as e:
-                self.log_message.emit(f"Error creating {email}: {self._parse_gsuite_error(e)}", QColor("red"))
-            time.sleep(0.1)
-        self.task_result.emit("Creation Complete", f"Created {created} of {num_users} users.")
+        
+        created_count = 0
+        
+        if lightning_mode:
+            self.log_message.emit(f"⚡ LIGHTNING MODE: Creating {num_users} users in parallel...", QColor("yellow"))
+            
+            # 1. Pre-generate all user data
+            users_data = []
+            used_names = set()
+            
+            for _ in range(num_users):
+                full_name = ""
+                # Try to generate unique name
+                for _ in range(20): 
+                    gender = random.choice(['male', 'female'])
+                    first_name = random.choice(data[f"{gender}_first_names"])
+                    last_name = random.choice(data['last_names'])
+                    full_name = f"{first_name} {last_name}"
+                    if full_name not in used_names:
+                        used_names.add(full_name)
+                        break
+                
+                email = self._sanitize_email(f"{first_name.lower()}.{last_name.lower()}@{domain}")
+                password = self._generate_password()
+                
+                users_data.append({
+                    'email': email,
+                    'firstName': first_name,
+                    'lastName': last_name,
+                    'password': password
+                })
+            
+            # 2. Define the worker task
+            def create_single_user_task(user_info, creds):
+                try:
+                    # Create a thread-local service instance to avoid race conditions
+                    local_service = build('admin', 'directory_v1', credentials=creds, cache_discovery=False)
+                    
+                    user_body = {
+                        "primaryEmail": user_info['email'],
+                        "name": {
+                            "givenName": user_info['firstName'],
+                            "familyName": user_info['lastName']
+                        },
+                        "password": user_info['password'],
+                        "changePasswordAtNextLogin": True,
+                        "orgUnitPath": org_unit_path
+                    }
+                    
+                    local_service.users().insert(body=user_body).execute()
+                    
+                    # Thread-safe CSV writing
+                    with self.csv_lock:
+                        self._save_to_csv(user_info['email'], user_info['password'], domain)
+                        
+                    return True, user_info['email']
+                except Exception as e:
+                    return False, f"{user_info['email']}: {str(e)}"
+
+            # 3. Execute in parallel
+            max_workers = min(50, num_users) # Cap at 50 threads
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all tasks
+                future_to_email = {
+                    executor.submit(create_single_user_task, u_data, self.credentials): u_data['email'] 
+                    for u_data in users_data
+                }
+                
+                # Process results as they complete
+                for i, future in enumerate(concurrent.futures.as_completed(future_to_email)):
+                    self.progress_update.emit(i + 1, num_users)
+                    success, result = future.result()
+                    
+                    if success:
+                        created_count += 1
+                        # Optional: Don't log every single success in lightning mode to save UI updates, 
+                        # or log every 5-10? For now, let's log errors only or batch success.
+                        # self.log_message.emit(f"Created: {result}", QColor("green")) 
+                    else:
+                        self.log_message.emit(f"Failed: {result}", QColor("red"))
+
+        else:
+            # ORIGINAL SEQUENTIAL LOGIC
+            created_count = 0
+            used_names = set()
+            for i in range(num_users):
+                self.progress_update.emit(i + 1, num_users)
+                full_name = ""
+                for _ in range(10): # Try 10 times to find a unique name
+                    gender = random.choice(['male', 'female'])
+                    first_name = random.choice(data[f"{gender}_first_names"])
+                    last_name = random.choice(data['last_names'])
+                    full_name = f"{first_name} {last_name}"
+                    if full_name not in used_names:
+                        used_names.add(full_name); break
+                else:
+                    self.log_message.emit("Could not generate a unique name, skipping.", QColor("orange"))
+                    continue
+                email = self._sanitize_email(f"{first_name.lower()}.{last_name.lower()}@{domain}")
+                password = self._generate_password()
+                try:
+                    user_body = {"primaryEmail": email, "name": {"givenName": first_name, "familyName": last_name}, "password": password, "changePasswordAtNextLogin": True, "orgUnitPath": org_unit_path}
+                    self.service.users().insert(body=user_body).execute()
+                    created_count += 1; self._save_to_csv(email, password, domain)
+                except Exception as e:
+                    self.log_message.emit(f"Error creating {email}: {self._parse_gsuite_error(e)}", QColor("red"))
+                time.sleep(0.1)
+
+        self.task_result.emit("Creation Complete", f"Created {created_count} of {num_users} users.")
         self.finished.emit()
 
     @pyqtSlot(str, str, str)
@@ -786,7 +876,7 @@ class GUserAdminApp(QMainWindow):
     trigger_fetch_dashboard_stats = pyqtSignal()
     trigger_fetch_all_users = pyqtSignal(str)
     trigger_user_action = pyqtSignal(list, str)
-    trigger_create_users = pyqtSignal(str, int, str)
+    trigger_create_users = pyqtSignal(str, int, str, bool)
     trigger_delete_users = pyqtSignal(str, str, str)
     trigger_change_user_domain = pyqtSignal(str, str)
     trigger_bulk_change_domain = pyqtSignal(str, str, int, str)
@@ -900,8 +990,10 @@ class GUserAdminApp(QMainWindow):
         tab_create, t3_layout, create_group, cr_form = QWidget(), QVBoxLayout(), QGroupBox("Bulk User Creation"), QFormLayout()
         self.create_domain_combo, self.create_ou_combo = QComboBox(), QComboBox()
         self.create_user_count_spin = QSpinBox(); self.create_user_count_spin.setRange(1, 1000); self.create_user_count_spin.setValue(10)
+        self.create_lightning_checkbox = QCheckBox("⚡ Lightning Mode (Fast Parallel Creation)")
+        self.create_lightning_checkbox.setToolTip("Enable to use parallel threads for much faster user creation (recommended for >10 users).")
         self.create_users_btn = QPushButton("Create Users"); self.create_users_btn.setIcon(self.style().standardIcon(QStyle.SP_ToolBarHorizontalExtensionButton)); self.create_users_btn.setToolTip("Create multiple users with random names from the data file.")
-        cr_form.addRow("Target Domain:", self.create_domain_combo); cr_form.addRow("Organizational Unit:", self.create_ou_combo); cr_form.addRow("Number of Users to Create:", self.create_user_count_spin); cr_form.addRow(self.create_users_btn)
+        cr_form.addRow("Target Domain:", self.create_domain_combo); cr_form.addRow("Organizational Unit:", self.create_ou_combo); cr_form.addRow("Number of Users to Create:", self.create_user_count_spin); cr_form.addRow(self.create_lightning_checkbox); cr_form.addRow(self.create_users_btn)
         create_group.setLayout(cr_form); t3_layout.addWidget(create_group); t3_layout.addStretch()
         tab_create.setLayout(t3_layout); self.tabs.addTab(tab_create, "Bulk Create")
         tab_delete, t4_layout = QWidget(), QVBoxLayout()
@@ -1631,9 +1723,10 @@ class GUserAdminApp(QMainWindow):
             trigger_signal.emit(*args)
 
     def _create_users(self):
-        args = (self.create_domain_combo.currentText(), self.create_user_count_spin.value(), self.create_ou_combo.currentData())
+        args = (self.create_domain_combo.currentText(), self.create_user_count_spin.value(), self.create_ou_combo.currentData(), self.create_lightning_checkbox.isChecked())
         if not args[0] or not args[2]: return self._log_error("Please wait for Domains and OUs to load.")
-        self._generic_task_runner("Confirm Creation", f"Are you sure you want to create {args[1]} users?", self.trigger_create_users, *args)
+        mode_str = " (LIGHTNING MODE)" if args[3] else ""
+        self._generic_task_runner("Confirm Creation", f"Are you sure you want to create {args[1]} users{mode_str}?", self.trigger_create_users, *args)
 
     def _delete_all_users_in_domain(self):
         domain = self.delete_domain_combo.currentText()
