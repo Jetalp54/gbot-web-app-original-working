@@ -15,48 +15,6 @@ from config import SCOPES
 # Use a more robust session service storage
 _session_services = {}
 
-def validate_strong_password(password):
-    """
-    Validate that a password meets strength requirements.
-    Requirements:
-    - Minimum 12 characters (Relaxed for user preference)
-    """
-    if len(password) < 12:
-        return False, "Password must be at least 12 characters long"
-    
-    return True, ""
-
-def generate_strong_password(length=16):
-    """
-    Generate a strong random password.
-    Default length: 16 characters
-    """
-    import random
-    import string
-    
-    # Character sets
-    uppercase = string.ascii_uppercase
-    lowercase = string.ascii_lowercase
-    digits = string.digits
-    symbols = '!@#$%^&*()_+-='
-    
-    # Ensure at least one character from each category
-    password = [
-        random.choice(uppercase),
-        random.choice(lowercase),
-        random.choice(digits),
-        random.choice(symbols)
-    ]
-    
-    # Fill the rest with random characters from all categories
-    all_chars = uppercase + lowercase + digits + symbols
-    password.extend(random.choice(all_chars) for _ in range(length - 4))
-    
-    # Shuffle to avoid predictable patterns
-    random.shuffle(password)
-    
-    return ''.join(password)
-
 class WebGoogleAPI:
     def get_credentials(self, account_name):
         account = GoogleAccount.query.filter_by(account_name=account_name).first()
@@ -213,18 +171,9 @@ class WebGoogleAPI:
             logging.error(f"No valid tokens for account {account_name}")
             return False
 
-    def create_gsuite_user(self, first_name, last_name, email, password, force=False):
+    def create_gsuite_user(self, first_name, last_name, email, password):
         if not self.service:
             raise Exception("Not authenticated or session expired.")
-        
-        # Validate password strength
-        is_valid, error_msg = validate_strong_password(password)
-        if not is_valid:
-            return {
-                "success": False,
-                "error": f"Password does not meet requirements: {error_msg}",
-                "error_type": "weak_password"
-            }
         
         user_body = {
             "primaryEmail": email,
@@ -233,8 +182,7 @@ class WebGoogleAPI:
                 "familyName": last_name
             },
             "password": password,
-            "changePasswordAtNextLogin": False,  # Keep user password permanent
-            "suspended": True  # Force SUSPENDED creation to guarantee success (bypasses license limits)
+            "changePasswordAtNextLogin": False
         }
         
         try:
@@ -246,27 +194,11 @@ class WebGoogleAPI:
             
             # Check for domain user limit error
             if "Domain user limit reached" in error_message or "limitExceeded" in error_message:
-                # Automatic Fallback: Try creating as suspended
-                try:
-                    logging.warning(f"License limit reached for {email}. Retrying as SUSPENDED user...")
-                    user_body['suspended'] = True
-                    user = self.service.users().insert(body=user_body).execute()
-                    
-                    return {
-                        "success": True, 
-                        "user": user, 
-                        "message": "User created successfully (Suspended due to license limit)",
-                        "is_suspended_fallback": True
-                    }
-                except Exception as fallback_err:
-                    logging.error(f"Fallback creation failed for {email}: {fallback_err}")
-            
                 return {
                     "success": False, 
-                    "error": "Domain user limit reached. To create license-free users: 1) Disable 'Auto-licensing' in Google Admin (Billing → Subscriptions), 2) Enable Cloud Identity Free." if force else "Domain user limit reached. Please upgrade to a paid Google Workspace subscription to create more users.",
+                    "error": "Domain user limit reached. Please upgrade to a paid Google Workspace subscription to create more users.",
                     "error_type": "domain_limit",
-                    "raw_error": error_message,
-                    "is_license_error": True
+                    "raw_error": error_message
                 }
             
             # Check for authentication errors
@@ -296,6 +228,7 @@ class WebGoogleAPI:
                     "raw_error": error_message
                 }
             
+            # Default error handling
             else:
                 return {
                     "success": False, 
@@ -460,7 +393,7 @@ class WebGoogleAPI:
         except HttpError as e:
             return {"success": False, "error": str(e)}
 
-    def create_random_users(self, num_users, domain, password=None, force=False):
+    def create_random_users(self, num_users, domain, password=None):
         """Create multiple random users with generated names and specified password"""
         if not self.service:
             raise Exception("Not authenticated or session expired.")
@@ -468,172 +401,186 @@ class WebGoogleAPI:
         import random
         import string
         
-        # Use provided password or generate a strong one
-        if password:
-            # Validate provided password
-            is_valid, error_msg = validate_strong_password(password)
-            if not is_valid:
-                return {
-                    "success": False,
-                    "error": f"Provided password does not meet requirements: {error_msg}",
-                    "error_type": "weak_password",
-                    "successful_count": 0,
-                    "failed_count": 0,
-                    "license_errors": 0,
-                    "results": [],
-                    "password": password
-                }
-        else:
-            # Generate a strong password
-            password = generate_strong_password(16)
+        # Use provided password or generate a random one
+        if not password:
+            password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
         
-        first_names = ["James", "John", "Robert", "Michael", "William", "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth"]
-        last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"]
+        # Common first and last names for random generation
+        first_names = [
+            "James", "John", "Robert", "Michael", "William", "David", "Richard", "Charles", "Joseph", "Thomas",
+            "Christopher", "Daniel", "Paul", "Mark", "Donald", "George", "Kenneth", "Steven", "Edward", "Brian",
+            "Ronald", "Anthony", "Kevin", "Jason", "Matthew", "Gary", "Timothy", "Jose", "Larry", "Jeffrey",
+            "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica", "Sarah", "Karen",
+            "Nancy", "Lisa", "Betty", "Helen", "Sandra", "Donna", "Carol", "Ruth", "Sharon", "Michelle",
+            "Laura", "Sarah", "Kimberly", "Deborah", "Dorothy", "Lisa", "Nancy", "Karen", "Betty", "Helen"
+        ]
+        
+        last_names = [
+            "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
+            "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
+            "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson",
+            "Walker", "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores",
+            "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell", "Carter", "Roberts"
+        ]
         
         results = []
         successful_count = 0
-        license_errors = 0
         
         for i in range(num_users):
+            # Generate random names
             first_name = random.choice(first_names)
             last_name = random.choice(last_names)
-            random_num = random.randint(100, 999)
-            email = f"{first_name.lower()}.{last_name.lower()}{random_num}@{domain}"
             
-            result = self.create_gsuite_user(first_name, last_name, email, password, force=force)
-            results.append(result)
+            # Create email with random number to avoid duplicates
+            random_num = random.randint(1000, 9999)
+            email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
             
-            if result.get('success'):
+            # Create the user
+            result = self.create_gsuite_user(first_name, last_name, email, password)
+            
+            if result['success']:
                 successful_count += 1
-            if result.get('is_license_error'):
-                license_errors += 1
-                
+                results.append({
+                    'email': email,
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'result': {'success': True, 'message': 'User created successfully'}
+                })
+            else:
+                results.append({
+                    'email': email,
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'result': result
+                })
+        
         return {
-            "success": successful_count > 0,
-            "successful_count": successful_count,
-            "failed_count": num_users - successful_count,
-            "license_errors": license_errors,
-            "results": results,
-            "password": password
+            'success': True,
+            'password': password,
+            'total_requested': num_users,
+            'successful_count': successful_count,
+            'failed_count': num_users - successful_count,
+            'results': results
         }
 
-    def create_random_admin_users(self, num_users, domain, password=None, admin_role="SUPER_ADMIN_ROLE", force=False):
+    def create_random_admin_users(self, num_users, domain, password=None, admin_role='SUPER_ADMIN'):
         """Create multiple random admin users with specified admin roles"""
         if not self.service:
             raise Exception("Not authenticated or session expired.")
-            
+        
         import random
         import string
-        import time
-        from googleapiclient.errors import HttpError
         
-        # Use provided password or generate a strong one
-        if password:
-            # Validate provided password
-            is_valid, error_msg = validate_strong_password(password)
-            if not is_valid:
-                return {
-                    "success": False,
-                    "error": f"Provided password does not meet requirements: {error_msg}",
-                    "error_type": "weak_password",
-                    "password": password,
-                    "successful_count": 0,
-                    "results": []
-                }
-        else:
-            # Generate a strong password
-            password = generate_strong_password(16)
-            
-        first_names = ["James", "John", "Robert", "Michael", "William", "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth"]
-        last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"]
+        # Use provided password or generate a random one
+        if not password:
+            password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+        
+        # Common first and last names for random generation
+        first_names = [
+            "James", "John", "Robert", "Michael", "William", "David", "Richard", "Charles", "Joseph", "Thomas",
+            "Christopher", "Daniel", "Paul", "Mark", "Donald", "George", "Kenneth", "Steven", "Edward", "Brian",
+            "Ronald", "Anthony", "Kevin", "Jason", "Matthew", "Gary", "Timothy", "Jose", "Larry", "Jeffrey",
+            "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica", "Sarah", "Karen",
+            "Nancy", "Lisa", "Betty", "Helen", "Sandra", "Donna", "Carol", "Ruth", "Sharon", "Michelle",
+            "Laura", "Sarah", "Kimberly", "Deborah", "Dorothy", "Lisa", "Nancy", "Karen", "Betty", "Helen"
+        ]
+        
+        last_names = [
+            "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
+            "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
+            "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson",
+            "Walker", "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores",
+            "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell", "Carter", "Roberts"
+        ]
         
         results = []
         successful_count = 0
         
         for i in range(num_users):
             try:
+                # Generate random name
                 first_name = random.choice(first_names)
                 last_name = random.choice(last_names)
-                email = f"{first_name.lower()}.{last_name.lower()}{random.randint(100, 999)}@{domain}"
                 
+                # Generate unique email
+                base_email = f"{first_name.lower()}.{last_name.lower()}"
+                email = f"{base_email}@{domain}"
+                
+                # Add random number if email might be duplicate
+                counter = 1
+                while any(result.get('email') == email for result in results):
+                    email = f"{base_email}{counter}@{domain}"
+                    counter += 1
+                
+                # Create user with admin privileges
                 user_body = {
-                    'name': { 'givenName': first_name, 'familyName': last_name },
+                    'name': {
+                        'givenName': first_name,
+                        'familyName': last_name
+                    },
                     'primaryEmail': email,
                     'password': password,
-                    'changePasswordAtNextLogin': False,  # Keep password permanent
-                    'suspended': True,  # Force SUSPENDED creation to guarantee success
-                    'isAdmin': True,
-                    'orgUnitPath': '/'
+                    'changePasswordAtNextLogin': False,
+                    'orgUnitPath': '/',
+                    'isAdmin': True,  # Set as admin user
+                    'isDelegatedAdmin': False
                 }
                 
+                # Create the user
                 created_user = self.service.users().insert(body=user_body).execute()
                 
+                # For now, we'll create the user as a basic admin
+                # Role-specific assignments require additional setup in Google Admin Console
                 results.append({
                     'email': email,
                     'admin_role': admin_role,
                     'result': {
                         'success': True,
                         'user_id': created_user.get('id'),
-                        'message': f'Admin user created successfully.'
+                        'message': f'Admin user created successfully with basic admin privileges. Note: Specific role assignment ({admin_role}) requires additional Google Admin Console configuration.'
                     }
                 })
                 successful_count += 1
+                
+                # Small delay to avoid rate limiting
+                import time
                 time.sleep(0.2)
                 
             except HttpError as e:
-                error_message = str(e)
-                is_license_error = "Domain user limit reached" in error_message or "limitExceeded" in error_message
+                error_type = 'unknown'
+                if 'domain' in str(e).lower() and 'limit' in str(e).lower():
+                    error_type = 'domain_limit'
+                elif 'duplicate' in str(e).lower() or 'already exists' in str(e).lower():
+                    error_type = 'duplicate_user'
+                elif 'permission' in str(e).lower() or 'admin' in str(e).lower():
+                    error_type = 'admin_permission_error'
                 
-                # Automatic Fallback: Try creating as suspended if license error
-                fallback_success = False
-                if is_license_error:
-                    try:
-                        logging.warning(f"License limit for {email}. Retrying as SUSPENDED user...")
-                        user_body['suspended'] = True
-                        created_user = self.service.users().insert(body=user_body).execute()
-                        
-                        results.append({
-                            'email': email,
-                            'admin_role': admin_role,
-                            'result': {
-                                'success': True,
-                                'user_id': created_user.get('id'),
-                                'message': 'Admin user created successfully (Suspended due to license limit)',
-                                'is_suspended_fallback': True
-                            }
-                        })
-                        successful_count += 1
-                        fallback_success = True
-                    except Exception as fallback_err:
-                        logging.error(f"Fallback creation failed: {fallback_err}")
-                
-                if fallback_success:
-                    continue  # Skip to next user in loop
-                
-                if is_license_error:
-                    error_msg = "Domain user limit reached (Force: %s)" % force
-                else:
-                    error_msg = error_message
-                    
                 results.append({
-                    'email': email if 'email' in locals() else f'admin{i}@{domain}',
+                    'email': email if 'email' in locals() else f'user{i+1}@{domain}',
                     'admin_role': admin_role,
                     'result': {
                         'success': False,
-                        'error': error_msg,
-                        'is_license_error': is_license_error
+                        'error': str(e),
+                        'error_type': error_type
                     }
                 })
+                
             except Exception as e:
                 results.append({
-                    'email': email if 'email' in locals() else f'admin{i}@{domain}',
+                    'email': email if 'email' in locals() else f'user{i+1}@{domain}',
                     'admin_role': admin_role,
-                    'result': { 'success': False, 'error': str(e) }
+                    'result': {
+                        'success': False,
+                        'error': str(e),
+                        'error_type': 'unknown'
+                    }
                 })
         
         return {
-            'success': successful_count > 0,
+            'success': True,
             'password': password,
+            'admin_role': admin_role,
+            'total_requested': num_users,
             'successful_count': successful_count,
             'failed_count': num_users - successful_count,
             'results': results

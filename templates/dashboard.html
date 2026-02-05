@@ -640,20 +640,6 @@
                     below or paste bulk data.
                 </p>
 
-                <!-- Force Create Option -->
-                <div class="mb-3">
-                    <label class="d-flex align-items-center cursor-pointer" style="gap: 10px;">
-                        <input type="checkbox" id="bulk-force-create" style="width: 18px; height: 18px;">
-                        <span style="color: var(--text-primary); font-weight: 500;">
-                            Force create users even if license is not enough (unlicensed creation)
-                        </span>
-                    </label>
-                    <small class="text-muted d-block mt-1" style="margin-left: 28px;">
-                        <i class="fas fa-exclamation-triangle"></i> Requires "Auto-licensing" to be DISABLED in Google
-                        Admin Console or having "Cloud Identity Free" available.
-                    </small>
-                </div>
-
                 <!-- Bulk Paste Field -->
                 <div class="glass-code-block" style="margin-bottom: 16px;">
                     <label for="bulk-accounts-paste" class="form-label-github">
@@ -811,14 +797,6 @@
                 <input type="password" id="new-user-password" class="form-control-github w-100"
                     placeholder="Enter password">
             </div>
-        </div>
-        <div class="mb-3">
-            <label class="d-flex align-items-center cursor-pointer" style="gap: 10px;">
-                <input type="checkbox" id="single-force-create" style="width: 16px; height: 16px;">
-                <span style="color: var(--text-primary); font-size: 13px;">
-                    Force create even if license limit reached (unlicensed)
-                </span>
-            </label>
         </div>
         <button onclick="createSingleUser()" class="btn-github btn-github-primary">
             <i class="fas fa-plus"></i> Create User
@@ -2045,15 +2023,6 @@
                     <input type="text" id="csv-password" class="form-control-github"
                         placeholder="Default password for all users">
                 </div>
-            </div>
-            <!-- Force Create Option for CSV Generation -->
-            <div class="mb-3" style="margin-bottom: 20px;">
-                <label class="d-flex align-items-center cursor-pointer" style="gap: 10px;">
-                    <input type="checkbox" id="csv-force-create" style="width: 16px; height: 16px;">
-                    <span style="color: var(--text-primary); font-size: 13px;">
-                        Force create even if license limit reached
-                    </span>
-                </label>
             </div>
 
             <div style="display: flex; gap: 12px; margin-bottom: 20px;">
@@ -6029,8 +5998,6 @@
 
             logResult(`➕ Creating user: ${email}...`);
 
-            const force = document.getElementById('single-force-create').checked;
-
             fetch('/api/create-gsuite-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -6038,8 +6005,7 @@
                     first_name: firstName,
                     last_name: lastName,
                     email: email,
-                    password: password,
-                    force: force
+                    password: password
                 })
             })
                 .then(response => {
@@ -6713,15 +6679,12 @@
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting Task...';
             }
 
-            const forceCreate = document.getElementById('bulk-force-create').checked;
-
             // Call API to start task
             fetch('/api/bulk-create-account-users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    accounts_data: accountsData,
-                    force_create: forceCreate
+                    accounts_data: accountsData
                 })
             })
                 .then(response => response.json())
