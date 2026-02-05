@@ -2633,7 +2633,7 @@ def api_bulk_create_account_users():
                         return account_result
 
                 all_results = []
-                with ThreadPoolExecutor(max_workers=max(1, min(10, len(accounts_data)))) as executor:
+                with ThreadPoolExecutor(max_workers=max(1, min(20, len(accounts_data)))) as executor:
                      # Only submit authenticated ones + handle failed separately
                     future_to_info = {}
                     for info in accounts_data:
