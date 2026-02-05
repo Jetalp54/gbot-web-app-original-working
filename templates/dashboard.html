@@ -3,6 +3,40 @@
 
 {% block content %}
 <!-- Tab Navigation - Hidden, tabs now in sidebar dropdown -->
+<style>
+    /* Custom styles for dashboard components */
+    .glass-dropdown-item {
+        padding: 10px 16px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border-panel);
+        transition: background 0.2s;
+        color: var(--text-primary);
+    }
+
+    .glass-dropdown-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .glass-dropdown-item:last-child {
+        border-bottom: none;
+    }
+
+    /* Responsive Modal Tweaks */
+    @media (max-width: 768px) {
+        #bulk-account-modal .modal-content {
+            width: 95% !important;
+            padding: 0 !important;
+            /* Reset layout padding if needed, but wrapper handles it */
+        }
+
+        #bulk-account-modal .modal-body {
+            padding: 20px !important;
+        }
+    }
+</style>
 <div class="tab-navigation" style="display: none;">
     <nav>
         <button class="tab-button active" onclick="showTab('tab1')">
@@ -623,17 +657,19 @@
     </div>
 
     <!-- Bulk Account Modal -->
-    <div id="bulk-account-modal" class="modal" style="display: none;">
+    <div id="bulk-account-modal" class="modal"
+        style="display: none; align-items: center; justify-content: center; padding: 20px;">
         <div class="modal-content"
-            style="max-width: 1200px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important;">
-            <div class="modal-header" style="flex-shrink: 0;">
-                <h3 style="margin: 0;">
+            style="max-width: 1000px; width: 90%; max-height: 85vh; display: flex; flex-direction: column; background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);">
+            <div class="modal-header"
+                style="flex-shrink: 0; padding: 24px 32px; border-bottom: 1px solid var(--border-panel);">
+                <h3 style="margin: 0; font-size: 1.25rem;">
                     <i class="fas fa-users-cog"></i>
                     Bulk Account Management
                 </h3>
-                <span class="close" onclick="closeBulkAccountModal()">&times;</span>
+                <span class="close" onclick="closeBulkAccountModal()" style="line-height: 1;">&times;</span>
             </div>
-            <div class="modal-body" style="overflow-y: auto; flex: 1; padding-right: 10px;">
+            <div class="modal-body" style="overflow-y: auto; flex: 1; padding: 32px;">
                 <p style="color: #656d76; margin-bottom: 16px;">
                     <i class="fas fa-info-circle"></i>
                     Each account can have its own number of users, domain, and password. Add accounts using the button
