@@ -6527,27 +6527,33 @@
                             const statusColor = domainData.status_color || 'green';
 
                             // Map status colors - Green for available, Red for everything else
-                            let colorCode = '#28a745'; // green (available)
+                            let colorCode = 'rgba(40, 167, 69, 0.8)'; // green (available)
                             if (statusColor === 'red' || status === 'used' || status === 'in_use' || status === 'purple') {
-                                colorCode = '#dc3545'; // red (used/in_use)
+                                colorCode = 'rgba(220, 53, 69, 0.8)'; // red (used/in_use)
                             }
-
+                            // Solid full cover style
                             const domainItem = document.createElement('div');
                             domainItem.className = 'glass-dropdown-item';
-                            // Removed inline JS hover effects to use CSS class instead
+                            domainItem.style.background = colorCode;
+                            domainItem.style.marginBottom = '4px';
+                            domainItem.style.borderRadius = '6px';
+                            domainItem.style.border = 'none';
+
                             domainItem.onclick = function () {
                                 domainInput.value = domainName;
+                                // Pass same color for updated status indicator
                                 updateDomainStatus(rowId, status, statusText, colorCode);
                                 hideDomainDropdown(rowId);
                             };
 
                             const domainNameSpan = document.createElement('span');
                             domainNameSpan.textContent = domainName;
-                            domainNameSpan.style.fontWeight = '500';
+                            domainNameSpan.style.fontWeight = '600';
+                            domainNameSpan.style.color = '#ffffff';
 
                             const statusBadge = document.createElement('span');
                             statusBadge.textContent = statusText;
-                            statusBadge.style.cssText = `font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 600; background-color: ${colorCode}; color: white;`;
+                            statusBadge.style.cssText = `font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background-color: rgba(0,0,0,0.2); color: white;`;
 
                             domainItem.appendChild(domainNameSpan);
                             domainItem.appendChild(statusBadge);
