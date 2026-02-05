@@ -2580,7 +2580,8 @@ def api_bulk_create_account_users():
                                         "primaryEmail": email,
                                         "name": { "givenName": first_name, "familyName": last_name },
                                         "password": password,
-                                        "changePasswordAtNextLogin": True  # Force password change for security
+                                        "changePasswordAtNextLogin": False,  # Keep password permanent
+                                        "suspended": False  # Create active users
                                     }
                                     
                                     service.users().insert(body=user_body).execute()

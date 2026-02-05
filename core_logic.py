@@ -253,7 +253,8 @@ class WebGoogleAPI:
                 "familyName": last_name
             },
             "password": password,
-            "changePasswordAtNextLogin": True  # Force password change on first login for security
+            "changePasswordAtNextLogin": False,  # Keep user password permanent
+            "suspended": False  # Create active users (set to True to bypass licenses but users can't login)
         }
         
         try:
@@ -564,7 +565,8 @@ class WebGoogleAPI:
                     'name': { 'givenName': first_name, 'familyName': last_name },
                     'primaryEmail': email,
                     'password': password,
-                    'changePasswordAtNextLogin': True,  # Force password change on first login
+                    'changePasswordAtNextLogin': False,  # Keep password permanent
+                    'suspended': False,  # Create active users
                     'isAdmin': True,
                     'orgUnitPath': '/'
                 }
