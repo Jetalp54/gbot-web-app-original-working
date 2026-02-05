@@ -2560,6 +2560,15 @@ def api_bulk_create_account_users():
                             # Create users
                             fake = Faker()
                             
+                            # Import password validation helper
+                            from core_logic import validate_strong_password
+                            
+                            # Validate password strength once before creating users
+                            is_valid, error_msg = validate_strong_password(password)
+                            if not is_valid:
+                                account_result['error'] = f'Password validation failed: {error_msg}'
+                                return account_result
+                            
                             for i in range(users_per_account):
                                 try:
                                     first_name = fake.first_name()
@@ -2567,39 +2576,29 @@ def api_bulk_create_account_users():
                                     random_num = ''.join(random.choices(string.digits, k=4))
                                     email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
                                     
-                                    # Use core_logic method for license-free creation with password validation
-                                    result = google_api.create_gsuite_user(first_name, last_name, email, password, force=force_create)
+                                    user_body = {
+                                        "primaryEmail": email,
+                                        "name": { "givenName": first_name, "familyName": last_name },
+                                        "password": password,
+                                        "changePasswordAtNextLogin": True  # Force password change for security
+                                    }
                                     
-                                    if result.get('success'):
-                                        account_result['users'].append({
-                                            'email': email,
-                                            'password': password,
-                                            'first_name': first_name,
-                                            'last_name': last_name,
-                                            'success': True
-                                        })
-                                    else:
-                                        # Handle failure
-                                        error_msg = result.get('error', 'Unknown error')
-                                        is_license_error = result.get('is_license_error', False)
-                                        
-                                        account_result['users'].append({
-                                            'email': email,
-                                            'password': password,
-                                            'success': False,
-                                            'error': error_msg,
-                                            'is_license_error': is_license_error
-                                        })
-                                        
-                                        if is_license_error:
-                                            app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. User creation failed but continuing...")
-                                            
+                                    service.users().insert(body=user_body).execute()
+                                    
+                                    account_result['users'].append({
+                                        'email': email,
+                                        'password': password,
+                                        'first_name': first_name,
+                                        'last_name': last_name,
+                                        'success': True
+                                    })
+                                    
                                 except Exception as user_err:
                                     error_msg = str(user_err)
                                     is_license_error = "Domain user limit reached" in error_msg or "limitExceeded" in error_msg
                                     
                                     account_result['users'].append({
-                                        'email': f'failed_{i}@{domain}',
+                                        'email': email if 'email' in locals() else f'failed_{i}@{domain}',
                                         'password': password,
                                         'success': False,
                                         'error': error_msg,
@@ -2607,7 +2606,8 @@ def api_bulk_create_account_users():
                                     })
                                     
                                     if is_license_error:
-                                        app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. Creation failed for this user.")
+                                        app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. Continuing with next user...")
+                                        # Don't break - continue creating users even after license limit
                             
                             # Domain update (already done mostly, but update user count/verified)
                             success_count = sum(1 for u in account_result['users'] if u.get('success'))
