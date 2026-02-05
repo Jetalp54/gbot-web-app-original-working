@@ -2506,6 +2506,11 @@ def bulk_account_bg_worker(task_id, accounts_data, force_create=False):
                         # Create users
                         fake = Faker()
                         
+                        # DEBUG: Log password details
+                        pw_len = len(password)
+                        pw_repr = repr(password)
+                        app.logger.info(f"[DEBUG] Processing user for {account_name}. Password len: {pw_len}, repr: {pw_repr}")
+                        
                         # Direct relaxed validation to avoid module reload issues
                         # from core_logic import validate_strong_password
                         
@@ -2513,7 +2518,7 @@ def bulk_account_bg_worker(task_id, accounts_data, force_create=False):
                         error_msg = ""
                         if len(password) < 12:
                             is_valid = False
-                            error_msg = "Password must be at least 12 characters long"
+                            error_msg = f"Password must be at least 12 characters long (Received {len(password)})"
 
                         # Only fail if really weak AND supplied. If empty, we might auto-gen later? 
                         # But input valid logic ensures password exists.
