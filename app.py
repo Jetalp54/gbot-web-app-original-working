@@ -2372,6 +2372,260 @@ def api_create_random_users():
         signal.alarm(0)  # Cancel timeout
         return jsonify({'success': False, 'error': str(e)})
 
+# Shared Worker for Bulk Creation (used by API and CSV upload)
+def bulk_account_bg_worker(task_id, accounts_data, force_create=False):
+    with app.app_context():
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import random
+        import string
+        from faker import Faker
+        
+        try:
+            # Step 0: Immediate Domain Save (Async now)
+            domains_to_save_immediately = set()
+            for account_info in accounts_data:
+                domain = account_info.get('domain', '').strip().lower()
+                if domain:
+                    domains_to_save_immediately.add(domain)
+            
+            if domains_to_save_immediately:
+                try:
+                    from database import UsedDomain, db
+                    update_progress(task_id, 0, len(accounts_data), "saving_domains", f"Pre-saving {len(domains_to_save_immediately)} domains...")
+                    for target_domain in domains_to_save_immediately:
+                        used_domain = UsedDomain.query.filter_by(domain_name=target_domain).first()
+                        if used_domain:
+                            used_domain.ever_used = True
+                            used_domain.updated_at = db.func.current_timestamp()
+                        else:
+                            new_used_domain = UsedDomain(domain_name=target_domain, ever_used=True, is_verified=True, user_count=0)
+                            db.session.add(new_used_domain)
+                    db.session.commit()
+                except Exception as immediate_save_err:
+                    app.logger.error(f"Immediate save error: {immediate_save_err}")
+                    db.session.rollback()
+
+            app.logger.info(f"[BULK ACCOUNTS] Starting bulk creation for {len(accounts_data)} account(s)")
+            
+            # Step 1: Authenticate
+            update_progress(task_id, 0, len(accounts_data), "authenticating", f"Authenticating {len(accounts_data)} accounts...")
+            
+            authenticated_accounts = {} # map account_name -> auth_result
+
+            def authenticate_account(account_info):
+                with app.app_context(): # Ensure app context for DB access
+                    try:
+                        account_name = account_info['account']
+                        from database import ServiceAccount, GoogleAccount
+                        from services.google_domains_service import GoogleDomainsService
+                        
+                        service_account = ServiceAccount.query.filter_by(admin_email=account_name).first()
+                        if not service_account:
+                            service_account = ServiceAccount.query.filter_by(name=account_name).first()
+                        
+                        if service_account:
+                            try:
+                                domains_service = GoogleDomainsService(service_account.name)
+                                admin_service = domains_service._get_admin_service()
+                                return {'account': account_name, 'authenticated': True, 'service': admin_service, 'is_service_account': True}
+                            except Exception as sa_err:
+                                return {'account': account_name, 'authenticated': False, 'error': str(sa_err)}
+                        
+                        # Fallback to GoogleAccount (legacy OAuth)
+                        # Need to import these functions or ensure they are globally available
+                        from . import authenticate_without_session, get_service_without_session
+                        if not authenticate_without_session(account_name):
+                            return {'account': account_name, 'authenticated': False, 'error': 'Auth failed'}
+                        
+                        service = get_service_without_session(account_name)
+                        if not service:
+                            return {'account': account_name, 'authenticated': False, 'error': 'No service'}
+                        
+                        return {'account': account_name, 'authenticated': True, 'service': service}
+                    except Exception as e:
+                        return {'account': account_info['account'], 'authenticated': False, 'error': str(e)}
+
+            with ThreadPoolExecutor(max_workers=max(1, min(10, len(accounts_data)))) as auth_executor:
+                auth_futures = {auth_executor.submit(authenticate_account, info): info for info in accounts_data}
+                for i, future in enumerate(as_completed(auth_futures)):
+                    res = future.result()
+                    if res['authenticated']:
+                        authenticated_accounts[res['account']] = res
+                    update_progress(task_id, i+1, len(accounts_data), "authenticating", f"Authenticated {i+1}/{len(accounts_data)} accounts...")
+
+            if not authenticated_accounts:
+                 pass 
+
+            # Step 2: Create Users
+            update_progress(task_id, 0, len(authenticated_accounts), "creating", f"Creating users for {len(authenticated_accounts)} accounts...")
+
+            def process_account(account_info):
+                with app.app_context():
+                    from database import UsedDomain, db, ServiceAccount, GoogleAccount
+                    account_name = account_info['account']
+                    users_per_account = account_info['users_per_account']
+                    domain_input = account_info['domain'] 
+                    password = account_info['password']
+                    
+                    account_result = {
+                        'account': account_name,
+                        'authenticated': False,
+                        'users': [],
+                        'error': None
+                    }
+                    
+                    try:
+                        if account_name not in authenticated_accounts:
+                            account_result['error'] = 'Authentication failed previously'
+                            return account_result
+                        
+                        auth_data = authenticated_accounts[account_name]
+                        service = auth_data['service']
+                        account_result['authenticated'] = True
+                        
+                        # Determine domain
+                        domain = domain_input
+                        if not domain:
+                            if '@' in account_name:
+                                domain = account_name.split('@')[1].lower()
+                            else:
+                                sa = ServiceAccount.query.filter_by(name=account_name).first()
+                                if sa and sa.admin_email and '@' in sa.admin_email:
+                                    domain = sa.admin_email.split('@')[1].lower()
+                                else:
+                                    ga = GoogleAccount.query.filter_by(account_name=account_name).first()
+                                    if ga and ga.account_name and '@' in ga.account_name:
+                                        domain = ga.account_name.split('@')[1].lower()
+                        
+                        if not domain:
+                            account_result['error'] = 'Could not determine domain'
+                            return account_result
+                        
+                        app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Creating {users_per_account} users on domain {domain}")
+                        
+                        # Create users
+                        fake = Faker()
+                        from core_logic import validate_strong_password
+                        
+                        is_valid, error_msg = validate_strong_password(password)
+                        
+                        # Only fail if really weak AND supplied. If empty, we might auto-gen later? 
+                        # But input valid logic ensures password exists.
+                        if password and not is_valid:
+                            account_result['error'] = f'Password validation failed: {error_msg}'
+                            return account_result
+                        
+                        for i in range(users_per_account):
+                            try:
+                                first_name = fake.first_name()
+                                last_name = fake.last_name()
+                                random_num = ''.join(random.choices(string.digits, k=4))
+                                email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
+                                
+                                user_body = {
+                                    "primaryEmail": email,
+                                    "name": { "givenName": first_name, "familyName": last_name },
+                                    "password": password,
+                                    "changePasswordAtNextLogin": False,  # Keep password permanent
+                                    "suspended": True  # Force SUSPENDED creation
+                                }
+                                
+                                service.users().insert(body=user_body).execute()
+                                
+                                account_result['users'].append({
+                                    'email': email,
+                                    'password': password,
+                                    'first_name': first_name,
+                                    'last_name': last_name,
+                                    'success': True,
+                                    'status': 'SUSPENDED (Created Successfully)'
+                                })
+                                
+                            except Exception as user_err:
+                                error_msg = str(user_err)
+                                is_license_error = "Domain user limit reached" in error_msg or "limitExceeded" in error_msg
+                                
+                                account_result['users'].append({
+                                    'email': email if 'email' in locals() else f'failed_{i}@{domain}',
+                                    'password': password,
+                                    'success': False,
+                                    'error': error_msg,
+                                    'is_license_error': is_license_error
+                                })
+                                
+                                if is_license_error:
+                                    app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. Continuing with next user...")
+                        
+                        success_count = sum(1 for u in account_result['users'] if u.get('success'))
+                        if success_count > 0:
+                            try:
+                                domain_lower = domain.lower()
+                                used_domain = UsedDomain.query.filter_by(domain_name=domain_lower).first()
+                                if used_domain:
+                                    used_domain.ever_used = True
+                                    used_domain.updated_at = db.func.current_timestamp()
+                                else:
+                                    new_used_domain = UsedDomain(domain_name=domain_lower, ever_used=True, is_verified=True, user_count=success_count)
+                                    db.session.add(new_used_domain)
+                                db.session.commit()
+                            except Exception as db_e:
+                                app.logger.error(f"DB update failed: {db_e}")
+                        
+                    except Exception as e:
+                        account_result['error'] = str(e)
+                    
+                    return account_result
+
+            all_results = []
+            with ThreadPoolExecutor(max_workers=max(1, min(20, len(accounts_data)))) as executor:
+                future_to_info = {}
+                for info in accounts_data:
+                    if info['account'] in authenticated_accounts:
+                            future_to_info[executor.submit(process_account, info)] = info
+                    else:
+                            all_results.append({'account': info['account'], 'authenticated': False, 'users': [], 'error': 'Authentication failed'})
+                
+                completed_count = 0
+                for future in as_completed(future_to_info):
+                    res = future.result()
+                    all_results.append(res)
+                    completed_count += 1
+                    update_progress(task_id, completed_count, len(future_to_info), "creating", f"Processed {completed_count}/{len(future_to_info)} accounts...")
+
+            # Summary
+            total_accounts = len(all_results)
+            total_created = sum(sum(1 for u in acc['users'] if u.get('success')) for acc in all_results)
+            total_failed = sum(len(acc['users']) - sum(1 for u in acc['users'] if u.get('success')) for acc in all_results)
+            license_failures = sum(sum(1 for u in acc['users'] if u.get('is_license_error')) for acc in all_results)
+            
+            summary_msg = f"Task completed: {total_created} users created, {total_failed} failed."
+            if license_failures > 0:
+                summary_msg += f" ({license_failures} failed due to license limits. Automatically handled via Suspended mode)."
+            
+            successful_accounts = sum(1 for r in all_results if r.get('authenticated') and len(r.get('users', [])) > 0)
+            failed_accounts = total_accounts - successful_accounts
+
+            final_result = {
+                'success': True,
+                'total_accounts_processed': total_accounts,
+                'successful_accounts': successful_accounts,
+                'failed_accounts': failed_accounts,
+                'total_successful_users': total_created,
+                'total_failed_users': total_failed,
+                'license_failures': license_failures,
+                'summary': summary_msg,
+                'results': all_results
+            }
+            
+            update_progress(task_id, 100, 100, "completed", "Bulk creation finished!", final_result)
+            app.logger.info(f"[BULK ACCOUNT TASK {task_id}] COMPLETED")
+            
+        except Exception as e:
+            app.logger.error(f"[BULK CREATE TASK {task_id}] CRASHED: {e}")
+            import traceback
+            app.logger.error(traceback.format_exc())
+            update_progress(task_id, 0, 0, "error", f"Task failed: {str(e)}")
+
 @app.route('/api/bulk-create-account-users', methods=['POST'])
 @login_required
 def api_bulk_create_account_users():
@@ -2403,18 +2657,15 @@ def api_bulk_create_account_users():
         if not password or len(password) < 12:
             return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Password must be at least 12 characters long (strong password required)'})
         
-        # Clean domain if provided
         if domain:
             domain = domain.strip().lower()
             if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', domain):
                 return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Invalid domain format'})
         
-        # Sanitize password
         password = re.sub(r'[^\w\-_!@#$%^&*()+=]', '', password)
         if not password.strip():
             return jsonify({'success': False, 'error': f'Row {idx + 1} ({account_name}): Password cannot be empty after sanitization'})
         
-        # Update
         account_info['domain'] = domain if domain else ''
         account_info['password'] = password
         account_info['users_per_account'] = int(users_per_account)
@@ -2424,290 +2675,81 @@ def api_bulk_create_account_users():
     task_id = str(uuid.uuid4())
     update_progress(task_id, 0, len(accounts_data), "starting", "Initializing bulk creation...")
     
-    def background_task(task_id, accounts_data, force_create=False):
-        with app.app_context():
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            import random
-            import string
-            from faker import Faker
-            
-            try:
-                # Step 0: Immediate Domain Save (Async now)
-                domains_to_save_immediately = set()
-                for account_info in accounts_data:
-                    domain = account_info.get('domain', '').strip().lower()
-                    if domain:
-                        domains_to_save_immediately.add(domain)
-                
-                if domains_to_save_immediately:
-                    try:
-                        from database import UsedDomain, db
-                        update_progress(task_id, 0, len(accounts_data), "saving_domains", f"Pre-saving {len(domains_to_save_immediately)} domains...")
-                        for target_domain in domains_to_save_immediately:
-                            used_domain = UsedDomain.query.filter_by(domain_name=target_domain).first()
-                            if used_domain:
-                                used_domain.ever_used = True
-                                used_domain.updated_at = db.func.current_timestamp()
-                            else:
-                                new_used_domain = UsedDomain(domain_name=target_domain, ever_used=True, is_verified=True, user_count=0)
-                                db.session.add(new_used_domain)
-                        db.session.commit()
-                    except Exception as immediate_save_err:
-                        app.logger.error(f"Immediate save error: {immediate_save_err}")
-                        db.session.rollback()
-
-                app.logger.info(f"[BULK ACCOUNTS] Starting bulk creation for {len(accounts_data)} account(s)")
-                
-                # Step 1: Authenticate
-                update_progress(task_id, 0, len(accounts_data), "authenticating", f"Authenticating {len(accounts_data)} accounts...")
-                
-                authenticated_accounts = {} # map account_name -> auth_result
-
-                def authenticate_account(account_info):
-                    with app.app_context(): # Ensure app context for DB access
-                        try:
-                            account_name = account_info['account']
-                            from database import ServiceAccount, GoogleAccount
-                            from services.google_domains_service import GoogleDomainsService
-                            
-                            service_account = ServiceAccount.query.filter_by(admin_email=account_name).first()
-                            if not service_account:
-                                service_account = ServiceAccount.query.filter_by(name=account_name).first()
-                            
-                            if service_account:
-                                try:
-                                    domains_service = GoogleDomainsService(service_account.name)
-                                    admin_service = domains_service._get_admin_service()
-                                    return {'account': account_name, 'authenticated': True, 'service': admin_service, 'is_service_account': True}
-                                except Exception as sa_err:
-                                    return {'account': account_name, 'authenticated': False, 'error': str(sa_err)}
-                            
-                            # Fallback to GoogleAccount (legacy OAuth)
-                            # Need to import these functions or ensure they are globally available
-                            from . import authenticate_without_session, get_service_without_session
-                            if not authenticate_without_session(account_name):
-                                return {'account': account_name, 'authenticated': False, 'error': 'Auth failed'}
-                            
-                            service = get_service_without_session(account_name)
-                            if not service:
-                                return {'account': account_name, 'authenticated': False, 'error': 'No service'}
-                            
-                            return {'account': account_name, 'authenticated': True, 'service': service}
-                        except Exception as e:
-                            return {'account': account_info['account'], 'authenticated': False, 'error': str(e)}
-
-                with ThreadPoolExecutor(max_workers=max(1, min(10, len(accounts_data)))) as auth_executor:
-                    auth_futures = {auth_executor.submit(authenticate_account, info): info for info in accounts_data}
-                    for i, future in enumerate(as_completed(auth_futures)):
-                        res = future.result()
-                        if res['authenticated']:
-                            authenticated_accounts[res['account']] = res
-                        update_progress(task_id, i+1, len(accounts_data), "authenticating", f"Authenticated {i+1}/{len(accounts_data)} accounts...")
-
-                if not authenticated_accounts:
-                     # All failed
-                     pass # Continue to show errors
-
-                # Step 2: Create Users
-                update_progress(task_id, 0, len(authenticated_accounts), "creating", f"Creating users for {len(authenticated_accounts)} accounts...")
-
-                def process_account(account_info):
-                    # Re-implementation of logic
-                    with app.app_context():
-                        from database import UsedDomain, db, ServiceAccount, GoogleAccount
-                        account_name = account_info['account']
-                        users_per_account = account_info['users_per_account']
-                        domain_input = account_info['domain'] # Pre-validated/default handling to come
-                        password = account_info['password']
-                        
-                        account_result = {
-                            'account': account_name,
-                            'authenticated': False,
-                            'users': [],
-                            'error': None
-                        }
-                        
-                        try:
-                            if account_name not in authenticated_accounts:
-                                account_result['error'] = 'Authentication failed previously'
-                                return account_result
-                            
-                            auth_data = authenticated_accounts[account_name]
-                            service = auth_data['service']
-                            account_result['authenticated'] = True
-                            
-                            # Determine domain
-                            domain = domain_input
-                            if not domain:
-                                if '@' in account_name:
-                                    domain = account_name.split('@')[1].lower()
-                                else:
-                                    # Try to fetch from DB config
-                                    sa = ServiceAccount.query.filter_by(name=account_name).first()
-                                    if sa and sa.admin_email and '@' in sa.admin_email:
-                                        domain = sa.admin_email.split('@')[1].lower()
-                                    else:
-                                        ga = GoogleAccount.query.filter_by(account_name=account_name).first()
-                                        if ga and ga.account_name and '@' in ga.account_name:
-                                            domain = ga.account_name.split('@')[1].lower()
-                            
-                            if not domain:
-                                account_result['error'] = 'Could not determine domain'
-                                return account_result
-                            
-                            app.logger.info(f"[BULK ACCOUNTS] [{account_name}] Creating {users_per_account} users on domain {domain}")
-                            
-                            # Create users
-                            fake = Faker()
-                            
-                            # Import password validation helper
-                            from core_logic import validate_strong_password
-                            
-                            # Validate password strength once before creating users
-                            is_valid, error_msg = validate_strong_password(password)
-                            if not is_valid:
-                                account_result['error'] = f'Password validation failed: {error_msg}'
-                                return account_result
-                            
-                            for i in range(users_per_account):
-                                try:
-                                    first_name = fake.first_name()
-                                    last_name = fake.last_name()
-                                    random_num = ''.join(random.choices(string.digits, k=4))
-                                    email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
-                                    
-                                    user_body = {
-                                        "primaryEmail": email,
-                                        "name": { "givenName": first_name, "familyName": last_name },
-                                        "password": password,
-                                        "changePasswordAtNextLogin": False,  # Keep password permanent
-                                        "suspended": True  # Force SUSPENDED creation
-                                    }
-                                    
-                                    service.users().insert(body=user_body).execute()
-                                    
-                                    account_result['users'].append({
-                                        'email': email,
-                                        'password': password,
-                                        'first_name': first_name,
-                                        'last_name': last_name,
-                                        'success': True,
-                                        'status': 'SUSPENDED (Created Successfully)'
-                                    })
-                                    
-                                except Exception as user_err:
-                                    error_msg = str(user_err)
-                                    is_license_error = "Domain user limit reached" in error_msg or "limitExceeded" in error_msg
-                                    
-                                    # Automatic Fallback: Try creating as suspended if license error
-                                    if is_license_error:
-                                        try:
-                                            app.logger.warning(f"[BULK ACCOUNTS] License limit for {domain}. Retrying as SUSPENDED user...")
-                                            user_body['suspended'] = True
-                                            service.users().insert(body=user_body).execute()
-                                            
-                                            account_result['users'].append({
-                                                'email': email,
-                                                'password': password,
-                                                'first_name': first_name,
-                                                'last_name': last_name,
-                                                'success': True,
-                                                'status': 'SUSPENDED (License Limit Reached)'
-                                            })
-                                            continue # Skip the error handling below
-                                        except Exception as fallback_err:
-                                            # If even suspended creation fails, then report original error
-                                            app.logger.error(f"Fallback failed: {fallback_err}")
-                                    
-                                    account_result['users'].append({
-                                        'email': email if 'email' in locals() else f'failed_{i}@{domain}',
-                                        'password': password,
-                                        'success': False,
-                                        'error': error_msg,
-                                        'is_license_error': is_license_error
-                                    })
-                                    
-                                    if is_license_error:
-                                        app.logger.warning(f"[BULK ACCOUNTS] License limit reached for {domain}. Continuing with next user...")
-                                        # Don't break - continue creating users even after license limit
-                            
-                            # Domain update (already done mostly, but update user count/verified)
-                            success_count = sum(1 for u in account_result['users'] if u.get('success'))
-                            if success_count > 0:
-                                try:
-                                    domain_lower = domain.lower()
-                                    used_domain = UsedDomain.query.filter_by(domain_name=domain_lower).first()
-                                    if used_domain:
-                                        used_domain.ever_used = True
-                                        used_domain.updated_at = db.func.current_timestamp()
-                                        # used_domain.user_count = (used_domain.user_count or 0) + success_count # Optional
-                                    else:
-                                        new_used_domain = UsedDomain(domain_name=domain_lower, ever_used=True, is_verified=True, user_count=success_count)
-                                        db.session.add(new_used_domain)
-                                    db.session.commit()
-                                except Exception as db_e:
-                                    app.logger.error(f"DB update failed: {db_e}")
-                            
-                        except Exception as e:
-                            account_result['error'] = str(e)
-                        
-                        return account_result
-
-                all_results = []
-                with ThreadPoolExecutor(max_workers=max(1, min(20, len(accounts_data)))) as executor:
-                     # Only submit authenticated ones + handle failed separately
-                    future_to_info = {}
-                    for info in accounts_data:
-                        if info['account'] in authenticated_accounts:
-                             future_to_info[executor.submit(process_account, info)] = info
-                        else:
-                             # Add failed auth result
-                             all_results.append({'account': info['account'], 'authenticated': False, 'users': [], 'error': 'Authentication failed'})
-                    
-                    completed_count = 0
-                    for future in as_completed(future_to_info):
-                        res = future.result()
-                        all_results.append(res)
-                        completed_count += 1
-                        update_progress(task_id, completed_count, len(future_to_info), "creating", f"Processed {completed_count}/{len(future_to_info)} accounts...")
-
-                # Summary
-                total_accounts = len(all_results)
-                # Final Summary
-                total_created = sum(sum(1 for u in acc['users'] if u.get('success')) for acc in all_results)
-                total_failed = sum(len(acc['users']) - sum(1 for u in acc['users'] if u.get('success')) for acc in all_results)
-                license_failures = sum(sum(1 for u in acc['users'] if u.get('is_license_error')) for acc in all_results)
-                
-                summary_msg = f"Task completed: {total_created} users created, {total_failed} failed."
-                if license_failures > 0:
-                    summary_msg += f" ({license_failures} failed due to license limits. TIP: Disable 'Auto-assign licenses' in Google Admin to force creation without seats.)"
-                
-                successful_accounts = sum(1 for r in all_results if r.get('authenticated') and len(r.get('users', [])) > 0)
-                failed_accounts = total_accounts - successful_accounts
-
-                final_result = {
-                    'success': True,
-                    'total_accounts_processed': total_accounts,
-                    'successful_accounts': successful_accounts,
-                    'failed_accounts': failed_accounts,
-                    'total_successful_users': total_created,
-                    'total_failed_users': total_failed,
-                    'license_failures': license_failures,
-                    'summary': summary_msg,
-                    'results': all_results
-                }
-                
-                update_progress(task_id, 100, 100, "completed", "Bulk creation finished!", final_result)
-                app.logger.info(f"[BULK ACCOUNT TASK {task_id}] COMPLETED")
-                
-            except Exception as e:
-                app.logger.error(f"[BULK CREATE TASK {task_id}] CRASHED: {e}")
-                import traceback
-                app.logger.error(traceback.format_exc())
-                update_progress(task_id, 0, 0, "error", f"Task failed: {str(e)}")
-
-    threading.Thread(target=background_task, args=(task_id, accounts_data, force_create)).start()
+    threading.Thread(target=bulk_account_bg_worker, args=(task_id, accounts_data, force_create)).start()
     return jsonify({'success': True, 'task_id': task_id})
+
+@app.route('/api/upload-users-csv', methods=['POST'])
+@login_required
+def api_upload_users_csv():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file part'})
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No selected file'})
+    
+    if file:
+        import csv
+        import io
+        import re
+        
+        try:
+            stream = io.StringIO(file.stream.read().decode("UTF-8"), newline=None)
+            csv_input = csv.DictReader(stream)
+            
+            accounts_data = []
+            row_idx = 0
+            
+            for row in csv_input:
+                row_idx += 1
+                # Normalize keys
+                clean_row = {k.strip().lower(): v.strip() for k, v in row.items() if k}
+                
+                # Flexible column mapping
+                account_email = clean_row.get('account') or clean_row.get('email') or clean_row.get('admin')
+                count = clean_row.get('users_per_account') or clean_row.get('users') or clean_row.get('count')
+                domain = clean_row.get('domain')
+                password = clean_row.get('password')
+                
+                if not account_email:
+                    return jsonify({'success': False, 'error': f'Row {row_idx}: Missing account email (Column: account/email/admin)'})
+                
+                if not count:
+                     return jsonify({'success': False, 'error': f'Row {row_idx}: Missing users count (Column: users_per_account/users/count)'})
+                
+                try:
+                    count_int = int(count)
+                except:
+                     return jsonify({'success': False, 'error': f'Row {row_idx}: Invalid count value'})
+                
+                # Validation Logic (Same as API)
+                if count_int < 1 or count_int > 1000:
+                    return jsonify({'success': False, 'error': f'Row {row_idx}: Users count must be 1-1000'})
+                
+                if not password or len(password) < 12:
+                     return jsonify({'success': False, 'error': f'Row {row_idx}: Password must be 12+ chars'})
+                
+                accounts_data.append({
+                    'account': account_email,
+                    'users_per_account': count_int,
+                    'domain': domain if domain else '',
+                    'password': password
+                })
+            
+            if not accounts_data:
+                return jsonify({'success': False, 'error': 'CSV file is empty or missing data'})
+            
+            # Launch Worker
+            import uuid
+            import threading
+            task_id = str(uuid.uuid4())
+            update_progress(task_id, 0, len(accounts_data), "starting", "Initializing from CSV upload...")
+            
+            threading.Thread(target=bulk_account_bg_worker, args=(task_id, accounts_data, False)).start()
+            
+            return jsonify({'success': True, 'task_id': task_id})
+            
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'CSV Parse Error: {str(e)}'})
 
 @app.route('/api/bulk-retrieve-account-users', methods=['POST'])
 @login_required
