@@ -2608,7 +2608,7 @@ def api_bulk_create_account_users():
                                             "name": { "givenName": user_data['first_name'], "familyName": user_data['last_name'] },
                                             "password": user_data['password'],
                                             "changePasswordAtNextLogin": False,
-                                            "suspended": True # Always suspended for license bypass
+                                            "suspended": False # ACTIVE as requested
                                         }
                                         
                                         local_service.users().insert(body=user_body).execute()
@@ -2639,7 +2639,7 @@ def api_bulk_create_account_users():
                                             "name": { "givenName": user_data['first_name'], "familyName": user_data['last_name'] },
                                             "password": user_data['password'],
                                             "changePasswordAtNextLogin": False,
-                                            "suspended": True # Always suspended for license bypass
+                                            "suspended": False # ACTIVE as requested
                                         }
                                         
                                         service.users().insert(body=user_body).execute()

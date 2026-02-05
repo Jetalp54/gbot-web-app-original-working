@@ -6526,12 +6526,10 @@
                             const statusText = domainData.status_text || 'AVAILABLE';
                             const statusColor = domainData.status_color || 'green';
 
-                            // Map status colors
+                            // Map status colors - Green for available, Red for everything else
                             let colorCode = '#28a745'; // green (available)
-                            if (statusColor === 'purple' || status === 'in_use') {
-                                colorCode = '#6f42c1'; // purple (in use)
-                            } else if (statusColor === 'red' || status === 'used') {
-                                colorCode = '#dc3545'; // red (used)
+                            if (statusColor === 'red' || status === 'used' || status === 'in_use' || status === 'purple') {
+                                colorCode = '#dc3545'; // red (used/in_use)
                             }
 
                             const domainItem = document.createElement('div');
@@ -6569,10 +6567,9 @@
                             if (matchingDomain) {
                                 const status = matchingDomain.status || 'available';
                                 const statusText = matchingDomain.status_text || 'AVAILABLE';
+                                // Map status colors - Green for available, Red for everything else
                                 let colorCode = '#28a745';
-                                if (matchingDomain.status_color === 'purple' || status === 'in_use') {
-                                    colorCode = '#6f42c1';
-                                } else if (matchingDomain.status_color === 'red' || status === 'used') {
+                                if (matchingDomain.status_color === 'red' || status === 'used' || status === 'in_use' || status === 'purple') {
                                     colorCode = '#dc3545';
                                 }
                                 updateDomainStatus(rowId, status, statusText, colorCode);
