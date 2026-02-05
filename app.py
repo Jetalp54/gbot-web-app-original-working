@@ -2712,11 +2712,16 @@ def api_upload_users_csv():
             
             for row in csv_input:
                 row_idx += 1
-                # Normalize keys
-                clean_row = {k.strip().lower(): v.strip() for k, v in row.items() if k}
+                # Normalize keys: lower case, strip whitespace, remove [Required] etc
+                clean_row = {}
+                for k, v in row.items():
+                     if k:
+                         # Remove [brackets] and contents, then strip
+                         key = re.sub(r'\[.*?\]', '', k).strip().lower()
+                         clean_row[key] = v.strip()
                 
                 # Flexible column mapping
-                account_email = clean_row.get('account') or clean_row.get('email') or clean_row.get('admin')
+                account_email = clean_row.get('account') or clean_row.get('email') or clean_row.get('admin') or clean_row.get('email address')
                 count = clean_row.get('users_per_account') or clean_row.get('users') or clean_row.get('count')
                 domain = clean_row.get('domain')
                 password = clean_row.get('password')
