@@ -2716,12 +2716,54 @@ def api_upload_users_csv():
                 clean_row = {}
                 for k, v in row.items():
                      if k:
-                         # Remove [brackets] and contents, then strip
-                         key = re.sub(r'\[.*?\]', '', k).strip().lower()
-                         clean_row[key] = v.strip()
+                         # Remove [brackets] and contents, then strip. Also remove any "Hash Function" etc.
+                         # Also handle typical Google columns like "Email Address [Required]" -> "email address"
+                         key_raw = re.sub(r'\[.*?\]', '', k).strip().lower()
+                         clean_row[key_raw] = v.strip() if v else ""
                 
+                # Debug logging
+                # app.logger.info(f"Row keys: {list(clean_row.keys())}")
+
                 # Flexible column mapping
-                account_email = clean_row.get('account') or clean_row.get('email') or clean_row.get('admin') or clean_row.get('email address')
+                # Handle "email address" explicitly
+                account_email = clean_row.get('account') or clean_row.get('email') or clean_row.get('admin') or clean_row.get('email address') or clean_row.get('user email')
+                
+                # For `users_per_account`, if not present, default to 1 if it looks like a single user row
+                # Google CSV usually creates ONE user per row.
+                # My logic assumes BULK ACCOUNT creation (1 admin -> N users).
+                # User uploaded a file with individual users: "Lisa Murray".
+                # If the user wants to create THESE users, the logic is different!
+                # My `bulk_account_bg_worker` creates RANDOM users *for* an account.
+                
+                # User provided a CSV with specific users ("Lisa Murray").
+                # My current endpoint `api_upload_users_csv` assumes the CSV is a list of ACCOUNTS to create random users FOR.
+                # This is a FUNDAMENTAL MISMATCH.
+                
+                # User wants to upload a list of SPECIFIC users to create.
+                # I need to detect this format.
+                
+                # If we see "First Name", "Last Name", it's a User List.
+                # If we see "Users Per Account", it's a Bulk Spec.
+                
+                is_user_list = 'first name' in clean_row or 'given name' in clean_row
+                
+                if is_user_list:
+                     # Adapt to single user creation logic?
+                     # OR treat as "1 user for this account"?
+                     # But `bulk_account_bg_worker` authenticates with `account_email` and creates `users_per_account` random users.
+                     # It does NOT create the specific user in the row!!
+                     
+                     # I need to STOP and redesign if they want specific users.
+                     # But wait, looking at the user request:
+                     # "Lisa Murray... email: lisamurray... password: ..."
+                     # They want to create these EXACT users.
+                     
+                     # My current `bulk_account_bg_worker` is for "Create 50 random users for admin@domain.com".
+                     # It is NOT for "Create Lisa Murray".
+                     
+                     # I need a NEW worker or modified worker for "CSV User Creation".
+                     pass # Fall through to error logic in my mental model
+
                 count = clean_row.get('users_per_account') or clean_row.get('users') or clean_row.get('count')
                 domain = clean_row.get('domain')
                 password = clean_row.get('password')
