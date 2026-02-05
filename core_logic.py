@@ -480,7 +480,12 @@ class WebGoogleAPI:
                 return {
                     "success": False,
                     "error": f"Provided password does not meet requirements: {error_msg}",
-                    "error_type": "weak_password"
+                    "error_type": "weak_password",
+                    "successful_count": 0,
+                    "failed_count": 0,
+                    "license_errors": 0,
+                    "results": [],
+                    "password": password
                 }
         else:
             # Generate a strong password
@@ -534,7 +539,10 @@ class WebGoogleAPI:
                 return {
                     "success": False,
                     "error": f"Provided password does not meet requirements: {error_msg}",
-                    "error_type": "weak_password"
+                    "error_type": "weak_password",
+                    "password": password,
+                    "successful_count": 0,
+                    "results": []
                 }
         else:
             # Generate a strong password
