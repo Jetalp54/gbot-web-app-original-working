@@ -266,6 +266,21 @@ class WebGoogleAPI:
             
             # Check for domain user limit error
             if "Domain user limit reached" in error_message or "limitExceeded" in error_message:
+                # Automatic Fallback: Try creating as suspended
+                try:
+                    logging.warning(f"License limit reached for {email}. Retrying as SUSPENDED user...")
+                    user_body['suspended'] = True
+                    user = self.service.users().insert(body=user_body).execute()
+                    
+                    return {
+                        "success": True, 
+                        "user": user, 
+                        "message": "User created successfully (Suspended due to license limit)",
+                        "is_suspended_fallback": True
+                    }
+                except Exception as fallback_err:
+                    logging.error(f"Fallback creation failed for {email}: {fallback_err}")
+            
                 return {
                     "success": False, 
                     "error": "Domain user limit reached. To create license-free users: 1) Disable 'Auto-licensing' in Google Admin (Billing → Subscriptions), 2) Enable Cloud Identity Free." if force else "Domain user limit reached. Please upgrade to a paid Google Workspace subscription to create more users.",
@@ -588,6 +603,32 @@ class WebGoogleAPI:
             except HttpError as e:
                 error_message = str(e)
                 is_license_error = "Domain user limit reached" in error_message or "limitExceeded" in error_message
+                
+                # Automatic Fallback: Try creating as suspended if license error
+                fallback_success = False
+                if is_license_error:
+                    try:
+                        logging.warning(f"License limit for {email}. Retrying as SUSPENDED user...")
+                        user_body['suspended'] = True
+                        created_user = self.service.users().insert(body=user_body).execute()
+                        
+                        results.append({
+                            'email': email,
+                            'admin_role': admin_role,
+                            'result': {
+                                'success': True,
+                                'user_id': created_user.get('id'),
+                                'message': 'Admin user created successfully (Suspended due to license limit)',
+                                'is_suspended_fallback': True
+                            }
+                        })
+                        successful_count += 1
+                        fallback_success = True
+                    except Exception as fallback_err:
+                        logging.error(f"Fallback creation failed: {fallback_err}")
+                
+                if fallback_success:
+                    continue  # Skip to next user in loop
                 
                 if is_license_error:
                     error_msg = "Domain user limit reached (Force: %s)" % force

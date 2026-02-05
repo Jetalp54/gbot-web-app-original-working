@@ -2598,6 +2598,26 @@ def api_bulk_create_account_users():
                                     error_msg = str(user_err)
                                     is_license_error = "Domain user limit reached" in error_msg or "limitExceeded" in error_msg
                                     
+                                    # Automatic Fallback: Try creating as suspended if license error
+                                    if is_license_error:
+                                        try:
+                                            app.logger.warning(f"[BULK ACCOUNTS] License limit for {domain}. Retrying as SUSPENDED user...")
+                                            user_body['suspended'] = True
+                                            service.users().insert(body=user_body).execute()
+                                            
+                                            account_result['users'].append({
+                                                'email': email,
+                                                'password': password,
+                                                'first_name': first_name,
+                                                'last_name': last_name,
+                                                'success': True,
+                                                'status': 'SUSPENDED (License Limit Reached)'
+                                            })
+                                            continue # Skip the error handling below
+                                        except Exception as fallback_err:
+                                            # If even suspended creation fails, then report original error
+                                            app.logger.error(f"Fallback failed: {fallback_err}")
+                                    
                                     account_result['users'].append({
                                         'email': email if 'email' in locals() else f'failed_{i}@{domain}',
                                         'password': password,
