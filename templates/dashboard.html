@@ -16,9 +16,7 @@
         color: var(--text-primary);
     }
 
-    .glass-dropdown-item:hover {
-        background: rgba(255, 255, 255, 0.05);
-    }
+
 
     .glass-dropdown-item:last-child {
         border-bottom: none;
@@ -6538,6 +6536,15 @@
                             domainItem.style.marginBottom = '4px';
                             domainItem.style.borderRadius = '6px';
                             domainItem.style.border = 'none';
+                            domainItem.style.transition = 'filter 0.2s ease';
+
+                            // Darken on hover
+                            domainItem.onmouseenter = function () {
+                                this.style.filter = 'brightness(0.85)';
+                            };
+                            domainItem.onmouseleave = function () {
+                                this.style.filter = 'brightness(1)';
+                            };
 
                             domainItem.onclick = function () {
                                 domainInput.value = domainName;
