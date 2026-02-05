@@ -657,7 +657,7 @@
     <div id="bulk-account-modal" class="modal"
         style="display: none; align-items: center; justify-content: center; padding: 20px;">
         <div class="modal-content"
-            style="max-width: 1000px; width: 90%; max-height: 85vh; display: flex; flex-direction: column; background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);">
+            style="max-width: 1400px; width: 95%; max-height: 85vh; min-width: 800px; display: flex; flex-direction: column; background: var(--bg-modal) !important; backdrop-filter: blur(28px) !important; border: 1px solid var(--border-panel) !important; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); resize: both; overflow: auto;">
             <div class="modal-header"
                 style="flex-shrink: 0; padding: 24px 32px; border-bottom: 1px solid var(--border-panel);">
                 <h3 style="margin: 0; font-size: 1.25rem;">
@@ -703,7 +703,7 @@
                                 <th style="width: 150px;">
                                     <i class="fas fa-hashtag"></i> Users
                                 </th>
-                                <th>
+                                <th style="min-width: 200px;">
                                     <div style="display: flex; align-items: center; justify-content: space-between;">
                                         <span><i class="fas fa-globe"></i> Domain</span>
                                         <button onclick="populateAllDomains()" class="btn-github"
