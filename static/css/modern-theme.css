@@ -5,27 +5,58 @@
 
 /* 1. RESET & BASE STYLES */
 :root {
-    /* Exact HSL Values from reference globals.css */
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    /* Dark Theme - Firebase Manager Style */
+    --background: 210 24% 12%;
+    /* #1a2332 - Main dark blue background */
+    --foreground: 210 17% 98%;
+    /* #f8f9fb - Light text */
+
+    --card: 210 22% 16%;
+    /* #232d3f - Card background (slightly lighter than bg) */
+    --card-foreground: 210 17% 98%;
+    /* #f8f9fb - Card text */
+
+    --popover: 210 22% 16%;
+    --popover-foreground: 210 17% 98%;
+
+    --primary: 199 89% 48%;
+    /* #0ea5e9 - Bright cyan/blue accent */
+    --primary-foreground: 210 17% 98%;
+
+    --secondary: 210 20% 20%;
+    /* #2a3547 - Secondary darker blue */
+    --secondary-foreground: 210 17% 98%;
+
+    --muted: 210 20% 20%;
+    --muted-foreground: 215 14% 65%;
+    /* #8b95a8 - Muted text */
+
+    --accent: 210 20% 22%;
+    /* #2d3847 - Accent background */
+    --accent-foreground: 210 17% 98%;
+
+    --destructive: 0 84% 60%;
+    /* #e74c3c - Red for danger */
+    --destructive-foreground: 210 17% 98%;
+
+    --border: 210 18% 24%;
+    /* #313d50 - Border color */
+    --input: 210 18% 24%;
+    /* #313d50 - Input border */
+    --ring: 199 89% 48%;
+    /* #0ea5e9 - Focus ring (matches primary) */
+
     --radius: 0.5rem;
+
+    /* Custom accent colors for cards (matching screenshot) */
+    --card-blue: 217 92% 56%;
+    /* #3b82f6 - Blue card accent */
+    --card-green: 142 71% 45%;
+    /* #10b981 - Green card accent */
+    --card-purple: 271 81% 56%;
+    /* #8b5cf6 - Purple card accent */
+    --card-orange: 25 95% 53%;
+    /* #f97316 - Orange card accent */
 }
 
 /* Force Box Sizing */

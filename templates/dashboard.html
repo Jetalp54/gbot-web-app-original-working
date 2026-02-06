@@ -747,6 +747,11 @@
                         <i class="fas fa-play"></i>
                         Start Bulk Creation
                     </button>
+                    <button onclick="authAndUnsuspendAllUsers(event)" class="btn-github"
+                        style="background-color: #10b981; border-color: #10b981; color: white;">
+                        <i class="fas fa-user-check"></i>
+                        Auth + Unsuspend All Users
+                    </button>
                     <button onclick="retrieveUsersFromTableAccounts(event)" class="btn-github"
                         style="background-color: #0969da; border-color: #0969da; color: white;">
                         <i class="fas fa-sync-alt"></i>
@@ -7358,6 +7363,127 @@
                         buttonElement.innerHTML = '<i class="fas fa-sync-alt"></i> Auth + Retrieve Bulk Users';
                     }
                 });
+        }
+
+        async function authAndUnsuspendAllUsers(event) {
+            try {
+                console.log('authAndUnsuspendAllUsers called');
+
+                if (event) event.preventDefault();
+
+                const tbody = document.getElementById('bulk-accounts-tbody');
+                if (!tbody) {
+                    alert('Error: Table body not found');
+                    return;
+                }
+
+                const rows = tbody.querySelectorAll('tr');
+                if (rows.length === 0) {
+                    alert('No accounts in table');
+                    return;
+                }
+
+                const accountsData = [];
+                rows.forEach(row => {
+                    const emailInput = row.querySelector('input[placeholder="account@domain.com"]');
+                    if (emailInput && emailInput.value.trim()) {
+                        accountsData.push({
+                            email: emailInput.value.trim()
+                        });
+                    }
+                });
+
+                if (accountsData.length === 0) {
+                    alert('No valid account emails found in table');
+                    return;
+                }
+
+                if (!confirm(`This will authenticate ${accountsData.length} account(s) and unsuspend ALL users in each account. Continue?`)) {
+                    return;
+                }
+
+                const buttonElement = event ? event.target.closest('button') : null;
+                if (buttonElement) {
+                    buttonElement.disabled = true;
+                    buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                }
+
+                let successCount = 0;
+                let failCount = 0;
+                const results = [];
+
+                for (const account of accountsData) {
+                    try {
+                        const authResponse = await fetch('/api/authenticate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ account_name: account.email })
+                        });
+
+                        if (!authResponse.ok) {
+                            throw new Error(`Auth failed for ${account.email}`);
+                        }
+
+                        const usersResponse = await fetch('/api/retrieve-users', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+
+                        const usersData = await usersResponse.json();
+                        if (!usersData.success) {
+                            throw new Error(`Failed to retrieve users for ${account.email}`);
+                        }
+
+                        const users = usersData.users || [];
+                        const suspendedUsers = users.filter(u => u.suspended);
+
+                        for (const user of suspendedUsers) {
+                            try {
+                                const unsuspendResponse = await fetch('/api/unsuspend-user', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ user_email: user.email })
+                                });
+
+                                if (!unsuspendResponse.ok) {
+                                    console.warn(`Failed to unsuspend ${user.email}`);
+                                }
+                            } catch (err) {
+                                console.error(`Error unsuspending ${user.email}:`, err);
+                            }
+
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+
+                        results.push(`Success: ${account.email} - Unsuspended ${suspendedUsers.length} users`);
+                        successCount++;
+
+                    } catch (err) {
+                        console.error(`Error processing ${account.email}:`, err);
+                        results.push(`Failed: ${account.email} - ${err.message}`);
+                        failCount++;
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+
+                alert(`Complete!\n\nSuccessfully processed: ${successCount}\nFailed: ${failCount}\n\n${results.join('\n')}`);
+
+                if (buttonElement) {
+                    buttonElement.disabled = false;
+                    buttonElement.innerHTML = '<i class="fas fa-user-check"></i> Auth + Unsuspend All Users';
+                }
+
+            } catch (error) {
+                console.error('Error in authAndUnsuspendAllUsers:', error);
+                alert(`Error: ${error.message}`);
+
+                const buttonElement = event ? event.target.closest('button') : null;
+                if (buttonElement) {
+                    buttonElement.disabled = false;
+                    buttonElement.innerHTML = '<i class="fas fa-user-check"></i> Auth + Unsuspend All Users';
+                }
+            }
         }
 
         function executeBulkAccountDeletion(event) {
