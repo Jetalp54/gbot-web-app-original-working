@@ -348,6 +348,19 @@ td {
 [data-theme='dark'] div[style*="border-radius"][style*="padding"],
 [data-theme='dark'] div[style*="padding"][style*="border"] {
     background-color: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
+}
+
+/* Force all text in bottom user area to be visible */
+[data-theme='dark'] div[style*="border-radius"][style*="padding"] *,
+[data-theme='dark'] div[style*="padding"][style*="border"] *,
+[data-theme='dark'] div[style*="border-radius"][style*="padding"] span,
+[data-theme='dark'] div[style*="padding"][style*="border"] span,
+[data-theme='dark'] div[style*="border-radius"][style*="padding"] div,
+[data-theme='dark'] div[style*="padding"][style*="border"] div,
+[data-theme='dark'] div[style*="border-radius"][style*="padding"] button,
+[data-theme='dark'] div[style*="padding"][style*="border"] button {
+    color: hsl(var(--foreground)) !important;
 }
 
 /* Also support data-color-mode for compatibility */
@@ -375,4 +388,17 @@ td {
 [data-color-mode='dark'] div[style*="border-radius"][style*="padding"],
 [data-color-mode='dark'] div[style*="padding"][style*="border"] {
     background-color: #1e1b2e !important;
+    color: #f8f9fb !important;
+}
+
+/* Force text visibility in bottom area for data-color-mode */
+[data-color-mode='dark'] div[style*="border-radius"][style*="padding"] *,
+[data-color-mode='dark'] div[style*="padding"][style*="border"] *,
+[data-color-mode='dark'] div[style*="border-radius"][style*="padding"] span,
+[data-color-mode='dark'] div[style*="padding"][style*="border"] span,
+[data-color-mode='dark'] div[style*="border-radius"][style*="padding"] div,
+[data-color-mode='dark'] div[style*="padding"][style*="border"] div,
+[data-color-mode='dark'] div[style*="border-radius"][style*="padding"] button,
+[data-color-mode='dark'] div[style*="padding"][style*="border"] button {
+    color: #f8f9fb !important;
 }
