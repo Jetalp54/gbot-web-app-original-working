@@ -33,6 +33,7 @@ from core_logic import google_api
 from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig, ServiceAccount, CloudflareConfig, Notification, WorkspaceList
 from routes.dns_manager import dns_manager
 from routes.aws_manager import aws_manager
+from routes.digitalocean_manager import digitalocean_manager
 
 # Progress tracking system for domain changes
 # Progress tracking system for domain changes
@@ -166,6 +167,7 @@ db.init_app(app)
 # Register blueprints
 app.register_blueprint(dns_manager)
 app.register_blueprint(aws_manager)
+app.register_blueprint(digitalocean_manager)
 
 # Global concurrency limiter - REMOVED for unlimited concurrent machines
 # No artificial limits - let the server handle as many requests as possible

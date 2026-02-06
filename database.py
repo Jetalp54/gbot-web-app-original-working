@@ -269,3 +269,57 @@ class WorkspaceList(db.Model):
             'updated_at': format_utc(self.updated_at)
         }
 
+
+# DigitalOcean Management Models
+class DigitalOceanConfig(db.Model):
+    """DigitalOcean API configuration and settings"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), default='Default DigitalOcean Account')
+    api_token = db.Column(db.Text, nullable=False)  # Encrypted
+    default_region = db.Column(db.String(50), default='nyc3')
+    default_size = db.Column(db.String(50), default='s-1vcpu-1gb')
+    automation_snapshot_id = db.Column(db.String(255))
+    ssh_key_id = db.Column(db.String(255))
+    ssh_private_key_path = db.Column(db.String(500))
+    auto_destroy_droplets = db.Column(db.Boolean, default=True)
+    is_configured = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
+
+class DigitalOceanDroplet(db.Model):
+    """Track DigitalOcean droplets created for automation"""
+    id = db.Column(db.Integer, primary_key=True)
+    droplet_id = db.Column(db.String(255), unique=True, nullable=False)
+    droplet_name = db.Column(db.String(255), nullable=False)
+    ip_address = db.Column(db.String(45))
+    region = db.Column(db.String(50))
+    size = db.Column(db.String(50))
+    status = db.Column(db.String(50), default='pending')
+    assigned_users_count = db.Column(db.Integer, default=0)
+    execution_task_id = db.Column(db.String(36), db.ForeignKey('digital_ocean_execution.task_id'))
+    created_by_username = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    destroyed_at = db.Column(db.DateTime)
+    auto_destroy = db.Column(db.Boolean, default=True)
+
+
+class DigitalOceanExecution(db.Model):
+    """Track bulk automation execution tasks"""
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.String(36), unique=True, nullable=False)
+    username = db.Column(db.String(255))
+    total_users = db.Column(db.Integer, default=0)
+    droplets_created = db.Column(db.Integer, default=0)
+    users_per_droplet = db.Column(db.Integer, default=0)
+    snapshot_id = db.Column(db.String(255))
+    region = db.Column(db.String(50))
+    size = db.Column(db.String(50))
+    status = db.Column(db.String(50), default='pending')
+    results_json = db.Column(db.Text)
+    success_count = db.Column(db.Integer, default=0)
+    failure_count = db.Column(db.Integer, default=0)
+    started_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    completed_at = db.Column(db.DateTime)
+    error_message = db.Column(db.Text)
+    droplets_destroyed = db.Column(db.Boolean, default=False)
