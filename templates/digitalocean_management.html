@@ -145,20 +145,83 @@
         </div>
     </div>
 
-    <!-- Bulk Execution Section (Future Feature) -->
+    <!-- Bulk Automation Execution Section -->
     <div class="row">
         <div class="col-12">
-            <div class="card shadow-sm border-secondary">
-                <div class="card-header bg-secondary text-white">
+            <div class="card shadow-sm border-primary">
+                <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
                         <i class="fa fa-rocket"></i> Bulk Automation Execution
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-info">
+                    <p class="text-muted mb-3">
                         <i class="fa fa-info-circle"></i>
-                        <strong>Coming Soon:</strong> Bulk execution feature will be added in a future update. This will
-                        allow you to distribute users across multiple droplets and execute app password automation.
+                        Distribute users across multiple droplets for parallel app password automation.
+                        <br><small>Requires a configured snapshot ID from Settings.</small>
+                    </p>
+
+                    <form id="bulkExecutionForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Users (Email:Password format, one per line)</label>
+                                <textarea class="form-control font-monospace" id="bulkUsers" rows="5"
+                                    placeholder="user1@domain.com:password1&#10;user2@domain.com:password2"
+                                    required></textarea>
+                                <small class="text-muted">Format: email:password (one per line)</small>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="row">
+                                    <div class="col-12 mb-3">
+                                        <label class="form-label">Number of Droplets</label>
+                                        <input type="number" class="form-control" id="dropletCount" min="1" max="50"
+                                            value="5" required>
+                                        <small class="text-muted">Users will be distributed evenly</small>
+                                    </div>
+                                    <div class="col-12 mb-3">
+                                        <label class="form-label">Snapshot ID (from snapshots above)</label>
+                                        <input type="text" class="form-control" id="snapshotId" placeholder="123456789"
+                                            required>
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label">Region</label>
+                                        <select class="form-select" id="bulkRegion">
+                                            <option value="">Use default</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label">Size</label>
+                                        <select class="form-select" id="bulkSize">
+                                            <option value="">Use default</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="autoDestroy" checked>
+                            <label class="form-check-label" for="autoDestroy">
+                                Auto-destroy droplets after execution
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fa fa-play"></i> Start Bulk Execution
+                        </button>
+                    </form>
+
+                    <div id="bulkExecutionMessages" class="mt-3"></div>
+
+                    <!-- Progress Section -->
+                    <div id="executionProgress" class="mt-4" style="display: none;">
+                        <h6><i class="fa fa-spinner fa-spin"></i> Execution In Progress</h6>
+                        <div class="alert alert-info">
+                            <strong>Execution ID:</strong> <span id="executionId"></span><br>
+                            <strong>Total Users:</strong> <span id="totalUsersProgress"></span><br>
+                            <strong>Droplets:</strong> <span id="dropletsProgress"></span><br>
+                            <small>Check droplets section above to monitor active droplets.</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -181,10 +244,17 @@
             method: 'GET',
             success: function (response) {
                 if (response.success) {
+                    // Populate initial droplet creation form
                     const regionSelect = $('#region');
                     regionSelect.html('<option value="">Select a region</option>');
+
+                    // Populate bulk execution form
+                    const bulkRegionSelect = $('#bulkRegion');
+                    bulkRegionSelect.html('<option value="">Use default</option>');
+
                     response.regions.forEach(function (region) {
                         regionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
+                        bulkRegionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
                     });
                 }
             },
@@ -199,11 +269,18 @@
             method: 'GET',
             success: function (response) {
                 if (response.success) {
+                    // Populate initial droplet creation form
                     const sizeSelect = $('#size');
                     sizeSelect.html('<option value="">Select a size</option>');
+
+                    // Populate bulk execution form
+                    const bulkSizeSelect = $('#bulkSize');
+                    bulkSizeSelect.html('<option value="">Use default</option>');
+
                     response.sizes.forEach(function (size) {
                         const price = size.price_monthly ? ` ($${size.price_monthly}/mo)` : '';
                         sizeSelect.append(`<option value="${size.slug}">${size.description}${price}</option>`);
+                        bulkSizeSelect.append(`<option value="${size.slug}">${size.description}${price}</option>`);
                     });
                 }
             },
@@ -291,6 +368,88 @@
             error: function (xhr) {
                 const error = xhr.responseJSON?.error || 'Failed to create snapshot';
                 showMessage('createSnapshotMessages', `❌ Error: ${error}`, 'danger');
+            }
+        });
+    });
+
+    // Bulk Execution Form Submit
+    $('#bulkExecutionForm').on('submit', function (e) {
+        e.preventDefault();
+
+        // Parse users from textarea
+        const usersText = $('#bulkUsers').val().trim();
+        const lines = usersText.split('\n').filter(line => line.trim());
+
+        const users = [];
+        for (const line of lines) {
+            const parts = line.trim().split(':');
+            if (parts.length >= 2) {
+                users.push({
+                    email: parts[0].trim(),
+                    password: parts.slice(1).join(':')  // Handle passwords with colons
+                });
+            }
+        }
+
+        if (users.length === 0) {
+            showMessage('bulkExecutionMessages', 'Please enter at least one user', 'danger');
+            return;
+        }
+
+        const executionData = {
+            users: users,
+            droplet_count: parseInt($('#dropletCount').val()),
+            snapshot_id: $('#snapshotId').val().trim(),
+            region: $('#bulkRegion').val() || '',
+            size: $('#bulkSize').val() || '',
+            auto_destroy: $('#autoDestroy').is(':checked')
+        };
+
+        // Validate
+        if (!executionData.snapshot_id) {
+            showMessage('bulkExecutionMessages', 'Snapshot ID is required', 'danger');
+            return;
+        }
+
+        showMessage('bulkExecutionMessages', '⏳ Starting bulk execution...', 'info');
+
+        $.ajax({
+            url: '/api/do/execute',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(executionData),
+            success: function (response) {
+                if (response.success) {
+                    showMessage('bulkExecutionMessages',
+                        `✅ Bulk execution started! Execution ID: ${response.execution_id}`,
+                        'success');
+
+                    // Show progress section
+                    $('#executionProgress').show();
+                    $('#executionId').text(response.execution_id);
+                    $('#totalUsersProgress').text(response.total_users);
+                    $('#dropletsProgress').text(response.droplet_count);
+
+                    // Start polling droplets list
+                    const pollInterval = setInterval(function () {
+                        loadDroplets();
+                    }, 10000);  // Refresh every 10 seconds
+
+                    // Clear form
+                    $('#bulkExecutionForm')[0].reset();
+
+                    // Stop polling after 5 minutes
+                    setTimeout(function () {
+                        clearInterval(pollInterval);
+                        $('#executionProgress').hide();
+                    }, 300000);
+                } else {
+                    showMessage('bulkExecutionMessages', `❌ Failed to start execution: ${response.error}`, 'danger');
+                }
+            },
+            error: function (xhr) {
+                const error = xhr.responseJSON?.error || 'Failed to start execution';
+                showMessage('bulkExecutionMessages', `❌ Error: ${error}`, 'danger');
             }
         });
     });

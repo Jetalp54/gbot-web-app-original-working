@@ -405,8 +405,105 @@ def delete_snapshot(snapshot_id):
 @digitalocean_manager.route('/api/do/execute', methods=['POST'])
 @login_required
 def execute_automation():
-    """Execute bulk automation on droplets (will implement in a future update)"""
-    return jsonify({
-        'success': False,
-        'error': 'Bulk execution not yet implemented. This will be added in the next update.'
-    }), 501
+    """Execute bulk automation on droplets"""
+    try:
+        data = request.get_json()
+        
+        # Get users list
+        users = data.get('users', [])
+        if not users:
+            return jsonify({'success': False, 'error': 'No users provided'}), 400
+        
+        # Get execution parameters
+        droplet_count = int(data.get('droplet_count', 1))
+        snapshot_id = data.get('snapshot_id', '').strip()
+        region = data.get('region', '').strip()
+        size = data.get('size', '').strip()
+        auto_destroy = data.get('auto_destroy', True)
+        
+        # Validation
+        if droplet_count < 1:
+            return jsonify({'success': False, 'error': 'Droplet count must be at least 1'}), 400
+        
+        if not snapshot_id:
+            return jsonify({'success': False, 'error': 'Snapshot ID is required'}), 400
+        
+        # Get DO config
+        config = DigitalOceanConfig.query.first()
+        if not config or not config.api_token:
+            return jsonify({'success': False, 'error': 'DigitalOcean not configured'}), 400
+        
+        # Use config defaults if not provided
+        if not region:
+            region = config.default_region or 'nyc3'
+        if not size:
+            size = config.default_size or 's-1vcpu-1gb'
+        
+        # Initialize service and orchestrator
+        from services.digitalocean_bulk_executor import BulkExecutionOrchestrator
+        service = DigitalOceanService(config.api_token)
+        orchestrator = BulkExecutionOrchestrator(config.__dict__, service)
+        
+        # Execute in background thread
+        execution_thread = threading.Thread(
+            target=_run_bulk_execution_background,
+            args=(orchestrator, users, droplet_count, snapshot_id, region, size, auto_destroy)
+        )
+        execution_thread.daemon = True
+        execution_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Bulk execution started',
+            'execution_id': orchestrator.execution_id,
+            'total_users': len(users),
+            'droplet_count': droplet_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Execute automation error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _run_bulk_execution_background(
+    orchestrator,
+    users,
+    droplet_count,
+    snapshot_id,
+    region,
+    size,
+    auto_destroy
+):
+    """Background task for bulk execution"""
+    try:
+        logger.info(f"Starting background bulk execution: {len(users)} users, {droplet_count} droplets")
+        
+        result = orchestrator.execute_bulk(
+            users=users,
+            droplet_count=droplet_count,
+            snapshot_id=snapshot_id,
+            region=region,
+            size=size,
+            auto_destroy=auto_destroy
+        )
+        
+        # Store results in database
+        execution = DigitalOceanExecution()
+        execution.execution_id = orchestrator.execution_id
+        execution.total_users = len(users)
+        execution.droplets_used = result.get('droplets_used', 0)
+        execution.success_count = result.get('success_count', 0)
+        execution.fail_count = result.get('fail_count', 0)
+        execution.execution_time_seconds = result.get('execution_time_seconds', 0)
+        execution.results_json = json.dumps(result.get('results', []))
+        execution.status = 'completed' if result['success'] else 'failed'
+        execution.error_message = result.get('error')
+        execution.created_at = datetime.utcnow()
+        
+        db.session.add(execution)
+        db.session.commit()
+        
+        logger.info(f"Bulk execution completed: {orchestrator.execution_id}")
+        
+    except Exception as e:
+        logger.error(f"Background execution error: {e}")
