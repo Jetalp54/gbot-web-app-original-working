@@ -5,46 +5,46 @@
 
 /* 1. RESET & BASE STYLES */
 :root {
-    /* Dark Theme - Firebase Manager Style */
-    --background: 210 24% 12%;
-    /* #1a2332 - Main dark blue background */
+    /* Dark Purple Theme - Firebase Manager Style */
+    --background: 260 20% 14%;
+    /* #1e1b2e - Main dark purple background */
     --foreground: 210 17% 98%;
     /* #f8f9fb - Light text */
 
-    --card: 210 22% 16%;
-    /* #232d3f - Card background (slightly lighter than bg) */
+    --card: 260 18% 16%;
+    /* #252235 - Card background (dark purple) */
     --card-foreground: 210 17% 98%;
     /* #f8f9fb - Card text */
 
-    --popover: 210 22% 16%;
+    --popover: 260 18% 16%;
     --popover-foreground: 210 17% 98%;
 
-    --primary: 199 89% 48%;
-    /* #0ea5e9 - Bright cyan/blue accent */
+    --primary: 271 81% 56%;
+    /* #8b5cf6 - Bright purple accent */
     --primary-foreground: 210 17% 98%;
 
-    --secondary: 210 20% 20%;
-    /* #2a3547 - Secondary darker blue */
+    --secondary: 260 16% 20%;
+    /* #2d2a3d - Secondary darker purple */
     --secondary-foreground: 210 17% 98%;
 
-    --muted: 210 20% 20%;
+    --muted: 260 16% 20%;
     --muted-foreground: 215 14% 65%;
     /* #8b95a8 - Muted text */
 
-    --accent: 210 20% 22%;
-    /* #2d3847 - Accent background */
+    --accent: 260 16% 22%;
+    /* #312e42 - Accent background */
     --accent-foreground: 210 17% 98%;
 
     --destructive: 0 84% 60%;
     /* #e74c3c - Red for danger */
     --destructive-foreground: 210 17% 98%;
 
-    --border: 210 18% 24%;
-    /* #313d50 - Border color */
-    --input: 210 18% 24%;
-    /* #313d50 - Input border */
-    --ring: 199 89% 48%;
-    /* #0ea5e9 - Focus ring (matches primary) */
+    --border: 260 14% 24%;
+    /* #36334a - Border color */
+    --input: 260 14% 24%;
+    /* #36334a - Input border */
+    --ring: 271 81% 56%;
+    /* #8b5cf6 - Focus ring (matches primary) */
 
     --radius: 0.5rem;
 
@@ -57,6 +57,12 @@
     /* #8b5cf6 - Purple card accent */
     --card-orange: 25 95% 53%;
     /* #f97316 - Orange card accent */
+
+    /* Sidebar colors */
+    --sidebar-bg: 260 22% 12%;
+    /* #1a1826 - Darker purple for sidebar */
+    --sidebar-hover: 260 20% 18%;
+    /* #282535 - Sidebar hover state */
 }
 
 /* Force Box Sizing */
@@ -264,4 +270,18 @@ td {
 
 .shadow-sm {
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
+}
+
+/* Sidebar Styling */
+.sidebar,
+.sidebar-nav,
+nav.sidebar,
+.nav-sidebar,
+[class*="sidebar"] {
+    background-color: hsl(var(--sidebar-bg)) !important;
+}
+
+.sidebar .nav-item:hover,
+.sidebar-nav .nav-item:hover {
+    background-color: hsl(var(--sidebar-hover)) !important;
 }
