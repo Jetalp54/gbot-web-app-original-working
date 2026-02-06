@@ -13,82 +13,92 @@
         </div>
     </div>
 
-    <!-- Configuration Section -->
+    <!-- Initial Droplet Setup Section -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header bg-success text-white">
                     <h5 class="mb-0">
-                        <i class="fa fa-cog"></i> Configuration
+                        <i class="fa fa-rocket"></i> Initial Droplet Setup
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form id="doConfigForm">
+                    <p class="text-muted mb-3">
+                        <i class="fa fa-info-circle"></i>
+                        Create your first droplet with your automation script installed, then snapshot it for bulk
+                        execution.
+                        <br><small>Configure API credentials in <a href="/settings">Settings</a> first.</small>
+                    </p>
+
+                    <form id="createDropletForm">
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Account Name</label>
-                                <input type="text" class="form-control" id="accountName"
-                                    placeholder="My DigitalOcean Account">
+                                <label class="form-label">Droplet Name</label>
+                                <input type="text" class="form-control" id="dropletName"
+                                    placeholder="automation-master-01" required>
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">API Token</label>
-                                <input type="password" class="form-control" id="apiToken" placeholder="dop_v1_...">
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Region</label>
+                                <select class="form-select" id="region" required>
+                                    <option value="">Loading...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Size</label>
+                                <select class="form-select" id="size" required>
+                                    <option value="">Loading...</option>
+                                </select>
                             </div>
                         </div>
                         <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Default Region</label>
-                                <select class="form-select" id="defaultRegion">
-                                    <option value="nyc3">New York 3</option>
-                                    <option value="sfo3">San Francisco 3</option>
-                                    <option value="ams3">Amsterdam 3</option>
-                                    <option value="sgp1">Singapore 1</option>
-                                    <option value="lon1">London 1</option>
-                                    <option value="fra1">Frankfurt 1</option>
-                                    <option value="tor1">Toronto 1</option>
-                                    <option value="blr1">Bangalore 1</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Default Droplet Size</label>
-                                <select class="form-select" id="defaultSize">
-                                    <option value="s-1vcpu-1gb">Basic - 1GB RAM</option>
-                                    <option value="s-1vcpu-2gb">Basic - 2GB RAM</option>
-                                    <option value="s-2vcpu-2gb">Basic - 2vCPU 2GB RAM</option>
-                                    <option value="s-2vcpu-4gb">Basic - 2vCPU 4GB RAM</option>
-                                    <option value="s-4vcpu-8gb">General - 4vCPU 8GB RAM</option>
-                                    <option value="g-2vcpu-8gb">General - 2vCPU 8GB RAM</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Automation Snapshot ID</label>
-                                <input type="text" class="form-control" id="automationSnapshotId"
-                                    placeholder="Leave empty for manual selection">
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-12 mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="autoDestroy" checked>
-                                    <label class="form-check-label" for="autoDestroy">
-                                        Auto-destroy droplets after task completion
-                                    </label>
-                                </div>
+                            <div class="col-12 mb-3">
+                                <label class="form-label">SSH Public Key (for access)</label>
+                                <textarea class="form-control" id="sshKey" rows="3"
+                                    placeholder="ssh-rsa AAAAB3NzaC1..."></textarea>
+                                <small class="text-muted">Leave empty to use password authentication</small>
                             </div>
                         </div>
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-primary" onclick="testConnection()">
-                                <i class="fa fa-plug"></i> Test Connection
-                            </button>
                             <button type="submit" class="btn btn-success">
-                                <i class="fa fa-save"></i> Save Configuration
+                                <i class="fa fa-plus"></i> Create Initial Droplet
                             </button>
-                            <button type="button" class="btn btn-secondary" onclick="loadConfig()">
-                                <i class="fa fa-sync"></i> Reload
+                            <button type="button" class="btn btn-secondary" onclick="loadRegionsAndSizes()">
+                                <i class="fa fa-sync"></i> Reload Regions/Sizes
                             </button>
                         </div>
                     </form>
-                    <div id="configMessages" class="mt-3"></div>
+
+                    <div id="createDropletMessages" class="mt-3"></div>
+
+                    <!-- Snapshot Creation Section -->
+                    <div id="snapshotSection" class="mt-4 pt-4 border-top" style="display: none;">
+                        <h6 class="mb-3">
+                            <i class="fa fa-camera"></i> Create Automation Snapshot
+                        </h6>
+                        <p class="text-muted mb-3">
+                            Once your droplet is configured with the automation script, create a snapshot for bulk
+                            execution.
+                        </p>
+                        <form id="createSnapshotForm">
+                            <div class="row">
+                                <div class="col-md-8 mb-3">
+                                    <label class="form-label">Snapshot Name</label>
+                                    <input type="text" class="form-control" id="snapshotName"
+                                        placeholder="automation-snapshot-v1" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Droplet to Snapshot</label>
+                                    <select class="form-select" id="dropletToSnapshot" required>
+                                        <option value="">Select a droplet</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fa fa-camera"></i> Create Snapshot
+                            </button>
+                        </form>
+                        <div id="createSnapshotMessages" class="mt-3"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -157,100 +167,133 @@
 </div>
 
 <script>
-    // Load configuration on page load
+    // Load regions and sizes on page load
     $(document).ready(function () {
-        loadConfig();
+        loadRegionsAndSizes();
+        loadDroplets(); // Also check for existing droplets to enable snapshot section
     });
 
-    // Test Connection
-    function testConnection() {
-        const apiToken = $('#apiToken').val().trim();
-        if (!apiToken) {
-            showMessage('configMessages', 'Please enter an API token', 'danger');
-            return;
-        }
-
+    // Load Regions and Sizes
+    function loadRegionsAndSizes() {
+        // Load regions
         $.ajax({
-            url: '/api/do/test-connection',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ api_token: apiToken }),
-            success: function (response) {
-                if (response.success) {
-                    showMessage('configMessages', response.message, 'success');
-                } else {
-                    showMessage('configMessages', response.error || 'Connection failed', 'danger');
-                }
-            },
-            error: function (xhr) {
-                const error = xhr.responseJSON?.error || 'Connection failed';
-                showMessage('configMessages', error, 'danger');
-            }
-        });
-    }
-
-    // Save Configuration
-    $('#doConfigForm').on('submit', function (e) {
-        e.preventDefault();
-
-        const config = {
-            name: $('#accountName').val().trim() || 'Default DigitalOcean Account',
-            api_token: $('#apiToken').val().trim(),
-            default_region: $('#defaultRegion').val(),
-            default_size: $('#defaultSize').val(),
-            automation_snapshot_id: $('#automationSnapshotId').val().trim(),
-            auto_destroy_droplets: $('#autoDestroy').is(':checked')
-        };
-
-        if (!config.api_token) {
-            showMessage('configMessages', 'API token is required', 'danger');
-            return;
-        }
-
-        $.ajax({
-            url: '/api/do/config',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(config),
-            success: function (response) {
-                if (response.success) {
-                    showMessage('configMessages', 'Configuration saved successfully', 'success');
-                    loadConfig();
-                } else {
-                    showMessage('configMessages', response.error || 'Save failed', 'danger');
-                }
-            },
-            error: function (xhr) {
-                const error = xhr.responseJSON?.error || 'Save failed';
-                showMessage('configMessages', error, 'danger');
-            }
-        });
-    });
-
-    // Load Configuration
-    function loadConfig() {
-        $.ajax({
-            url: '/api/do/config',
+            url: '/api/do/regions',
             method: 'GET',
             success: function (response) {
-                if (response.success && response.config) {
-                    const config = response.config;
-                    $('#accountName').val(config.name);
-                    $('#defaultRegion').val(config.default_region);
-                    $('#defaultSize').val(config.default_size);
-                    $('#automationSnapshotId').val(config.automation_snapshot_id || '');
-                    $('#autoDestroy').prop('checked', config.auto_destroy_droplets);
-                    // Don't populate API token for security
-                    if (config.is_configured) {
-                        $('#apiToken').attr('placeholder', 'Token saved (' + config.api_token_masked + ')');
-                    }
+                if (response.success) {
+                    const regionSelect = $('#region');
+                    regionSelect.html('<option value="">Select a region</option>');
+                    response.regions.forEach(function (region) {
+                        regionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
+                    });
                 }
             },
             error: function () {
-                console.log('No configuration found (first time setup)');
+                $('#region').html('<option value="">Error loading regions</option>');
+            }
+        });
+
+        // Load sizes
+        $.ajax({
+            url: '/api/do/sizes',
+            method: 'GET',
+            success: function (response) {
+                if (response.success) {
+                    const sizeSelect = $('#size');
+                    sizeSelect.html('<option value="">Select a size</option>');
+                    response.sizes.forEach(function (size) {
+                        const price = size.price_monthly ? ` ($${size.price_monthly}/mo)` : '';
+                        sizeSelect.append(`<option value="${size.slug}">${size.description}${price}</option>`);
+                    });
+                }
+            },
+            error: function () {
+                $('#size').html('<option value="">Error loading sizes</option>');
             }
         });
     }
+
+    // Create Droplet
+    $('#createDropletForm').on('submit', function (e) {
+        e.preventDefault();
+
+        const droplet = {
+            name: $('#dropletName').val().trim(),
+            region: $('#region').val(),
+            size: $('#size').val(),
+            ssh_key: $('#sshKey').val().trim()
+        };
+
+        if (!droplet.name || !droplet.region || !droplet.size) {
+            showMessage('createDropletMessages', 'Please fill in all required fields', 'danger');
+            return;
+        }
+
+        showMessage('createDropletMessages', 'Creating droplet... This may take a few minutes.', 'info');
+
+        $.ajax({
+            url: '/api/do/droplets/create',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(droplet),
+            success: function (response) {
+                if (response.success) {
+                    showMessage('createDropletMessages', `✅ Droplet created successfully! IP: ${response.ip_address}`, 'success');
+                    // Show snapshot section
+                    $('#snapshotSection').show();
+                    // Refresh droplet list
+                    loadDroplets();
+                    // Reset form
+                    $('#createDropletForm')[0].reset();
+                } else {
+                    showMessage('createDropletMessages', `❌ Failed to create droplet: ${response.error}`, 'danger');
+                }
+            },
+            error: function (xhr) {
+                const error = xhr.responseJSON?.error || 'Failed to create droplet';
+                showMessage('createDropletMessages', `❌ Error: ${error}`, 'danger');
+            }
+        });
+    });
+
+    // Create Snapshot
+    $('#createSnapshotForm').on('submit', function (e) {
+        e.preventDefault();
+
+        const snapshot = {
+            droplet_id: $('#dropletToSnapshot').val(),
+            name: $('#snapshotName').val().trim()
+        };
+
+        if (!snapshot.droplet_id || !snapshot.name) {
+            showMessage('createSnapshotMessages', 'Please select a droplet and provide a snapshot name', 'danger');
+            return;
+        }
+
+        showMessage('createSnapshotMessages', 'Creating snapshot... This may take several minutes.', 'info');
+
+        $.ajax({
+            url: `/api/do/droplets/${snapshot.droplet_id}/snapshot`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ name: snapshot.name }),
+            success: function (response) {
+                if (response.success) {
+                    showMessage('createSnapshotMessages', `✅ Snapshot created successfully! ID: ${response.snapshot_id}`, 'success');
+                    // Refresh snapshots list
+                    loadSnapshots();
+                    // Reset form
+                    $('#createSnapshotForm')[0].reset();
+                } else {
+                    showMessage('createSnapshotMessages', `❌ Failed to create snapshot: ${response.error}`, 'danger');
+                }
+            },
+            error: function (xhr) {
+                const error = xhr.responseJSON?.error || 'Failed to create snapshot';
+                showMessage('createSnapshotMessages', `❌ Error: ${error}`, 'danger');
+            }
+        });
+    });
 
     // Load Droplets
     function loadDroplets() {
@@ -260,6 +303,20 @@
             success: function (response) {
                 if (response.success) {
                     renderDroplets(response.droplets);
+
+                    // Populate droplet selection for snapshot creation
+                    const dropletSelect = $('#dropletToSnapshot');
+                    dropletSelect.html('<option value="">Select a droplet</option>');
+                    response.droplets.forEach(function (droplet) {
+                        if (droplet.status === 'active') {
+                            dropletSelect.append(`<option value="${droplet.id}">${droplet.name} (${droplet.ip_address})</option>`);
+                        }
+                    });
+
+                    // Show snapshot section if there are droplets
+                    if (response.droplets.length > 0) {
+                        $('#snapshotSection').show();
+                    }
                 } else {
                     showMessage('dropletsList', response.error || 'Failed to load droplets', 'danger');
                 }
@@ -376,27 +433,27 @@
 
     // Delete Snapshot
     function deleteSnapshot(snapshotId, snapshotName) {
-        if (!confirm(`Delete snapshot "${snapshot Name} "?`)) {
-    return;
-    }
-
-    $.ajax({
-        url: '/api/do/snapshots/' + snapshotId,
-        method: 'DELETE',
-        success: function (response) {
-            if (response.success) {
-                alert('Snapshot deleted successfully');
-                loadSnapshots();
-            } else {
-                alert('Failed to delete snapshot: ' + (response.error || 'Unknown error'));
-            }
-        },
-        error: function (xhr) {
-            const error = xhr.responseJSON?.error || 'Failed to delete snapshot';
-            alert('Error: ' + error);
+        if (!confirm(`Delete snapshot "${snapshotName}"?`)) {
+            return;
         }
-    });
-}
+
+        $.ajax({
+            url: '/api/do/snapshots/' + snapshotId,
+            method: 'DELETE',
+            success: function (response) {
+                if (response.success) {
+                    alert('Snapshot deleted successfully');
+                    loadSnapshots();
+                } else {
+                    alert('Failed to delete snapshot: ' + (response.error || 'Unknown error'));
+                }
+            },
+            error: function (xhr) {
+                const error = xhr.responseJSON?.error || 'Failed to delete snapshot';
+                alert('Error: ' + error);
+            }
+        });
+    }
 
     // Helper: Show Message
     function showMessage(elementId, message, type) {

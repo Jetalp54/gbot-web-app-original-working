@@ -227,6 +227,112 @@ def delete_droplet(droplet_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@digitalocean_manager.route('/api/do/droplets/create', methods=['POST'])
+@login_required
+def create_droplet():
+    """Create a new droplet"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        region = data.get('region', '').strip()
+        size = data.get('size', '').strip()
+        ssh_key = data.get('ssh_key', '').strip()
+        
+        if not name or not region or not size:
+            return jsonify({'success': False, 'error': 'Name, region, and size are required'}), 400
+        
+        config = DigitalOceanConfig.query.first()
+        if not config or not config.api_token:
+            return jsonify({'success': False, 'error': 'DigitalOcean not configured. Please configure in Settings first.'}), 400
+        
+        # Get current username for droplet naming
+        username = get_current_username() or 'user'
+        
+        # Create droplet name with username if not already included
+        if username not in name.lower():
+            full_name = f"{name}-{username}"
+        else:
+            full_name = name
+        
+        service = DigitalOceanService(config.api_token)
+        
+        # Use Ubuntu 22.04 as default image
+        image = 'ubuntu-22-04-x64'
+        
+        result = service.create_droplet(full_name, region, size, image, ssh_key=ssh_key if ssh_key else None)
+        
+        if result and 'droplet' in result:
+            droplet_info = result['droplet']
+            droplet_id = droplet_info.get('id')
+            
+            # Store in database
+            db_droplet = DigitalOceanDroplet()
+            db_droplet.droplet_id = str(droplet_id)
+            db_droplet.name = full_name
+            db_droplet.region = region
+            db_droplet.size = size
+            db_droplet.ip_address = droplet_info.get('networks', {}).get('v4', [{}])[0].get('ip_address', '')
+            db_droplet.status = 'active'
+            db_droplet.created_by_username = username
+            db_droplet.auto_destroy = config.auto_destroy_droplets
+            db_droplet.created_at = datetime.utcnow()
+            
+            db.session.add(db_droplet)
+            db.session.commit()
+            
+            logger.info(f"Droplet created: {full_name} ({droplet_id}) by {username}")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Droplet created successfully',
+                'droplet_id': droplet_id,
+                'name': full_name,
+                'ip_address': db_droplet.ip_address
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to create droplet'}), 500
+            
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Create droplet error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@digitalocean_manager.route('/api/do/droplets/<droplet_id>/snapshot', methods=['POST'])
+@login_required
+def create_droplet_snapshot(droplet_id):
+    """Create a snapshot from a specific droplet"""
+    try:
+        data = request.get_json()
+        snapshot_name = data.get('name', '').strip()
+        
+        if not snapshot_name:
+            return jsonify({'success': False, 'error': 'Snapshot name is required'}), 400
+        
+        config = DigitalOceanConfig.query.first()
+        if not config or not config.api_token:
+            return jsonify({'success': False, 'error': 'DigitalOcean not configured'}), 400
+        
+        service = DigitalOceanService(config.api_token)
+        result = service.create_snapshot(droplet_id, snapshot_name)
+        
+        if result and result.get('snapshot'):
+            snapshot_id = result['snapshot'].get('id')
+            logger.info(f"Snapshot created: {snapshot_name} (ID: {snapshot_id}) from droplet {droplet_id}")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Snapshot created successfully',
+                'snapshot_id': snapshot_id
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to create snapshot'}), 500
+            
+    except Exception as e:
+        logger.error(f"Create snapshot error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # Snapshot Routes
 @digitalocean_manager.route('/api/do/snapshots', methods=['GET'])
 @login_required

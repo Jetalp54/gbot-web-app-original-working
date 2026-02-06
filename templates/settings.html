@@ -320,6 +320,56 @@
                 <div id="cloudflare-config-status" style="margin-top: 16px; display: none;"></div>
             </div>
 
+            <!-- DigitalOcean Configuration Section -->
+            <div class="github-card draggable-card" data-id="digitalocean-config" style="margin-bottom: 24px;">
+                <div class="github-card-header" style="cursor: move;">
+                    <h3 class="github-card-title" style="font-size: 18px;">
+                        <i class="fab fa-digital-ocean"></i>
+                        DigitalOcean Configuration
+                    </h3>
+                </div>
+                <p style="color: #656d76; margin-bottom: 24px; font-size: 14px;">
+                    Configure DigitalOcean API credentials for droplet and snapshot management. These credentials are
+                    used for automated bulk execution and infrastructure provisioning.
+                </p>
+
+                <form id="digitalocean-config-form">
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="do_account_name" class="form-label-github">
+                                <i class="fas fa-user"></i> Account Name
+                            </label>
+                            <input type="text" class="form-control-github w-100" id="do_account_name"
+                                placeholder="My DigitalOcean Account" required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Friendly name for this DigitalOcean account
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="do_api_token" class="form-label-github">
+                                <i class="fas fa-key"></i> API Token
+                            </label>
+                            <input type="password" class="form-control-github w-100" id="do_api_token"
+                                placeholder="dop_v1_..." required>
+                            <small style="color: #656d76; font-size: 12px;">
+                                Your DigitalOcean API Token (from API settings)
+                            </small>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+                        <button type="button" class="btn-github" onclick="testDigitalOceanConnection()">
+                            <i class="fas fa-plug"></i> Test Connection
+                        </button>
+                        <button type="submit" class="btn-github btn-github-primary">
+                            <i class="fas fa-save"></i> Save DigitalOcean Configuration
+                        </button>
+                    </div>
+                </form>
+
+                <div id="digitalocean-config-status" style="margin-top: 16px; display: none;"></div>
+            </div>
+
             <!-- End settings-sortable-container removed from here -->
 
             <script>
@@ -3656,5 +3706,115 @@
             awsModal.style.display = "none";
         }
     }
+
+    // --- DigitalOcean Configuration ---
+
+    // Load DigitalOcean configuration on page load
+    function loadDigitalOceanConfiguration() {
+        fetch('/api/do/config', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.config) {
+                    const config = data.config;
+                    $('#do_account_name').val(config.name || '');
+                    // Don't populate API token for security
+                    if (config.is_configured) {
+                        $('#do_api_token').attr('placeholder', `Token saved (${config.api_token_masked})`);
+                        $('#do_api_token').data('configured', true);
+                    }
+                }
+            })
+            .catch(error => {
+                console.log('DigitalOcean not configured yet');
+            });
+    }
+
+    // Test DigitalOcean Connection
+    function testDigitalOceanConnection() {
+        const apiToken = $('#do_api_token').val().trim();
+        if (!apiToken) {
+            showDigitalOceanStatus('Please enter an API token', 'error');
+            return;
+        }
+
+        showDigitalOceanStatus('Testing connection...', 'info');
+
+        fetch('/api/do/test-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_token: apiToken })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showDigitalOceanStatus('✅ Connection successful! ' + data.message, 'success');
+                } else {
+                    showDigitalOceanStatus('❌ Connection failed: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showDigitalOceanStatus('❌ Network error: ' + error, 'error');
+            });
+    }
+
+    // Save DigitalOcean Configuration
+    $('#digitalocean-config-form').on('submit', function (e) {
+        e.preventDefault();
+
+        const config = {
+            name: $('#do_account_name').val().trim() || 'Default DigitalOcean Account',
+            api_token: $('#do_api_token').val().trim()
+        };
+
+        const isConfigured = $('#do_api_token').data('configured');
+        if (!config.api_token && !isConfigured) {
+            showDigitalOceanStatus('API token is required', 'error');
+            return;
+        }
+
+        showDigitalOceanStatus('Saving configuration...', 'info');
+
+        fetch('/api/do/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showDigitalOceanStatus('✅ Configuration saved successfully', 'success');
+                    $('#do_api_token').val('');
+                    loadDigitalOceanConfiguration();
+                } else {
+                    showDigitalOceanStatus('❌ Failed to save: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showDigitalOceanStatus('❌ Network error: ' + error, 'error');
+            });
+    });
+
+    // Helper: Show DigitalOcean Status Message
+    function showDigitalOceanStatus(message, type) {
+        const statusDiv = document.getElementById('digitalocean-config-status');
+        const alertClass = type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info';
+
+        statusDiv.innerHTML = `
+            <div class="alert alert-${alertClass} alert-dismissible fade show" role="alert" style="margin-bottom: 0;">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        statusDiv.style.display = 'block';
+    }
+
+    // Load on page ready
+    $(document).ready(function () {
+        loadDigitalOceanConfiguration();
+    });
+
 </script>
 {% endblock %}
