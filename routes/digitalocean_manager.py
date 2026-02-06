@@ -188,6 +188,31 @@ def list_sizes():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@digitalocean_manager.route('/api/do/regions-sizes', methods=['GET'])
+@login_required
+def list_regions_and_sizes():
+    """List both regions and sizes in a single call for efficiency"""
+    try:
+        config = DigitalOceanConfig.query.first()
+        if not config or not config.api_token:
+            return jsonify({'success': False, 'error': 'DigitalOcean not configured'}), 400
+        
+        service = DigitalOceanService(config.api_token)
+        
+        # Get both regions and sizes
+        regions = service.list_regions()
+        sizes = service.list_sizes()
+        
+        return jsonify({
+            'success': True,
+            'regions': regions,
+            'sizes': sizes
+        })
+    except Exception as e:
+        logger.error(f"List regions/sizes error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # Droplet Routes
 @digitalocean_manager.route('/api/do/droplets', methods=['GET'])
 @login_required
