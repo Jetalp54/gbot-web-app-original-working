@@ -43,14 +43,27 @@ class DigitalOceanService:
             # Try to list account info
             response = requests.get(f"{self.BASE_URL}/account", headers=self.headers)
             
-            if response.status_code == 200:
-                account = response.json()['account']
-                return True, f"Connected successfully. Email: {account['email']}"
             else:
                 return False, f"Connection failed: {response.text}"
         except Exception as e:
             logger.error(f"Connection test failed: {e}")
             return False, f"Connection failed: {str(e)}"
+
+    def get_account(self) -> Optional[Dict]:
+        """
+        Get DigitalOcean account information.
+        
+        Returns:
+            Account dictionary or None
+        """
+        try:
+            response = requests.get(f"{self.BASE_URL}/account", headers=self.headers)
+            if response.status_code == 200:
+                return response.json()['account']
+            return None
+        except Exception as e:
+            logger.error(f"Error getting account info: {e}")
+            return None
     
     def list_regions(self) -> List[Dict]:
         """
