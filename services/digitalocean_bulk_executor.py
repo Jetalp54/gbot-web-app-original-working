@@ -292,25 +292,12 @@ class BulkExecutionOrchestrator:
                             user_result = json.load(f)
                         os.remove(local_result_file)
                         
-                        # Save app password to database if successful
+                        # Save app password with dual-save backup system
                         if user_result.get('success') and user_result.get('app_password'):
-                            try:
-                                from database import db, AwsGeneratedPassword
-                                
-                                # Check if already exists
-                                existing = AwsGeneratedPassword.query.filter_by(email=email).first()
-                                if existing:
-                                    existing.app_password = user_result['app_password']
-                                else:
-                                    new_password = AwsGeneratedPassword()
-                                    new_password.email = email
-                                    new_password.app_password = user_result['app_password']
-                                    db.session.add(new_password)
-                                
-                                db.session.commit()
-                                logger.info(f"[{self.execution_id}] Saved app password for {email}")
-                            except Exception as save_error:
-                                logger.error(f"[{self.execution_id}] Error saving app password for {email}: {save_error}")
+                            self._save_app_password_with_backup(
+                                email=email,
+                                app_password=user_result['app_password']
+                            )
                         
                         results.append(user_result)
                     else:
@@ -340,6 +327,99 @@ class BulkExecutionOrchestrator:
                 })
         
         return results
+    
+    def _save_app_password_with_backup(self, email: str, app_password: str):
+        """
+        Dual-save system: Save app password to both database AND backup file.
+        This ensures no data loss even if server crashes or database fails.
+        
+        Args:
+            email: User email
+            app_password: Generated app password
+        """
+        from database import db, AwsGeneratedPassword
+        
+        # 1. IMMEDIATE BACKUP TO FILE (fastest, most reliable)
+        backup_success = False
+        try:
+            backup_dir = 'do_app_passwords_backup'
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            # Create backup file with timestamp
+            backup_file = os.path.join(
+                backup_dir, 
+                f"{self.execution_id}_{email.replace('@', '_at_')}.json"
+            )
+            
+            backup_data = {
+                'email': email,
+                'app_password': app_password,
+                'execution_id': self.execution_id,
+                'timestamp': datetime.utcnow().isoformat(),
+                'saved_to_db': False  # Will update after DB save
+            }
+            
+            with open(backup_file, 'w') as f:
+                json.dump(backup_data, f, indent=2)
+            
+            backup_success = True
+            logger.info(f"[{self.execution_id}] ✓ Backup file saved: {email}")
+        except Exception as backup_error:
+            logger.error(f"[{self.execution_id}] ✗ Backup file failed for {email}: {backup_error}")
+        
+        # 2. SAVE TO DATABASE (with retry logic)
+        db_success = False
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                # Check if already exists
+                existing = AwsGeneratedPassword.query.filter_by(email=email).first()
+                if existing:
+                    existing.app_password = app_password
+                else:
+                    new_password = AwsGeneratedPassword()
+                    new_password.email = email
+                    new_password.app_password = app_password
+                    db.session.add(new_password)
+                
+                # Immediate commit (don't batch)
+                db.session.commit()
+                db_success = True
+                logger.info(f"[{self.execution_id}] ✓ Database saved: {email}")
+                break
+                
+            except Exception as db_error:
+                db.session.rollback()
+                logger.warning(f"[{self.execution_id}] Database save attempt {attempt+1}/{max_retries} failed for {email}: {db_error}")
+                
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)  # Brief pause before retry
+                else:
+                    logger.error(f"[{self.execution_id}] ✗ Database save FAILED after {max_retries} attempts: {email}")
+        
+        # 3. UPDATE BACKUP FILE STATUS
+        if backup_success:
+            try:
+                with open(backup_file, 'r') as f:
+                    backup_data = json.load(f)
+                backup_data['saved_to_db'] = db_success
+                backup_data['db_save_timestamp'] = datetime.utcnow().isoformat() if db_success else None
+                
+                with open(backup_file, 'w') as f:
+                    json.dump(backup_data, f, indent=2)
+            except:
+                pass  # Non-critical
+        
+        # 4. LOG FINAL STATUS
+        if db_success and backup_success:
+            logger.info(f"[{self.execution_id}] ✓✓ DUAL-SAVE SUCCESS: {email}")
+        elif db_success:
+            logger.warning(f"[{self.execution_id}] ⚠ DB saved but backup failed: {email}")
+        elif backup_success:
+            logger.warning(f"[{self.execution_id}] ⚠ Backup saved but DB failed: {email} (can recover later)")
+        else:
+            logger.error(f"[{self.execution_id}] ✗✗ BOTH SAVES FAILED: {email}")
     
     def _destroy_droplets_parallel(self, droplets: List[Dict]):
         """Destroy multiple droplets in parallel"""

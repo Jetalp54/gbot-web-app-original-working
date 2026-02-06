@@ -1,5 +1,10 @@
 
 __pycache__/
+
+# Backup files and SSH keys
+do_app_passwords_backup/
+*.pem
+*.key
 *.pyc
 *.pyo
 .DS_Store
