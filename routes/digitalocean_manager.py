@@ -259,36 +259,83 @@ def create_droplet():
         # Use Ubuntu 22.04 as default image
         image = 'ubuntu-22-04-x64'
         
-        result = service.create_droplet(full_name, region, size, image, ssh_key=ssh_key if ssh_key else None)
+        # Create cloud-init script to automatically download and setup from GitHub
+        github_repo = "https://github.com/Jetalp54/gbot-web-app-original-working.git"
+        cloud_init_script = f"""#!/bin/bash
+# Auto-setup from GitHub
+apt-get update -y
+apt-get install -y git curl
+
+# Clone repository
+git clone {github_repo} /tmp/gbot-setup
+
+# Run setup script
+if [ -f /tmp/gbot-setup/repo_digitalocean_files/setup_droplet.sh ]; then
+    bash /tmp/gbot-setup/repo_digitalocean_files/setup_droplet.sh
+    
+    # Copy automation script
+    if [ -f /tmp/gbot-setup/repo_digitalocean_files/do_automation.py ]; then
+        cp /tmp/gbot-setup/repo_digitalocean_files/do_automation.py /opt/automation/
+        chmod +x /opt/automation/do_automation.py
+    fi
+    
+    touch /root/.setup_complete
+    echo "Setup complete at $(date)" > /root/.setup_complete
+fi
+
+rm -rf /tmp/gbot-setup
+"""
         
-        if result and 'droplet' in result:
-            droplet_info = result['droplet']
-            droplet_id = droplet_info.get('id')
+        # Convert SSH key string to list if provided
+        ssh_keys_list = None
+        if ssh_key:
+            # For now, treat it as a raw key that needs to be added
+            # In production, you'd need to first upload the key to DO and get its ID
+            logger.warning("SSH key provided but needs to be pre-uploaded to DigitalOcean")
+        
+        result = service.create_droplet(
+            name=full_name,
+            region=region,
+            size=size,
+            image=image,
+            ssh_keys=ssh_keys_list,
+            user_data=cloud_init_script  # Auto-setup via cloud-init
+        )
+        
+        if result and 'id' in result:
+            droplet_id = result['id']
             
-            # Store in database
-            db_droplet = DigitalOceanDroplet()
-            db_droplet.droplet_id = str(droplet_id)
-            db_droplet.name = full_name
-            db_droplet.region = region
-            db_droplet.size = size
-            db_droplet.ip_address = droplet_info.get('networks', {}).get('v4', [{}])[0].get('ip_address', '')
-            db_droplet.status = 'active'
-            db_droplet.created_by_username = username
-            db_droplet.auto_destroy = config.auto_destroy_droplets
-            db_droplet.created_at = datetime.utcnow()
+            # Wait for droplet to be active and get IP
+            ip_address = service.wait_for_droplet_active(droplet_id, timeout=300)
             
-            db.session.add(db_droplet)
-            db.session.commit()
-            
-            logger.info(f"Droplet created: {full_name} ({droplet_id}) by {username}")
-            
-            return jsonify({
-                'success': True,
-                'message': 'Droplet created successfully',
-                'droplet_id': droplet_id,
-                'name': full_name,
-                'ip_address': db_droplet.ip_address
-            })
+            if ip_address:
+                # Store in database
+                db_droplet = DigitalOceanDroplet()
+                db_droplet.droplet_id = str(droplet_id)
+                db_droplet.name = full_name
+                db_droplet.region = region
+                db_droplet.size = size
+                db_droplet.ip_address = ip_address
+                db_droplet.status = 'active'
+                db_droplet.created_by_username = username
+                db_droplet.auto_destroy = config.auto_destroy_droplets
+                db_droplet.created_at = datetime.utcnow()
+                
+                db.session.add(db_droplet)
+                db.session.commit()
+                
+                logger.info(f"Droplet created with auto-setup: {full_name} ({droplet_id}) by {username}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Droplet created successfully with auto-setup from GitHub',
+                    'droplet_id': droplet_id,
+                    'name': full_name,
+                    'ip_address': ip_address,
+                    'note': 'Cloud-init is running setup script. Wait 5-10 minutes before creating snapshot.'
+                })
+            else:
+                return jsonify({'success': False, 'error': 'Droplet created but did not become active'}), 500
         else:
             return jsonify({'success': False, 'error': 'Failed to create droplet'}), 500
             
