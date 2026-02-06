@@ -103,17 +103,23 @@ def save_config():
         data = request.get_json()
         api_token = data.get('api_token', '').strip()
         
-        if not api_token:
-            return jsonify({'success': False, 'error': 'API token is required'}), 400
-        
         config = DigitalOceanConfig.query.first()
+        
+        # Validate token requirement
+        if not config and not api_token:
+            # New configuration requires token
+            return jsonify({'success': False, 'error': 'API token is required for first-time setup'}), 400
         
         if not config:
             config = DigitalOceanConfig()
             db.session.add(config)
         
         config.name = data.get('name', 'Default DigitalOcean Account').strip()
-        config.api_token = api_token
+        
+        # Only update token if provided
+        if api_token:
+            config.api_token = api_token
+        
         config.default_region = data.get('default_region', 'nyc3').strip()
         config.default_size = data.get('default_size', 's-1vcpu-1gb').strip()
         config.automation_snapshot_id = data.get('automation_snapshot_id', '').strip() or None
