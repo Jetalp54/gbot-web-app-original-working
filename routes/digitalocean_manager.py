@@ -312,14 +312,13 @@ rm -rf /tmp/gbot-setup
                 # Store in database
                 db_droplet = DigitalOceanDroplet()
                 db_droplet.droplet_id = str(droplet_id)
-                db_droplet.name = full_name
+                db_droplet.droplet_name = full_name
                 db_droplet.region = region
                 db_droplet.size = size
                 db_droplet.ip_address = ip_address
                 db_droplet.status = 'active'
                 db_droplet.created_by_username = username
                 db_droplet.auto_destroy = config.auto_destroy_droplets
-                db_droplet.created_at = datetime.utcnow()
                 
                 db.session.add(db_droplet)
                 db.session.commit()
@@ -536,16 +535,16 @@ def _run_bulk_execution_background(
         
         # Store results in database
         execution = DigitalOceanExecution()
-        execution.execution_id = orchestrator.execution_id
+        execution.task_id = orchestrator.execution_id
         execution.total_users = len(users)
-        execution.droplets_used = result.get('droplets_used', 0)
+        execution.droplets_created = result.get('droplets_used', 0)
         execution.success_count = result.get('success_count', 0)
-        execution.fail_count = result.get('fail_count', 0)
-        execution.execution_time_seconds = result.get('execution_time_seconds', 0)
+        execution.failure_count = result.get('fail_count', 0)
         execution.results_json = json.dumps(result.get('results', []))
         execution.status = 'completed' if result['success'] else 'failed'
         execution.error_message = result.get('error')
-        execution.created_at = datetime.utcnow()
+        execution.started_at = datetime.utcnow()
+        execution.completed_at = datetime.utcnow()
         
         db.session.add(execution)
         db.session.commit()
