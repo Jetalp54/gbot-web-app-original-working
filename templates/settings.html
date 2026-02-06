@@ -3750,7 +3750,9 @@
     // Test DigitalOcean Connection
     function testDigitalOceanConnection() {
         const apiToken = $('#do_api_token').val().trim();
-        if (!apiToken) {
+        const isConfigured = $('#do_api_token').data('configured');
+
+        if (!apiToken && !isConfigured) {
             showDigitalOceanStatus('Please enter an API token', 'error');
             return;
         }
