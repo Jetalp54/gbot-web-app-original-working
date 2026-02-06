@@ -54,15 +54,26 @@ def test_connection():
         data = request.get_json()
         api_token = data.get('api_token', '').strip()
         
+        # If no token provided, try to use stored token
         if not api_token:
-            return jsonify({'success': False, 'error': 'API token is required'}), 400
+            config = DigitalOceanConfig.query.first()
+            if config and config.api_token:
+                api_token = config.api_token
+            else:
+                return jsonify({'success': False, 'error': 'API token is required'}), 400
         
         service = DigitalOceanService(api_token)
-        success, message = service.test_connection()
+        account = service.get_account()
         
-        return jsonify({'success': success, 'message': message})
+        if account:
+            return jsonify({
+                'success': True, 
+                'message': f"Connected to account: {account.get('email', 'Unknown')}"
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Invalid API token'}), 400
     except Exception as e:
-        logger.error(f"Connection test error: {e}")
+        logger.error(f"Test connection error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
