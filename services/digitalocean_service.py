@@ -1,26 +1,22 @@
 """
 DigitalOcean Service for managing droplets, snapshots, and automation execution.
-Uses pydo (DigitalOcean Python SDK) for API interactions.
+Uses direct API calls via requests to avoid dependency issues.
 """
 import os
 import time
 import json
 import logging
+import requests
 import paramiko
 from typing import List, Dict, Optional, Tuple
 from io import StringIO
 
 logger = logging.getLogger(__name__)
 
-try:
-    from pydo import Client
-except ImportError:
-    logger.warning("pydo not installed. Install with: pip install pydo")
-    Client = None
-
-
 class DigitalOceanService:
     """Service for managing DigitalOcean droplets and snapshots"""
+    
+    BASE_URL = "https://api.digitalocean.com/v2"
     
     def __init__(self, api_token: str):
         """
@@ -29,11 +25,11 @@ class DigitalOceanService:
         Args:
             api_token: DigitalOcean API token with read/write permissions
         """
-        if not Client:
-            raise ImportError("pydo library not installed. Run: pip install pydo")
-        
-        self.client = Client(token=api_token)
         self.api_token = api_token
+        self.headers = {
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/json"
+        }
         logger.info("DigitalOcean service initialized")
     
     def test_connection(self) -> Tuple[bool, str]:
@@ -45,8 +41,13 @@ class DigitalOceanService:
         """
         try:
             # Try to list account info
-            account = self.client.account.get()
-            return True, f"Connected successfully. Email: {account['account']['email']}"
+            response = requests.get(f"{self.BASE_URL}/account", headers=self.headers)
+            
+            if response.status_code == 200:
+                account = response.json()['account']
+                return True, f"Connected successfully. Email: {account['email']}"
+            else:
+                return False, f"Connection failed: {response.text}"
         except Exception as e:
             logger.error(f"Connection test failed: {e}")
             return False, f"Connection failed: {str(e)}"
@@ -59,17 +60,12 @@ class DigitalOceanService:
             List of region dictionaries with slug, name, availability
         """
         try:
-            response = self.client.regions.list()
-            regions = response['regions']
-            
-            # Filter to available regions only
-            available = [r for r in regions if r.get('available')]
-            
-            return [{
-                'slug': r['slug'],
-                'name': r['name'],
-                'available': r.get('available', False)
-            } for r in available]
+            response = requests.get(f"{self.BASE_URL}/regions", headers=self.headers)
+            if response.status_code == 200:
+                regions = response.json()['regions']
+                # Filter for available regions only
+                return [r for r in regions if r['available']]
+            return []
         except Exception as e:
             logger.error(f"Error listing regions: {e}")
             return []
@@ -82,21 +78,22 @@ class DigitalOceanService:
             List of size dictionaries with slug, memory, vcpus, disk, price
         """
         try:
-            response = self.client.sizes.list()
-            sizes = response['sizes']
-            
-            # Filter to available sizes only
-            available = [s for s in sizes if s.get('available')]
-            
-            return [{
-                'slug': s['slug'],
-                'memory': s['memory'],
-                'vcpus': s['vcpus'],
-                'disk': s['disk'],
-                'price_monthly': s['price_monthly'],
-                'price_hourly': s['price_hourly'],
-                'description': f"{s['memory']}MB RAM, {s['vcpus']} vCPU, {s['disk']}GB SSD"
-            } for s in available]
+            response = requests.get(f"{self.BASE_URL}/sizes", params={'per_page': 200}, headers=self.headers)
+            if response.status_code == 200:
+                sizes = response.json()['sizes']
+                # Filter to available sizes only
+                available = [s for s in sizes if s.get('available')]
+                
+                return [{
+                    'slug': s['slug'],
+                    'memory': s['memory'],
+                    'vcpus': s['vcpus'],
+                    'disk': s['disk'],
+                    'price_monthly': s['price_monthly'],
+                    'price_hourly': s['price_hourly'],
+                    'description': f"{s['memory']}MB RAM, {s['vcpus']} vCPU, {s['disk']}GB SSD"
+                } for s in available]
+            return []
         except Exception as e:
             logger.error(f"Error listing sizes: {e}")
             return []
@@ -109,18 +106,20 @@ class DigitalOceanService:
             List of droplet dictionaries
         """
         try:
-            response = self.client.droplets.list()
-            droplets = response['droplets']
-            
-            return [{
-                'id': str(d['id']),
-                'name': d['name'],
-                'status': d['status'],
-                'region': d['region']['slug'],
-                'size': d['size']['slug'],
-                'ip_address': d['networks']['v4'][0]['ip_address'] if d['networks']['v4'] else None,
-                'created_at': d['created_at']
-            } for d in droplets]
+            response = requests.get(f"{self.BASE_URL}/droplets", params={'per_page': 200}, headers=self.headers)
+            if response.status_code == 200:
+                droplets = response.json()['droplets']
+                
+                return [{
+                    'id': str(d['id']),
+                    'name': d['name'],
+                    'status': d['status'],
+                    'region': d['region']['slug'],
+                    'size': d['size']['slug'],
+                    'ip_address': next((n['ip_address'] for n in d['networks']['v4'] if n['type'] == 'public'), None),
+                    'created_at': d['created_at']
+                } for d in droplets]
+            return []
         except Exception as e:
             logger.error(f"Error listing droplets: {e}")
             return []
@@ -136,18 +135,20 @@ class DigitalOceanService:
             Droplet dictionary or None
         """
         try:
-            response = self.client.droplets.get(droplet_id=int(droplet_id))
-            d = response['droplet']
-            
-            return {
-                'id': str(d['id']),
-                'name': d['name'],
-                'status': d['status'],
-                'region': d['region']['slug'],
-                'size': d['size']['slug'],
-                'ip_address': d['networks']['v4'][0]['ip_address'] if d['networks']['v4'] else None,
-                'created_at': d['created_at']
-            }
+            response = requests.get(f"{self.BASE_URL}/droplets/{droplet_id}", headers=self.headers)
+            if response.status_code == 200:
+                d = response.json()['droplet']
+                
+                return {
+                    'id': str(d['id']),
+                    'name': d['name'],
+                    'status': d['status'],
+                    'region': d['region']['slug'],
+                    'size': d['size']['slug'],
+                    'ip_address': next((n['ip_address'] for n in d['networks']['v4'] if n['type'] == 'public'), None),
+                    'created_at': d['created_at']
+                }
+            return None
         except Exception as e:
             logger.error(f"Error getting droplet {droplet_id}: {e}")
             return None
@@ -182,7 +183,7 @@ class DigitalOceanService:
                 'name': name,
                 'region': region,
                 'size': size,
-                'image': image,
+                'image': int(image) if str(image).isdigit() else image,  # Handle snapshot IDs vs slugs
                 'ssh_keys': ssh_keys or [],
                 'backups': False,
                 'ipv6': False,
@@ -196,18 +197,24 @@ class DigitalOceanService:
                 req['user_data'] = user_data
             
             logger.info(f"Creating droplet: {name} ({size}) in {region}")
-            response = self.client.droplets.create(body=req)
-            d = response['droplet']
             
-            return {
-                'id': str(d['id']),
-                'name': d['name'],
-                'status': d['status'],
-                'region': d['region']['slug'],
-                'size': d['size']['slug'],
-                'ip_address': None,  # Not assigned yet
-                'created_at': d['created_at']
-            }
+            response = requests.post(f"{self.BASE_URL}/droplets", json=req, headers=self.headers)
+            
+            if response.status_code in (200, 201, 202):
+                d = response.json()['droplet']
+                
+                return {
+                    'id': str(d['id']),
+                    'name': d['name'],
+                    'status': d['status'],
+                    'region': d['region']['slug'],
+                    'size': d['size']['slug'],
+                    'ip_address': None,  # Not assigned yet
+                    'created_at': d['created_at']
+                }
+            else:
+                logger.error(f"Create droplet failed: {response.text}")
+                return None
         except Exception as e:
             logger.error(f"Error creating droplet: {e}")
             return None
@@ -224,8 +231,8 @@ class DigitalOceanService:
         """
         try:
             logger.info(f"Deleting droplet: {droplet_id}")
-            self.client.droplets.destroy(droplet_id=int(droplet_id))
-            return True
+            response = requests.delete(f"{self.BASE_URL}/droplets/{droplet_id}", headers=self.headers)
+            return response.status_code == 204
         except Exception as e:
             logger.error(f"Error deleting droplet {droplet_id}: {e}")
             return False
@@ -239,23 +246,19 @@ class DigitalOceanService:
             timeout: Maximum time to wait in seconds
             
         Returns:
-            IP address if successful, None otherwise
+            IP address or None if timeout
         """
         start_time = time.time()
         
         while time.time() - start_time < timeout:
             droplet = self.get_droplet(droplet_id)
             
-            if not droplet:
-                logger.error(f"Droplet {droplet_id} not found")
-                return None
-            
-            if droplet['status'] == 'active' and droplet['ip_address']:
+            if droplet and droplet['status'] == 'active' and droplet['ip_address']:
                 logger.info(f"Droplet {droplet_id} is active with IP {droplet['ip_address']}")
                 return droplet['ip_address']
             
             logger.info(f"Waiting for droplet {droplet_id} (status: {droplet['status']})")
-            time.sleep(10)
+            time.sleep(5) # Changed from 10 to 5 as per instruction
         
         logger.error(f"Timeout waiting for droplet {droplet_id}")
         return None
@@ -268,16 +271,18 @@ class DigitalOceanService:
             List of snapshot dictionaries
         """
         try:
-            response = self.client.snapshots.list(resource_type='droplet')
-            snapshots = response['snapshots']
-            
-            return [{
-                'id': s['id'],
-                'name': s['name'],
-                'regions': s['regions'],
-                'size_gigabytes': s['size_gigabytes'],
-                'created_at': s['created_at']
-            } for s in snapshots]
+            response = requests.get(f"{self.BASE_URL}/snapshots", params={'resource_type': 'droplet'}, headers=self.headers)
+            if response.status_code == 200:
+                snapshots = response.json()['snapshots']
+                
+                return [{
+                    'id': s['id'],
+                    'name': s['name'],
+                    'regions': s['regions'],
+                    'size_gigabytes': s['size_gigabytes'],
+                    'created_at': s['created_at']
+                } for s in snapshots]
+            return []
         except Exception as e:
             logger.error(f"Error listing snapshots: {e}")
             return []
@@ -301,16 +306,16 @@ class DigitalOceanService:
                 'name': snapshot_name
             }
             
-            response = self.client.droplet_actions.post(
-                droplet_id=int(droplet_id),
-                body=req
-            )
+            response = requests.post(f"{self.BASE_URL}/droplets/{droplet_id}/actions", json=req, headers=self.headers)
             
-            return {
-                'action_id': response['action']['id'],
-                'status': response['action']['status'],
-                'type': response['action']['type']
-            }
+            if response.status_code in (200, 201, 202):
+                action = response.json()['action']
+                return {
+                    'action_id': action['id'],
+                    'status': action['status'],
+                    'type': action['type']
+                }
+            return None
         except Exception as e:
             logger.error(f"Error creating snapshot: {e}")
             return None
@@ -327,8 +332,8 @@ class DigitalOceanService:
         """
         try:
             logger.info(f"Deleting snapshot: {snapshot_id}")
-            self.client.snapshots.delete(snapshot_id=snapshot_id)
-            return True
+            response = requests.delete(f"{self.BASE_URL}/snapshots/{snapshot_id}", headers=self.headers)
+            return response.status_code == 204
         except Exception as e:
             logger.error(f"Error deleting snapshot {snapshot_id}: {e}")
             return False
