@@ -322,9 +322,9 @@ def login_required(f):
 
 # Role-based permissions configuration
 ROLE_PERMISSIONS = {
-    'admin': ['dashboard', 'aws_management', 'settings', 'users', 'whitelist', 'list_management'],
-    'mailer': ['dashboard', 'aws_management', 'settings', 'list_management'],
-    'support': ['dashboard', 'list_management']
+    'admin': ['dashboard', 'aws_management', 'digitalocean_management', 'settings', 'users', 'whitelist', 'list_management'],
+    'mailer': ['dashboard', 'aws_management', 'digitalocean_management', 'settings', 'list_management'],
+    'support': ['dashboard', 'digitalocean_management', 'list_management']
 }
 
 def permission_required(permission):
