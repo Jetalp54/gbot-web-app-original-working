@@ -291,6 +291,27 @@ class BulkExecutionOrchestrator:
                         with open(local_result_file, 'r') as f:
                             user_result = json.load(f)
                         os.remove(local_result_file)
+                        
+                        # Save app password to database if successful
+                        if user_result.get('success') and user_result.get('app_password'):
+                            try:
+                                from database import db, AwsGeneratedPassword
+                                
+                                # Check if already exists
+                                existing = AwsGeneratedPassword.query.filter_by(email=email).first()
+                                if existing:
+                                    existing.app_password = user_result['app_password']
+                                else:
+                                    new_password = AwsGeneratedPassword()
+                                    new_password.email = email
+                                    new_password.app_password = user_result['app_password']
+                                    db.session.add(new_password)
+                                
+                                db.session.commit()
+                                logger.info(f"[{self.execution_id}] Saved app password for {email}")
+                            except Exception as save_error:
+                                logger.error(f"[{self.execution_id}] Error saving app password for {email}: {save_error}")
+                        
                         results.append(user_result)
                     else:
                         results.append({

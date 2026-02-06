@@ -118,8 +118,27 @@ def save_config():
         config.default_size = data.get('default_size', 's-1vcpu-1gb').strip()
         config.automation_snapshot_id = data.get('automation_snapshot_id', '').strip() or None
         config.ssh_key_id = data.get('ssh_key_id', '').strip() or None
-        config.ssh_private_key_path = data.get('ssh_private_key_path', '').strip() or None
         config.auto_destroy_droplets = data.get('auto_destroy_droplets', True)
+        
+        # Handle SSH private key
+        ssh_private_key = data.get('ssh_private_key', '').strip()
+        if ssh_private_key:
+            import tempfile
+            import os
+            
+            # Create temporary file for SSH key
+            fd, key_path = tempfile.mkstemp(suffix='.pem', prefix='do_ssh_')
+            with os.fdopen(fd, 'w') as f:
+                f.write(ssh_private_key)
+            
+            # Set restrictive permissions
+            try:
+                os.chmod(key_path, 0o600)
+            except:
+                pass  # Windows doesn't support chmod
+            
+            config.ssh_private_key_path = key_path
+        
         config.is_configured = True
         
         db.session.commit()

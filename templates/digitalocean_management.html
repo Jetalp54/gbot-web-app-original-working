@@ -227,6 +227,33 @@
             </div>
         </div>
     </div>
+
+    <!-- View Generated App Passwords Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fa fa-key"></i> Generated App Passwords
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        <i class="fa fa-info-circle"></i>
+                        View app passwords generated from bulk automation executions.
+                    </p>
+
+                    <button type="button" class="btn btn-success" onclick="loadGeneratedPasswords()">
+                        <i class="fa fa-refresh"></i> Load Generated Passwords
+                    </button>
+
+                    <div id="passwordsMessages" class="mt-3"></div>
+
+                    <div id="passwordsList" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -612,6 +639,59 @@
                 alert('Error: ' + error);
             }
         });
+    }
+
+    // Load Generated Passwords
+    function loadGeneratedPasswords() {
+        showMessage('passwordsMessages', '⏳ Loading app passwords...', 'info');
+
+        $.ajax({
+            url: '/api/do/generated-passwords',
+            method: 'GET',
+            success: function (response) {
+                if (response.success) {
+                    if (response.passwords.length === 0) {
+                        showMessage('passwordsMessages', '📭 No app passwords found.', 'warning');
+                        $('#passwordsList').html('');
+                    } else {
+                        showMessage('passwordsMessages', `✅ Loaded ${response.passwords.length} app passwords`, 'success');
+                        renderPasswords(response.passwords);
+                    }
+                } else {
+                    showMessage('passwordsMessages', `❌ ${response.error}`, 'danger');
+                }
+            },
+            error: function (xhr) {
+                const error = xhr.responseJSON?.error || 'Failed to load passwords';
+                showMessage('passwordsMessages', `❌ Error: ${error}`, 'danger');
+            }
+        });
+    }
+
+    // Render Passwords Table
+    function renderPasswords(passwords) {
+        let html = '<div class="table-responsive mt-3"><table class="table table-sm table-striped">';
+        html += '<thead class="table-dark"><tr>';
+        html += '<th>#</th><th>Email</th><th>App Password</th><th>Created</th><th>Actions</th>';
+        html += '</tr></thead><tbody>';
+
+        passwords.forEach(function (pwd, index) {
+            const createdDate = pwd.created_at ? new Date(pwd.created_at).toLocaleString() : 'N/A';
+            html += `<tr>
+                <td>${index + 1}</td>
+                <td>${pwd.email}</td>
+                <td><code>${pwd.app_password}</code></td>
+                <td><small>${createdDate}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-primary" onclick="navigator.clipboard.writeText('${pwd.app_password}')">
+                        <i class="fa fa-copy"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+
+        html += '</tbody></table></div>';
+        $('#passwordsList').html(html);
     }
 
     // Helper: Show Message
