@@ -574,26 +574,60 @@ def _run_bulk_execution_background(
         logger.error(f"Background execution error: {e}")
 
 
-@digitalocean_manager.route('/api/do/generated-passwords', methods=['GET'])
+@digitalocean_manager.route('/api/do/generated-passwords/<execution_id>', methods=['GET'])
 @login_required
-def get_generated_passwords():
-    """Fetch all generated app passwords from database"""
+def get_generated_passwords(execution_id):
+    """Fetch generated passwords from specific execution via backup files"""
     try:
-        passwords = AwsGeneratedPassword.query.order_by(AwsGeneratedPassword.created_at.desc()).all()
+        backup_dir = 'do_app_passwords_backup'
         
-        result = []
-        for pwd in passwords:
-            result.append({
-                'email': pwd.email,
-                'app_password': pwd.app_password,
-                'created_at': pwd.created_at.isoformat() if pwd.created_at else None,
-                'updated_at': pwd.updated_at.isoformat() if pwd.updated_at else None
+        if not os.path.exists(backup_dir):
+            return jsonify({
+                'success': True,
+                'passwords': []
             })
+        
+        # Find all backup files matching this execution
+        pattern = f"{execution_id}_*.json"
+        backup_files = []
+        
+        for filename in os.listdir(backup_dir):
+            if filename.startswith(f"{execution_id}_") and filename.endswith('.json'):
+                backup_files.append(os.path.join(backup_dir, filename))
+        
+        if not backup_files:
+            return jsonify({
+                'success': True,
+                'passwords': []
+            })
+        
+        # Load passwords from backup files
+        passwords = []
+        for filepath in backup_files:
+            try:
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+                
+                passwords.append({
+                    'email': data.get('email'),
+                    'app_password': data.get('app_password'),
+                    'created_at': data.get('timestamp'),
+                    'updated_at': data.get('db_save_timestamp'),
+                    'saved_to_db': data.get('saved_to_db', False)
+                })
+            except Exception as e:
+                logger.error(f"Error reading backup file {filepath}: {e}")
+                continue
+        
+        # Sort by email
+        passwords.sort(key=lambda x: x['email'])
         
         return jsonify({
             'success': True,
-            'passwords': result
+            'execution_id': execution_id,
+            'passwords': passwords
         })
+        
     except Exception as e:
-        logger.error(f"Error fetching generated passwords: {e}")
+        logger.error(f"Error fetching passwords for execution {execution_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -257,25 +257,27 @@
 </div>
 
 <script>
-    // Load regions and sizes on page load
+    // === Global Variables ===
+    let currentExecutionId = null;  // Track current bulk execution
+
+    // === Page Initialization ===
     $(document).ready(function () {
         loadRegionsAndSizes();
-        loadDroplets(); // Also check for existing droplets to enable snapshot section
+        loadSnapshots();
+        loadDroplets();
     });
 
-    // Load Regions and Sizes
+    // === Load Regions and Sizes ===
     function loadRegionsAndSizes() {
-        // Load regions
         $.ajax({
-            url: '/api/do/regions',
+            url: '/api/do/regions-sizes',
             method: 'GET',
             success: function (response) {
                 if (response.success) {
-                    // Populate initial droplet creation form
+                    // Populate initial droplet creation form - Regions
                     const regionSelect = $('#region');
                     regionSelect.html('<option value="">Select a region</option>');
-
-                    // Populate bulk execution form
+                    // Populate bulk execution form - Regions
                     const bulkRegionSelect = $('#bulkRegion');
                     bulkRegionSelect.html('<option value="">Use default</option>');
 
@@ -283,24 +285,11 @@
                         regionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
                         bulkRegionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
                     });
-                }
-            },
-            error: function () {
-                $('#region').html('<option value="">Error loading regions</option>');
-            }
-        });
 
-        // Load sizes
-        $.ajax({
-            url: '/api/do/sizes',
-            method: 'GET',
-            success: function (response) {
-                if (response.success) {
-                    // Populate initial droplet creation form
+                    // Populate initial droplet creation form - Sizes
                     const sizeSelect = $('#size');
                     sizeSelect.html('<option value="">Select a size</option>');
-
-                    // Populate bulk execution form
+                    // Populate bulk execution form - Sizes
                     const bulkSizeSelect = $('#bulkSize');
                     bulkSizeSelect.html('<option value="">Use default</option>');
 
@@ -312,6 +301,7 @@
                 }
             },
             error: function () {
+                $('#region').html('<option value="">Error loading regions</option>');
                 $('#size').html('<option value="">Error loading sizes</option>');
             }
         });
@@ -423,9 +413,12 @@
             return;
         }
 
+        const totalUsers = users.length;
+        const dropletCount = parseInt($('#dropletCount').val());
+
         const executionData = {
             users: users,
-            droplet_count: parseInt($('#dropletCount').val()),
+            droplet_count: dropletCount,
             snapshot_id: $('#snapshotId').val().trim(),
             region: $('#bulkRegion').val() || '',
             size: $('#bulkSize').val() || '',
@@ -447,29 +440,37 @@
             data: JSON.stringify(executionData),
             success: function (response) {
                 if (response.success) {
-                    showMessage('bulkExecutionMessages',
-                        `✅ Bulk execution started! Execution ID: ${response.execution_id}`,
-                        'success');
+                    // Store execution ID for password viewing
+                    currentExecutionId = response.execution_id;
+
+                    showMessage('bulkExecutionMessages', `✅ Bulk execution started! Execution ID: ${response.execution_id}`, 'success');
 
                     // Show progress section
                     $('#executionProgress').show();
                     $('#executionId').text(response.execution_id);
-                    $('#totalUsersProgress').text(response.total_users);
-                    $('#dropletsProgress').text(response.droplet_count);
+                    $('#totalUsersProgress').text(totalUsers);
+                    $('#dropletsProgress').text(dropletCount);
 
-                    // Start polling droplets list
+                    // Start polling for droplet updates
                     const pollInterval = setInterval(function () {
                         loadDroplets();
-                    }, 10000);  // Refresh every 10 seconds
+                    }, 10000);  // Every 10 seconds
+
+                    // Stop polling after 10 minutes and show password viewer
+                    setTimeout(function () {
+                        clearInterval(pollInterval);
+                        $('#executionProgress').hide();
+                        showMessage('bulkExecutionMessages', '✅ Execution complete. Click "Load Generated Passwords" below to see results.', 'success');
+
+                        // Auto-scroll to password section
+                        $('html, body').animate({
+                            scrollTop: $('#passwordsList').offset().top - 100
+                        }, 500);
+                    }, 600000);
 
                     // Clear form
                     $('#bulkExecutionForm')[0].reset();
 
-                    // Stop polling after 5 minutes
-                    setTimeout(function () {
-                        clearInterval(pollInterval);
-                        $('#executionProgress').hide();
-                    }, 300000);
                 } else {
                     showMessage('bulkExecutionMessages', `❌ Failed to start execution: ${response.error}`, 'danger');
                 }
@@ -643,18 +644,23 @@
 
     // Load Generated Passwords
     function loadGeneratedPasswords() {
-        showMessage('passwordsMessages', '⏳ Loading app passwords...', 'info');
+        if (!currentExecutionId) {
+            showMessage('passwordsMessages', '⚠️ No execution found. Please run a bulk execution first.', 'warning');
+            return;
+        }
+
+        showMessage('passwordsMessages', `⏳ Loading passwords from execution: ${currentExecutionId}...`, 'info');
 
         $.ajax({
-            url: '/api/do/generated-passwords',
+            url: '/api/do/generated-passwords/' + currentExecutionId,
             method: 'GET',
             success: function (response) {
                 if (response.success) {
                     if (response.passwords.length === 0) {
-                        showMessage('passwordsMessages', '📭 No app passwords found.', 'warning');
+                        showMessage('passwordsMessages', '📭 No app passwords found for this execution.', 'warning');
                         $('#passwordsList').html('');
                     } else {
-                        showMessage('passwordsMessages', `✅ Loaded ${response.passwords.length} app passwords`, 'success');
+                        showMessage('passwordsMessages', `✅ Loaded ${response.passwords.length} passwords from execution ${currentExecutionId}`, 'success');
                         renderPasswords(response.passwords);
                     }
                 } else {

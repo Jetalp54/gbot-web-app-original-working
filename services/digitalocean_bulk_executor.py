@@ -115,7 +115,7 @@ class BulkExecutionOrchestrator:
                 'total_users': len(users),
                 'droplets_used': len(droplet_info),
                 'success_count': success_count,
-               'fail_count': fail_count,
+                'fail_count': fail_count,
                 'execution_time_seconds': execution_time,
                 'results': results
             }
