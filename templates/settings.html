@@ -3781,7 +3781,8 @@
 
         const config = {
             name: $('#do_account_name').val().trim() || 'Default DigitalOcean Account',
-            api_token: $('#do_api_token').val().trim()
+            api_token: $('#do_api_token').val().trim(),
+            ssh_private_key: $('#do_ssh_private_key').val().trim()
         };
 
         const isConfigured = $('#do_api_token').data('configured');

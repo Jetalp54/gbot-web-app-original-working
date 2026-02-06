@@ -572,3 +572,28 @@ def _run_bulk_execution_background(
         
     except Exception as e:
         logger.error(f"Background execution error: {e}")
+
+
+@digitalocean_manager.route('/api/do/generated-passwords', methods=['GET'])
+@login_required
+def get_generated_passwords():
+    """Fetch all generated app passwords from database"""
+    try:
+        passwords = AwsGeneratedPassword.query.order_by(AwsGeneratedPassword.created_at.desc()).all()
+        
+        result = []
+        for pwd in passwords:
+            result.append({
+                'email': pwd.email,
+                'app_password': pwd.app_password,
+                'created_at': pwd.created_at.isoformat() if pwd.created_at else None,
+                'updated_at': pwd.updated_at.isoformat() if pwd.updated_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'passwords': result
+        })
+    except Exception as e:
+        logger.error(f"Error fetching generated passwords: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
