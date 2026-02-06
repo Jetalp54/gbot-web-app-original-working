@@ -338,10 +338,16 @@ td {
 [data-theme='dark'] .btn,
 [data-theme='dark'] input,
 [data-theme='dark'] select,
-[data-theme='dark'] text area {
+[data-theme='dark'] textarea {
     background-color: hsl(var(--card)) !important;
     color: hsl(var(--foreground)) !important;
     border-color: hsl(var(--border)) !important;
+}
+
+/* Bottom user profile/logout area - match main background */
+[data-theme='dark'] div[style*="border-radius"][style*="padding"],
+[data-theme='dark'] div[style*="padding"][style*="border"] {
+    background-color: hsl(var(--background)) !important;
 }
 
 /* Also support data-color-mode for compatibility */
@@ -363,4 +369,10 @@ td {
 [data-color-mode='dark'] .bg-white {
     background-color: #1e1b2e !important;
     color: #f8f9fb !important;
+}
+
+/* Bottom user area for data-color-mode */
+[data-color-mode='dark'] div[style*="border-radius"][style*="padding"],
+[data-color-mode='dark'] div[style*="padding"][style*="border"] {
+    background-color: #1e1b2e !important;
 }
