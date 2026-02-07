@@ -38,6 +38,11 @@ silent_apt() {
 # 1. Update system
 echo ""
 echo "[1/6] Updating system packages..."
+
+# Fix DigitalOcean mirrors (switching to archive.ubuntu.com for stability)
+sed -i 's|mirrors.digitalocean.com|archive.ubuntu.com|g' /etc/apt/sources.list
+rm -rf /var/lib/apt/lists/*
+
 silent_apt update
 silent_apt upgrade -y
 
