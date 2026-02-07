@@ -174,7 +174,7 @@ class BulkExecutionOrchestrator:
         """Create a droplet and wait for it to be active"""
         try:
             # Create droplet
-            result = self.service.create_droplet(
+            result, error_msg = self.service.create_droplet(
                 name=name,
                 region=region,
                 size=size,
@@ -183,6 +183,7 @@ class BulkExecutionOrchestrator:
             )
             
             if not result:
+                logger.error(f"[{self.execution_id}] Failed to create droplet {name}: {error_msg}")
                 return None
             
             droplet_id = result['id']

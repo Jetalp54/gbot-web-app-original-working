@@ -371,7 +371,7 @@ systemctl restart sshd
             cloud_init_script += password_script
             logger.info(f"Added root password configuration for droplet {full_name}")
         
-        result = service.create_droplet(
+        result, error_msg = service.create_droplet(
             name=full_name,
             region=region,
             size=size,
@@ -414,7 +414,7 @@ systemctl restart sshd
             else:
                 return jsonify({'success': False, 'error': 'Droplet created but did not become active'}), 500
         else:
-            return jsonify({'success': False, 'error': 'Failed to create droplet'}), 500
+            return jsonify({'success': False, 'error': f"Failed to create droplet: {error_msg}"}), 500
             
     except Exception as e:
         db.session.rollback()

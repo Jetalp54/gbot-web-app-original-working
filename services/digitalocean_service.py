@@ -178,7 +178,7 @@ class DigitalOceanService:
         ssh_keys: Optional[List[str]] = None,
         tags: Optional[List[str]] = None,
         user_data: Optional[str] = None
-    ) -> Optional[Dict]:
+    ) -> Tuple[Optional[Dict], Optional[str]]:
         """
         Create a new droplet.
         
@@ -192,7 +192,7 @@ class DigitalOceanService:
             user_data: Cloud-init user data script
             
         Returns:
-            Droplet dictionary or None
+            Tuple containing (Droplet dictionary or None, Error message or None)
         """
         try:
             req = {
@@ -227,13 +227,14 @@ class DigitalOceanService:
                     'size': d['size']['slug'],
                     'ip_address': None,  # Not assigned yet
                     'created_at': d['created_at']
-                }
+                }, None
             else:
-                logger.error(f"Create droplet failed: {response.status_code} - {response.text}")
-                return None
+                error_msg = f"{response.status_code} - {response.text}"
+                logger.error(f"Create droplet failed: {error_msg}")
+                return None, error_msg
         except Exception as e:
             logger.error(f"Error creating droplet: {e}")
-            return None
+            return None, str(e)
     
     def delete_droplet(self, droplet_id: str) -> bool:
         """
