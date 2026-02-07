@@ -315,6 +315,12 @@ def create_droplet():
             full_name = f"{name}-{username}"
         else:
             full_name = name
+            
+        # Sanitize name to contain only valid hostname characters (a-z, A-Z, 0-9, . and -)
+        import re
+        full_name = re.sub(r'[^a-zA-Z0-9.-]', '-', full_name)
+        # Remove consecutive hyphens and leading/trailing special chars
+        full_name = re.sub(r'-+', '-', full_name).strip('.-')
         
         service = DigitalOceanService(config.api_token)
         
