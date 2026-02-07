@@ -581,6 +581,14 @@ class DigitalOceanService:
             local_script = os.path.join(os.getcwd(), 'repo_digitalocean_files', 'do_automation.py')
             remote_script = '/opt/automation/do_automation.py'
             
+            # Ensure remote directory exists (in case setup failed or wasn't run)
+            self.execute_ssh_command(
+                ip_address=ip_address,
+                command="mkdir -p /opt/automation",
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
             if not os.path.exists(local_script):
                 return {'success': False, 'error': f"Local script not found at {local_script}"}
                 
