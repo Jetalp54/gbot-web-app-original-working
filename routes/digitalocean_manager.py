@@ -330,28 +330,27 @@ def create_droplet():
         
         # Create cloud-init script to automatically download and setup from GitHub
         github_repo = "https://github.com/Jetalp54/gbot-web-app-original-working.git"
-        cloud_init_script = f"""#!/bin/bash
-# Auto-setup from GitHub
+        # Read cloud-init script from file
+        cloud_init_path = os.path.join(os.getcwd(), 'repo_digitalocean_files', 'cloud_init.sh')
+        if os.path.exists(cloud_init_path):
+            with open(cloud_init_path, 'r') as f:
+                cloud_init_script = f.read()
+        else:
+            logger.warning(f"Cloud-init script not found at {cloud_init_path}, using fallback.")
+            # Fallback to simple inline script if file missing
+            cloud_init_script = f"""#!/bin/bash
+# Fallback Auto-setup
 apt-get update -y
 apt-get install -y git curl
-
-# Clone repository
 git clone {github_repo} /tmp/gbot-setup
-
-# Run setup script
 if [ -f /tmp/gbot-setup/repo_digitalocean_files/setup_droplet.sh ]; then
     bash /tmp/gbot-setup/repo_digitalocean_files/setup_droplet.sh
-    
-    # Copy automation script
     if [ -f /tmp/gbot-setup/repo_digitalocean_files/do_automation.py ]; then
         cp /tmp/gbot-setup/repo_digitalocean_files/do_automation.py /opt/automation/
         chmod +x /opt/automation/do_automation.py
     fi
-    
     touch /root/.setup_complete
-    echo "Setup complete at $(date)" > /root/.setup_complete
 fi
-
 rm -rf /tmp/gbot-setup
 """
         

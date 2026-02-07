@@ -9,6 +9,17 @@
 ###############################################################################
 
 # Update system
+# PRE-EMPTIVELY KILL AUTOMATIC UPGRADES TO AVOID LOCKS
+echo "Stopping unattended-upgrades..."
+systemctl stop unattended-upgrades || true
+systemctl disable unattended-upgrades || true
+echo "Killing any existing apt processes..."
+killall apt apt-get || true
+rm /var/lib/dpkg/lock-frontend || true
+rm /var/lib/dpkg/lock || true
+dpkg --configure -a || true
+
+echo "Updating apt..."
 apt-get update -y
 
 # Install git and curl
