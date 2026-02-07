@@ -292,6 +292,40 @@
 </div>
 </div>
 
+<!-- Test Automation Modal -->
+<div class="modal fade" id="testAutomationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Test Automation Script</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Run the automation script on this droplet to verify it works before creating a
+                    snapshot.</p>
+                <form id="testAutomationForm">
+                    <input type="hidden" id="testDropletId">
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" id="testEmail" required placeholder="user@domain.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="text" class="form-control" id="testPassword" required placeholder="password">
+                    </div>
+                </form>
+                <div id="testAutomationResult" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="runTestAutomation()">
+                    <i class="fa fa-play"></i> Run Test
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     // === Global Variables ===
     let currentExecutionId = null;  // Track current bulk execution
