@@ -613,7 +613,7 @@ def get_droplet_setup_logs(droplet_id):
         if not droplet:
             return jsonify({'success': False, 'error': 'Droplet not found'}), 404
             
-        ip_address = service.get_droplet_ip(droplet)
+        ip_address = droplet.get('ip_address')
         
         if not ip_address:
             return jsonify({'success': False, 'error': 'Droplet has no IP address yet'}), 400
