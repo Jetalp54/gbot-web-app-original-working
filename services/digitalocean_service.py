@@ -212,6 +212,10 @@ class DigitalOceanService:
             if user_data:
                 req['user_data'] = user_data
             
+            logger.info(f"Creating droplet: {name} ({size}) in {region}")
+            
+            response = requests.post(f"{self.BASE_URL}/droplets", json=req, headers=self.headers)
+            
             if response.status_code in (200, 201, 202):
                 d = response.json()['droplet']
                 
