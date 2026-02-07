@@ -177,7 +177,8 @@ class DigitalOceanService:
         image: str,
         ssh_keys: Optional[List[str]] = None,
         tags: Optional[List[str]] = None,
-        user_data: Optional[str] = None
+        user_data: Optional[str] = None,
+        root_password: Optional[str] = None
     ) -> Tuple[Optional[Dict], Optional[str]]:
         """
         Create a new droplet.
@@ -190,6 +191,7 @@ class DigitalOceanService:
             ssh_keys: List of SSH key IDs or fingerprints
             tags: List of tags to apply
             user_data: Cloud-init user data script
+            root_password: Root password (if not using SSH keys or as alternative)
             
         Returns:
             Tuple containing (Droplet dictionary or None, Error message or None)
@@ -206,11 +208,15 @@ class DigitalOceanService:
                 'monitoring': False
             }
             
+            if root_password:
+                req['user_data'] = user_data  # Keep user_data if present
+                req['password'] = root_password # API field is 'password' NOT 'root_password'
+            else:
+                if user_data:
+                    req['user_data'] = user_data
+            
             if tags:
                 req['tags'] = tags
-            
-            if user_data:
-                req['user_data'] = user_data
             
             logger.info(f"Creating droplet: {name} ({size}) in {region}")
             
