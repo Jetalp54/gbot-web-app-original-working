@@ -660,6 +660,9 @@
                 <button class="btn btn-sm btn-info text-white me-1" onclick="openTestAutomationModal('${droplet.id}')" title="Test Automation">
                     <i class="fa fa-bug"></i> Test
                 </button>
+                <button class="btn btn-sm btn-dark me-1" onclick="openSetupLogs('${droplet.id}')" title="View Setup Logs">
+                    <i class="fa fa-terminal"></i> Logs
+                </button>
                 <button class="btn btn-sm btn-danger" onclick="deleteDroplet('${droplet.id}', '${droplet.name}')">
                     <i class="fa fa-trash"></i>
                 </button>
@@ -907,6 +910,60 @@
             }
         });
     }
+
+
+    // === Setup Logs Functions ===
+    let logPollInterval = null;
+
+    function openSetupLogs(dropletId) {
+        $('#setupLogsDropletId').val(dropletId);
+        $('#setupLogsContent').text('Loading logs...');
+        new bootstrap.Modal('#setupLogsModal').show();
+
+        // Fetch immediately then poll
+        fetchSetupLogs(dropletId);
+
+        // Poll every 3 seconds
+        if (logPollInterval) clearInterval(logPollInterval);
+        logPollInterval = setInterval(() => fetchSetupLogs(dropletId), 3000);
+    }
+
+    function fetchSetupLogs(dropletId) {
+        // If modal is closed, stop polling
+        if (!$('#setupLogsModal').hasClass('show')) {
+            if (logPollInterval) clearInterval(logPollInterval);
+            return;
+        }
+
+        $.ajax({
+            url: `/api/do/droplets/${dropletId}/setup-logs`,
+            method: 'GET',
+            success: function (response) {
+                if (response.success) {
+                    const logs = response.logs || 'No logs yet...';
+                    const pre = $('#setupLogsContent');
+
+                    // Only update if content changed to avoid jitter
+                    if (pre.text() !== logs) {
+                        pre.text(logs);
+                        // Auto-scroll to bottom
+                        pre.scrollTop(pre[0].scrollHeight);
+                    }
+                } else {
+                    $('#setupLogsContent').text(`Error fetching logs: ${response.error}`);
+                }
+            },
+            error: function (xhr) {
+                // Don't overwrite log on transient network error, just log to console
+                console.error("Log fetch error:", xhr);
+            }
+        });
+    }
+
+    // Stop polling when modal closes
+    $('#setupLogsModal').on('hidden.bs.modal', function () {
+        if (logPollInterval) clearInterval(logPollInterval);
+    });
 </script>
 
 <style>
@@ -922,4 +979,24 @@
         font-size: 0.85em;
     }
 </style>
+<!-- Setup Logs Modal -->
+<div class="modal fade" id="setupLogsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="fa fa-terminal"></i> Setup Logs (Cloud-Init)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-black p-0">
+                <input type="hidden" id="setupLogsDropletId">
+                <pre id="setupLogsContent" class="text-success p-3 m-0 font-monospace"
+                    style="white-space: pre-wrap; min-height: 400px; max-height: 600px; font-size: 0.85rem; background-color: #1a1a1a; color: #00ff00;"></pre>
+            </div>
+            <div class="modal-footer bg-dark border-top-0">
+                <small class="text-white-50 me-auto">Auto-refreshing every 3s...</small>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

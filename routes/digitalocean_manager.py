@@ -595,6 +595,63 @@ def create_snapshot():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@digitalocean_manager.route('/api/do/droplets/<droplet_id>/setup-logs', methods=['GET'])
+@login_required
+def get_droplet_setup_logs(droplet_id):
+    """Get the cloud-init setup logs from the droplet"""
+    try:
+        config = DigitalOceanConfig.query.first()
+        if not config or not config.api_token:
+            return jsonify({'success': False, 'error': 'DigitalOcean not configured'}), 400
+        
+        service = DigitalOceanService(config.api_token)
+        droplet = service.get_droplet(droplet_id)
+        
+        if not droplet:
+            return jsonify({'success': False, 'error': 'Droplet not found'}), 404
+            
+        ip_address = service.get_droplet_ip(droplet)
+        
+        if not ip_address:
+            return jsonify({'success': False, 'error': 'Droplet has no IP address yet'}), 400
+            
+        # Get SSH key path
+        ssh_key_path = None
+        if config.ssh_key_path and os.path.exists(config.ssh_key_path):
+            ssh_key_path = config.ssh_key_path
+        elif os.path.exists("edu-gw-creation-key.pem"):
+             ssh_key_path = os.path.abspath("edu-gw-creation-key.pem")
+             
+        if not ssh_key_path:
+             return jsonify({'success': False, 'error': 'SSH key not found on server'}), 500
+
+        # Command to read the log file
+        # We use strict host key checking=no to avoid interactive prompts
+        # We read /var/log/cloud-init-output.log which contains stdout/stderr of user-data script
+        cmd = "cat /var/log/cloud-init-output.log"
+        
+        stdout, stderr = service.execute_ssh_command(
+            ip_address=ip_address,
+            command=cmd,
+            username='root',
+            ssh_key_path=ssh_key_path
+        )
+        
+        if stderr and not stdout:
+             return jsonify({'success': False, 'error': f"Failed to read logs: {stderr}"})
+             
+        return jsonify({
+            'success': True, 
+            'logs': stdout,
+            'droplet_name': droplet.name,
+            'ip_address': ip_address
+        })
+
+    except Exception as e:
+        logger.error(f"Get setup logs error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @digitalocean_manager.route('/api/do/snapshots/<snapshot_id>', methods=['DELETE'])
 @login_required
 def delete_snapshot(snapshot_id):
