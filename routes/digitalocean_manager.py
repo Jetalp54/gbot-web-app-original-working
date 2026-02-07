@@ -576,10 +576,27 @@ def execute_automation():
         service = DigitalOceanService(config.api_token)
         orchestrator = BulkExecutionOrchestrator(config.__dict__, service)
         
+        # Create execution ID and DB record immediately
+        import time
+        execution_id = f"exec_{int(time.time())}"
+        
+        execution = DigitalOceanExecution()
+        execution.task_id = execution_id
+        execution.username = get_current_username()
+        execution.total_users = len(users)
+        execution.status = 'running'
+        execution.snapshot_id = snapshot_id
+        execution.region = region
+        execution.size = size
+        execution.started_at = datetime.utcnow()
+        
+        db.session.add(execution)
+        db.session.commit()
+        
         # Execute in background thread
         execution_thread = threading.Thread(
             target=_run_bulk_execution_background,
-            args=(orchestrator, users, droplet_count, snapshot_id, region, size, auto_destroy)
+            args=(orchestrator, users, droplet_count, snapshot_id, region, size, auto_destroy, execution_id)
         )
         execution_thread.daemon = True
         execution_thread.start()
@@ -587,7 +604,7 @@ def execute_automation():
         return jsonify({
             'success': True,
             'message': 'Bulk execution started',
-            'execution_id': orchestrator.execution_id,
+            'execution_id': execution_id,
             'total_users': len(users),
             'droplet_count': droplet_count
         })
@@ -604,41 +621,76 @@ def _run_bulk_execution_background(
     snapshot_id,
     region,
     size,
-    auto_destroy
+    auto_destroy,
+    execution_id
 ):
     """Background task for bulk execution"""
+    # Create a new app context for the thread
+    from app import app
+    with app.app_context():
+        try:
+            logger.info(f"Starting background bulk execution: {len(users)} users, {droplet_count} droplets")
+            
+            result = orchestrator.execute_bulk(
+                users=users,
+                droplet_count=droplet_count,
+                snapshot_id=snapshot_id,
+                region=region,
+                size=size,
+                auto_destroy=auto_destroy,
+                execution_id=execution_id
+            )
+            
+            # Update results in database
+            execution = DigitalOceanExecution.query.filter_by(task_id=execution_id).first()
+            if execution:
+                execution.droplets_created = result.get('droplets_used', 0)
+                execution.success_count = result.get('success_count', 0)
+                execution.failure_count = result.get('fail_count', 0)
+                execution.results_json = json.dumps(result.get('results', []))
+                execution.status = 'completed' if result['success'] else 'failed'
+                execution.error_message = result.get('error')
+                execution.completed_at = datetime.utcnow()
+                
+                db.session.commit()
+            
+            logger.info(f"Bulk execution completed: {execution_id}")
+            
+        except Exception as e:
+            logger.error(f"Background execution error: {e}")
+            # Try to update status to failed
+            try:
+                execution = DigitalOceanExecution.query.filter_by(task_id=execution_id).first()
+                if execution:
+                    execution.status = 'failed'
+                    execution.error_message = str(e)
+                    execution.completed_at = datetime.utcnow()
+                    db.session.commit()
+            except:
+                pass
+
+
+@digitalocean_manager.route('/api/do/execution/<execution_id>/status', methods=['GET'])
+@login_required
+def get_execution_status(execution_id):
+    """Get status of a bulk execution"""
     try:
-        logger.info(f"Starting background bulk execution: {len(users)} users, {droplet_count} droplets")
-        
-        result = orchestrator.execute_bulk(
-            users=users,
-            droplet_count=droplet_count,
-            snapshot_id=snapshot_id,
-            region=region,
-            size=size,
-            auto_destroy=auto_destroy
-        )
-        
-        # Store results in database
-        execution = DigitalOceanExecution()
-        execution.task_id = orchestrator.execution_id
-        execution.total_users = len(users)
-        execution.droplets_created = result.get('droplets_used', 0)
-        execution.success_count = result.get('success_count', 0)
-        execution.failure_count = result.get('fail_count', 0)
-        execution.results_json = json.dumps(result.get('results', []))
-        execution.status = 'completed' if result['success'] else 'failed'
-        execution.error_message = result.get('error')
-        execution.started_at = datetime.utcnow()
-        execution.completed_at = datetime.utcnow()
-        
-        db.session.add(execution)
-        db.session.commit()
-        
-        logger.info(f"Bulk execution completed: {orchestrator.execution_id}")
-        
+        execution = DigitalOceanExecution.query.filter_by(task_id=execution_id).first()
+        if not execution:
+            return jsonify({'success': False, 'error': 'Execution not found'}), 404
+            
+        return jsonify({
+            'success': True,
+            'status': execution.status,
+            'droplets_created': execution.droplets_created,
+            'success_count': execution.success_count,
+            'failure_count': execution.failure_count,
+            'error_message': execution.error_message,
+            'completed': execution.status in ['completed', 'failed']
+        })
     except Exception as e:
-        logger.error(f"Background execution error: {e}")
+        logger.error(f"Get execution status error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @digitalocean_manager.route('/api/do/generated-passwords/<execution_id>', methods=['GET'])

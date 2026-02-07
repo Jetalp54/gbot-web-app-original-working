@@ -44,7 +44,8 @@ class BulkExecutionOrchestrator:
         snapshot_id: str,
         region: str,
         size: str,
-        auto_destroy: bool = True
+        auto_destroy: bool = True,
+        execution_id: str = None
     ) -> Dict:
         """
         Execute bulk automation across multiple droplets.
@@ -64,12 +65,13 @@ class BulkExecutionOrchestrator:
             region: Region to create droplets in
             size: Droplet size
             auto_destroy: Whether to destroy droplets after completion
+            execution_id: Optional existing execution ID to use
             
         Returns:
             Dict with execution results
         """
         exec_start = datetime.utcnow()
-        self.execution_id = f"exec_{int(time.time())}"
+        self.execution_id = execution_id or f"exec_{int(time.time())}"
         
         logger.info(f"[{self.execution_id}] Starting bulk execution: {len(users)} users, {droplet_count} droplets")
         

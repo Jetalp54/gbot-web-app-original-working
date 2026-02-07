@@ -508,24 +508,12 @@
                     $('#executionProgress').show();
                     $('#executionId').text(response.execution_id);
                     $('#totalUsersProgress').text(totalUsers);
-                    $('#dropletsProgress').text(dropletCount);
+                    $('#dropletsProgress').text('0'); // Initial count
 
-                    // Start polling for droplet updates
+                    // Start polling Execution Status
                     const pollInterval = setInterval(function () {
-                        loadDroplets();
-                    }, 10000);  // Every 10 seconds
-
-                    // Stop polling after 10 minutes and show password viewer
-                    setTimeout(function () {
-                        clearInterval(pollInterval);
-                        $('#executionProgress').hide();
-                        showMessage('bulkExecutionMessages', '✅ Execution complete. Click "Load Generated Passwords" below to see results.', 'success');
-
-                        // Auto-scroll to password section
-                        $('html, body').animate({
-                            scrollTop: $('#passwordsList').offset().top - 100
-                        }, 500);
-                    }, 600000);
+                        checkExecutionStatus(response.execution_id, pollInterval);
+                    }, 5000);  // Every 5 seconds
 
                     // Clear form
                     $('#bulkExecutionForm')[0].reset();
@@ -540,6 +528,46 @@
             }
         });
     });
+
+    // Check Execution Status
+    function checkExecutionStatus(executionId, intervalId) {
+        $.ajax({
+            url: `/api/do/execution/${executionId}/status`,
+            method: 'GET',
+            success: function (response) {
+                if (response.success) {
+                    // Update progress UI
+                    $('#dropletsProgress').text(response.droplets_created);
+
+                    // Update status badge/text if you have one, or just the progress counters
+
+                    if (response.completed) {
+                        clearInterval(intervalId); // Stop polling
+
+                        // Refresh droplet list one last time to capture any final states
+                        loadDroplets();
+
+                        if (response.status === 'completed') {
+                            showMessage('bulkExecutionMessages', `✅ Execution Completed Successfully! (Success: ${response.success_count}, Failed: ${response.failure_count})`, 'success');
+
+                            // Auto-scroll to password section
+                            $('html, body').animate({
+                                scrollTop: $('#passwordsList').offset().top - 100
+                            }, 500);
+
+                        } else {
+                            // Failed
+                            showMessage('bulkExecutionMessages', `❌ Execution Failed: ${response.error_message}`, 'danger');
+                        }
+                    }
+                }
+            },
+            error: function (xhr) {
+                console.error("Error checking status:", xhr);
+                // Don't stop polling on transient network errors, but maybe log it
+            }
+        });
+    }
 
     // Load Droplets
     function loadDroplets() {
