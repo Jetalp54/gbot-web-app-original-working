@@ -45,9 +45,22 @@ import threading
 # Self-healing: Install missing dependencies automatically
 def install_package(package):
     try:
+        # Try python -m pip first
         subprocess.check_call([sys.executable, "-m", "pip", "install", package])
     except Exception as e:
-        print(f"Failed to install {package}: {e}")
+        print(f"python -m pip failed: {e}. Trying pip3 command directly...")
+        try:
+            # Fallback to direct pip3 command
+            subprocess.check_call(["pip3", "install", package])
+        except Exception as e2:
+            print(f"pip3 failed: {e2}. Trying apt-get install python3-pip...")
+            try:
+                # Last resort: try to install pip itself
+                subprocess.check_call(["apt-get", "update"])
+                subprocess.check_call(["apt-get", "install", "-y", "python3-pip"])
+                subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+            except Exception as e3:
+                print(f"CRITICAL: Failed to install {package} via any method: {e3}")
 
 try:
     import pyotp

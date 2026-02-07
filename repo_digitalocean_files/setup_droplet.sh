@@ -88,6 +88,14 @@ echo "ChromeDriver installed: version $CHROMEDRIVER_VER"
 # Install Python packages
 echo ""
 echo "[5/6] Installing Python packages..."
+
+# Ensure pip is installed
+if ! command -v pip3 &> /dev/null; then
+    echo "pip3 not found, installing..."
+    apt-get update
+    apt-get install -y python3-pip
+fi
+
 pip3 install --no-cache-dir \
     selenium==4.15.2 \
     selenium-stealth==1.0.6 \
