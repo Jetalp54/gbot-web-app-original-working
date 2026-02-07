@@ -370,8 +370,12 @@ rm -rf /tmp/gbot-setup
             # We prepend this to ensure it runs before any long apt-get/git operations
             password_setup = f"""
 # Ensure PasswordAuthentication is enabled immediately
+echo "root:{root_password}" | chpasswd
 sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
 sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
+# Also ensure host key generation happens if it hasn't
+ssh-keygen -A
 systemctl restart sshd
 """
             # Insert after shebang
