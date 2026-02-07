@@ -21,70 +21,66 @@ set -e  # Exit on any error
 echo "===== DigitalOcean Droplet Setup for Google Workspace Automation ====="
 echo "Starting at: $(date)"
 
-# Helper function for robust apt-get
-apt_install_with_retry() {
-    local max_retries=10
-    local count=0
-    while [ $count -lt $max_retries ]; do
-        DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@" && return 0
-        echo "apt-get failed. Retrying in 15s... (Attempt $((count+1))/$max_retries)"
-        sleep 15
-        # Try to clear locks forcefully if we are stuck
-        rm /var/lib/dpkg/lock-frontend || true
-        rm /var/lib/dpkg/lock || true
-        dpkg --configure -a || true
-        count=$((count+1))
-    done
-    echo "CRITICAL: apt-get failed after $max_retries attempts."
-    return 1
+# Helper function for silent install
+silent_apt() {
+    DEBIAN_FRONTEND=noninteractive apt-get "$@" > /dev/null 2>&1
+    local status=$?
+    if [ $status -ne 0 ]; then
+        echo "Error running apt-get $@. Retrying with output..."
+        # If it fails, run it again without silence to show error
+        DEBIAN_FRONTEND=noninteractive apt-get "$@"
+        return $?
+    fi
+    return 0
 }
 
-# Update system packages
+# Update system
+# 1. Update system
 echo ""
 echo "[1/6] Updating system packages..."
-apt_install_with_retry update -y
-apt_install_with_retry upgrade -y
+silent_apt update
+silent_apt upgrade -y
 
-# Install basic dependencies
+# 2. Install basic dependencies
 echo ""
 echo "[2/6] Installing basic dependencies..."
-apt-get install -y -qq \
+silent_apt install -y \
     wget \
     curl \
     unzip \
-    python3 \
+    git \
     python3-pip \
     python3-venv \
     xvfb \
+    libxi6 \
+    libgconf-2-4 \
+    default-jdk \
     libxss1 \
     libappindicator1 \
     libindicator7 \
     fonts-liberation \
     libnss3 \
     libgbm1 \
-    libxshmfence1 \
-    git \
-    libxi6 \
-    libgconf-2-4 \
-    default-jdk
+    libxshmfence1
 
-# 3. Install Google Chrome
+# 3. Install Chrome
 echo ""
-echo "[3/6] Installing Google Chrome..."
+echo "[3/6] Installing Chrome..."
 wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-apt-get install -y -qq ./google-chrome-stable_current_amd64.deb
+silent_apt install -y ./google-chrome-stable_current_amd64.deb
 rm google-chrome-stable_current_amd64.deb
 
 # Verify Chrome installation
 CHROME_VERSION=$(google-chrome --version | awk '{print $3}')
 echo "Chrome installed: version $CHROME_VERSION"
 
-# 4. Install ChromeDriver (matching Chrome version)
+# 4. Install ChromeDriver
 echo ""
 echo "[4/6] Installing ChromeDriver..."
 CHROME_MAJOR_VERSION=$(echo "$CHROME_VERSION" | cut -d. -f1)
 echo "Detected Chrome version: $CHROME_VERSION"
 
+# Fetch latest compatible driver
 if [ "$CHROME_MAJOR_VERSION" -ge "115" ]; then
     echo "Chrome version is 115+, using cf-for-testing..."
     # Fetch the correct ChromeDriver version for 115+
@@ -96,14 +92,21 @@ if [ "$CHROME_MAJOR_VERSION" -ge "115" ]; then
         LATEST_CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_STABLE")
         wget -q "https://storage.googleapis.com/chrome-for-testing-public/$LATEST_CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip"
     fi
-    unzip -q chromedriver-linux64.zip
-    mv chromedriver-linux64/chromedriver /usr/local/bin/
-    rm -rf chromedriver-linux64.zip chromedriver-linux64
+    # Unzip logic handled below
 else
     echo "Chrome version is < 115, using legacy storage..."
+    # Legacy
     CHROMEDRIVER_VERSION=$(curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE)
     wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
-    unzip -q chromedriver_linux64.zip
+    # Unzip logic handled below
+fi
+
+if [ -f "chromedriver-linux64.zip" ]; then
+    unzip -q -o chromedriver-linux64.zip
+    mv chromedriver-linux64/chromedriver /usr/local/bin/
+    rm -rf chromedriver-linux64.zip chromedriver-linux64
+elif [ -f "chromedriver_linux64.zip" ]; then
+    unzip -q -o chromedriver_linux64.zip
     mv chromedriver /usr/local/bin/
     rm chromedriver_linux64.zip
 fi
