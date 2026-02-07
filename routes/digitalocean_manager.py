@@ -622,6 +622,9 @@ def _run_bulk_execution_background(
     region,
     size,
     auto_destroy,
+    execution_id
+):
+    """Background task for bulk execution"""
     # Create a new app context for the thread
     from app import app
     with app.app_context():
