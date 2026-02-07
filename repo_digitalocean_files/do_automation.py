@@ -27,25 +27,49 @@ import threading
 
 # 3rd-party libraries
 # Standard imports
-import os
-import re
-import json
+import sys
+import subprocess
 import time
-import base64
 import random
 import string
+import json
+import os
 import logging
 import traceback
-import subprocess
 import urllib.parse
 import urllib.request
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
-# 3rd-party libraries
-import pyotp
-import requests
+# Self-healing: Install missing dependencies automatically
+def install_package(package):
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+    except Exception as e:
+        print(f"Failed to install {package}: {e}")
+
+try:
+    import pyotp
+except ImportError:
+    print("pyotp not found. Installing...")
+    install_package("pyotp")
+    import pyotp
+
+try:
+    import requests
+except ImportError:
+    print("requests not found. Installing...")
+    install_package("requests")
+    import requests
+
+# Check for selenium
+try:
+    import selenium
+except ImportError:
+    print("selenium not found. Installing...")
+    install_package("selenium")
+    import selenium
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys

@@ -140,21 +140,24 @@ def save_config():
         # Handle SSH private key
         ssh_private_key = data.get('ssh_private_key', '').strip()
         if ssh_private_key:
-            import tempfile
             import os
             
-            # Create temporary file for SSH key
-            fd, key_path = tempfile.mkstemp(suffix='.pem', prefix='do_ssh_')
-            with os.fdopen(fd, 'w') as f:
+            # Save to a persistent file in the app directory
+            # Use 'digitalocean_key.pem' in the instance folder or root
+            # Creating in root for simplicity as per user setup
+            key_path = os.path.abspath('digitalocean_key.pem')
+            
+            with open(key_path, 'w') as f:
                 f.write(ssh_private_key)
             
-            # Set restrictive permissions
+            # Set restrictive permissions (best effort on Windows)
             try:
                 os.chmod(key_path, 0o600)
             except:
-                pass  # Windows doesn't support chmod
+                pass
             
             config.ssh_private_key_path = key_path
+            logger.info(f"Saved SSH private key to {key_path}")
         
         config.is_configured = True
         
