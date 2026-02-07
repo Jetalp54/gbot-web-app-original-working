@@ -43,6 +43,9 @@ class DigitalOceanService:
             # Try to list account info
             response = requests.get(f"{self.BASE_URL}/account", headers=self.headers)
             
+            if response.status_code == 200:
+                account = response.json()['account']
+                return True, f"Connected successfully. Email: {account['email']}"
             else:
                 return False, f"Connection failed: {response.text}"
         except Exception as e:
