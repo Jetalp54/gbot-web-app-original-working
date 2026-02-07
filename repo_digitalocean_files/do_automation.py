@@ -95,6 +95,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from selenium.webdriver.common.action_chains import ActionChains
 
 # Configure logging
 logging.basicConfig(
@@ -117,6 +118,10 @@ import threading
 _proxy_list_cache = None
 _proxy_rotation_counter = 0
 _proxy_lock = threading.Lock()
+
+# Cache for Chrome binary paths
+_cached_chrome_binary = None
+_cached_chromedriver_path = None
 
 def get_proxy_list_from_env():
     """Get and parse proxy list from environment variable"""
@@ -577,6 +582,67 @@ def wait_for_visible_and_interactable(driver, xpath, timeout=30):
         logger.error(f"[SELENIUM] Error waiting for element: {e}")
         return None
 
+def element_exists(driver, xpath, timeout=3):
+    """Check if an element exists by XPath."""
+    try:
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.XPATH, xpath))
+        )
+        return True
+    except:
+        return False
+
+def wait_for_clickable_xpath(driver, xpath, timeout=20):
+    """Wait for an element to be clickable by XPath."""
+    try:
+        element = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable((By.XPATH, xpath))
+        )
+        return element
+    except:
+        return None
+
+def click_xpath(driver, xpath, timeout=20):
+    """Wait for element to be clickable and click it."""
+    try:
+        element = wait_for_clickable_xpath(driver, xpath, timeout=timeout)
+        if element:
+            element.click()
+            return True
+        return False
+    except Exception as e:
+        logger.debug(f"[SELENIUM] Failed to click xpath {xpath}: {e}")
+        return False
+
+def simulate_human_typing(element, text, driver=None):
+    """Simulate human typing with random delays."""
+    for char in text:
+        element.send_keys(char)
+        time.sleep(random.uniform(0.05, 0.2))
+
+def inject_randomized_javascript(driver):
+    """Inject JavaScript to mask automation."""
+    try:
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    except:
+        pass
+
+def save_credential(email, app_password):
+    """Log credential saving (handled by main return value)."""
+    logger.info(f"[DB] Credential saved for {email}")
+    return True
+
+dynamodb_table = None # Mock variable
+
+def get_secret_key_from_dynamodb(email, table_name=None):
+    """Mock DynamoDB retrieval (not used in DigitalOcean context)."""
+    return None
+
+def upload_secret_to_sftp(email, secret_key):
+    """Mock SFTP upload (result is returned in JSON anyway)."""
+    logger.info(f"[SFTP] Secret key for {email} would be uploaded here.")
+    return True
+
 def wait_for_password_clickable(driver, by_method, selector, timeout=10):
     """Wait for password field to be clickable using By.NAME or By.XPATH (like reference function)"""
     try:
@@ -613,8 +679,42 @@ def wait_for_password_clickable(driver, by_method, selector, timeout=10):
     except TimeoutException:
         return None
     except Exception as e:
-        logger.debug(f"[SELENIUM] Error waiting for password field: {e}")
         return None
+
+def detect_captcha(driver, email=None):
+    """Detect presence of CAPTCHA on the page."""
+    try:
+        # Check for common CAPTCHA elements
+        captcha_elements = [
+            "//iframe[contains(@src, 'recaptcha')]",
+            "//div[contains(@class, 'recaptcha')]",
+            "//input[@name='ca']",  # Image captcha input
+            "//img[contains(@src, 'captcha')]",
+            "//*[@id='captcha']"
+        ]
+        for xpath in captcha_elements:
+            if element_exists(driver, xpath, timeout=1):
+                return True
+        return False
+    except:
+        return False
+
+def solve_captcha_with_2captcha(driver, email=None):
+    """Wrapper to solve CAPTCHA using configured method."""
+    config = get_twocaptcha_config()
+    if not config['enabled'] or not config['api_key']:
+        return False, "2Captcha not configured"
+    
+    # Try image captcha first
+    if element_exists(driver, "//input[@name='ca']", timeout=1):
+        return solve_google_image_captcha(driver, config['api_key'], email)
+    
+    # Try reCAPTCHA
+    return solve_recaptcha_v2(driver, config['api_key'])
+
+def get_secret_key_from_dynamodb(email, table_name=None):
+    """Mock DynamoDB retrieval (not used in DigitalOcean context)."""
+    return None
 
 def get_twocaptcha_config():
     """Get 2Captcha configuration from environment variables"""
