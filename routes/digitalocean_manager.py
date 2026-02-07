@@ -653,14 +653,14 @@ def get_droplet_setup_logs(droplet_id):
              return jsonify({
                  'success': True, 
                  'logs': f"[Error connecting to droplet: {stderr}]",
-                 'droplet_name': droplet.name,
+                 'droplet_name': droplet.get('name'),
                  'ip_address': ip_address
              })
              
         return jsonify({
             'success': True, 
             'logs': stdout,
-            'droplet_name': droplet.name,
+            'droplet_name': droplet.get('name'),
             'ip_address': ip_address
         })
 
