@@ -358,23 +358,39 @@ rm -rf /tmp/gbot-setup
         # Convert SSH key string to list if provided
         ssh_keys_list = []
         
-        # Add configured SSH key ID if exists
-        if config.ssh_key_id:
-            ssh_keys_list.append(int(config.ssh_key_id) if str(config.ssh_key_id).isdigit() else config.ssh_key_id)
-            
-        # Add input key if provided and different
-        if ssh_key and ssh_key not in ssh_keys_list:
-            # If it's a fingerprint or ID, add it
-            ssh_keys_list.append(int(ssh_key) if str(ssh_key).isdigit() else ssh_key)
-            
+        # PRIORITY: Look for SSH key named 'Default' in DigitalOcean account
+        try:
+            default_key = service.get_ssh_key_by_name('Default')
+            if default_key:
+                ssh_keys_list.append(default_key['id'])
+                logger.info(f"Found and using 'Default' SSH key ID: {default_key['id']}")
+            else:
+                logger.warning("SSH key named 'Default' not found in DigitalOcean account.")
+                # Fallback to configured key if 'Default' not found
+                if config.ssh_key_id:
+                    ssh_keys_list.append(int(config.ssh_key_id) if str(config.ssh_key_id).isdigit() else config.ssh_key_id)
+        except Exception as e:
+            logger.error(f"Error looking up 'Default' SSH key: {e}")
+            # Fallback on error
+            if config.ssh_key_id:
+                ssh_keys_list.append(int(config.ssh_key_id) if str(config.ssh_key_id).isdigit() else config.ssh_key_id)
+
         if not ssh_keys_list:
+            ssh_keys_list = None
+            logger.warning("No SSH keys found for droplet creation")
             ssh_keys_list = None
             logger.warning("No SSH keys found for droplet creation")
             
         # Get root password if provided
         root_password = (data.get('root_password') or '').strip()
         
-        # If password provided, add to cloud-init sshd config only
+        # Validation: If no password provided (SSH mode), we MUST have keys
+        if not root_password and not ssh_keys_list:
+            return jsonify({
+                'success': False, 
+                'error': 'No SSH keys configured in Settings. Please add an SSH key ID in Settings or choose Password authentication.'
+            }), 400
+            
         # If password provided, pre-configure SSHD to allow password auth IMMEDIATELY
         if root_password:
             # We prepend this to ensure it runs before any long apt-get/git operations

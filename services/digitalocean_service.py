@@ -139,8 +139,37 @@ class DigitalOceanService:
         except Exception as e:
             logger.error(f"Error listing droplets: {e}")
             return []
-    
-    def get_droplet(self, droplet_id: str) -> Optional[Dict]:
+    def list_keys(self) -> List[Dict]:
+        """
+        List all SSH keys in the account.
+        
+        Returns:
+            List of SSH key dictionaries
+        """
+        try:
+            response = requests.get(f"{self.BASE_URL}/account/keys", params={'per_page': 200}, headers=self.headers)
+            if response.status_code == 200:
+                return response.json().get('ssh_keys', [])
+            return []
+        except Exception as e:
+            logger.error(f"Error listing SSH keys: {e}")
+            return []
+
+    def get_ssh_key_by_name(self, name: str) -> Optional[Dict]:
+        """
+        Get an SSH key by its name (case-insensitive).
+        
+        Args:
+            name: SSH key name to find
+            
+        Returns:
+            SSH key dictionary or None
+        """
+        keys = self.list_keys()
+        for key in keys:
+            if key['name'].lower() == name.lower():
+                return key
+        return None
         """
         Get droplet details by ID.
         
