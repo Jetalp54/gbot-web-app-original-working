@@ -148,7 +148,9 @@ class BulkExecutionOrchestrator:
             futures = []
             
             for i in range(count):
-                name = f"bulk-exec-{self.execution_id}-{i+1}"
+                # Sanitize name: replace underscores with hyphens for DO compliance
+                safe_exec_id = self.execution_id.replace('_', '-')
+                name = f"bulk-exec-{safe_exec_id}-{i+1}"
                 future = executor.submit(
                     self._create_and_wait_for_droplet,
                     name, snapshot_id, region, size
