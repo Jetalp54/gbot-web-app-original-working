@@ -581,10 +581,22 @@ def test_droplet_automation(droplet_id):
             ssh_key_path=ssh_key_path
         )
         
-        if result['success']:
-            return jsonify({'success': True, 'message': 'Automation started successfully', 'logs': result['logs']})
+        # Check if execution was successful (script ran and returned valid JSON)
+        # Note: run_automation_script returns either the JSON result from the script OR an error dict
+        
+        # If the script failed to run or upload, it returns {'success': False, 'error': ...}
+        if 'success' in result and result['success'] is False:
+             return jsonify({'success': False, 'error': result.get('error', 'Unknown Execution Error'), 'logs': result.get('stdout', '')}), 500
+
+        # If the script ran, it returns the JSON output which has a 'status' field
+        is_success = result.get('status') == 'success'
+        
+        if is_success:
+            return jsonify({'success': True, 'message': 'Automation completed successfully', 'result': result})
         else:
-            return jsonify({'success': False, 'error': result['error'], 'logs': result.get('logs', '')}), 500
+            # Script ran but failed logic (e.g. login failed)
+            error_msg = result.get('error_message') or result.get('error') or 'Automation script reported failure'
+            return jsonify({'success': False, 'error': error_msg, 'result': result}), 400
 
     except Exception as e:
         logger.error(f"Test automation error: {e}")

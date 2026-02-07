@@ -636,7 +636,7 @@ class DigitalOceanService:
                 ssh_key_path=ssh_key_path
             )
             
-            command = f"/usr/bin/python3 {remote_script} --email '{email}' --password '{password}' --output {result_file}"
+            command = f"/usr/bin/python3 {remote_script} --email '{email}' --password '{password}' --output {result_file} | tee -a /var/log/gbot_automation.log"
             logger.info(f"Running automation on {ip_address} for {email}")
             
             success, stdout, stderr = self.execute_ssh_command(
