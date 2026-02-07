@@ -550,8 +550,13 @@ def test_droplet_automation(droplet_id):
         if not ssh_key_path:
              return jsonify({'success': False, 'error': 'SSH key not found on server. Please save settings again.'}), 500
 
-        # Run automation
-        result = service.run_automation_script(
+        # Check if setup is complete
+        check_cmd = "[ -f /opt/automation/setup_complete ] && echo 'yes' || echo 'no'"
+        success, stdout, stderr = service.execute_ssh_command(
+            ip_address=ip_address,
+            command=check_cmd,
+            username='root',
+            ssh_key_path=ssh_key_path
             ip_address=ip_address,
             email=email,
             password=password,
@@ -665,20 +670,38 @@ def get_droplet_setup_logs(droplet_id):
             ssh_key_path=ssh_key_path
         )
         
+        # Filter logs to show only user setup process if it has started
+        marker = "===== DigitalOcean Droplet Setup"
+        if success and marker in stdout:
+             stdout = stdout[stdout.find(marker):]
+        elif success:
+             # If setup hasn't started, show a waiting message or the last few lines of boot
+             stdout = "Waiting for setup script to start...\n" + "\n".join(stdout.splitlines()[-5:])
+
+        # Check completion status
+        is_complete = False
+        if success:
+            check_cmd = "[ -f /opt/automation/setup_complete ] && echo 'yes' || echo 'no'"
+            c_success, c_stdout, _ = service.execute_ssh_command(ip_address, check_cmd, 'root', ssh_key_path)
+            if c_success and c_stdout.strip() == 'yes':
+                is_complete = True
+        
         if not success:
              # Return success=True but with error message in logs to display it in the console
              return jsonify({
                  'success': True, 
                  'logs': f"[Error connecting to droplet: {stderr}]",
                  'droplet_name': droplet.get('name'),
-                 'ip_address': ip_address
+                 'ip_address': ip_address,
+                 'setup_complete': False
              })
              
         return jsonify({
             'success': True, 
             'logs': stdout,
             'droplet_name': droplet.get('name'),
-            'ip_address': ip_address
+            'ip_address': ip_address,
+            'setup_complete': is_complete
         })
 
     except Exception as e:

@@ -628,19 +628,17 @@
                 method: 'GET',
                 success: function (response) {
                     if (response.success) {
-                        const logs = response.logs || '';
-                        $('#creationLogContent').text(logs);
+                        $('#creationLogContent').text(response.logs || '');
 
                         // Auto-scroll to bottom
-                        const pre = document.getElementById('creationLogContent');
-                        pre.scrollTop = pre.scrollHeight;
+                        const textarea = document.getElementById('creationLogContent');
+                        textarea.scrollTop = textarea.scrollHeight;
 
-                        if (logs.includes('Setup complete at') || logs.includes('Cloud-init setup completed successfully')) {
-                            $('#creationLogStatus').text('Complete').removeClass('bg-warning').addClass('bg-success');
-                            // Optional: Stop polling after success
-                            // clearInterval(creationLogPollInterval); 
+                        if (response.setup_complete) {
+                            $('#creationLogStatus').removeClass('bg-warning').addClass('bg-success').text('Setup Complete');
+                            clearInterval(creationLogPollInterval);
                         } else {
-                            $('#creationLogStatus').text('Installing...').removeClass('bg-success').addClass('bg-warning text-dark');
+                            $('#creationLogStatus').removeClass('bg-success').addClass('bg-warning').text('Installing... (Do not run test yet)');
                         }
                     }
                 },

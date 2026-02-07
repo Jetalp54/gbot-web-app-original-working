@@ -153,6 +153,9 @@ echo "Cleaning up..."
 apt-get autoremove -y
 apt-get autoclean -y
 
+# Create completion marker
+touch /opt/automation/setup_complete
+
 echo ""
 echo "===== Setup Complete! ====="
 echo "Finished at: $(date)"
