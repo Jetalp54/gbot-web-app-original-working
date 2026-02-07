@@ -72,9 +72,9 @@
             </div>
             <div class="row" id="sshKeySection">
                 <div class="col-12 mb-3">
-                    <label class="form-label">SSH Public Key</label>
-                    <textarea class="form-control" id="sshKey" rows="3" placeholder="ssh-rsa AAAAB3NzaC1..."></textarea>
-                    <small class="text-muted">Will use your configured SSH key if left empty.</small>
+                    <div class="alert alert-info">
+                        <i class="fa fa-info-circle"></i> Using configured SSH Key from Settings.
+                    </div>
                 </div>
             </div>
             <div class="row" id="passwordSection" style="display: none;">
@@ -399,7 +399,8 @@
             name: $('#dropletName').val().trim(),
             region: $('#region').val(),
             size: $('#size').val(),
-            ssh_key: authMethod === 'ssh' ? $('#sshKey').val().trim() : null,
+            // Backend will use the configured SSH key from Settings if authMethod is ssh
+            ssh_key: null,
             root_password: authMethod === 'password' ? $('#rootPassword').val().trim() : null
         };
 
