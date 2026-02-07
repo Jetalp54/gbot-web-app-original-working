@@ -883,20 +883,26 @@
 
                     $('#testAutomationResult').html(html);
                 } else {
-                    let errorMsg = response.error || 'Unknown error';
+                    let errorMsg = response.error || (response.result && response.result.error) || 'Unknown error';
                     let html = `<div class="alert alert-danger">
                         <strong>❌ Test Failed:</strong> ${errorMsg}
                     </div>`;
 
-                    if (response.result && response.result.stdout) {
-                        html += `<div class="mt-2"><small><strong>Stdout:</strong></small><pre class="bg-light p-2 border" style="max-height: 200px; font-size: 0.8em;">${response.result.stdout}</pre></div>`;
+                    if (response.result) {
+                        if (response.result.stdout) {
+                            html += `<div class="mt-2"><small><strong>Stdout:</strong></small><pre class="bg-light p-2 border" style="max-height: 200px; font-size: 0.8em;">${response.result.stdout}</pre></div>`;
+                        }
+                        if (response.result.stderr) {
+                            html += `<div class="mt-2"><small><strong>Stderr:</strong></small><pre class="bg-light p-2 border text-danger" style="max-height: 200px; font-size: 0.8em;">${response.result.stderr}</pre></div>`;
+                        }
                     }
 
                     $('#testAutomationResult').html(html);
                 }
             },
             error: function (xhr) {
-                const error = xhr.responseJSON?.error || 'Failed to run test';
+                // Try to get error from responseJSON.error OR responseJSON.result.error
+                const error = xhr.responseJSON?.error || (xhr.responseJSON?.result && xhr.responseJSON.result.error) || 'Failed to run test';
                 $('#testAutomationResult').html(`<div class="alert alert-danger"><strong>Error:</strong> ${error}</div>`);
             }
         });
