@@ -365,17 +365,21 @@ rm -rf /tmp/gbot-setup
         root_password = (data.get('root_password') or '').strip()
         
         # If password provided, add to cloud-init sshd config only
+        # If password provided, pre-configure SSHD to allow password auth IMMEDIATELY
         if root_password:
-            # Add password configuration to cloud-init
-            # Note: We set the password via API, which is safer. 
-            # We only ensure SSH settings allow password auth here.
-            password_script = f"""
-# Ensure PasswordAuthentication is enabled
+            # We prepend this to ensure it runs before any long apt-get/git operations
+            password_setup = f"""
+# Ensure PasswordAuthentication is enabled immediately
 sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
 sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
 systemctl restart sshd
 """
-            cloud_init_script += password_script
+            # Insert after shebang
+            if cloud_init_script.startswith('#!/bin/bash'):
+                cloud_init_script = cloud_init_script.replace('#!/bin/bash', f'#!/bin/bash\n{password_setup}', 1)
+            else:
+                cloud_init_script = f'#!/bin/bash\n{password_setup}\n{cloud_init_script}'
+                
             logger.info(f"Added password auth configuration for droplet {full_name}")
         
         result, error_msg = service.create_droplet(
