@@ -26,7 +26,7 @@ apt_install_with_retry() {
     local max_retries=10
     local count=0
     while [ $count -lt $max_retries ]; do
-        DEBIAN_FRONTEND=noninteractive apt-get "$@" && return 0
+        DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@" && return 0
         echo "apt-get failed. Retrying in 15s... (Attempt $((count+1))/$max_retries)"
         sleep 15
         # Try to clear locks forcefully if we are stuck
