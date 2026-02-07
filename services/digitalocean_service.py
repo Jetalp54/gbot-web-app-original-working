@@ -582,12 +582,16 @@ class DigitalOceanService:
             remote_script = '/opt/automation/do_automation.py'
             
             # Ensure remote directory exists (in case setup failed or wasn't run)
-            self.execute_ssh_command(
+            # Ensure remote directory exists (in case setup failed or wasn't run)
+            success, stdout, stderr = self.execute_ssh_command(
                 ip_address=ip_address,
                 command="mkdir -p /opt/automation",
                 username='root',
                 ssh_key_path=ssh_key_path
             )
+            
+            if not success:
+                 return {'success': False, 'error': f"Failed to create remote directory (SSH Error): {stderr or 'Unknown SSH error'}"}
             
             if not os.path.exists(local_script):
                 return {'success': False, 'error': f"Local script not found at {local_script}"}
