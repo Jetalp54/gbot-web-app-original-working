@@ -515,8 +515,7 @@
                         checkExecutionStatus(response.execution_id, pollInterval);
                     }, 5000);  // Every 5 seconds
 
-                    // Clear form
-                    $('#bulkExecutionForm')[0].reset();
+                    // Form is NOT reset so user keeps their settings
 
                 } else {
                     showMessage('bulkExecutionMessages', `❌ Failed to start execution: ${response.error}`, 'danger');
@@ -622,6 +621,9 @@
             <td>${droplet.size}</td>
             <td><span class="badge bg-${statusClass}">${droplet.status}</span></td>
             <td>
+                <button class="btn btn-sm btn-info text-white me-1" onclick="openTestAutomationModal('${droplet.id}')" title="Test Automation">
+                    <i class="fa fa-bug"></i> Test
+                </button>
                 <button class="btn btn-sm btn-danger" onclick="deleteDroplet('${droplet.id}', '${droplet.name}')">
                     <i class="fa fa-trash"></i>
                 </button>
@@ -804,6 +806,64 @@
             '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
             '</div>';
         $('#' + elementId).html(html);
+    }
+
+    // === Test Automation Functions ===
+    function openTestAutomationModal(dropletId) {
+        $('#testDropletId').val(dropletId);
+        $('#testAutomationResult').html('');
+        $('#testAutomationForm')[0].reset();
+        new bootstrap.Modal('#testAutomationModal').show();
+    }
+
+    function runTestAutomation() {
+        const dropletId = $('#testDropletId').val();
+        const email = $('#testEmail').val().trim();
+        const password = $('#testPassword').val().trim();
+
+        if (!email || !password) {
+            $('#testAutomationResult').html('<div class="alert alert-danger">Email and password are required</div>');
+            return;
+        }
+
+        $('#testAutomationResult').html('<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Running test... This may take a minute.</div>');
+
+        $.ajax({
+            url: `/api/do/droplets/${dropletId}/test-automation`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ email: email, password: password }),
+            success: function (response) {
+                if (response.success) {
+                    const result = response.result;
+                    let html = `<div class="alert alert-success">
+                        <strong>✅ Test Passed!</strong><br>
+                        App Password: <code>${result.app_password || 'N/A'}</code>
+                    </div>`;
+
+                    if (result.stdout) {
+                        html += `<div class="mt-2"><small><strong>Stdout:</strong></small><pre class="bg-light p-2 border" style="max-height: 200px; font-size: 0.8em;">${result.stdout}</pre></div>`;
+                    }
+
+                    $('#testAutomationResult').html(html);
+                } else {
+                    let errorMsg = response.error || 'Unknown error';
+                    let html = `<div class="alert alert-danger">
+                        <strong>❌ Test Failed:</strong> ${errorMsg}
+                    </div>`;
+
+                    if (response.result && response.result.stdout) {
+                        html += `<div class="mt-2"><small><strong>Stdout:</strong></small><pre class="bg-light p-2 border" style="max-height: 200px; font-size: 0.8em;">${response.result.stdout}</pre></div>`;
+                    }
+
+                    $('#testAutomationResult').html(html);
+                }
+            },
+            error: function (xhr) {
+                const error = xhr.responseJSON?.error || 'Failed to run test';
+                $('#testAutomationResult').html(`<div class="alert alert-danger"><strong>Error:</strong> ${error}</div>`);
+            }
+        });
     }
 </script>
 

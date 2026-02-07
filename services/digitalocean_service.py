@@ -525,3 +525,100 @@ class DigitalOceanService:
                    f"({users_per_droplet} users per droplet)")
         
         return batches
+    
+    def run_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None) -> Dict:
+        """
+        Run the automation script for a single user on a droplet.
+        Uploads do_automation.py, executes it, and retrieves the result.
+        
+        Args:
+            ip_address: Droplet IP address
+            email: User email
+            password: User password
+            ssh_key_path: Path to SSH private key
+            
+        Returns:
+            Dict containing success status, result data, or error message
+        """
+        try:
+            # 1. Upload automation script
+            local_script = os.path.join(os.getcwd(), 'repo_digitalocean_files', 'do_automation.py')
+            remote_script = '/opt/automation/do_automation.py'
+            
+            if not os.path.exists(local_script):
+                return {'success': False, 'error': f"Local script not found at {local_script}"}
+                
+            uploaded = self.upload_file_sftp(
+                ip_address=ip_address,
+                local_path=local_script,
+                remote_path=remote_script,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            if not uploaded:
+                return {'success': False, 'error': "Failed to upload automation script"}
+                
+            # Ensure proper syntax and executable
+            # Convert CRLF to LF just in case (for Windows uploads) -> usually handled by SFTP mode but safe to sed
+            self.execute_ssh_command(
+                ip_address=ip_address,
+                command=f"sed -i 's/\r$//' {remote_script} && chmod +x {remote_script}",
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            # 2. Execute script
+            result_file = f"/tmp/result_{email.replace('@', '_')}.json"
+            # Cleaning up any previous result
+            self.execute_ssh_command(
+                ip_address=ip_address,
+                command=f"rm -f {result_file}",
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            command = f"/usr/bin/python3 {remote_script} --email '{email}' --password '{password}' --output {result_file}"
+            logger.info(f"Running automation on {ip_address} for {email}")
+            
+            success, stdout, stderr = self.execute_ssh_command(
+                ip_address=ip_address,
+                command=command,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            # Log output for debugging
+            if stdout:
+                logger.info(f"STDOUT ({email}): {stdout}")
+            if stderr:
+                logger.warning(f"STDERR ({email}): {stderr}")
+                
+            # 3. Retrieve result
+            local_result_file = f"/tmp/do_result_{email.replace('@', '_')}_{int(time.time())}.json"
+            
+            downloaded = self.download_file_sftp(
+                ip_address=ip_address,
+                remote_path=result_file,
+                local_path=local_result_file,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            if downloaded and os.path.exists(local_result_file):
+                with open(local_result_file, 'r') as f:
+                    result_data = json.load(f)
+                os.remove(local_result_file)
+                return result_data
+            else:
+                # If script failed but printed to stdout, maybe we can parse it?
+                # For now assume failure if no result file
+                return {
+                    'success': False, 
+                    'error': f"Script executed but no result file generated. Stderr: {stderr}",
+                    'stdout': stdout
+                }
+                
+        except Exception as e:
+            logger.error(f"Error running automation script on {ip_address}: {e}")
+            return {'success': False, 'error': str(e)}

@@ -465,6 +465,54 @@ def create_droplet_snapshot(droplet_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@digitalocean_manager.route('/api/do/droplets/<droplet_id>/test-automation', methods=['POST'])
+@login_required
+def test_droplet_automation(droplet_id):
+    """Run automation script on a single droplet for testing"""
+    try:
+        data = request.json
+        email = data.get('email')
+        password = data.get('password')
+        
+        if not email or not password:
+            return jsonify({'success': False, 'error': 'Email and password are required'}), 400
+            
+        config = DigitalOceanConfig.query.first()
+        if not config or not config.api_token:
+            return jsonify({'success': False, 'error': 'DigitalOcean not configured'}), 400
+            
+        service = DigitalOceanService(config.api_token)
+        
+        # Get droplet info to check status and get IP
+        droplet = service.get_droplet(droplet_id)
+        if not droplet:
+            return jsonify({'success': False, 'error': 'Droplet not found'}), 404
+            
+        if droplet['status'] != 'active':
+            return jsonify({'success': False, 'error': f"Droplet is not active (status: {droplet['status']})"}), 400
+            
+        ip_address = droplet.get('networks', {}).get('v4', [{}])[0].get('ip_address')
+        if not ip_address:
+            return jsonify({'success': False, 'error': 'Droplet has no IP address'}), 400
+            
+        # Run automation
+        result = service.run_automation_script(
+            ip_address=ip_address,
+            email=email,
+            password=password,
+            ssh_key_path=config.ssh_key_path or 'C:/Users/PC/Desktop/Gbot-v15/edu-gw-creation-key.pem' 
+        )
+        
+        return jsonify({
+            'success': result.get('success', False),
+            'result': result
+        })
+
+    except Exception as e:
+        logger.error(f"Test automation error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # Snapshot Routes
 @digitalocean_manager.route('/api/do/snapshots', methods=['GET'])
 @login_required

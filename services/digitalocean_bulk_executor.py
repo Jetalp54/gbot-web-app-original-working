@@ -269,35 +269,27 @@ class BulkExecutionOrchestrator:
                     })
                     continue
                 
-                # Execute automation command
-                command = f"python3 /opt/automation/do_automation.py --email '{email}' --password '{password}' --output /tmp/result_{email.replace('@', '_')}.json"
-                
-                success, stdout, stderr = self.service.execute_ssh_command(
+                # Execute automation via reusable service method
+                result_data = self.service.run_automation_script(
                     ip_address=ip_address,
-                    command=command,
-                    username='root',
+                    email=email,
+                    password=password,
                     ssh_key_path=self.config.get('ssh_private_key_path')
                 )
                 
-                if success:
-                    # Try to fetch result file
-                    result_file = f"/tmp/result_{email.replace('@', '_')}.json"
-                    local_result_file = f"/tmp/do_result_{email.replace('@', '_')}_{int(time.time())}.json"
-                    
-                    downloaded = self.service.download_file_sftp(
-                        ip_address=ip_address,
-                        remote_path=result_file,
-                        local_path=local_result_file,
-                        username='root',
-                        ssh_key_path=self.config.get('ssh_private_key_path')
-                    )
-                    
-                    if downloaded and os.path.exists(local_result_file):
-                        with open(local_result_file, 'r') as f:
-                            user_result = json.load(f)
-                        os.remove(local_result_file)
-                        
-                        # Save app password with dual-save backup system
+                if not result_data.get('success'):
+                    results.append({
+                        'success': False,
+                        'email': email,
+                        'error': result_data.get('error', 'Unknown error'),
+                        'droplet_id': droplet['id']
+                    })
+                    continue
+                
+                # Success - process result
+                app_password = result_data.get('app_password')
+                
+                # Save app password with dual-save backup system
                         if user_result.get('success') and user_result.get('app_password'):
                             self._save_app_password_with_backup(
                                 email=email,
