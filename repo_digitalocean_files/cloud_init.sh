@@ -30,7 +30,16 @@ GITHUB_REPO="https://github.com/Jetalp54/gbot-web-app-original-working.git"
 CLONE_DIR="/tmp/gbot-setup"
 
 echo "Cloning repository from GitHub..."
-git clone "$GITHUB_REPO" "$CLONE_DIR"
+for i in {1..5}; do
+    git clone "$GITHUB_REPO" "$CLONE_DIR" && break
+    echo "Git clone failed (attempt $i/5). Retrying in 10s..."
+    sleep 10
+done
+
+if [ ! -d "$CLONE_DIR" ]; then
+    echo "ERROR: Failed to clone repository after 5 attempts."
+    exit 1
+fi
 
 # Run the setup script
 if [ -f "$CLONE_DIR/repo_digitalocean_files/setup_droplet.sh" ]; then

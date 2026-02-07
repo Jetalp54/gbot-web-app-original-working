@@ -538,7 +538,24 @@ def test_droplet_automation(droplet_id):
             ip_address=ip_address,
             email=email,
             password=password,
-            ssh_key_path=config.ssh_private_key_path or 'C:/Users/PC/Desktop/Gbot-v15/edu-gw-creation-key.pem' 
+        # Get SSH key path (Robust resolution)
+        ssh_key_path = None
+        if config.ssh_private_key_path and os.path.exists(config.ssh_private_key_path):
+            ssh_key_path = config.ssh_private_key_path
+        elif os.path.exists(os.path.abspath("digitalocean_key.pem")):
+            ssh_key_path = os.path.abspath("digitalocean_key.pem")
+        elif os.path.exists("edu-gw-creation-key.pem"):
+             ssh_key_path = os.path.abspath("edu-gw-creation-key.pem")
+             
+        if not ssh_key_path:
+             return jsonify({'success': False, 'error': 'SSH key not found on server. Please save settings again.'}), 500
+
+        # Run automation
+        result = service.run_automation_script(
+            ip_address=ip_address,
+            email=email,
+            password=password,
+            ssh_key_path=ssh_key_path
         )
         
         return jsonify({

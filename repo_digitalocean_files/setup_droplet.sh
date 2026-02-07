@@ -21,16 +21,34 @@ set -e  # Exit on any error
 echo "===== DigitalOcean Droplet Setup for Google Workspace Automation ====="
 echo "Starting at: $(date)"
 
+# Helper function for robust apt-get
+apt_install_with_retry() {
+    local max_retries=10
+    local count=0
+    while [ $count -lt $max_retries ]; do
+        DEBIAN_FRONTEND=noninteractive apt-get "$@" && return 0
+        echo "apt-get failed. Retrying in 15s... (Attempt $((count+1))/$max_retries)"
+        sleep 15
+        # Try to clear locks forcefully if we are stuck
+        rm /var/lib/dpkg/lock-frontend || true
+        rm /var/lib/dpkg/lock || true
+        dpkg --configure -a || true
+        count=$((count+1))
+    done
+    echo "CRITICAL: apt-get failed after $max_retries attempts."
+    return 1
+}
+
 # Update system packages
 echo ""
 echo "[1/6] Updating system packages..."
-apt-get update -y
-apt-get upgrade -y
+apt_install_with_retry update -y
+apt_install_with_retry upgrade -y
 
 # Install basic dependencies
 echo ""
 echo "[2/6] Installing basic dependencies..."
-apt-get install -y \
+apt_install_with_retry install -y \
     wget \
     curl \
     unzip \
@@ -50,7 +68,7 @@ apt-get install -y \
 echo ""
 echo "[3/6] Installing Google Chrome..."
 wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-apt-get install -y ./google-chrome-stable_current_amd64.deb
+apt_install_with_retry install -y ./google-chrome-stable_current_amd64.deb
 rm google-chrome-stable_current_amd64.deb
 
 # Verify Chrome installation
