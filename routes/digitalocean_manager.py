@@ -533,12 +533,7 @@ def test_droplet_automation(droplet_id):
         if not ip_address:
             return jsonify({'success': False, 'error': 'Droplet has no IP address'}), 400
             
-        # Run automation
-        result = service.run_automation_script(
-            ip_address=ip_address,
-            email=email,
-            password=password,
-        # Get SSH key path (Robust resolution)
+        # 1. Get SSH key path (Robust resolution)
         ssh_key_path = None
         if config.ssh_private_key_path and os.path.exists(config.ssh_private_key_path):
             ssh_key_path = config.ssh_private_key_path
@@ -550,23 +545,34 @@ def test_droplet_automation(droplet_id):
         if not ssh_key_path:
              return jsonify({'success': False, 'error': 'SSH key not found on server. Please save settings again.'}), 500
 
-        # Check if setup is complete
+        # 2. Check if setup is complete
+        # We need to verify the droplet is actually ready before we try to run the automation
         check_cmd = "[ -f /opt/automation/setup_complete ] && echo 'yes' || echo 'no'"
         success, stdout, stderr = service.execute_ssh_command(
             ip_address=ip_address,
             command=check_cmd,
             username='root',
             ssh_key_path=ssh_key_path
+        )
+        
+        if not success:
+             return jsonify({'success': False, 'error': f'Failed to check droplet status: {stderr}'}), 500
+             
+        if stdout.strip() != 'yes':
+             return jsonify({'success': False, 'error': 'Droplet is still setting up. Please wait for "Setup complete!" in the logs.'}), 400
+
+        # 3. Run automation
+        result = service.run_automation_script(
             ip_address=ip_address,
             email=email,
             password=password,
             ssh_key_path=ssh_key_path
         )
         
-        return jsonify({
-            'success': result.get('success', False),
-            'result': result
-        })
+        if result['success']:
+            return jsonify({'success': True, 'message': 'Automation started successfully', 'logs': result['logs']})
+        else:
+            return jsonify({'success': False, 'error': result['error'], 'logs': result.get('logs', '')}), 500
 
     except Exception as e:
         logger.error(f"Test automation error: {e}")
@@ -671,9 +677,10 @@ def get_droplet_setup_logs(droplet_id):
         )
         
         # Filter logs to show only user setup process if it has started
-        marker = "===== DigitalOcean Droplet Setup"
+        marker = "===== DigitalOcean"
         if success and marker in stdout:
-             stdout = stdout[stdout.find(marker):]
+             # Keep the marker and everything after it
+             stdout = marker + stdout.split(marker, 1)[1]
         elif success:
              # If setup hasn't started, show a waiting message or the last few lines of boot
              stdout = "Waiting for setup script to start...\n" + "\n".join(stdout.splitlines()[-5:])

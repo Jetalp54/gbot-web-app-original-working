@@ -48,7 +48,7 @@ apt_install_with_retry upgrade -y
 # Install basic dependencies
 echo ""
 echo "[2/6] Installing basic dependencies..."
-apt_install_with_retry install -y \
+apt-get install -y -qq \
     wget \
     curl \
     unzip \
@@ -62,29 +62,40 @@ apt_install_with_retry install -y \
     fonts-liberation \
     libnss3 \
     libgbm1 \
-    libxshmfence1
+    libxshmfence1 \
+    git \
+    libxi6 \
+    libgconf-2-4 \
+    default-jdk
 
-# Install Google Chrome
+# 3. Install Google Chrome
 echo ""
 echo "[3/6] Installing Google Chrome..."
 wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-apt_install_with_retry install -y ./google-chrome-stable_current_amd64.deb
+apt-get install -y -qq ./google-chrome-stable_current_amd64.deb
 rm google-chrome-stable_current_amd64.deb
 
 # Verify Chrome installation
 CHROME_VERSION=$(google-chrome --version | awk '{print $3}')
 echo "Chrome installed: version $CHROME_VERSION"
 
-# Install ChromeDriver (matching Chrome version)
+# 4. Install ChromeDriver (matching Chrome version)
 echo ""
 echo "[4/6] Installing ChromeDriver..."
-CHROME_MAJOR_VERSION=$(google-chrome --version | grep -oP "[0-9]+" | head -1)
+CHROME_MAJOR_VERSION=$(echo "$CHROME_VERSION" | cut -d. -f1)
+echo "Detected Chrome version: $CHROME_VERSION"
 
 if [ "$CHROME_MAJOR_VERSION" -ge "115" ]; then
     echo "Chrome version is 115+, using cf-for-testing..."
     # Fetch the correct ChromeDriver version for 115+
-    LATEST_CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_STABLE")
-    wget -q "https://storage.googleapis.com/chrome-for-testing-public/$LATEST_CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip"
+    # Trying cf-chrome-driver automation
+    wget -q -O "chromedriver-linux64.zip" "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROME_VERSION/linux64/chromedriver-linux64.zip"
+
+    if [ ! -f "chromedriver-linux64.zip" ]; then
+        echo "Direct download failed, trying generic latest..."
+        LATEST_CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_STABLE")
+        wget -q "https://storage.googleapis.com/chrome-for-testing-public/$LATEST_CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip"
+    fi
     unzip -q chromedriver-linux64.zip
     mv chromedriver-linux64/chromedriver /usr/local/bin/
     rm -rf chromedriver-linux64.zip chromedriver-linux64
@@ -94,7 +105,6 @@ else
     wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
     unzip -q chromedriver_linux64.zip
     mv chromedriver /usr/local/bin/
-    chmod +x /usr/local/bin/chromedriver
     rm chromedriver_linux64.zip
 fi
 chmod +x /usr/local/bin/chromedriver
@@ -103,7 +113,7 @@ chmod +x /usr/local/bin/chromedriver
 CHROMEDRIVER_VER=$(chromedriver --version | awk '{print $2}')
 echo "ChromeDriver installed: version $CHROMEDRIVER_VER"
 
-# Install Python packages
+# 5. Install Python packages
 echo ""
 echo "[5/6] Installing Python packages..."
 
