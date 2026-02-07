@@ -50,210 +50,246 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="row">
-                            <div class="col-12 mb-3">
-                                <label class="form-label">SSH Public Key (for access)</label>
-                                <textarea class="form-control" id="sshKey" rows="3"
-                                    placeholder="ssh-rsa AAAAB3NzaC1..."></textarea>
-                                <small class="text-muted">Leave empty to use password authentication</small>
-                            </div>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-success">
-                                <i class="fa fa-plus"></i> Create Initial Droplet
-                            </button>
-                            <button type="button" class="btn btn-secondary" onclick="loadRegionsAndSizes()">
-                                <i class="fa fa-sync"></i> Reload Regions/Sizes
-                            </button>
-                        </div>
-                    </form>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12 mb-3">
+                    <label class="form-label">Authentication Method</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="authMethod" id="authSSH" value="ssh" checked
+                            onchange="toggleAuthMethod()">
+                        <label class="btn btn-outline-primary" for="authSSH">
+                            <i class="fab fa-ssh"></i> SSH Key
+                        </label>
 
-                    <div id="createDropletMessages" class="mt-3"></div>
+                        <input type="radio" class="btn-check" name="authMethod" id="authPassword" value="password"
+                            onchange="toggleAuthMethod()">
+                        <label class="btn btn-outline-primary" for="authPassword">
+                            <i class="fa fa-key"></i> Root Password
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="row" id="sshKeySection">
+                <div class="col-12 mb-3">
+                    <label class="form-label">SSH Public Key</label>
+                    <textarea class="form-control" id="sshKey" rows="3" placeholder="ssh-rsa AAAAB3NzaC1..."></textarea>
+                    <small class="text-muted">Will use your configured SSH key if left empty.</small>
+                </div>
+            </div>
+            <div class="row" id="passwordSection" style="display: none;">
+                <div class="col-12 mb-3">
+                    <label class="form-label">Root Password</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="rootPassword" placeholder="e.g. Batata010..++"
+                            value="Batata010..++">
+                        <button class="btn btn-outline-secondary" type="button"
+                            onclick="copyToClipboard($('#rootPassword').val())">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                    <small class="text-danger">
+                        <i class="fa fa-exclamation-triangle"></i>
+                        Must be complex: Uppercase, lowercase, number, and special character.
+                    </small>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-success">
+                    <i class="fa fa-plus"></i> Create Initial Droplet
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="loadRegionsAndSizes()">
+                    <i class="fa fa-sync"></i> Reload Regions/Sizes
+                </button>
+            </div>
+            </form>
 
-                    <!-- Snapshot Creation Section -->
-                    <div id="snapshotSection" class="mt-4 pt-4 border-top" style="display: none;">
-                        <h6 class="mb-3">
-                            <i class="fa fa-camera"></i> Create Automation Snapshot
-                        </h6>
-                        <p class="text-muted mb-3">
-                            Once your droplet is configured with the automation script, create a snapshot for bulk
-                            execution.
-                        </p>
-                        <form id="createSnapshotForm">
+            <div id="createDropletMessages" class="mt-3"></div>
+
+            <!-- Snapshot Creation Section -->
+            <div id="snapshotSection" class="mt-4 pt-4 border-top" style="display: none;">
+                <h6 class="mb-3">
+                    <i class="fa fa-camera"></i> Create Automation Snapshot
+                </h6>
+                <p class="text-muted mb-3">
+                    Once your droplet is configured with the automation script, create a snapshot for bulk
+                    execution.
+                </p>
+                <form id="createSnapshotForm">
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label">Snapshot Name</label>
+                            <input type="text" class="form-control" id="snapshotName"
+                                placeholder="automation-snapshot-v1" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Droplet to Snapshot</label>
+                            <select class="form-select" id="dropletToSnapshot" required>
+                                <option value="">Select a droplet</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fa fa-camera"></i> Create Snapshot
+                    </button>
+                </form>
+                <div id="createSnapshotMessages" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Droplets and Snapshots Row -->
+<div class="row">
+    <!-- Droplets Section -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fa fa-server"></i> Active Droplets
+                </h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-sm btn-primary mb-3" onclick="loadDroplets()">
+                    <i class="fa fa-sync"></i> Refresh List
+                </button>
+                <div id="dropletsList" class="table-responsive">
+                    <p class="text-muted">Click refresh to load droplets</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Snapshots Section -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fa fa-camera"></i> Snapshots
+                </h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-sm btn-primary mb-3" onclick="loadSnapshots()">
+                    <i class="fa fa-sync"></i> Refresh List
+                </button>
+                <div id="snapshotsList" class="table-responsive">
+                    <p class="text-muted">Click refresh to load snapshots</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Automation Execution Section -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fa fa-rocket"></i> Bulk Automation Execution
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    <i class="fa fa-info-circle"></i>
+                    Distribute users across multiple droplets for parallel app password automation.
+                    <br><small>Requires a configured snapshot ID from Settings.</small>
+                </p>
+
+                <form id="bulkExecutionForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Users (Email:Password format, one per line)</label>
+                            <textarea class="form-control font-monospace" id="bulkUsers" rows="5"
+                                placeholder="user1@domain.com:password1&#10;user2@domain.com:password2"
+                                required></textarea>
+                            <small class="text-muted">Format: email:password (one per line)</small>
+                        </div>
+                        <div class="col-md-6">
                             <div class="row">
-                                <div class="col-md-8 mb-3">
-                                    <label class="form-label">Snapshot Name</label>
-                                    <input type="text" class="form-control" id="snapshotName"
-                                        placeholder="automation-snapshot-v1" required>
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Number of Droplets</label>
+                                    <input type="number" class="form-control" id="dropletCount" min="1" max="50"
+                                        value="5" required>
+                                    <small class="text-muted">Users will be distributed evenly</small>
                                 </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Droplet to Snapshot</label>
-                                    <select class="form-select" id="dropletToSnapshot" required>
-                                        <option value="">Select a droplet</option>
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Snapshot ID (from snapshots above)</label>
+                                    <input type="text" class="form-control" id="snapshotId" placeholder="123456789"
+                                        required>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">Region</label>
+                                    <select class="form-select" id="bulkRegion">
+                                        <option value="">Use default</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">Size</label>
+                                    <select class="form-select" id="bulkSize">
+                                        <option value="">Use default</option>
                                     </select>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-warning">
-                                <i class="fa fa-camera"></i> Create Snapshot
-                            </button>
-                        </form>
-                        <div id="createSnapshotMessages" class="mt-3"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Droplets and Snapshots Row -->
-    <div class="row">
-        <!-- Droplets Section -->
-        <div class="col-lg-6 mb-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">
-                        <i class="fa fa-server"></i> Active Droplets
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <button class="btn btn-sm btn-primary mb-3" onclick="loadDroplets()">
-                        <i class="fa fa-sync"></i> Refresh List
-                    </button>
-                    <div id="dropletsList" class="table-responsive">
-                        <p class="text-muted">Click refresh to load droplets</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Snapshots Section -->
-        <div class="col-lg-6 mb-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0">
-                        <i class="fa fa-camera"></i> Snapshots
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <button class="btn btn-sm btn-primary mb-3" onclick="loadSnapshots()">
-                        <i class="fa fa-sync"></i> Refresh List
-                    </button>
-                    <div id="snapshotsList" class="table-responsive">
-                        <p class="text-muted">Click refresh to load snapshots</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bulk Automation Execution Section -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card shadow-sm border-primary">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">
-                        <i class="fa fa-rocket"></i> Bulk Automation Execution
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted mb-3">
-                        <i class="fa fa-info-circle"></i>
-                        Distribute users across multiple droplets for parallel app password automation.
-                        <br><small>Requires a configured snapshot ID from Settings.</small>
-                    </p>
-
-                    <form id="bulkExecutionForm">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Users (Email:Password format, one per line)</label>
-                                <textarea class="form-control font-monospace" id="bulkUsers" rows="5"
-                                    placeholder="user1@domain.com:password1&#10;user2@domain.com:password2"
-                                    required></textarea>
-                                <small class="text-muted">Format: email:password (one per line)</small>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="row">
-                                    <div class="col-12 mb-3">
-                                        <label class="form-label">Number of Droplets</label>
-                                        <input type="number" class="form-control" id="dropletCount" min="1" max="50"
-                                            value="5" required>
-                                        <small class="text-muted">Users will be distributed evenly</small>
-                                    </div>
-                                    <div class="col-12 mb-3">
-                                        <label class="form-label">Snapshot ID (from snapshots above)</label>
-                                        <input type="text" class="form-control" id="snapshotId" placeholder="123456789"
-                                            required>
-                                    </div>
-                                    <div class="col-6 mb-3">
-                                        <label class="form-label">Region</label>
-                                        <select class="form-select" id="bulkRegion">
-                                            <option value="">Use default</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-6 mb-3">
-                                        <label class="form-label">Size</label>
-                                        <select class="form-select" id="bulkSize">
-                                            <option value="">Use default</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-check mb-3">
-                            <input type="checkbox" class="form-check-input" id="autoDestroy" checked>
-                            <label class="form-check-label" for="autoDestroy">
-                                Auto-destroy droplets after execution
-                            </label>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="fa fa-play"></i> Start Bulk Execution
-                        </button>
-                    </form>
-
-                    <div id="bulkExecutionMessages" class="mt-3"></div>
-
-                    <!-- Progress Section -->
-                    <div id="executionProgress" class="mt-4" style="display: none;">
-                        <h6><i class="fa fa-spinner fa-spin"></i> Execution In Progress</h6>
-                        <div class="alert alert-info">
-                            <strong>Execution ID:</strong> <span id="executionId"></span><br>
-                            <strong>Total Users:</strong> <span id="totalUsersProgress"></span><br>
-                            <strong>Droplets:</strong> <span id="dropletsProgress"></span><br>
-                            <small>Check droplets section above to monitor active droplets.</small>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- View Generated App Passwords Section -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card shadow-sm border-success">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">
-                        <i class="fa fa-key"></i> Generated App Passwords
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted mb-3">
-                        <i class="fa fa-info-circle"></i>
-                        View app passwords generated from bulk automation executions.
-                    </p>
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="autoDestroy" checked>
+                        <label class="form-check-label" for="autoDestroy">
+                            Auto-destroy droplets after execution
+                        </label>
+                    </div>
 
-                    <button type="button" class="btn btn-success" onclick="loadGeneratedPasswords()">
-                        <i class="fa fa-refresh"></i> Load Generated Passwords
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fa fa-play"></i> Start Bulk Execution
                     </button>
+                </form>
 
-                    <div id="passwordsMessages" class="mt-3"></div>
+                <div id="bulkExecutionMessages" class="mt-3"></div>
 
-                    <div id="passwordsList" class="mt-3"></div>
+                <!-- Progress Section -->
+                <div id="executionProgress" class="mt-4" style="display: none;">
+                    <h6><i class="fa fa-spinner fa-spin"></i> Execution In Progress</h6>
+                    <div class="alert alert-info">
+                        <strong>Execution ID:</strong> <span id="executionId"></span><br>
+                        <strong>Total Users:</strong> <span id="totalUsersProgress"></span><br>
+                        <strong>Droplets:</strong> <span id="dropletsProgress"></span><br>
+                        <small>Check droplets section above to monitor active droplets.</small>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
+
+<!-- View Generated App Passwords Section -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fa fa-key"></i> Generated App Passwords
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    <i class="fa fa-info-circle"></i>
+                    View app passwords generated from bulk automation executions.
+                </p>
+
+                <button type="button" class="btn btn-success" onclick="loadGeneratedPasswords()">
+                    <i class="fa fa-refresh"></i> Load Generated Passwords
+                </button>
+
+                <div id="passwordsMessages" class="mt-3"></div>
+
+                <div id="passwordsList" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
 </div>
 
 <script>
@@ -307,19 +343,39 @@
         });
     }
 
+    // === Auth Method Toggle ===
+    function toggleAuthMethod() {
+        const method = $('input[name="authMethod"]:checked').val();
+        if (method === 'ssh') {
+            $('#sshKeySection').show();
+            $('#passwordSection').hide();
+        } else {
+            $('#sshKeySection').hide();
+            $('#passwordSection').show();
+        }
+    }
+
     // Create Droplet
     $('#createDropletForm').on('submit', function (e) {
         e.preventDefault();
+
+        const authMethod = $('input[name="authMethod"]:checked').val();
 
         const droplet = {
             name: $('#dropletName').val().trim(),
             region: $('#region').val(),
             size: $('#size').val(),
-            ssh_key: $('#sshKey').val().trim()
+            ssh_key: authMethod === 'ssh' ? $('#sshKey').val().trim() : null,
+            root_password: authMethod === 'password' ? $('#rootPassword').val().trim() : null
         };
 
         if (!droplet.name || !droplet.region || !droplet.size) {
             showMessage('createDropletMessages', 'Please fill in all required fields', 'danger');
+            return;
+        }
+
+        if (authMethod === 'password' && !droplet.root_password) {
+            showMessage('createDropletMessages', 'Root password is required', 'danger');
             return;
         }
 
@@ -337,8 +393,11 @@
                     $('#snapshotSection').show();
                     // Refresh droplet list
                     loadDroplets();
-                    // Reset form
+                    // Reset form but keep password preference
+                    const currentAuth = $('input[name="authMethod"]:checked').val();
                     $('#createDropletForm')[0].reset();
+                    $(`input[name="authMethod"][value="${currentAuth}"]`).prop('checked', true);
+                    toggleAuthMethod();
                 } else {
                     showMessage('createDropletMessages', `❌ Failed to create droplet: ${response.error}`, 'danger');
                 }
@@ -364,7 +423,7 @@
             return;
         }
 
-        showMessage('createSnapshotMessages', 'Creating snapshot... This may take several minutes.', 'info');
+        showMessage('createSnapshotMessages', '⏳ Requesting snapshot creation... This runs in the background.', 'info');
 
         $.ajax({
             url: `/api/do/droplets/${snapshot.droplet_id}/snapshot`,
@@ -373,13 +432,13 @@
             data: JSON.stringify({ name: snapshot.name }),
             success: function (response) {
                 if (response.success) {
-                    showMessage('createSnapshotMessages', `✅ Snapshot created successfully! ID: ${response.snapshot_id}`, 'success');
+                    showMessage('createSnapshotMessages', `✅ Snapshot started! ID: ${response.snapshot_id || 'Pending'} (Check list below in a few mins)`, 'success');
                     // Refresh snapshots list
                     loadSnapshots();
                     // Reset form
                     $('#createSnapshotForm')[0].reset();
                 } else {
-                    showMessage('createSnapshotMessages', `❌ Failed to create snapshot: ${response.error}`, 'danger');
+                    showMessage('createSnapshotMessages', `❌ Failed to start snapshot: ${response.error}`, 'danger');
                 }
             },
             error: function (xhr) {
@@ -597,15 +656,24 @@
         }
 
         let html = '<table class="table table-sm"><thead><tr>' +
-            '<th>Name</th><th>Size (GB)</th><th>Regions</th><th>Actions</th>' +
+            '<th>Name</th><th>ID</th><th>Size (GB)</th><th>Regions</th><th>Actions</th>' +
             '</tr></thead><tbody>';
 
         snapshots.forEach(function (snapshot) {
-            const regions = snapshot.regions.join(', ');
-            html += `<tr>
+            // Check if this is our automation snapshot
+            const isAuto = snapshot.name.toLowerCase().includes('automation');
+            const rowClass = isAuto ? 'table-success' : '';
+
+            html += `<tr class="${rowClass}">
             <td>${snapshot.name}</td>
-            <td>${snapshot.size_gigabytes}</td>
-            <td>${regions}</td>
+            <td>
+                <code>${snapshot.id}</code>
+                <button class="btn btn-sm btn-link p-0 ms-1 text-muted" onclick="copyToClipboard('${snapshot.id}')">
+                    <i class="fa fa-copy"></i>
+                </button>
+            </td>
+            <td>${snapshot.size_gigabytes} GB</td>
+            <td>${snapshot.regions.join(', ')}</td>
             <td>
                 <button class="btn btn-sm btn-danger" onclick="deleteSnapshot('${snapshot.id}', '${snapshot.name}')">
                     <i class="fa fa-trash"></i>

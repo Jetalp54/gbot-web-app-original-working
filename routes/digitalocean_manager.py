@@ -351,8 +351,23 @@ rm -rf /tmp/gbot-setup
         ssh_keys_list = None
         if ssh_key:
             # For now, treat it as a raw key that needs to be added
-            # In production, you'd need to first upload the key to DO and get its ID
             logger.warning("SSH key provided but needs to be pre-uploaded to DigitalOcean")
+            
+        # Get root password if provided
+        root_password = data.get('root_password', '').strip()
+        
+        # If password provided, add to cloud-init
+        if root_password:
+            # Add password configuration to cloud-init
+            password_script = f"""
+# Set root password
+echo "root:{root_password}" | chpasswd
+sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+systemctl restart sshd
+"""
+            cloud_init_script += password_script
+            logger.info(f"Added root password configuration for droplet {full_name}")
         
         result = service.create_droplet(
             name=full_name,
@@ -423,17 +438,19 @@ def create_droplet_snapshot(droplet_id):
         service = DigitalOceanService(config.api_token)
         result = service.create_snapshot(droplet_id, snapshot_name)
         
-        if result and result.get('snapshot'):
-            snapshot_id = result['snapshot'].get('id')
-            logger.info(f"Snapshot created: {snapshot_name} (ID: {snapshot_id}) from droplet {droplet_id}")
+        if result and result.get('action_id'):
+            # Snapshot creation is async, return action ID
+            action_id = result['action_id']
+            logger.info(f"Snapshot creation started: {snapshot_name} (Action ID: {action_id}) from droplet {droplet_id}")
             
             return jsonify({
                 'success': True,
-                'message': 'Snapshot created successfully',
-                'snapshot_id': snapshot_id
+                'message': 'Snapshot creation started',
+                'snapshot_id': 'Running...', # Placeholder until complete
+                'action_id': action_id
             })
         else:
-            return jsonify({'success': False, 'error': 'Failed to create snapshot'}), 500
+            return jsonify({'success': False, 'error': 'Failed to start snapshot creation'}), 500
             
     except Exception as e:
         logger.error(f"Create snapshot error: {e}")
