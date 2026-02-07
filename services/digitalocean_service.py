@@ -603,6 +603,16 @@ class DigitalOceanService:
                 username='root',
                 ssh_key_path=ssh_key_path
             )
+
+            # Check for critical dependencies (undetected-chromedriver) and install if missing
+            # This handles cases where the droplet was created before setup_droplet.sh was updated
+            check_dep_command = "pip3 show undetected-chromedriver > /dev/null 2>&1 || pip3 install undetected-chromedriver"
+            self.execute_ssh_command(
+                ip_address=ip_address,
+                command=check_dep_command,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
             
             # 2. Execute script
             result_file = f"/tmp/result_{email.replace('@', '_')}.json"

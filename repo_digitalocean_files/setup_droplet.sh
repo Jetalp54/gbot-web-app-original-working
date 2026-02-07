@@ -60,12 +60,26 @@ echo "Chrome installed: version $CHROME_VERSION"
 # Install ChromeDriver (matching Chrome version)
 echo ""
 echo "[4/6] Installing ChromeDriver..."
-CHROMEDRIVER_VERSION=$(curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE)
-wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
-unzip -q chromedriver_linux64.zip
-mv chromedriver /usr/local/bin/
+CHROME_MAJOR_VERSION=$(google-chrome --version | grep -oP "[0-9]+" | head -1)
+
+if [ "$CHROME_MAJOR_VERSION" -ge "115" ]; then
+    echo "Chrome version is 115+, using cf-for-testing..."
+    # Fetch the correct ChromeDriver version for 115+
+    LATEST_CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_STABLE")
+    wget -q "https://storage.googleapis.com/chrome-for-testing-public/$LATEST_CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip"
+    unzip -q chromedriver-linux64.zip
+    mv chromedriver-linux64/chromedriver /usr/local/bin/
+    rm -rf chromedriver-linux64.zip chromedriver-linux64
+else
+    echo "Chrome version is < 115, using legacy storage..."
+    CHROMEDRIVER_VERSION=$(curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE)
+    wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
+    unzip -q chromedriver_linux64.zip
+    mv chromedriver /usr/local/bin/
+    chmod +x /usr/local/bin/chromedriver
+    rm chromedriver_linux64.zip
+fi
 chmod +x /usr/local/bin/chromedriver
-rm chromedriver_linux64.zip
 
 # Verify ChromeDriver installation
 CHROMEDRIVER_VER=$(chromedriver --version | awk '{print $2}')
@@ -78,6 +92,7 @@ pip3 install --no-cache-dir \
     selenium==4.15.2 \
     selenium-stealth==1.0.6 \
     selenium-wire==5.1.0 \
+    undetected-chromedriver>=3.5.5 \
     paramiko \
     pyotp \
     requests
