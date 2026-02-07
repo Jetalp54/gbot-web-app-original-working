@@ -633,7 +633,7 @@ def get_droplet_setup_logs(droplet_id):
         # We read /var/log/cloud-init-output.log which contains stdout/stderr of user-data script
         cmd = "cat /var/log/cloud-init-output.log"
         
-        stdout, stderr = service.execute_ssh_command(
+        success, stdout, stderr = service.execute_ssh_command(
             ip_address=ip_address,
             command=cmd,
             username='root',
