@@ -294,10 +294,11 @@ def create_droplet():
     """Create a new droplet"""
     try:
         data = request.get_json()
-        name = data.get('name', '').strip()
-        region = data.get('region', '').strip()
-        size = data.get('size', '').strip()
-        ssh_key = data.get('ssh_key', '').strip()
+        name = (data.get('name') or '').strip()
+        region = (data.get('region') or '').strip()
+        size = (data.get('size') or '').strip()
+        image = data.get('image')  # Optional
+        ssh_key = (data.get('ssh_key') or '').strip()
         
         if not name or not region or not size:
             return jsonify({'success': False, 'error': 'Name, region, and size are required'}), 400
@@ -317,8 +318,9 @@ def create_droplet():
         
         service = DigitalOceanService(config.api_token)
         
-        # Use Ubuntu 22.04 as default image
-        image = 'ubuntu-22-04-x64'
+        # Use Ubuntu 22.04 as default image if not specified
+        if not image:
+            image = 'ubuntu-22-04-x64'
         
         # Create cloud-init script to automatically download and setup from GitHub
         github_repo = "https://github.com/Jetalp54/gbot-web-app-original-working.git"
@@ -354,7 +356,7 @@ rm -rf /tmp/gbot-setup
             logger.warning("SSH key provided but needs to be pre-uploaded to DigitalOcean")
             
         # Get root password if provided
-        root_password = data.get('root_password', '').strip()
+        root_password = (data.get('root_password') or '').strip()
         
         # If password provided, add to cloud-init
         if root_password:
