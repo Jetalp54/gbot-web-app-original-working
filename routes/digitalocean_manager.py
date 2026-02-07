@@ -493,7 +493,7 @@ def test_droplet_automation(droplet_id):
         if droplet['status'] != 'active':
             return jsonify({'success': False, 'error': f"Droplet is not active (status: {droplet['status']})"}), 400
             
-        ip_address = droplet.get('networks', {}).get('v4', [{}])[0].get('ip_address')
+        ip_address = droplet.get('ip_address')
         if not ip_address:
             return jsonify({'success': False, 'error': 'Droplet has no IP address'}), 400
             
