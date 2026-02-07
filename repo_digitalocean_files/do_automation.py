@@ -4702,29 +4702,7 @@ def save_credential(email, app_password, secret_key=None):
 # =====================================================================
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Google Workspace Automation')
-    parser.add_argument('--email', required=True, help='Google email')
-    parser.add_argument('--password', required=True, help='Google password')
-    parser.add_argument('--output', required=False, help='Path to output JSON result file')
-    args = parser.parse_args()
 
-    result = process_single_user(args.email, args.password)
-    
-    # Print result to stdout as JSON (for immediate feedback/logging)
-    json_output = json.dumps(result)
-    print(json_output)
-    
-    # Write to output file if specified (required by DigitalOceanService)
-    if args.output:
-        try:
-            with open(args.output, 'w') as f:
-                f.write(json_output)
-        except Exception as e:
-            logger.error(f"Failed to write output to {args.output}: {e}")
-
-if __name__ == "__main__":
-    main()
 
 
 def process_single_user(email, password):
@@ -5044,3 +5022,28 @@ def process_single_user(email, password):
                 logger.info(f"[LAMBDA] Chrome driver closed for {email}")
             except:
                 pass
+
+def main():
+    parser = argparse.ArgumentParser(description='Google Workspace Automation')
+    parser.add_argument('--email', required=True, help='Google email')
+    parser.add_argument('--password', required=True, help='Google password')
+    parser.add_argument('--output', required=False, help='Path to output JSON result file')
+    args = parser.parse_args()
+
+    # process_single_user is defined above this block
+    result = process_single_user(args.email, args.password)
+    
+    # Print result to stdout as JSON (for immediate feedback/logging)
+    json_output = json.dumps(result)
+    print(json_output)
+    
+    # Write to output file if specified (required by DigitalOceanService)
+    if args.output:
+        try:
+            with open(args.output, 'w') as f:
+                f.write(json_output)
+        except Exception as e:
+            logger.error(f"Failed to write output to {args.output}: {e}")
+
+if __name__ == "__main__":
+    main()
