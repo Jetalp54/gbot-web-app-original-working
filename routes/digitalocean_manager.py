@@ -343,47 +343,28 @@ def create_droplet():
             logger.error(f"Failed to read setup_droplet.sh: {e}")
             return jsonify({'success': False, 'error': f'Failed to read setup script: {e}'}), 500
 
-        # Read do_automation.py
-        automation_script_path = os.path.join(current_app.root_path, 'repo_digitalocean_files', 'do_automation.py')
-        try:
-            with open(automation_script_path, 'r', encoding='utf-8') as f:
-                automation_script_content = f.read()
-        except Exception as e:
-            logger.error(f"Failed to read do_automation.py: {e}")
-            return jsonify({'success': False, 'error': f'Failed to read automation script: {e}'}), 500
-
         # Construct the User Data script (Bash)
-        # We use a heredoc with quoted delimiter 'EOF' to prevent variable expansion during creation,
-        # but we need to be careful about python f-string expansion if we use f""".
-        # We will escape the file contents.
-        
-        # Helper to escape single quotes for embedding in bash '...' string, or use heredoc?
-        # Heredoc is safer: cat > file << 'EOF' ... EOF
-        # But if the content contains "EOF", we break.
-        # We will use a unique delimiter.
+        # We use a heredoc with quoted delimiter 'EOF' to prevent variable expansion during creation.
+        # We will use a unique delimiter to avoid conflicts.
         DELIM = "GBOT_FILE_DELIMITER_EOF_123456789"
+        
+        # NOTE: do_automation.py is NOT injected here because it exceeds the 64KB User Data limit.
+        # It is uploaded automatically by run_automation_script() via SFTP when needed.
         
         cloud_init_script = f"""#!/bin/bash
 # Auto-generated Cloud-Init for GBot
-# Injected local scripts directly
+# Injected local setup_droplet.sh directly
 
 # 1. Create directory
 mkdir -p /opt/automation
 
-# 2. Write automation script
-cat > /opt/automation/do_automation.py << '{DELIM}'
-{automation_script_content}
-{DELIM}
-chmod +x /opt/automation/do_automation.py
-
-# 3. Write setup script
+# 2. Write setup script
 cat > /tmp/setup_droplet.sh << '{DELIM}'
 {setup_script_content}
 {DELIM}
 chmod +x /tmp/setup_droplet.sh
 
-# 4. Run setup script
-# We run it in background or foreground? Cloud-init runs sequentially.
+# 3. Run setup script
 echo "Running injected setup script..."
 bash /tmp/setup_droplet.sh
 """
