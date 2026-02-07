@@ -371,9 +371,9 @@ rm -rf /tmp/gbot-setup
             password_setup = f"""
 # Ensure PasswordAuthentication is enabled immediately
 echo "root:{root_password}" | chpasswd
-sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
-sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
-sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
+# User-provided robust configuration
+sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 # Also ensure host key generation happens if it hasn't
 ssh-keygen -A
 systemctl restart sshd
