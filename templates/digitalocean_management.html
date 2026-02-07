@@ -303,24 +303,44 @@
             <div class="modal-body">
                 <p class="text-muted">Run the automation script on this droplet to verify it works before creating a
                     snapshot.</p>
+
+                <!-- Test Form -->
                 <form id="testAutomationForm">
                     <input type="hidden" id="testDropletId">
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" id="testEmail" required placeholder="user@domain.com">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="text" class="form-control" id="testPassword" required placeholder="password">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="testEmail" required
+                                placeholder="user@domain.com">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Password</label>
+                            <input type="text" class="form-control" id="testPassword" required placeholder="password">
+                        </div>
                     </div>
                 </form>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <button type="button" class="btn btn-primary" onclick="runTestAutomation()">
+                        <i class="fa fa-play"></i> Run Test
+                    </button>
+                    <button type="button" class="btn btn-outline-dark btn-sm" onclick="toggleSetupLogs()">
+                        <i class="fa fa-terminal"></i> Toggle Setup Logs
+                    </button>
+                </div>
+
                 <div id="testAutomationResult" class="mt-3"></div>
+
+                <!-- Embedded Setup Logs (Hidden by default) -->
+                <div id="embeddedSetupLogs" class="mt-3" style="display: none;">
+                    <h6><i class="fa fa-terminal"></i> Cloud-Init Setup Logs</h6>
+                    <pre id="setupLogsContent" class="text-success p-3 m-0 font-monospace rounded"
+                        style="white-space: pre-wrap; max-height: 300px; overflow-y: auto; font-size: 0.75rem; background-color: #1a1a1a; color: #00ff00;">Loading...</pre>
+                    <small class="text-muted">Auto-refreshing every 3s...</small>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="runTestAutomation()">
-                    <i class="fa fa-play"></i> Run Test
-                </button>
             </div>
         </div>
     </div>
@@ -660,9 +680,6 @@
                 <button class="btn btn-sm btn-info text-white me-1" onclick="openTestAutomationModal('${droplet.id}')" title="Test Automation">
                     <i class="fa fa-bug"></i> Test
                 </button>
-                <button class="btn btn-sm btn-dark me-1" onclick="openSetupLogs('${droplet.id}')" title="View Setup Logs">
-                    <i class="fa fa-terminal"></i> Logs
-                </button>
                 <button class="btn btn-sm btn-danger" onclick="deleteDroplet('${droplet.id}', '${droplet.name}')">
                     <i class="fa fa-trash"></i>
                 </button>
@@ -911,26 +928,29 @@
         });
     }
 
-
-    // === Setup Logs Functions ===
+    // === Setup Logs Functions (Integrated) ===
     let logPollInterval = null;
 
-    function openSetupLogs(dropletId) {
-        $('#setupLogsDropletId').val(dropletId);
-        $('#setupLogsContent').text('Loading logs...');
-        new bootstrap.Modal('#setupLogsModal').show();
+    function toggleSetupLogs() {
+        const logsDiv = $('#embeddedSetupLogs');
+        const isVisible = logsDiv.is(':visible');
 
-        // Fetch immediately then poll
-        fetchSetupLogs(dropletId);
-
-        // Poll every 3 seconds
-        if (logPollInterval) clearInterval(logPollInterval);
-        logPollInterval = setInterval(() => fetchSetupLogs(dropletId), 3000);
+        if (isVisible) {
+            logsDiv.hide();
+            if (logPollInterval) clearInterval(logPollInterval);
+        } else {
+            logsDiv.show();
+            const dropletId = $('#testDropletId').val();
+            // Start polling
+            fetchSetupLogs(dropletId);
+            if (logPollInterval) clearInterval(logPollInterval);
+            logPollInterval = setInterval(() => fetchSetupLogs(dropletId), 3000);
+        }
     }
 
     function fetchSetupLogs(dropletId) {
-        // If modal is closed, stop polling
-        if (!$('#setupLogsModal').hasClass('show')) {
+        // If modal/logs closed, stop polling
+        if (!$('#testAutomationModal').hasClass('show') || !$('#embeddedSetupLogs').is(':visible')) {
             if (logPollInterval) clearInterval(logPollInterval);
             return;
         }
@@ -943,10 +963,8 @@
                     const logs = response.logs || 'No logs yet...';
                     const pre = $('#setupLogsContent');
 
-                    // Only update if content changed to avoid jitter
                     if (pre.text() !== logs) {
                         pre.text(logs);
-                        // Auto-scroll to bottom
                         pre.scrollTop(pre[0].scrollHeight);
                     }
                 } else {
@@ -954,15 +972,15 @@
                 }
             },
             error: function (xhr) {
-                // Don't overwrite log on transient network error, just log to console
                 console.error("Log fetch error:", xhr);
             }
         });
     }
 
     // Stop polling when modal closes
-    $('#setupLogsModal').on('hidden.bs.modal', function () {
+    $('#testAutomationModal').on('hidden.bs.modal', function () {
         if (logPollInterval) clearInterval(logPollInterval);
+        $('#embeddedSetupLogs').hide(); // Reset state
     });
 </script>
 
@@ -979,24 +997,4 @@
         font-size: 0.85em;
     }
 </style>
-<!-- Setup Logs Modal -->
-<div class="modal fade" id="setupLogsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title"><i class="fa fa-terminal"></i> Setup Logs (Cloud-Init)</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body bg-black p-0">
-                <input type="hidden" id="setupLogsDropletId">
-                <pre id="setupLogsContent" class="text-success p-3 m-0 font-monospace"
-                    style="white-space: pre-wrap; min-height: 400px; max-height: 600px; font-size: 0.85rem; background-color: #1a1a1a; color: #00ff00;"></pre>
-            </div>
-            <div class="modal-footer bg-dark border-top-0">
-                <small class="text-white-50 me-auto">Auto-refreshing every 3s...</small>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
