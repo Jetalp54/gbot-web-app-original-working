@@ -361,12 +361,21 @@
                         <label for="do_ssh_private_key" class="form-label-github">
                             <i class="fas fa-file-code"></i> SSH Private Key (for automation)
                         </label>
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                            <input type="file" id="ssh_key_file_input" class="form-control-github"
+                                accept=".pem,.key,.ppk,.pub" style="width: auto;">
+                            <button type="button" class="btn-github" onclick="loadSshKeyFile()"
+                                title="Load file content">
+                                <i class="fas fa-upload"></i> Load File
+                            </button>
+                        </div>
                         <textarea class="form-control-github w-100 font-monospace" id="do_ssh_private_key" rows="6"
                             placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;MIIEpAIBAKCAQEA...&#10;-----END RSA PRIVATE KEY-----"></textarea>
                         <small style="color: #656d76; font-size: 12px;">
-                            <i class="fas fa-info-circle"></i> Paste your SSH private key here. This will be used for
-                            all droplet automation.
-                            <strong>Important:</strong> Keep this key secure!
+                            <i class="fas fa-info-circle"></i> Paste your SSH private key here or upload the file. This
+                            will be used for all droplet automation.
+                            <strong>Important:</strong> We need the <strong>PRIVATE KEY</strong> (usually starts with
+                            <code>-----BEGIN ... PRIVATE KEY-----</code>), NOT the public key (.pub).
                         </small>
                     </div>
 
@@ -3775,6 +3784,36 @@
             .catch(error => {
                 showDigitalOceanStatus('❌ Network error: ' + error, 'error');
             });
+    }
+
+    // Load SSH Key File Content
+    function loadSshKeyFile() {
+        const fileInput = document.getElementById('ssh_key_file_input');
+        const textarea = document.getElementById('do_ssh_private_key');
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+            showDigitalOceanStatus('Please select a file first', 'error');
+            return;
+        }
+
+        const file = fileInput.files[0];
+
+        // Warning for public keys
+        if (file.name.endsWith('.pub')) {
+            if (!confirm(`Warning: You selected a PUBLIC key file (.pub).\n\nWe usually need the PRIVATE key to connect to droplets.\n\nAre you sure you want to use this file?`)) {
+                return;
+            }
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            textarea.value = e.target.result;
+            showDigitalOceanStatus(`Loaded content from ${file.name}`, 'info');
+        };
+        reader.onerror = function (e) {
+            showDigitalOceanStatus('Error reading file', 'error');
+        };
+        reader.readAsText(file);
     }
 
     // Save DigitalOcean Configuration

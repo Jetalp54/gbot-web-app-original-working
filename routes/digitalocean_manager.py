@@ -617,8 +617,8 @@ def get_droplet_setup_logs(droplet_id):
             
         # Get SSH key path
         ssh_key_path = None
-        if config.ssh_key_path and os.path.exists(config.ssh_key_path):
-            ssh_key_path = config.ssh_key_path
+        if config.ssh_private_key_path and os.path.exists(config.ssh_private_key_path):
+            ssh_key_path = config.ssh_private_key_path
         elif os.path.exists("edu-gw-creation-key.pem"):
              ssh_key_path = os.path.abspath("edu-gw-creation-key.pem")
              
