@@ -622,15 +622,19 @@ def _run_bulk_execution_background(
     region,
     size,
     auto_destroy,
-    execution_id
-):
-    """Background task for bulk execution"""
     # Create a new app context for the thread
     from app import app
     with app.app_context():
         try:
-            logger.info(f"Starting background bulk execution: {len(users)} users, {droplet_count} droplets")
+            logger.info(f"THREAD START [{execution_id}]: Starting background execution for {len(users)} users")
             
+            # Check if we can see the DB record
+            check_exec = DigitalOceanExecution.query.filter_by(task_id=execution_id).first()
+            if not check_exec:
+                logger.error(f"THREAD ERROR [{execution_id}]: Execution record NOT FOUND in DB at start!")
+            else:
+                logger.info(f"THREAD DEBUG [{execution_id}]: Found DB record, status={check_exec.status}")
+
             result = orchestrator.execute_bulk(
                 users=users,
                 droplet_count=droplet_count,
@@ -641,6 +645,8 @@ def _run_bulk_execution_background(
                 execution_id=execution_id
             )
             
+            logger.info(f"THREAD RESULT [{execution_id}]: Orchestrator finished. Success={result.get('success')}, Error={result.get('error')}")
+
             # Update results in database
             execution = DigitalOceanExecution.query.filter_by(task_id=execution_id).first()
             if execution:
@@ -653,21 +659,23 @@ def _run_bulk_execution_background(
                 execution.completed_at = datetime.utcnow()
                 
                 db.session.commit()
-            
-            logger.info(f"Bulk execution completed: {execution_id}")
+                logger.info(f"THREAD SUCCESS [{execution_id}]: DB updated successfully")
+            else:
+                logger.error(f"THREAD ERROR [{execution_id}]: Execution record lost during processing!")
             
         except Exception as e:
-            logger.error(f"Background execution error: {e}")
+            logger.error(f"THREAD EXCEPTION [{execution_id}]: {e}", exc_info=True)
             # Try to update status to failed
             try:
                 execution = DigitalOceanExecution.query.filter_by(task_id=execution_id).first()
                 if execution:
                     execution.status = 'failed'
-                    execution.error_message = str(e)
+                    execution.error_message = f"Internal Error: {str(e)}"
                     execution.completed_at = datetime.utcnow()
                     db.session.commit()
-            except:
-                pass
+                    logger.info(f"THREAD RECOVERY [{execution_id}]: Updated status to failed")
+            except Exception as db_e:
+                 logger.error(f"THREAD FATAL [{execution_id}]: Could not update DB after exception: {db_e}")
 
 
 @digitalocean_manager.route('/api/do/execution/<execution_id>/status', methods=['GET'])
