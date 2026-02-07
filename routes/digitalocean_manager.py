@@ -502,7 +502,7 @@ def test_droplet_automation(droplet_id):
             ip_address=ip_address,
             email=email,
             password=password,
-            ssh_key_path=config.ssh_key_path or 'C:/Users/PC/Desktop/Gbot-v15/edu-gw-creation-key.pem' 
+            ssh_key_path=config.ssh_private_key_path or 'C:/Users/PC/Desktop/Gbot-v15/edu-gw-creation-key.pem' 
         )
         
         return jsonify({
