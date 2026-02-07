@@ -44,23 +44,38 @@ import threading
 
 # Self-healing: Install missing dependencies automatically
 def install_package(package):
-    try:
-        # Try python -m pip first
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-    except Exception as e:
-        print(f"python -m pip failed: {e}. Trying pip3 command directly...")
+    max_retries = 20
+    for attempt in range(max_retries):
         try:
-            # Fallback to direct pip3 command
-            subprocess.check_call(["pip3", "install", package])
-        except Exception as e2:
-            print(f"pip3 failed: {e2}. Trying apt-get install python3-pip...")
+            # Try python -m pip first
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+            return # Success
+        except Exception as e:
+            print(f"python -m pip failed: {e}. Trying pip3 command directly...")
             try:
-                # Last resort: try to install pip itself
-                subprocess.check_call(["apt-get", "update"])
-                subprocess.check_call(["apt-get", "install", "-y", "python3-pip"])
-                subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-            except Exception as e3:
-                print(f"CRITICAL: Failed to install {package} via any method: {e3}")
+                # Fallback to direct pip3 command
+                subprocess.check_call(["pip3", "install", package])
+                return # Success
+            except Exception:
+                print(f"pip3 failed. Trying apt-get install python3-pip (Attempt {attempt+1}/{max_retries})...")
+                try:
+                    # Check for lock first/handle lock error
+                    # Last resort: try to install pip itself
+                    # We accept failure here to retry loop if locked
+                    subprocess.check_call(["apt-get", "update"])
+                    subprocess.check_call(["apt-get", "install", "-y", "python3-pip"])
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+                    return # Success
+                except subprocess.CalledProcessError as e3:
+                    # Check if it's a lock error
+                    err_msg = str(e3) # confusing since check_call doesn't return output, but let's assume valid fail
+                    print(f"apt-get failed. Waiting for lock release... ({attempt+1}/{max_retries})")
+                    time.sleep(15) # Wait 15 seconds for lock to release
+                except Exception as e4:
+                     print(f"Unexpected error: {e4}. Retrying...")
+                     time.sleep(10)
+    
+    print(f"CRITICAL: Failed to install {package} after {max_retries} attempts.")
 
 try:
     import pyotp

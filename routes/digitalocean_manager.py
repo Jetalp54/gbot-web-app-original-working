@@ -620,12 +620,20 @@ def get_droplet_setup_logs(droplet_id):
             
         # Get SSH key path
         ssh_key_path = None
+        
+        # 1. Try configured path
         if config.ssh_private_key_path and os.path.exists(config.ssh_private_key_path):
             ssh_key_path = config.ssh_private_key_path
+        # 2. Try default/fallback persistent key
+        elif os.path.exists(os.path.abspath("digitalocean_key.pem")):
+            ssh_key_path = os.path.abspath("digitalocean_key.pem")
+        # 3. Try legacy key
         elif os.path.exists("edu-gw-creation-key.pem"):
              ssh_key_path = os.path.abspath("edu-gw-creation-key.pem")
              
         if not ssh_key_path:
+             # Just for debugging, print what we tried
+             logger.error(f"SSH Key missing. Config path: {config.ssh_private_key_path} (Exists: {os.path.exists(config.ssh_private_key_path) if config.ssh_private_key_path else 'N/A'})")
              return jsonify({'success': False, 'error': 'SSH key not found on server'}), 500
 
         # Command to read the log file
@@ -640,8 +648,14 @@ def get_droplet_setup_logs(droplet_id):
             ssh_key_path=ssh_key_path
         )
         
-        if stderr and not stdout:
-             return jsonify({'success': False, 'error': f"Failed to read logs: {stderr}"})
+        if not success:
+             # Return success=True but with error message in logs to display it in the console
+             return jsonify({
+                 'success': True, 
+                 'logs': f"[Error connecting to droplet: {stderr}]",
+                 'droplet_name': droplet.name,
+                 'ip_address': ip_address
+             })
              
         return jsonify({
             'success': True, 
@@ -652,7 +666,13 @@ def get_droplet_setup_logs(droplet_id):
 
     except Exception as e:
         logger.error(f"Get setup logs error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        # Return the actual exception message so frontend can show it
+        return jsonify({
+            'success': True, 
+            'logs': f"[System Error: {str(e)}]",
+            'droplet_name': 'Unknown',
+            'ip_address': 'Unknown'
+        })
 
 
 @digitalocean_manager.route('/api/do/snapshots/<snapshot_id>', methods=['DELETE'])
