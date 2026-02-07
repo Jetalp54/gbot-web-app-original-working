@@ -170,6 +170,7 @@ class DigitalOceanService:
             if key['name'].lower() == name.lower():
                 return key
         return None
+    def get_droplet(self, droplet_id: str) -> Optional[Dict]:
         """
         Get droplet details by ID.
         
