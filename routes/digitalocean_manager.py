@@ -586,7 +586,8 @@ def test_droplet_automation(droplet_id):
         
         # If the script failed to run or upload, it returns {'success': False, 'error': ...}
         if 'success' in result and result['success'] is False:
-             return jsonify({'success': False, 'error': result.get('error', 'Unknown Execution Error'), 'logs': result.get('stdout', '')}), 500
+             # Include full result object so frontend can parse stdout for screenshots
+             return jsonify({'success': False, 'error': result.get('error', 'Unknown Execution Error'), 'result': result}), 500
 
         # If the script ran, it returns the JSON output which has a 'status' field
         is_success = result.get('status') == 'success'

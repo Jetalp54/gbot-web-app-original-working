@@ -737,6 +737,15 @@ def get_twocaptcha_config():
             logger.warning("[2CAPTCHA CONFIG] ✗ 2Captcha API key is NOT SET (TWOCAPTCHA_API_KEY is empty)")
         return {'enabled': False, 'api_key': None}
 
+def capture_screenshot_base64(driver):
+    """Capture screenshot and return as base64 string"""
+    try:
+        screenshot_b64 = driver.get_screenshot_as_base64()
+        return screenshot_b64
+    except Exception as e:
+        logger.error(f"[SCREENSHOT] Failed to capture screenshot: {e}")
+        return None
+
 def solve_google_image_captcha(driver, api_key, email=None):
     """
     Solve Google's image-based CAPTCHA (not reCAPTCHA) using 2Captcha ImageToTextTask.
@@ -2531,6 +2540,12 @@ def login_google(driver, email, password, known_totp_secret=None):
     except Exception as nav_error:
         logger.error(f"[STEP] Navigation failed: {nav_error}")
         logger.error(traceback.format_exc())
+        
+        # Capture screenshot
+        screenshot = capture_screenshot_base64(driver)
+        if screenshot:
+            print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+            
         return False, "navigation_failed", str(nav_error)
 
     try:
@@ -2685,6 +2700,12 @@ def login_google(driver, email, password, known_totp_secret=None):
                 error_element = driver.find_element(By.XPATH, error_xpath)
                 error_text = error_element.text
                 logger.error(f"[STEP] ✗ Login Error: {error_text}")
+                
+                 # Capture screenshot
+                screenshot = capture_screenshot_base64(driver)
+                if screenshot:
+                    print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+                
                 return False, "EMAIL_ERROR", f"Google rejected email: {error_text}"
         except Exception as e:
             logger.warning(f"[STEP] Error checking failed: {e}")
@@ -2810,6 +2831,12 @@ def login_google(driver, email, password, known_totp_secret=None):
                     
                     if still_on_identifier and error_still_visible:
                         logger.error(f"[STEP] ✗ Login Error (CONFIRMED): {error_text}")
+                        
+                         # Capture screenshot
+                        screenshot = capture_screenshot_base64(driver)
+                        if screenshot:
+                            print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+                            
                         return False, "ACCOUNT_NOT_FOUND", error_text
                     else:
                         logger.info("[STEP] Error was transient, page has moved on. Continuing...")
@@ -2818,6 +2845,12 @@ def login_google(driver, email, password, known_totp_secret=None):
                 if "This browser or app may not be secure" in driver.page_source or \
                    element_exists(driver, "//*[contains(text(), 'This browser or app may not be secure')]"):
                     logger.error("[STEP] ✗ Login Error: Secure Browser Block detected")
+                    
+                     # Capture screenshot
+                    screenshot = capture_screenshot_base64(driver)
+                    if screenshot:
+                        print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+                        
                     return False, "SECURE_BROWSER_BLOCK", "Secure Browser Block detected"
 
             # Check for image CAPTCHA input field (Google's own CAPTCHA, not reCAPTCHA)
@@ -3500,6 +3533,12 @@ def login_google(driver, email, password, known_totp_secret=None):
                 # If we still don't have password_input, fail
                 if not password_input:
                     error_msg = "Password field not found after email submission (checked main document and iframes)."
+                    
+                     # Capture screenshot
+                    screenshot = capture_screenshot_base64(driver)
+                    if screenshot:
+                        print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+
                     if screenshot_saved or page_source_saved:
                         error_msg += f" Screenshot and page source saved to S3 for investigation."
                     else:
@@ -3543,6 +3582,12 @@ def login_google(driver, email, password, known_totp_secret=None):
                 logger.info("[STEP] Password entered using JavaScript method")
             except Exception as e2:
                 logger.error(f"[STEP] JavaScript method also failed: {e2}")
+                
+                 # Capture screenshot
+                screenshot = capture_screenshot_base64(driver)
+                if screenshot:
+                    print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+                    
                 return False, "LOGIN_PASSWORD_INPUT_FAILED", f"Could not enter password: {e2}"
         
         # Verify password was entered
@@ -3622,6 +3667,12 @@ def login_google(driver, email, password, known_totp_secret=None):
                         logger.info("[STEP] ✓ CAPTCHA cleared after solving! Proceeding...")
                 else:
                     logger.error(f"[STEP] ✗✗✗ CAPTCHA solving failed: {solve_error}")
+                    
+                     # Capture screenshot
+                    screenshot = capture_screenshot_base64(driver)
+                    if screenshot:
+                        print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+                        
                     return False, "CAPTCHA_DETECTED", f"CAPTCHA detected after password submission. 2Captcha solving failed: {solve_error}"
             elif captcha_solved and detect_captcha(driver, email=email):
                 logger.info("[STEP] CAPTCHA already solved once for this user, skipping additional solve attempts...")
@@ -3629,6 +3680,12 @@ def login_google(driver, email, password, known_totp_secret=None):
             # Check for account verification/ID verification required
             if "speedbump/idvreenable" in current_url or "idvreenable" in current_url:
                 logger.error("[STEP] ID verification required - manual intervention needed")
+                
+                 # Capture screenshot
+                screenshot = capture_screenshot_base64(driver)
+                if screenshot:
+                    print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+                    
                 return False, "ID_VERIFICATION_REQUIRED", "Manual ID verification required"
             
             # Success conditions - we're logged in
@@ -3889,11 +3946,23 @@ def login_google(driver, email, password, known_totp_secret=None):
         # If we've exhausted all attempts and not logged in, fail
         logger.error(f"[STEP] Login failed - did not reach myaccount.google.com after {max_wait_attempts} attempts")
         logger.error(f"[STEP] Final URL: {current_url}")
+        
+         # Capture screenshot
+        screenshot = capture_screenshot_base64(driver)
+        if screenshot:
+            print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+            
         return False, "LOGIN_TIMEOUT", f"Login timed out after {max_wait_attempts * wait_interval} seconds. Last URL: {current_url}"
 
     except Exception as e:
         logger.error(f"[STEP] Login exception: {e}")
         logger.error(traceback.format_exc())
+        
+         # Capture screenshot
+        screenshot = capture_screenshot_base64(driver)
+        if screenshot:
+            print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+            
         return False, "LOGIN_EXCEPTION", str(e)
 
 
@@ -4939,6 +5008,12 @@ def process_single_user(email, password):
         
         if not success:
             logger.error(f"[STEP] Authenticator setup failed: {error_message}")
+            
+             # Capture screenshot
+            screenshot = capture_screenshot_base64(driver)
+            if screenshot:
+                print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+            
             return {
                 "email": email,
                 "status": "failed",
@@ -4966,6 +5041,12 @@ def process_single_user(email, password):
         
         if not success:
             logger.error(f"[STEP] Authenticator verification failed: {error_message}")
+            
+             # Capture screenshot
+            screenshot = capture_screenshot_base64(driver)
+            if screenshot:
+                print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+            
             return {
                 "email": email,
                 "status": "failed",
@@ -4985,6 +5066,12 @@ def process_single_user(email, password):
         
         if not success:
             logger.error(f"[STEP] 2-Step Verification enable failed: {error_message}")
+            
+             # Capture screenshot
+            screenshot = capture_screenshot_base64(driver)
+            if screenshot:
+                print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+            
             return {
                 "email": email,
                 "status": "failed",
@@ -5043,6 +5130,12 @@ def process_single_user(email, password):
             else:
                 # Other error or max retries reached
                 logger.error(f"[STEP] App Password generation failed: {error_message}")
+                
+                 # Capture screenshot
+                screenshot = capture_screenshot_base64(driver)
+                if screenshot:
+                    print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+                
                 return {
                     "email": email,
                     "status": "failed",
@@ -5057,6 +5150,12 @@ def process_single_user(email, password):
         if not success:
             # Should not reach here, but handle just in case
             logger.error(f"[STEP] App Password generation failed after all retries: {error_message}")
+            
+             # Capture screenshot
+            screenshot = capture_screenshot_base64(driver)
+            if screenshot:
+                print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
+            
             return {
                 "email": email,
                 "status": "failed",
@@ -5099,6 +5198,12 @@ def process_single_user(email, password):
     except Exception as e:
         logger.error(f"[LAMBDA] Unhandled exception for {email}: {e}")
         logger.error(traceback.format_exc())
+        
+         # Capture screenshot
+        if driver:
+            screenshot = capture_screenshot_base64(driver)
+            if screenshot:
+                print(f"<SCREENSHOT>{screenshot}</SCREENSHOT>")
         
         total_time = round(time.time() - user_start_time, 2)
         timings["total"] = total_time
