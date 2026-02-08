@@ -658,6 +658,59 @@ class DigitalOceanService:
             logger.error(f"Error starting automation on {ip_address}: {e}")
             return {'success': False, 'error': str(e)}
 
+
+    def run_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None) -> Dict:
+        """
+        Synchronous wrapper for automation script execution (for backward compatibility and bulk execution).
+        Starts the script and polls for completion.
+        """
+        try:
+            # 1. Start execution
+            start_res = self.start_automation_script(ip_address, email, password, ssh_key_path)
+            
+            if not start_res.get('success'):
+                return start_res
+            
+            log_file = start_res.get('log_file')
+            result_file = start_res.get('result_file')
+            
+            if not log_file or not result_file:
+                 return {'success': False, 'error': 'Failed to get log/result file paths from start command'}
+            
+            # 2. Poll for completion
+            # Wait up to 10 minutes (300 * 2s)
+            max_retries = 300 
+            
+            logger.info(f"Polling automation status for {email} on {ip_address}...")
+            
+            for _ in range(max_retries):
+                 status_res = self.check_automation_status(ip_address, log_file, result_file, ssh_key_path)
+                 
+                 if not status_res.get('success'):
+                     # If check fails (e.g. SSH error), count as error? Or retry?
+                     # We'll retry a few times implicitly by loop, but if it returns explicit success=False, it might be bad.
+                     # Actually check_automation_status returns success=True usually unless exception.
+                     pass
+
+                 
+                 # Access fields directly (check_automation_status returns direct dict)
+                 status = status_res.get('status')
+                 
+                 if status == 'completed':
+                     # Result is already in the response
+                     return status_res.get('result') or {'success': False, 'error': 'No result data found'}
+                     
+                 elif status == 'error':
+                     return {'success': False, 'error': status_res.get('error', 'Unknown error during execution')}
+                 
+                 time.sleep(2)
+            
+            return {'success': False, 'error': 'Timeout waiting for automation script to complete'}
+            
+        except Exception as e:
+            logger.error(f"Error in run_automation_script: {e}")
+            return {'success': False, 'error': str(e)}
+
     def check_automation_status(self, ip_address: str, log_file: str, result_file: str, ssh_key_path: str = None) -> Dict:
         """
         Check status of running automation by reading logs and looking for result file.
