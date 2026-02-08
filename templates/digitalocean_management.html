@@ -226,11 +226,23 @@
                         </div>
                         <div class="col-md-6">
                             <div class="row">
-                                <div class="col-12 mb-3">
-                                    <label class="form-label">Number of Droplets</label>
+                                <div class="col-4 mb-3">
+                                    <label class="form-label">Droplets</label>
                                     <input type="number" class="form-control" id="dropletCount" min="1" max="50"
                                         value="5" required>
-                                    <small class="text-muted">Users will be distributed evenly</small>
+                                    <small class="text-muted">Total droplets</small>
+                                </div>
+                                <div class="col-4 mb-3">
+                                    <label class="form-label">Parallel Users</label>
+                                    <input type="number" class="form-control" id="parallelUsers" min="1" max="50"
+                                        value="5" required>
+                                    <small class="text-muted">Threads per droplet</small>
+                                </div>
+                                <div class="col-4 mb-3">
+                                    <label class="form-label">Users per Droplet</label>
+                                    <input type="number" class="form-control" id="usersPerDroplet" min="1" max="100"
+                                        value="50" required>
+                                    <small class="text-muted">Max users/droplet</small>
                                 </div>
                                 <div class="col-12 mb-3">
                                     <label class="form-label">Snapshot ID (from snapshots above)</label>
@@ -393,6 +405,7 @@
         loadRegionsAndSizes();
         loadSnapshots();
         loadDroplets();
+        loadBulkDefaults();
 
         // Reset min disk if ID is manually changed
         $('#snapshotId').on('input', function () {
@@ -436,6 +449,23 @@
             error: function () {
                 $('#region').html('<option value="">Error loading regions</option>');
                 $('#size').html('<option value="">Error loading sizes</option>');
+            }
+        });
+    }
+
+    // === Load Bulk Defaults ===
+    function loadBulkDefaults() {
+        $.ajax({
+            url: '/api/do/config',
+            method: 'GET',
+            success: function (response) {
+                if (response.success && response.config) {
+                    const config = response.config;
+                    if (config.parallel_users) $('#parallelUsers').val(config.parallel_users);
+                    if (config.users_per_droplet) $('#usersPerDroplet').val(config.users_per_droplet);
+                    if (config.automation_snapshot_id) $('#snapshotId').val(config.automation_snapshot_id);
+                    if (config.auto_destroy_droplets !== undefined) $('#autoDestroy').prop('checked', config.auto_destroy_droplets);
+                }
             }
         });
     }
@@ -580,6 +610,8 @@
         const executionData = {
             users: users,
             droplet_count: dropletCount,
+            parallel_users: parseInt($('#parallelUsers').val()) || 5,
+            users_per_droplet: parseInt($('#usersPerDroplet').val()) || 50,
             snapshot_id: $('#snapshotId').val().trim(),
             region: $('#bulkRegion').val() || '',
             size: $('#bulkSize').val() || '',

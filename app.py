@@ -30,7 +30,7 @@ from email.mime.multipart import MIMEMultipart
 import re
 
 from core_logic import google_api
-from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig, ServiceAccount, CloudflareConfig, Notification, WorkspaceList
+from database import db, User, WhitelistedIP, UsedDomain, GoogleAccount, GoogleToken, Scope, ServerConfig, UserAppPassword, AutomationAccount, RetrievedUser, NamecheapConfig, DomainOperation, AwsConfig, ServiceAccount, CloudflareConfig, Notification, WorkspaceList, AwsGeneratedPassword
 from routes.dns_manager import dns_manager
 from routes.aws_manager import aws_manager
 from routes.digitalocean_manager import digitalocean_manager
@@ -3536,6 +3536,11 @@ def api_retrieve_users():
                     return jsonify({'success': False, 'error': result.get('error', 'Unknown error')})
 
                 users = result['users']
+                
+                # Fetch app passwords for these users
+                emails = [u.get('primaryEmail', '') for u in users if u.get('primaryEmail')]
+                passwords = {p.email: p.app_password for p in AwsGeneratedPassword.query.filter(AwsGeneratedPassword.email.in_(emails)).all()}
+                
                 return jsonify({
                     'success': True,
                     'users': [
@@ -3544,7 +3549,8 @@ def api_retrieve_users():
                             'first_name': u.get('name', {}).get('givenName', ''),
                             'last_name': u.get('name', {}).get('familyName', ''),
                             'admin': u.get('isAdmin', False),
-                            'suspended': u.get('suspended', False)
+                            'suspended': u.get('suspended', False),
+                            'app_password': passwords.get(u.get('primaryEmail', ''))
                         } for u in users
                     ],
                     'total_count': len(users),
@@ -3560,15 +3566,21 @@ def api_retrieve_users():
             
             users = result['users']
             
+            # Fetch app passwords for all retrieved users
+            emails = [u.get('primaryEmail', '') for u in users if u.get('primaryEmail')]
+            passwords = {p.email: p.app_password for p in AwsGeneratedPassword.query.filter(AwsGeneratedPassword.email.in_(emails)).all()}
+            
             # Format user data
             formatted_users = []
             for user in users:
+                email = user.get('primaryEmail', '')
                 user_data = {
-                    'email': user.get('primaryEmail', ''),
+                    'email': email,
                     'first_name': user.get('name', {}).get('givenName', ''),
                     'last_name': user.get('name', {}).get('familyName', ''),
                     'admin': user.get('isAdmin', False),
-                    'suspended': user.get('suspended', False)
+                    'suspended': user.get('suspended', False),
+                    'app_password': passwords.get(email)
                 }
                 formatted_users.append(user_data)
             

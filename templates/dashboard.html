@@ -4167,6 +4167,7 @@
                             <th>User</th>
                             <th>Status</th>
                             <th>Role</th>
+                            <th>App Password</th>
                         </tr>
                     </thead>
                     <tbody>`;
@@ -4198,6 +4199,16 @@
                         </td>
                         <td>${statusBadge}</td>
                         <td>${adminBadge}</td>
+                        <td>
+                            ${user.app_password
+                            ? `<div class="d-flex align-items-center gap-2">
+                                     <code style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px; color: var(--text-heading);">${user.app_password}</code>
+                                     <button class="btn btn-sm btn-link p-0 text-muted" onclick="copyToClipboard('${user.app_password}')" title="Copy Password">
+                                         <i class="fas fa-copy"></i>
+                                     </button>
+                                   </div>`
+                            : '<span class="text-muted small">Not generated</span>'}
+                        </td>
                     </tr>`;
                 });
                 html += `</tbody></table></div>`;

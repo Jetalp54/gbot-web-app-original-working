@@ -595,32 +595,38 @@ class DigitalOceanService:
             return False
     
     @staticmethod
-    def distribute_users(users: List[Dict], droplet_count: int) -> List[List[Dict]]:
+    def distribute_users(users: List[Dict], droplet_count: Optional[int] = None, max_users_per_droplet: int = 50) -> List[List[Dict]]:
         """
-        Distribute users evenly across droplets.
+        Distribute users across droplets based on count or max users per droplet.
         
         Args:
             users: List of user dictionaries
-            droplet_count: Number of droplets to distribute across
+            droplet_count: Optional explicit number of droplets to distribute across
+            max_users_per_droplet: Max users to assign to each droplet (if droplet_count is None)
             
         Returns:
             List of user batches (one per droplet)
         """
-        if droplet_count <= 0:
+        if not users:
             return []
         
-        # Calculate users per droplet (round up)
         total_users = len(users)
-        users_per_droplet = (total_users + droplet_count - 1) // droplet_count
+        
+        if droplet_count and droplet_count > 0:
+            # Strategy 1: Explicit droplet count - distribute evenly
+            users_per_batch = (total_users + droplet_count - 1) // droplet_count
+        else:
+            # Strategy 2: Use max users per droplet limit
+            users_per_batch = max_users_per_droplet
         
         # Split users into batches
         batches = []
-        for i in range(0, total_users, users_per_droplet):
-            batch = users[i:i + users_per_droplet]
+        for i in range(0, total_users, users_per_batch):
+            batch = users[i:i + users_per_batch]
             batches.append(batch)
         
         logger.info(f"Distributed {total_users} users across {len(batches)} droplets "
-                   f"({users_per_droplet} users per droplet)")
+                   f"({len(batches[0]) if batches else 0} users per droplet avg)")
         
         return batches
     

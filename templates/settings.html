@@ -357,6 +357,29 @@
                         </div>
                     </div>
 
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="do_parallel_users" class="form-label-github">
+                                <i class="fas fa-users"></i> Parallel Users
+                            </label>
+                            <input type="number" class="form-control-github w-100" id="do_parallel_users" value="5"
+                                min="1" max="50">
+                            <small style="color: #656d76; font-size: 12px;">
+                                Max users to process in parallel across all droplets
+                            </small>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 250px;">
+                            <label for="do_users_per_droplet" class="form-label-github">
+                                <i class="fas fa-server"></i> Users per Droplet
+                            </label>
+                            <input type="number" class="form-control-github w-100" id="do_users_per_droplet" value="50"
+                                min="1" max="100">
+                            <small style="color: #656d76; font-size: 12px;">
+                                Max users to assign to each droplet
+                            </small>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label for="do_ssh_private_key" class="form-label-github">
                             <i class="fas fa-file-code"></i> SSH Private Key (for automation)
@@ -3742,11 +3765,13 @@
                 if (data.success && data.config) {
                     const config = data.config;
                     $('#do_account_name').val(config.name || '');
-                    // Don't populate API token for security
                     if (config.is_configured) {
                         $('#do_api_token').attr('placeholder', `Token saved (${config.api_token_masked})`);
                         $('#do_api_token').data('configured', true);
                     }
+                    $('#do_parallel_users').val(config.parallel_users || 5);
+                    $('#do_users_per_droplet').val(config.users_per_droplet || 50);
+                    $('#do_ssh_private_key').val(config.ssh_private_key || '');
                 }
             })
             .catch(error => {
@@ -3830,7 +3855,9 @@
         const config = {
             name: $('#do_account_name').val().trim() || 'Default DigitalOcean Account',
             api_token: $('#do_api_token').val().trim(),
-            ssh_private_key: $('#do_ssh_private_key').val().trim()
+            ssh_private_key: $('#do_ssh_private_key').val().trim(),
+            parallel_users: parseInt($('#do_parallel_users').val()) || 5,
+            users_per_droplet: parseInt($('#do_users_per_droplet').val()) || 50
         };
 
         const isConfigured = $('#do_api_token').data('configured');

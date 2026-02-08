@@ -41,11 +41,13 @@ class BulkExecutionOrchestrator:
     def execute_bulk(
         self,
         users: List[Dict],
-        droplet_count: int,
-        snapshot_id: str,
-        region: str,
-        size: str,
+        droplet_count: Optional[int] = None,
+        snapshot_id: str = None,
+        region: str = None,
+        size: str = None,
         auto_destroy: bool = True,
+        parallel_users: int = 5,
+        users_per_droplet: int = 50,
         execution_id: str = None
     ) -> Dict:
         """
@@ -66,6 +68,8 @@ class BulkExecutionOrchestrator:
             region: Region to create droplets in
             size: Droplet size
             auto_destroy: Whether to destroy droplets after completion
+            parallel_users: Total parallel users across all droplets
+            users_per_droplet: Max users per droplet (to determine droplet count)
             execution_id: Optional existing execution ID to use
             
         Returns:
@@ -74,16 +78,29 @@ class BulkExecutionOrchestrator:
         exec_start = datetime.utcnow()
         self.execution_id = execution_id or f"exec_{int(time.time())}"
         
-        logger.info(f"[{self.execution_id}] Starting bulk execution: {len(users)} users, {droplet_count} droplets")
+        # Determine efficient distribution
+        # If droplet_count is 0 or None, we calculate it based on users_per_droplet
+        if not droplet_count or droplet_count <= 0:
+            if users_per_droplet and users_per_droplet > 0:
+                droplet_count = (len(users) + users_per_droplet - 1) // users_per_droplet
+            else:
+                droplet_count = 1
+        
+        logger.info(f"[{self.execution_id}] Starting bulk execution: {len(users)} users, {droplet_count} droplets, {parallel_users} total parallel")
         
         try:
             # 1. Distribute users
-            user_batches = DigitalOceanService.distribute_users(users, droplet_count)
-            logger.info(f"[{self.execution_id}] Distributed users into {len(user_batches)} batches")
+            user_batches = DigitalOceanService.distribute_users(
+                users, 
+                droplet_count=droplet_count, 
+                max_users_per_droplet=users_per_droplet
+            )
+            final_droplet_count = len(user_batches)
+            logger.info(f"[{self.execution_id}] Distributed {len(users)} users into {final_droplet_count} batches")
             
             # 2. Create droplets
             droplet_info, creation_errors = self._create_droplets_parallel(
-                count=len(user_batches),
+                count=final_droplet_count,
                 snapshot_id=snapshot_id,
                 region=region,
                 size=size
@@ -99,8 +116,12 @@ class BulkExecutionOrchestrator:
             
             logger.info(f"[{self.execution_id}] Created {len(droplet_info)} droplets")
             
+            # Calculate parallel users per droplet
+            workers_per_droplet = max(1, parallel_users // final_droplet_count) if final_droplet_count > 0 else 1
+            logger.info(f"[{self.execution_id}] Using {workers_per_droplet} parallel workers per droplet")
+            
             # 3. Execute automation on each droplet
-            results = self._execute_on_droplets_parallel(droplet_info, user_batches)
+            results = self._execute_on_droplets_parallel(droplet_info, user_batches, workers_per_droplet)
             
             # 4. Optionally destroy droplets
             if auto_destroy:
@@ -280,7 +301,8 @@ class BulkExecutionOrchestrator:
     def _execute_on_droplets_parallel(
         self,
         droplets: List[Dict],
-        user_batches: List[List[Dict]]
+        user_batches: List[List[Dict]],
+        workers_per_droplet: int = 1
     ) -> List[Dict]:
         """Execute automation on multiple droplets in parallel"""
         all_results = []
@@ -291,7 +313,7 @@ class BulkExecutionOrchestrator:
             for droplet, users in zip(droplets, user_batches):
                 future = executor.submit(
                     self._execute_on_single_droplet,
-                    droplet, users
+                    droplet, users, workers_per_droplet
                 )
                 futures[future] = droplet
             
@@ -309,7 +331,8 @@ class BulkExecutionOrchestrator:
     def _execute_on_single_droplet(
         self,
         droplet: Dict,
-        users: List[Dict]
+        users: List[Dict],
+        parallel_users: int = 1
     ) -> List[Dict]:
         """Execute automation for a batch of users on a single droplet"""
         results = []
@@ -329,102 +352,84 @@ class BulkExecutionOrchestrator:
             logger.error(f"Failed to pre-initialize log file: {init_le}")
 
         try:
-            # For each user, run the automation script
-            for user in users:
-                email = user.get('email')
-                password = user.get('password')
+            # Execute automation for multiple users in parallel on this droplet
+            with ThreadPoolExecutor(max_workers=parallel_users) as user_executor:
+                user_futures = []
+                for user in users:
+                    user_futures.append(user_executor.submit(self._execute_single_user_automation, droplet, user))
                 
-                if not email or not password:
-                    results.append({
-                        'success': False,
-                        'email': email or 'unknown',
-                        'error': 'Missing email or password',
-                        'droplet_id': droplet['id']
-                    })
-                    continue
-                
-                # Define log callback with history preservation
-                def log_callback(logs, append=False):
+                for future in as_completed(user_futures):
                     try:
-                        log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
-                        os.makedirs(log_dir, exist_ok=True)
-                        log_file = os.path.join(log_dir, f"{droplet['id']}.log")
-                        status_file = os.path.join(log_dir, f"{droplet['id']}.status")
-                        
-                        if append:
-                            # Save setup messages to a separate status file
-                            with open(status_file, 'a', encoding='utf-8') as sf:
-                                sf.write(logs)
-                        
-                        # Read setup status history
-                        status_content = ""
-                        if os.path.exists(status_file):
-                            with open(status_file, 'r', encoding='utf-8') as sf:
-                                status_content = sf.read()
-                        
-                        # Write the combined view: Status History + Remote Logs + Heartbeat
-                        sync_time = datetime.now().strftime("%H:%M:%S")
-                        heartbeat = f"\n--- [Log Sync: {sync_time} | Status: {'Running' if not append else 'Setup'}] ---\n"
-                        
-                        with open(log_file, 'w', encoding='utf-8') as f:
-                             f.write(status_content)
-                             if not append:
-                                 f.write(heartbeat)
-                                 f.write(logs)
-                    except Exception as le:
-                        logger.error(f"Log callback error: {le}")
-
-                # Execute automation via reusable service method
-                result_data = self.service.run_automation_script(
-                    ip_address=ip_address,
-                    email=email,
-                    password=password,
-                    ssh_key_path=self.config.get('ssh_private_key_path'),
-                    log_callback=log_callback
-                )
-                
-                is_success = result_data.get('success') or result_data.get('status') == 'success'
-                if not is_success:
-                    results.append({
-                        'success': False,
-                        'email': email,
-                        'error': result_data.get('error', 'Unknown error'),
-                        'droplet_id': droplet['id']
-                    })
-                    continue
-                
-                # Success - process result
-                app_password = result_data.get('app_password')
-                
-                # Save app password with dual-save backup system
-                # Save app password with dual-save backup system
-                if app_password:
-                    self._save_app_password_with_backup(
-                        email=email,
-                        app_password=app_password
-                    )
-
-                results.append({
-                    'success': True,
-                    'email': email,
-                    'app_password': app_password,
-                    'droplet_id': droplet['id'],
-                    'timestamp': datetime.utcnow().isoformat()
-                })
-                
+                        res = future.result()
+                        results.append(res)
+                    except Exception as e:
+                        logger.error(f"[{self.execution_id}] Individual user execution failed on {droplet['name']}: {e}")
+                        results.append({
+                            'success': False, 
+                            'email': 'unknown',
+                            'error': f"Thread error: {e}",
+                            'droplet_id': droplet['id']
+                        })
         except Exception as e:
-            logger.error(f"[{self.execution_id}] Error executing on droplet {droplet['name']}: {e}")
-            # Add failure results for remaining users
-            for user in users:
-                results.append({
-                    'success': False,
-                    'email': user.get('email', 'unknown'),
-                    'error': f'Droplet execution error: {str(e)}',
-                    'droplet_id': droplet['id']
-                })
-        
+            logger.error(f"[{self.execution_id}] Batch execution failed on {droplet['name']}: {e}")
+            
         return results
-    
+
+    def _execute_single_user_automation(self, droplet: Dict, user: Dict) -> Dict:
+        """Helper to execute automation for a single user (called in parallel)"""
+        email = user.get('email')
+        password = user.get('password')
+        ip_address = droplet['ip_address']
+        
+        if not email or not password:
+            return {
+                'success': False,
+                'email': email or 'unknown',
+                'error': 'Missing email or password',
+                'droplet_id': droplet['id']
+            }
+        
+        # Define log callback with history preservation and user-specific prefixing
+        def log_callback(logs, append=False):
+            try:
+                log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
+                os.makedirs(log_dir, exist_ok=True)
+                log_file = os.path.join(log_dir, f"{droplet['id']}.log")
+                
+                # Prefix logs with email
+                prefixed_logs = ""
+                for line in logs.splitlines():
+                    prefixed_logs += f"[{email}] {line}\n"
+                
+                # Since multiple users write to the same file, we append to the communal log file.
+                with open(log_file, 'a', encoding='utf-8') as f:
+                     f.write(prefixed_logs)
+            except Exception as le:
+                logger.error(f"Log callback error for {email}: {le}")
+
+        # Execute automation via reusable service method
+        result_data = self.service.run_automation_script(
+            ip_address=ip_address,
+            email=email,
+            password=password,
+            ssh_key_path=self.config.get('ssh_private_key_path'),
+            log_callback=log_callback
+        )
+        
+        # Normalize result (ensure 'success' key exists for easier checking)
+        if 'success' not in result_data:
+            result_data['success'] = result_data.get('status') == 'success'
+        
+        # Add metadata
+        result_data['email'] = email
+        result_data['droplet_id'] = droplet['id']
+        
+        # Save app password if successful
+        if result_data.get('success') and result_data.get('app_password'):
+            self._save_app_password_with_backup(email, result_data.get('app_password'))
+            
+        return result_data
+
     def _save_app_password_with_backup(self, email: str, app_password: str):
         """
         Dual-save system: Save app password to both database AND backup file.

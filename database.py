@@ -282,6 +282,8 @@ class DigitalOceanConfig(db.Model):
     ssh_key_id = db.Column(db.String(255))
     ssh_private_key_path = db.Column(db.String(500))
     auto_destroy_droplets = db.Column(db.Boolean, default=True)
+    parallel_users = db.Column(db.Integer, default=5)
+    users_per_droplet = db.Column(db.Integer, default=50)
     is_configured = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())

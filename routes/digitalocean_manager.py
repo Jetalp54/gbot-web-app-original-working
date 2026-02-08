@@ -98,6 +98,8 @@ def get_config():
                 'automation_snapshot_id': config.automation_snapshot_id,
                 'ssh_key_id': config.ssh_key_id,
                 'auto_destroy_droplets': config.auto_destroy_droplets,
+                'parallel_users': config.parallel_users,
+                'users_per_droplet': config.users_per_droplet,
                 'is_configured': config.is_configured
             }
         })
@@ -136,6 +138,8 @@ def save_config():
         config.automation_snapshot_id = data.get('automation_snapshot_id', '').strip() or None
         config.ssh_key_id = data.get('ssh_key_id', '').strip() or None
         config.auto_destroy_droplets = data.get('auto_destroy_droplets', True)
+        config.parallel_users = data.get('parallel_users', 5)
+        config.users_per_droplet = data.get('users_per_droplet', 50)
         
         # Handle SSH private key
         ssh_private_key = data.get('ssh_private_key', '').strip()
