@@ -325,18 +325,8 @@ class BulkExecutionOrchestrator:
                         os.makedirs(log_dir, exist_ok=True)
                         log_file = os.path.join(log_dir, f"{droplet['id']}.log")
                         
-                        # Append logs (simple approach)
-                        with open(log_file, 'w', encoding='utf-8') as f:
-                             # Overwrite or append? run_automation_script polls tails, so it might return overlapping chunks
-                             # But actually run_automation_script returns the TAIL.
-                             # If we want a full log, we should append new content.
-                             # But the callback receives the "latest chunk" or "current tail"?
-                             # run_automation_script calls callback with `status_res.get('logs')`.
-                             # check_automation_status returns `tail -n 50`.
-                             # So we are getting the last 50 lines repeatedly.
-                             # Writing it effectively updates the "live view" file.
-                             # For a true persistent log we'd need more complex cursor tracking logic.
-                             # For the UI "Real Time View", overwriting with the latest tail is actually sufficient/correct for a "monitor".
+                        # Append logs to avoid overwriting previous chunks
+                        with open(log_file, 'a', encoding='utf-8') as f:
                              f.write(logs)
                     except Exception as le:
                         logger.error(f"Log callback error: {le}")
