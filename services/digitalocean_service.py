@@ -678,7 +678,7 @@ class DigitalOceanService:
             # Ensure permissions
             self.execute_ssh_command(
                 ip_address=ip_address,
-                command=f"sed -i 's/\r$//' {remote_script} && chmod +x {remote_script}",
+                command=f"sed -i 's/\\r$//' {remote_script} && chmod +x {remote_script}",
                 username='root',
                 ssh_key_path=ssh_key_path
             )
@@ -706,6 +706,7 @@ class DigitalOceanService:
             command = f"/usr/bin/python3 -u {remote_script} --email '{email}' --password '{password}' --output {result_file}"
             logger.info(f"Running automation on {ip_address} for {email}")
             
+            stdout_full = ""
             if log_callback:
                 # Use the new streaming method
                 success, stdout, stderr = self.execute_ssh_command_streaming(
@@ -715,6 +716,7 @@ class DigitalOceanService:
                     ssh_key_path=ssh_key_path,
                     callback=log_callback
                 )
+                stdout_full = stdout
             else:
                  success, stdout, stderr = self.execute_ssh_command(
                     ip_address=ip_address,
@@ -722,10 +724,11 @@ class DigitalOceanService:
                     username='root',
                     ssh_key_path=ssh_key_path
                 )
+                 stdout_full = stdout
             
             # Log output for debugging
-            if stdout:
-                logger.info(f"STDOUT ({email}): {stdout[:200]}...") # Truncate for log cleanliness
+            if stdout_full:
+                logger.info(f"STDOUT ({email}): {stdout_full[:200]}...") # Truncate for log cleanliness
             if stderr:
                 logger.warning(f"STDERR ({email}): {stderr}")
                 
@@ -740,20 +743,44 @@ class DigitalOceanService:
                 ssh_key_path=ssh_key_path
             )
             
+            result_data = None
             if downloaded and os.path.exists(local_result_file):
                 with open(local_result_file, 'r') as f:
                     try:
                         result_data = json.load(f)
                     except json.JSONDecodeError:
-                        return {'success': False, 'error': "Invalid JSON result from script", 'stdout': stdout}
+                        logger.warning(f"Invalid JSON in result file for {email}")
                 os.remove(local_result_file)
+            
+            if result_data:
                 return result_data
-            else:
-                return {
-                    'success': False, 
-                    'error': f"Script executed but no result file generated. Stderr: {stderr}",
-                    'stdout': stdout
-                }
+            
+            # Fallback: Try to find JSON result in stdout if file download failed or was invalid
+            import re
+            # Look for JSON structure containing "success": true
+            json_match = re.search(r'(\{.*"success":\s*true.*\})', stdout_full, re.DOTALL)
+            if not json_match:
+                # Try finding any JSON-like structure at the end of stdout
+                try:
+                    last_line = stdout_full.strip().split('\n')[-1]
+                    if last_line.startswith('{') and last_line.endswith('}'):
+                        json_match = re.search(r'(\{.*\})$', last_line)
+                except:
+                    pass
+            
+            if json_match:
+                try:
+                    result_data = json.loads(json_match.group(1))
+                    logger.info(f"Recovered automation result from stdout for {email}")
+                    return result_data
+                except:
+                    pass
+            
+            return {
+                'success': False, 
+                'error': f"Script executed but no result file generated/downloaded. Stderr: {stderr}",
+                'stdout': stdout_full
+            }
                 
         except Exception as e:
             logger.error(f"Error running automation script on {ip_address}: {e}")

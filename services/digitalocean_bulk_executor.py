@@ -473,32 +473,42 @@ class BulkExecutionOrchestrator:
         db_success = False
         max_retries = 3
         
-        for attempt in range(max_retries):
-            try:
-                # Check if already exists
-                existing = AwsGeneratedPassword.query.filter_by(email=email).first()
-                if existing:
-                    existing.app_password = app_password
-                else:
-                    new_password = AwsGeneratedPassword()
-                    new_password.email = email
-                    new_password.app_password = app_password
-                    db.session.add(new_password)
+        # Use app context if available (critical for threads)
+        context_manager = self.app.app_context() if self.app else None
+        
+        try:
+            if context_manager:
+                context_manager.push()
                 
-                # Immediate commit (don't batch)
-                db.session.commit()
-                db_success = True
-                logger.info(f"[{self.execution_id}] ✓ Database saved: {email}")
-                break
-                
-            except Exception as db_error:
-                db.session.rollback()
-                logger.warning(f"[{self.execution_id}] Database save attempt {attempt+1}/{max_retries} failed for {email}: {db_error}")
-                
-                if attempt < max_retries - 1:
-                    time.sleep(0.5)  # Brief pause before retry
-                else:
-                    logger.error(f"[{self.execution_id}] ✗ Database save FAILED after {max_retries} attempts: {email}")
+            for attempt in range(max_retries):
+                try:
+                    # Check if already exists
+                    existing = AwsGeneratedPassword.query.filter_by(email=email).first()
+                    if existing:
+                        existing.app_password = app_password
+                    else:
+                        new_password = AwsGeneratedPassword()
+                        new_password.email = email
+                        new_password.app_password = app_password
+                        db.session.add(new_password)
+                    
+                    # Immediate commit (don't batch)
+                    db.session.commit()
+                    db_success = True
+                    logger.info(f"[{self.execution_id}] ✓ Database saved: {email}")
+                    break
+                    
+                except Exception as db_error:
+                    db.session.rollback()
+                    logger.warning(f"[{self.execution_id}] Database save attempt {attempt+1}/{max_retries} failed for {email}: {db_error}")
+                    
+                    if attempt < max_retries - 1:
+                        time.sleep(0.5)  # Brief pause before retry
+                    else:
+                        logger.error(f"[{self.execution_id}] ✗ Database save FAILED after {max_retries} attempts: {email}")
+        finally:
+            if context_manager:
+                context_manager.pop()
         
         # 3. UPDATE BACKUP FILE STATUS
         if backup_success:
