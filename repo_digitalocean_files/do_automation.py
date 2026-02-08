@@ -251,16 +251,6 @@ def get_chrome_driver():
         stealth_available = False
         logger.warning(f"[ANTI-DETECT] selenium-stealth not available: {e}")
     
-    # Force environment variables to prevent SeleniumManager
-    os.environ['HOME'] = '/tmp'
-    os.environ['XDG_CACHE_HOME'] = '/tmp/.cache'
-    os.environ['SE_SELENIUM_MANAGER'] = 'false'
-    os.environ['SELENIUM_MANAGER'] = 'false'
-    os.environ['SELENIUM_DISABLE_DRIVER_MANAGER'] = '1'
-    
-    # Ensure /tmp cache directory exists
-    os.makedirs('/tmp/.cache', exist_ok=True)
-    
     # Locate Chrome binary and ChromeDriver
     global _cached_chrome_binary, _cached_chromedriver_path
     
@@ -357,46 +347,43 @@ def get_chrome_driver():
         logger.info("[PROXY] Proxy disabled or not configured")
 
     # =========================================================================
-    # MINIMAL OPTIONS ONLY - These are proven to work reliably in Lambda
-    # DO NOT ADD MORE OPTIONS - extra options cause Chrome to crash!
+    # OPTIMIZED OPTIONS FOR VM ENVIRONMENT (DigitalOcean)
     # =========================================================================
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-setuid-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    # chrome_options.add_argument("--single-process")  # REMOVED: Unstable on standard VMs (DO), only for Lambda
     chrome_options.add_argument("--disable-software-rasterizer")
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--lang=en-US")
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # Hide automation
+    # Hide automation (standard selenium) - uc does this better automatically
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled") 
 
     try:
-        # Create Service with explicit ChromeDriver path
-        service = Service(executable_path=chromedriver_path)
-        
         # Set browser executable path
         chrome_options.binary_location = chrome_binary
         
-        logger.info(f"[LAMBDA] Initializing Chrome with minimal options...")
-        logger.info(f"[LAMBDA] ChromeDriver: {chromedriver_path}, Chrome: {chrome_binary}")
+        logger.info(f"[BROWSER] Starting undetected-chromedriver...")
+        logger.info(f"[BROWSER] Binary: {chrome_binary}, Driver: {chromedriver_path}")
         
-        # Create driver - use selenium-wire if proxy is configured
-        if seleniumwire_options:
-            try:
-                from seleniumwire import webdriver as wire_webdriver
-                logger.info("[PROXY] Using selenium-wire for proxy authentication")
-                driver = wire_webdriver.Chrome(
-                    service=service,
-                    options=chrome_options,
-                    seleniumwire_options=seleniumwire_options
-                )
-                logger.info("[PROXY] ✓ selenium-wire driver created")
-            except ImportError:
-                logger.warning("[PROXY] selenium-wire not available, using regular selenium")
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-        else:
+        # Try undetected-chromedriver first for reliability on VM
+        try:
+            import undetected_chromedriver as uc
+            driver = uc.Chrome(
+                options=chrome_options,
+                driver_executable_path=chromedriver_path,
+                browser_executable_path=chrome_binary,
+                headless=True,
+                use_subprocess=True
+            )
+            logger.info("[BROWSER] ✓ undetected-chromedriver started")
+        except Exception as uc_err:
+            logger.warning(f"[BROWSER] uc.Chrome failed: {uc_err}. Falling back to standard Selenium.")
+            service = Service(executable_path=chromedriver_path)
             driver = webdriver.Chrome(service=service, options=chrome_options)
+            logger.info("[BROWSER] ✓ Standard selenium driver started")
         
         # Set reasonable page load timeout
         driver.set_page_load_timeout(120)
@@ -420,11 +407,11 @@ def get_chrome_driver():
             except Exception as e:
                 logger.warning(f"[ANTI-DETECT] stealth failed (non-critical): {e}")
         
-        logger.info("[LAMBDA] ✓ Chrome driver created successfully")
+        logger.info("[BROWSER] ✓ Browser initialization complete")
         return driver
         
     except Exception as e:
-        logger.error(f"[LAMBDA] Failed to create Chrome driver: {e}")
+        logger.error(f"[BROWSER] CRITICAL: Failed to create driver: {e}")
         logger.error(traceback.format_exc())
         raise
 
