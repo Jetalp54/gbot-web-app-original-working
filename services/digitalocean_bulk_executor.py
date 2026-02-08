@@ -81,7 +81,7 @@ class BulkExecutionOrchestrator:
             logger.info(f"[{self.execution_id}] Distributed users into {len(user_batches)} batches")
             
             # 2. Create droplets
-            droplet_info = self._create_droplets_parallel(
+            droplet_info, creation_errors = self._create_droplets_parallel(
                 count=len(user_batches),
                 snapshot_id=snapshot_id,
                 region=region,
@@ -89,9 +89,10 @@ class BulkExecutionOrchestrator:
             )
             
             if not droplet_info:
+                error_msg = f"Failed to create droplets: {'; '.join(creation_errors)}" if creation_errors else 'Failed to create droplets (Unknown error)'
                 return {
                     'success': False,
-                    'error': 'Failed to create droplets',
+                    'error': error_msg,
                     'execution_id': self.execution_id
                 }
             
@@ -140,9 +141,10 @@ class BulkExecutionOrchestrator:
         snapshot_id: str,
         region: str,
         size: str
-    ) -> List[Dict]:
+    ) -> Tuple[List[Dict], List[str]]:
         """Create multiple droplets in parallel"""
         droplets = []
+        errors = []
         
         with ThreadPoolExecutor(max_workers=min(count, 10)) as executor:
             futures = []
@@ -165,8 +167,9 @@ class BulkExecutionOrchestrator:
                         self.droplets_created.append(droplet)
                 except Exception as e:
                     logger.error(f"[{self.execution_id}] Droplet creation failed: {e}")
+                    errors.append(str(e))
         
-        return droplets
+        return droplets, errors
     
     def _create_and_wait_for_droplet(
         self,
@@ -177,18 +180,23 @@ class BulkExecutionOrchestrator:
     ) -> Optional[Dict]:
         """Create a droplet and wait for it to be active"""
         try:
+            # Get SSH key from config
+            ssh_key_id = self.config.get('ssh_key_id')
+            ssh_keys = [ssh_key_id] if ssh_key_id else []
+
             # Create droplet
             result, error_msg = self.service.create_droplet(
                 name=name,
                 region=region,
                 size=size,
                 image=snapshot_id,
+                ssh_keys=ssh_keys,
                 tags=['bulk-execution', self.execution_id]
             )
             
             if not result:
                 logger.error(f"[{self.execution_id}] Failed to create droplet {name}: {error_msg}")
-                return None
+                raise Exception(f"API Error: {error_msg}")
             
             droplet_id = result['id']
             
@@ -197,7 +205,7 @@ class BulkExecutionOrchestrator:
             
             if not ip_address:
                 logger.error(f"[{self.execution_id}] Droplet {droplet_id} did not become active")
-                return None
+                raise Exception(f"Droplet {droplet_id} timed out waiting for IP")
             
             # Wait additional time for SSH to be ready
             time.sleep(30)
