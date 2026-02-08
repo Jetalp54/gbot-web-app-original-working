@@ -1123,12 +1123,19 @@ def get_bulk_droplet_logs(execution_id, droplet_id):
                 'logs': "Initializing connection to droplet... (Please wait a moment)"
             })
             
+        from database import DigitalOceanExecution
+        execution = DigitalOceanExecution.query.filter_by(task_id=execution_id).first()
+        is_active = True
+        if execution and execution.status in ['completed', 'failed']:
+            is_active = False
+
         with open(log_file, 'r', encoding='utf-8') as f:
             logs = f.read()
             
         return jsonify({
             'success': True,
-            'logs': logs
+            'logs': logs,
+            'is_active': is_active
         })
     except Exception as e:
         logger.error(f"Error fetching logs for droplet {droplet_id}: {e}")

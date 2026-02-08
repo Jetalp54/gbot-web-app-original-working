@@ -343,17 +343,34 @@ class BulkExecutionOrchestrator:
                     })
                     continue
                 
-                # Define log callback
+                # Define log callback with history preservation
                 def log_callback(logs, append=False):
                     try:
                         log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
                         os.makedirs(log_dir, exist_ok=True)
                         log_file = os.path.join(log_dir, f"{droplet['id']}.log")
+                        status_file = os.path.join(log_dir, f"{droplet['id']}.status")
                         
-                        # Use 'a' for manual status updates, 'w' for full remote logs
-                        mode = 'a' if append else 'w'
-                        with open(log_file, mode, encoding='utf-8') as f:
-                             f.write(logs)
+                        if append:
+                            # Save setup messages to a separate status file
+                            with open(status_file, 'a', encoding='utf-8') as sf:
+                                sf.write(logs)
+                        
+                        # Read setup status history
+                        status_content = ""
+                        if os.path.exists(status_file):
+                            with open(status_file, 'r', encoding='utf-8') as sf:
+                                status_content = sf.read()
+                        
+                        # Write the combined view: Status History + Remote Logs + Heartbeat
+                        sync_time = datetime.now().strftime("%H:%M:%S")
+                        heartbeat = f"\n--- [Log Sync: {sync_time} | Status: {'Running' if not append else 'Setup'}] ---\n"
+                        
+                        with open(log_file, 'w', encoding='utf-8') as f:
+                             f.write(status_content)
+                             if not append:
+                                 f.write(heartbeat)
+                                 f.write(logs)
                     except Exception as le:
                         logger.error(f"Log callback error: {le}")
 
