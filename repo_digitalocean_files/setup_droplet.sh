@@ -23,15 +23,24 @@ echo "Starting at: $(date)"
 
 # Helper function for silent install
 silent_apt() {
-    DEBIAN_FRONTEND=noninteractive apt-get "$@" > /dev/null 2>&1
-    local status=$?
-    if [ $status -ne 0 ]; then
-        echo "Error running apt-get $@. Retrying with output..."
-        # If it fails, run it again without silence to show error
-        DEBIAN_FRONTEND=noninteractive apt-get "$@"
-        return $?
-    fi
-    return 0
+    local max_retries=3
+    local attempt=1
+    local status=1
+    
+    while [ $attempt -le $max_retries ]; do
+        DEBIAN_FRONTEND=noninteractive apt-get --fix-missing "$@" > /dev/null 2>&1
+        status=$?
+        if [ $status -eq 0 ]; then
+            return 0
+        fi
+        echo "Apt-get failed (attempt $attempt/$max_retries). Retrying..."
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+
+    echo "Error running apt-get $@ after $max_retries attempts. Running with output:"
+    DEBIAN_FRONTEND=noninteractive apt-get --fix-missing "$@"
+    return $?
 }
 
 # Update system
