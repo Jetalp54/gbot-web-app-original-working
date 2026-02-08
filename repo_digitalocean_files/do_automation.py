@@ -258,17 +258,17 @@ def get_chrome_driver():
     if _cached_chrome_binary and _cached_chromedriver_path:
         chrome_binary = _cached_chrome_binary
         chromedriver_path = _cached_chromedriver_path
-        logger.info(f"[LAMBDA] Using cached paths - Chrome: {chrome_binary}, Driver: {chromedriver_path}")
+        logger.info(f"[BROWSER] Using cached paths - Chrome: {chrome_binary}, Driver: {chromedriver_path}")
     else:
-        logger.info("[LAMBDA] Checking /opt directory contents...")
+        logger.info("[BROWSER] Checking /opt directory contents...")
         chrome_binary = None
         chromedriver_path = None
     
     # Log /opt contents for debugging
     if os.path.exists('/opt'):
-        logger.info(f"[LAMBDA] Contents of /opt: {os.listdir('/opt')}")
+        logger.info(f"[BROWSER] Contents of /opt: {os.listdir('/opt')}")
         if os.path.exists('/opt/chrome'):
-            logger.info(f"[LAMBDA] Contents of /opt/chrome: {os.listdir('/opt/chrome')}")
+            logger.info(f"[BROWSER] Contents of /opt/chrome: {os.listdir('/opt/chrome')}")
     
     # Common paths for Chrome binary
     chrome_paths = [
@@ -283,7 +283,7 @@ def get_chrome_driver():
     for path in chrome_paths:
         if os.path.isfile(path) and os.access(path, os.X_OK):
             chrome_binary = path
-            logger.info(f"[LAMBDA] Found Chrome binary at: {chrome_binary}")
+            logger.info(f"[BROWSER] Found Chrome binary at: {chrome_binary}")
             break
     
     # If not found by direct paths, try using 'which'
@@ -292,13 +292,13 @@ def get_chrome_driver():
             result = subprocess.run(['which', 'chrome'], capture_output=True, text=True)
             if result.returncode == 0:
                 chrome_binary = result.stdout.strip()
-                logger.info(f"[LAMBDA] Found Chrome via which: {chrome_binary}")
+                logger.info(f"[BROWSER] Found Chrome via which: {chrome_binary}")
         except Exception as e:
             logger.debug(f"[LAMBDA] 'which chrome' failed: {e}")
     
     if not chrome_binary:
-        logger.error("[LAMBDA] Chrome binary not found! Cannot proceed without Chrome binary path.")
-        raise Exception("Chrome binary not found in Lambda environment")
+        logger.error("[BROWSER] Chrome binary not found! Cannot proceed without Chrome binary path.")
+        raise Exception("Chrome binary not found in VM environment")
     
     # Common paths for ChromeDriver
     chromedriver_paths = [
@@ -310,7 +310,7 @@ def get_chrome_driver():
     for path in chromedriver_paths:
         if os.path.isfile(path) and os.access(path, os.X_OK):
             chromedriver_path = path
-            logger.info(f"[LAMBDA] Found ChromeDriver at: {chromedriver_path}")
+            logger.info(f"[BROWSER] Found ChromeDriver at: {chromedriver_path}")
             break
     
     if not chromedriver_path:
@@ -318,13 +318,13 @@ def get_chrome_driver():
             result = subprocess.run(['which', 'chromedriver'], capture_output=True, text=True)
             if result.returncode == 0:
                 chromedriver_path = result.stdout.strip()
-                logger.info(f"[LAMBDA] Found ChromeDriver via which: {chromedriver_path}")
+                logger.info(f"[BROWSER] Found ChromeDriver via which: {chromedriver_path}")
         except Exception as e:
             logger.debug(f"[LAMBDA] 'which chromedriver' failed: {e}")
     
     if not chromedriver_path:
-        logger.error("[LAMBDA] ChromeDriver not found! This should not happen with umihico base image.")
-        raise Exception("ChromeDriver not found in Lambda environment")
+        logger.error("[BROWSER] ChromeDriver not found! This should not happen with optimized setup.")
+        raise Exception("ChromeDriver not found in VM environment")
         
     # Cache the found paths
     _cached_chrome_binary = chrome_binary
@@ -347,10 +347,10 @@ def get_chrome_driver():
         logger.info("[PROXY] Proxy disabled or not configured")
 
     # =========================================================================
-    # OPTIMIZED OPTIONS FOR VM ENVIRONMENT (DigitalOcean)
+    # ROCK-SOLID STANDARD SELENIUM OPTIONS (Optimized for headless Linux)
     # =========================================================================
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-setuid-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
@@ -358,32 +358,43 @@ def get_chrome_driver():
     chrome_options.add_argument("--disable-software-rasterizer")
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--lang=en-US")
-    # Hide automation (standard selenium) - uc does this better automatically
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled") 
+    # Hide automation flags
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+    
+    # Random modern User-Agent
+    ua = random.choice(USER_AGENTS)
+    chrome_options.add_argument(f'user-agent={ua}')
 
     try:
         # Set browser executable path
         chrome_options.binary_location = chrome_binary
         
-        logger.info(f"[BROWSER] Starting undetected-chromedriver...")
+        logger.info(f"[BROWSER] Starting Standard Selenium (Headless)...")
         logger.info(f"[BROWSER] Binary: {chrome_binary}, Driver: {chromedriver_path}")
         
-        # Try undetected-chromedriver first for reliability on VM
-        try:
-            import undetected_chromedriver as uc
-            driver = uc.Chrome(
-                options=chrome_options,
-                driver_executable_path=chromedriver_path,
-                browser_executable_path=chrome_binary,
-                headless=True,
-                use_subprocess=True
-            )
-            logger.info("[BROWSER] ✓ undetected-chromedriver started")
-        except Exception as uc_err:
-            logger.warning(f"[BROWSER] uc.Chrome failed: {uc_err}. Falling back to standard Selenium.")
-            service = Service(executable_path=chromedriver_path)
+        # Create Service with explicit ChromeDriver path
+        service = Service(executable_path=chromedriver_path)
+        
+        # Create driver - use selenium-wire if proxy is configured
+        if seleniumwire_options:
+            try:
+                from seleniumwire import webdriver as wire_webdriver
+                logger.info("[PROXY] Using selenium-wire for proxy authentication")
+                driver = wire_webdriver.Chrome(
+                    service=service,
+                    options=chrome_options,
+                    seleniumwire_options=seleniumwire_options
+                )
+                logger.info("[PROXY] ✓ selenium-wire driver created")
+            except ImportError:
+                logger.warning("[PROXY] selenium-wire not available, using regular selenium")
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+        else:
             driver = webdriver.Chrome(service=service, options=chrome_options)
-            logger.info("[BROWSER] ✓ Standard selenium driver started")
+        
+        logger.info("[BROWSER] ✓ Standard selenium driver started")
         
         # Set reasonable page load timeout
         driver.set_page_load_timeout(120)
