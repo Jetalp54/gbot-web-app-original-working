@@ -622,6 +622,137 @@
     });
     // === End of Page Initialization ===
 
+    // === Bulk Execution Monitor Logic ===
+    let monitorInterval = null;
+    let pollerIntervals = {};
+    let activeDropletIds = new Set();
+
+    function initializeLogMonitor(executionId) {
+        console.log("Initializing Monitor for Execution:", executionId);
+        $('#monitorStatus').text('Orchestrating...');
+
+        // Clear any previous monitoring state
+        if (monitorInterval) clearInterval(monitorInterval);
+        Object.values(pollerIntervals).forEach(clearInterval);
+        pollerIntervals = {};
+        activeDropletIds = new Set();
+
+        // Reset Tabs and Content
+        $('#dropletTabs').html('');
+        $('#dropletLogsContent').html(`
+            <div id="noDropletsMessage" class="text-center p-5 text-muted">
+                <i class="fa fa-spinner fa-spin fa-2x"></i><br>
+                Waiting for droplets to be created and initialized...
+            </div>
+        `);
+
+        // Start polling for droplets assigned to this execution
+        monitorInterval = setInterval(function () {
+            updateMonitorTabs(executionId);
+        }, 5000);
+
+        // Immediate check
+        updateMonitorTabs(executionId);
+    }
+
+    function updateMonitorTabs(executionId) {
+        $.ajax({
+            url: `/api/do/execution/${executionId}/status`,
+            method: 'GET',
+            success: function (response) {
+                if (!response.success) {
+                    $('#monitorStatus').text('Status Error').addClass('bg-danger');
+                    return;
+                }
+
+                $('#monitorStatus').text(response.status.toUpperCase());
+
+                if (response.completed) {
+                    $('#monitorStatus').removeClass('bg-info').addClass('bg-success').text('COMPLETED');
+                    clearInterval(monitorInterval);
+                }
+
+                // Get droplets for this execution
+                if (response.droplets && response.droplets.length > 0) {
+                    $('#noDropletsMessage').hide();
+
+                    response.droplets.forEach(function (droplet, index) {
+                        if (!activeDropletIds.has(droplet.droplet_id)) {
+                            console.log("Found new droplet:", droplet.droplet_name);
+                            activeDropletIds.add(droplet.droplet_id);
+
+                            // Add Tab
+                            const isActive = $('#dropletTabs li').length === 0 ? 'active' : '';
+                            const tabId = `tab-${droplet.droplet_id}`;
+                            const paneId = `pane-${droplet.droplet_id}`;
+
+                            $('#dropletTabs').append(`
+                                <li class="nav-item">
+                                    <button class="nav-link ${isActive} btn-sm" id="${tabId}" data-bs-toggle="tab" 
+                                            data-bs-target="#${paneId}" type="button" role="tab" style="font-size: 0.75rem;">
+                                        <i class="fa fa-server"></i> ${droplet.droplet_name.replace('bulk-exec-', '')}
+                                    </button>
+                                </li>
+                            `);
+
+                            // Add Pane
+                            const paneActive = isActive ? 'show active' : '';
+                            $('#dropletLogsContent').append(`
+                                <div class="tab-pane fade ${paneActive}" id="${paneId}" role="tabpanel">
+                                    <div class="p-2 bg-dark text-white rounded">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <small class="text-muted">IP: ${droplet.ip_address || 'Pending...'}</small>
+                                            <span class="badge bg-secondary" id="status-${droplet.droplet_id}">Connecting...</span>
+                                        </div>
+                                        <pre id="logs-${droplet.droplet_id}" class="m-0 p-2" 
+                                             style="height: 350px; overflow-y: auto; font-family: monospace; font-size: 0.75rem; color: #00ff00; background-color: #111;"></pre>
+                                    </div>
+                                </div>
+                            `);
+
+                            // Start log polling for this specific droplet
+                            startDropletLogPolling(executionId, droplet.droplet_id);
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    function startDropletLogPolling(executionId, dropletId) {
+        if (pollerIntervals[dropletId]) return;
+
+        console.log("Starting log polling for droplet:", dropletId);
+
+        pollerIntervals[dropletId] = setInterval(function () {
+            $.ajax({
+                url: `/api/do/execution/${executionId}/droplets/${dropletId}/logs`,
+                method: 'GET',
+                success: function (response) {
+                    const logElement = document.getElementById(`logs-${dropletId}`);
+                    const statusBadge = $(`#status-${dropletId}`);
+
+                    if (response.success && response.logs) {
+                        if (logElement) {
+                            logElement.textContent = response.logs;
+                            logElement.scrollTop = logElement.scrollHeight;
+                        }
+
+                        if (response.is_active) {
+                            statusBadge.text('RUNNING').removeClass('bg-secondary').addClass('bg-primary');
+                        } else {
+                            statusBadge.text('FINISHED').removeClass('bg-primary bg-secondary').addClass('bg-success');
+                            clearInterval(pollerIntervals[dropletId]);
+                        }
+                    }
+                },
+                error: function () {
+                    $(`#status-${dropletId}`).text('Offline').addClass('bg-danger');
+                }
+            });
+        }, 3000);
+    }
+
     // === Instant Live Logs Polling ===
     let creationLogPollInterval = null;
 

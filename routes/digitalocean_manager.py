@@ -865,11 +865,21 @@ def execute_automation():
         if not size:
             size = config.default_size or 's-1vcpu-1gb'
         
+        # Prepare clean config dict (avoiding full SQLAlchemy object)
+        clean_config = {
+            'api_token': config.api_token,
+            'ssh_key_id': config.ssh_key_id,
+            'ssh_private_key_path': config.ssh_private_key_path,
+            'default_region': config.default_region,
+            'default_size': config.default_size,
+            'auto_destroy_droplets': config.auto_destroy_droplets
+        }
+        
         # Initialize service and orchestrator
         from services.digitalocean_bulk_executor import BulkExecutionOrchestrator
         service = DigitalOceanService(config.api_token)
         orchestrator = BulkExecutionOrchestrator(
-            config=config.__dict__, 
+            config=clean_config, 
             service=service,
             app=current_app._get_current_object()
         )
@@ -892,12 +902,17 @@ def execute_automation():
         db.session.commit()
         
         # Execute in background thread
-        execution_thread = threading.Thread(
-            target=_run_bulk_execution_background,
-            args=(orchestrator, users, droplet_count, snapshot_id, region, size, auto_destroy, execution_id)
-        )
-        execution_thread.daemon = True
-        execution_thread.start()
+        try:
+            execution_thread = threading.Thread(
+                target=_run_bulk_execution_background,
+                args=(orchestrator, users, droplet_count, snapshot_id, region, size, auto_destroy, execution_id)
+            )
+            execution_thread.daemon = True
+            execution_thread.start()
+            logger.info(f"Background thread started for execution {execution_id}")
+        except Exception as thread_err:
+            logger.error(f"Failed to start execution thread: {thread_err}")
+            return jsonify({'success': False, 'error': f"Failed to start worker thread: {thread_err}"}), 500
         
         return jsonify({
             'success': True,
@@ -988,6 +1003,9 @@ def get_execution_status(execution_id):
         if not execution:
             return jsonify({'success': False, 'error': 'Execution not found'}), 404
             
+        # Fetch droplets for this execution
+        droplets = DigitalOceanDroplet.query.filter_by(execution_task_id=execution_id).all()
+        
         return jsonify({
             'success': True,
             'status': execution.status,
@@ -995,7 +1013,13 @@ def get_execution_status(execution_id):
             'success_count': execution.success_count,
             'failure_count': execution.failure_count,
             'error_message': execution.error_message,
-            'completed': execution.status in ['completed', 'failed']
+            'completed': execution.status in ['completed', 'failed'],
+            'droplets': [{
+                'droplet_id': d.droplet_id,
+                'droplet_name': d.droplet_name,
+                'ip_address': d.ip_address,
+                'status': d.status
+            } for d in droplets]
         })
     except Exception as e:
         logger.error(f"Get execution status error: {e}")

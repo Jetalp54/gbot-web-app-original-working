@@ -184,25 +184,40 @@ class BulkExecutionOrchestrator:
             # PRIORITY: Look for SSH key named 'Default' in DigitalOcean account
             ssh_keys = []
             try:
+                # Attempt 1: Look for "Default" key
                 default_key = self.service.get_ssh_key_by_name('Default')
                 if default_key:
                     ssh_keys.append(default_key['id'])
                     logger.info(f"[{self.execution_id}] Using 'Default' SSH key ID: {default_key['id']}")
                 else:
-                    logger.warning(f"[{self.execution_id}] 'Default' SSH key not found. Falling back to config.")
+                    logger.warning(f"[{self.execution_id}] 'Default' SSH key NOT found on DigitalOcean.")
+                    
+                    # Attempt 2: Use configured key from Settings
                     ssh_key_id = self.config.get('ssh_key_id')
                     if ssh_key_id:
+                        logger.info(f"[{self.execution_id}] Using configured SSH key ID from settings: {ssh_key_id}")
                         ssh_keys.append(int(ssh_key_id) if str(ssh_key_id).isdigit() else ssh_key_id)
+                    else:
+                        # Attempt 3: Last resort - use the FIRST key found in account
+                        all_keys = self.service.list_keys()
+                        if all_keys:
+                            last_resort_key = all_keys[0]
+                            logger.warning(f"[{self.execution_id}] Using FIRST available key as last resort: {last_resort_key.get('name')} ({last_resort_key.get('id')})")
+                            ssh_keys.append(last_resort_key['id'])
+            
             except Exception as e:
                 logger.error(f"[{self.execution_id}] Error resolving SSH keys: {e}")
+                # Critical fallback
                 ssh_key_id = self.config.get('ssh_key_id')
                 if ssh_key_id:
                     ssh_keys.append(int(ssh_key_id) if str(ssh_key_id).isdigit() else ssh_key_id)
             
             if not ssh_keys:
-                 raise Exception("No 'Default' SSH key found and no fallback configured. Cannot create droplets.")
+                 logger.error(f"[{self.execution_id}] ❌ NO SSH KEYS FOUND. Droplet creation will fail.")
+                 raise Exception("No usable SSH key found. Please add a key named 'Default' to your DigitalOcean account or configure one in Settings.")
 
             # Create droplet
+            logger.info(f"[{self.execution_id}] Creating droplet {name} in {region} (Size: {size}, Image: {snapshot_id})")
             result, error_msg = self.service.create_droplet(
                 name=name,
                 region=region,
@@ -213,7 +228,7 @@ class BulkExecutionOrchestrator:
             )
             
             if not result:
-                logger.error(f"[{self.execution_id}] Failed to create droplet {name}: {error_msg}")
+                logger.error(f"[{self.execution_id}] ❌ API Error creating droplet {name}: {error_msg}")
                 raise Exception(f"API Error: {error_msg}")
             
             droplet_id = result['id']
