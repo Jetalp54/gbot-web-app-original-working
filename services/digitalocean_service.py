@@ -620,6 +620,135 @@ class DigitalOceanService:
         
         return batches
     
+    def run_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None) -> Dict:
+        """
+        Run the automation script synchronously with real-time logging.
+        Uploads script, executes with streaming output, and retrieves result.
+        
+        Args:
+            ip_address: Droplet IP address
+            email: User email
+            password: User password
+            ssh_key_path: Path to SSH private key
+            log_callback: Optional function to handle real-time logs
+            
+        Returns:
+            Dict containing success status, result data, or error message
+        """
+        try:
+            # 1. Upload automation script
+            local_script = os.path.join(os.getcwd(), 'repo_digitalocean_files', 'do_automation.py')
+            remote_script = '/opt/automation/do_automation.py'
+            
+            # Ensure remote directory exists
+            success, stdout, stderr = self.execute_ssh_command(
+                ip_address=ip_address,
+                command="mkdir -p /opt/automation",
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+
+            if not success:
+                 return {'success': False, 'error': f"Failed to create remote directory: {stderr}"}
+
+            if not os.path.exists(local_script):
+                return {'success': False, 'error': f"Local script not found at {local_script}"}
+                
+            uploaded = self.upload_file_sftp(
+                ip_address=ip_address,
+                local_path=local_script,
+                remote_path=remote_script,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            if not uploaded:
+                return {'success': False, 'error': "Failed to upload automation script"}
+                
+            # Ensure permissions
+            self.execute_ssh_command(
+                ip_address=ip_address,
+                command=f"sed -i 's/\r$//' {remote_script} && chmod +x {remote_script}",
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            # Check dependencies
+            check_dep_command = "pip3 show undetected-chromedriver > /dev/null 2>&1 || pip3 install undetected-chromedriver"
+            self.execute_ssh_command(
+                ip_address=ip_address,
+                command=check_dep_command,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            # 2. Execute script
+            result_file = f"/tmp/result_{email.replace('@', '_')}.json"
+            # Cleaning up any previous result
+            self.execute_ssh_command(
+                ip_address=ip_address,
+                command=f"rm -f {result_file}",
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            # Use unbuffered output (-u) for real-time logging
+            command = f"/usr/bin/python3 -u {remote_script} --email '{email}' --password '{password}' --output {result_file}"
+            logger.info(f"Running automation on {ip_address} for {email}")
+            
+            if log_callback:
+                # Use the new streaming method
+                success, stdout, stderr = self.execute_ssh_command_streaming(
+                    ip_address=ip_address,
+                    command=command,
+                    username='root',
+                    ssh_key_path=ssh_key_path,
+                    callback=log_callback
+                )
+            else:
+                 success, stdout, stderr = self.execute_ssh_command(
+                    ip_address=ip_address,
+                    command=command,
+                    username='root',
+                    ssh_key_path=ssh_key_path
+                )
+            
+            # Log output for debugging
+            if stdout:
+                logger.info(f"STDOUT ({email}): {stdout[:200]}...") # Truncate for log cleanliness
+            if stderr:
+                logger.warning(f"STDERR ({email}): {stderr}")
+                
+            # 3. Retrieve result
+            local_result_file = f"/tmp/do_result_{email.replace('@', '_')}_{int(time.time())}.json"
+            
+            downloaded = self.download_file_sftp(
+                ip_address=ip_address,
+                remote_path=result_file,
+                local_path=local_result_file,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            if downloaded and os.path.exists(local_result_file):
+                with open(local_result_file, 'r') as f:
+                    try:
+                        result_data = json.load(f)
+                    except json.JSONDecodeError:
+                        return {'success': False, 'error': "Invalid JSON result from script", 'stdout': stdout}
+                os.remove(local_result_file)
+                return result_data
+            else:
+                return {
+                    'success': False, 
+                    'error': f"Script executed but no result file generated. Stderr: {stderr}",
+                    'stdout': stdout
+                }
+                
+        except Exception as e:
+            logger.error(f"Error running automation script on {ip_address}: {e}")
+            return {'success': False, 'error': str(e)}
+
     def start_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None) -> Dict:
         """
         Start the automation script in the background (Async).

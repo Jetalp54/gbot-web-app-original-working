@@ -181,9 +181,26 @@ class BulkExecutionOrchestrator:
     ) -> Optional[Dict]:
         """Create a droplet and wait for it to be active"""
         try:
-            # Get SSH key from config
-            ssh_key_id = self.config.get('ssh_key_id')
-            ssh_keys = [ssh_key_id] if ssh_key_id else []
+            # PRIORITY: Look for SSH key named 'Default' in DigitalOcean account
+            ssh_keys = []
+            try:
+                default_key = self.service.get_ssh_key_by_name('Default')
+                if default_key:
+                    ssh_keys.append(default_key['id'])
+                    logger.info(f"[{self.execution_id}] Using 'Default' SSH key ID: {default_key['id']}")
+                else:
+                    logger.warning(f"[{self.execution_id}] 'Default' SSH key not found. Falling back to config.")
+                    ssh_key_id = self.config.get('ssh_key_id')
+                    if ssh_key_id:
+                        ssh_keys.append(int(ssh_key_id) if str(ssh_key_id).isdigit() else ssh_key_id)
+            except Exception as e:
+                logger.error(f"[{self.execution_id}] Error resolving SSH keys: {e}")
+                ssh_key_id = self.config.get('ssh_key_id')
+                if ssh_key_id:
+                    ssh_keys.append(int(ssh_key_id) if str(ssh_key_id).isdigit() else ssh_key_id)
+            
+            if not ssh_keys:
+                 raise Exception("No 'Default' SSH key found and no fallback configured. Cannot create droplets.")
 
             # Create droplet
             result, error_msg = self.service.create_droplet(
