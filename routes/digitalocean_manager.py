@@ -633,6 +633,28 @@ def get_automation_status(droplet_id):
             result_file=result_file,
             ssh_key_path=ssh_key_path
         )
+
+        # Save to DB if success and app_password present
+        if status_result.get('status') == 'completed' and status_result.get('result', {}).get('status') == 'success':
+            try:
+                result_data = status_result.get('result', {})
+                email = result_data.get('email')
+                app_password = result_data.get('app_password')
+                
+                if email and app_password:
+                    # Check if exists
+                    existing = AwsGeneratedPassword.query.filter_by(email=email).first()
+                    if existing:
+                        existing.app_password = app_password
+                        existing.updated_at = datetime.utcnow()
+                    else:
+                        new_pwd = AwsGeneratedPassword(email=email, app_password=app_password)
+                        db.session.add(new_pwd)
+                    
+                    db.session.commit()
+                    logger.info(f"Saved app password for {email} to DB")
+            except Exception as db_e:
+                logger.error(f"Failed to save credential to DB: {db_e}")
         
         return jsonify({'success': True, 'data': status_result})
         
