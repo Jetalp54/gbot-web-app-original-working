@@ -668,8 +668,20 @@
                 $('#monitorStatus').text(response.status.toUpperCase());
 
                 if (response.completed) {
-                    $('#monitorStatus').removeClass('bg-info').addClass('bg-success').text('COMPLETED');
+                    const statusClass = response.status === 'failed' ? 'bg-danger' : 'bg-success';
+                    const statusText = response.status === 'failed' ? 'FAILED' : 'COMPLETED';
+
+                    $('#monitorStatus').removeClass('bg-info bg-danger bg-success').addClass(statusClass).text(statusText);
                     clearInterval(monitorInterval);
+
+                    if (response.status === 'failed' && response.error_message) {
+                        $('#noDropletsMessage').html(`
+                            <div class="alert alert-danger m-3">
+                                <h6 class="alert-heading"><i class="fa fa-exclamation-triangle"></i> Execution Failed</h6>
+                                <p class="mb-0 small">${response.error_message}</p>
+                            </div>
+                        `);
+                    }
                 }
 
                 // Get droplets for this execution

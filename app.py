@@ -203,13 +203,19 @@ if not app.debug:
         'logs/gbot.log', maxBytes=10240000, backupCount=10
     )
     file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        '%(asctime)s %(levelname)s [%(name)s]: %(message)s [in %(pathname)s:%(lineno)d]'
     ))
     file_handler.setLevel(logging.INFO)
-    app.logger.addHandler(file_handler)
     
+    # Add to root logger to capture logs from all modules (including background threads)
+    logging.getLogger().addHandler(file_handler)
+    logging.getLogger().setLevel(logging.INFO)
+    
+    # Also keep app.logger handler if needed for Flask-specific logs
+    app.logger.addHandler(file_handler)
     app.logger.setLevel(logging.INFO)
-    app.logger.info('GBot startup')
+    
+    app.logger.info('GBot startup - Root and App loggers configured')
 
 with app.app_context():
     db.create_all()

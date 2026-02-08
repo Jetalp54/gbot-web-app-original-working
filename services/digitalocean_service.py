@@ -306,12 +306,14 @@ class DigitalOceanService:
         while time.time() - start_time < timeout:
             droplet = self.get_droplet(droplet_id)
             
-            if droplet and droplet['status'] == 'active' and droplet['ip_address']:
-                logger.info(f"Droplet {droplet_id} is active with IP {droplet['ip_address']}")
-                return droplet['ip_address']
+            if droplet and droplet['status'] == 'active':
+                # Sometimes IP takes a few more seconds
+                if 'ip_address' in droplet and droplet['ip_address']:
+                    logger.info(f"Droplet {droplet_id} is active with IP: {droplet['ip_address']}")
+                    return droplet['ip_address']
             
-            logger.info(f"Waiting for droplet {droplet_id} (status: {droplet['status']})")
-            time.sleep(5) # Changed from 10 to 5 as per instruction
+            logger.debug(f"Waiting for droplet {droplet_id} to become active... (Elapsed: {int(time.time() - start_time)}s)")
+            time.sleep(10)
         
         logger.error(f"Timeout waiting for droplet {droplet_id}")
         return None
