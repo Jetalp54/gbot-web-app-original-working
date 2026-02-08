@@ -868,7 +868,11 @@ def execute_automation():
         # Initialize service and orchestrator
         from services.digitalocean_bulk_executor import BulkExecutionOrchestrator
         service = DigitalOceanService(config.api_token)
-        orchestrator = BulkExecutionOrchestrator(config.__dict__, service)
+        orchestrator = BulkExecutionOrchestrator(
+            config=config.__dict__, 
+            service=service,
+            app=current_app._get_current_object()
+        )
         
         # Create execution ID and DB record immediately
         import time

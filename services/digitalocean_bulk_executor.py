@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class BulkExecutionOrchestrator:
     """Orchestrates bulk execution across multiple DigitalOcean droplets"""
     
-    def __init__(self, config: Dict, service: DigitalOceanService):
+    def __init__(self, config: Dict, service: DigitalOceanService, app=None):
         """
         Initialize orchestrator.
         
@@ -33,6 +33,7 @@ class BulkExecutionOrchestrator:
         """
         self.config = config
         self.service = service
+        self.app = app
         self.execution_id = None
         self.droplets_created = []
         self.results = []
@@ -211,27 +212,28 @@ class BulkExecutionOrchestrator:
             time.sleep(30)
             
             # Save droplet to database
-            droplet_record = DigitalOceanDroplet(
-                droplet_id=str(droplet_id),
-                droplet_name=name,
-                ip_address=ip_address,
-                region=region,
-                size=size,
-                status='active',
-                execution_task_id=self.execution_id,
-                created_by_username=self.config.get('username', 'system'), # execution_id often suffices
-                auto_destroy=True # Default for bulk
-            )
-            
-            # Use a new session/context if needed, but here we share the main app context
-            # We must ensure we are in app context. The thread wrapper in manager.py handles this.
-            try:
-                db.session.add(droplet_record)
-                db.session.commit()
-            except Exception as db_e:
-                logger.error(f"[{self.execution_id}] Failed to save droplet record: {db_e}")
-                # Continue anyway, as we have the droplet object
-            
+            if self.app:
+                with self.app.app_context():
+                    try:
+                        droplet_record = DigitalOceanDroplet(
+                            droplet_id=str(droplet_id),
+                            droplet_name=name,
+                            ip_address=ip_address,
+                            region=region,
+                            size=size,
+                            status='active',
+                            execution_task_id=self.execution_id,
+                            created_by_username=self.config.get('username', 'system'),
+                            auto_destroy=True
+                        )
+                        db.session.add(droplet_record)
+                        db.session.commit()
+                        logger.info(f"[{self.execution_id}] Saved droplet {droplet_id} to DB")
+                    except Exception as db_e:
+                        logger.error(f"[{self.execution_id}] Failed to save droplet record: {db_e}")
+            else:
+                 logger.warning(f"[{self.execution_id}] No app context - skipping DB save for droplet {droplet_id}")
+
             return {
                 'id': droplet_id,
                 'name': name,
