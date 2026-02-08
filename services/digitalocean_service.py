@@ -439,6 +439,64 @@ class DigitalOceanService:
         except Exception as e:
             logger.error(f"SSH execution error: {e}")
             return False, "", str(e)
+
+    def execute_ssh_command_streaming(
+        self,
+        ip_address: str,
+        command: str,
+        username: str = 'root',
+        ssh_key_path: Optional[str] = None,
+        password: Optional[str] = None,
+        callback=None
+    ) -> Tuple[bool, str, str]:
+        """
+        Execute command on droplet via SSH with streaming output.
+        
+        Args:
+            ip_address: Droplet IP address
+            command: Command to execute
+            username: SSH username
+            ssh_key_path: Path to SSH private key
+            password: SSH password
+            callback: Function to call with new output lines
+            
+        Returns:
+            Tuple (success, stdout, stderr)
+        """
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            if ssh_key_path and os.path.exists(ssh_key_path):
+                key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+                ssh.connect(ip_address, username=username, pkey=key, timeout=10)
+            elif password:
+                ssh.connect(ip_address, username=username, password=password, timeout=10)
+            else:
+                return False, "", "No valid authentication method provided"
+            
+            stdin, stdout, stderr = ssh.exec_command(command, get_pty=True)
+            
+            full_output = []
+            
+            # Stream output
+            for line in iter(stdout.readline, ""):
+                if callback:
+                    callback(line)
+                full_output.append(line)
+                
+            exit_code = stdout.channel.recv_exit_status()
+            ssh.close()
+            
+            stdout_text = "".join(full_output)
+            # With get_pty=True, stderr is merged into stdout usually
+            stderr_text = stderr.read().decode('utf-8')
+            
+            return exit_code == 0, stdout_text, stderr_text
+            
+        except Exception as e:
+            logger.error(f"SSH streaming execution error: {e}")
+            return False, "", str(e)
     
     def upload_file_sftp(
         self,
@@ -703,7 +761,11 @@ class DigitalOceanService:
                  if log_callback:
                      logs = status_res.get('logs', '')
                      if logs:
+                         # logger.info(f"Calling log_callback with {len(logs)} bytes")
                          log_callback(logs)
+                     else:
+                         # Log if no logs found
+                         pass
                  
                  if status == 'completed':
                      # Result is already in the response
@@ -736,15 +798,16 @@ class DigitalOceanService:
             
             is_complete = stdout.strip() == 'yes'
             
-            # 2. Read logs (tail)
-            # Read last 50 lines to keep payload small but informative
-            log_cmd = f"tail -n 50 {log_file}"
-            _, logs, _ = self.execute_ssh_command(
+            # 2. Read logs (cat to get full history for local file overwrite)
+            log_cmd = f"cat {log_file} || echo ''"  # Ensure it doesn't fail if file missing
+            success, stdout, stderr = self.execute_ssh_command(
                 ip_address=ip_address,
                 command=log_cmd,
                 username='root',
                 ssh_key_path=ssh_key_path
             )
+            
+            logs = stdout # cat returns content in stdout
             
             if is_complete:
                 # Retrieve final result
