@@ -313,6 +313,40 @@ with app.app_context():
             db.session.rollback()
         except:
             pass
+
+    # Auto-migration: Add parallel_users and users_per_droplet columns to digital_ocean_config if they don't exist
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('digital_ocean_config')]
+        
+        if 'parallel_users' not in columns:
+            logging.info("Adding missing 'parallel_users' column to digital_ocean_config table...")
+            with db.engine.connect() as conn:
+                if 'postgresql' in str(db.engine.url):
+                    conn.execute(text('ALTER TABLE "digital_ocean_config" ADD COLUMN parallel_users INTEGER DEFAULT 5'))
+                else:
+                    conn.execute(text("ALTER TABLE digital_ocean_config ADD COLUMN parallel_users INTEGER DEFAULT 5"))
+                conn.commit()
+            logging.info("✅ Successfully added 'parallel_users' column!")
+            
+        if 'users_per_droplet' not in columns:
+            logging.info("Adding missing 'users_per_droplet' column to digital_ocean_config table...")
+            with db.engine.connect() as conn:
+                if 'postgresql' in str(db.engine.url):
+                    conn.execute(text('ALTER TABLE "digital_ocean_config" ADD COLUMN users_per_droplet INTEGER DEFAULT 50'))
+                else:
+                    conn.execute(text("ALTER TABLE digital_ocean_config ADD COLUMN users_per_droplet INTEGER DEFAULT 50"))
+                conn.commit()
+            logging.info("✅ Successfully added 'users_per_droplet' column!")
+            
+    except Exception as e:
+        logging.warning(f"Could not auto-migrate digital_ocean_config columns: {e}")
+        try:
+            db.session.rollback()
+        except:
+            pass
+
     if not User.query.filter_by(username='admin').first():
         admin_user = User(username='admin', password=generate_password_hash('A9B3nX#Q8k$mZ6vw', method='pbkdf2:sha256'), role='admin')
         db.session.add(admin_user)
