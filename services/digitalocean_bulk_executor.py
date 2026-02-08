@@ -383,7 +383,8 @@ class BulkExecutionOrchestrator:
                     log_callback=log_callback
                 )
                 
-                if not result_data.get('success'):
+                is_success = result_data.get('success') or result_data.get('status') == 'success'
+                if not is_success:
                     results.append({
                         'success': False,
                         'email': email,

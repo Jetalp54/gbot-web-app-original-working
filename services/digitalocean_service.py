@@ -905,8 +905,11 @@ class DigitalOceanService:
                          pass
                  
                  if status == 'completed':
-                     # Result is already in the response
-                     return status_res.get('result') or {'success': False, 'error': 'No result data found'}
+                    result = status_res.get('result') or {}
+                    # Normalize success status across API changes
+                    if 'success' not in result:
+                        result['success'] = result.get('status') == 'success'
+                    return result
                      
                  elif status == 'error':
                      return {'success': False, 'error': status_res.get('error', 'Unknown error during execution')}

@@ -5162,6 +5162,7 @@ def process_single_user(email, password):
             
             return {
                 "email": email,
+                "success": False,
                 "status": "failed",
                 "step_completed": step_completed,
                 "error_step": step_completed,
@@ -5190,6 +5191,7 @@ def process_single_user(email, password):
         
         return {
             "email": email,
+            "success": True,
             "status": "success",
             "step_completed": step_completed,
             "error_step": None,
@@ -5214,6 +5216,7 @@ def process_single_user(email, password):
         
         return {
             "email": email,
+            "success": False,
             "status": "failed",
             "step_completed": step_completed,
             "error_step": step_completed,
