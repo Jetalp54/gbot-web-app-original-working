@@ -419,11 +419,11 @@ class DigitalOceanService:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
-            # Connect with key or password
+            # Connect with key or password (with 60s timeout to prevent hangs)
             if ssh_key_path and os.path.exists(ssh_key_path):
-                ssh.connect(ip_address, username=username, key_filename=ssh_key_path)
+                ssh.connect(ip_address, username=username, key_filename=ssh_key_path, timeout=60, auth_timeout=60)
             elif password:
-                ssh.connect(ip_address, username=username, password=password)
+                ssh.connect(ip_address, username=username, password=password, timeout=60, auth_timeout=60)
             else:
                 return False, "", "No SSH key or password provided"
             
@@ -752,7 +752,7 @@ class DigitalOceanService:
             logger.error(f"Error running automation script on {ip_address}: {e}")
             return {'success': False, 'error': str(e)}
 
-    def start_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None) -> Dict:
+    def start_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None) -> Dict:
         """
         Start the automation script in the background (Async).
         Uploads script and executes with nohup.
@@ -762,11 +762,16 @@ class DigitalOceanService:
             email: User email
             password: User password
             ssh_key_path: Path to SSH private key
+            log_callback: Optional function(logs: str) to receive setup progress
             
         Returns:
             Dict containing success status and message
         """
         try:
+             # Progress update
+            if log_callback:
+                log_callback(f"[{datetime.utcnow().isoformat()}] Preparing remote directory on {ip_address}...\n")
+
             # 1. Upload automation script
             local_script = os.path.join(os.getcwd(), 'repo_digitalocean_files', 'do_automation.py')
             remote_script = '/opt/automation/do_automation.py'
@@ -785,6 +790,9 @@ class DigitalOceanService:
             if not os.path.exists(local_script):
                 return {'success': False, 'error': f"Local script not found at {local_script}"}
                 
+            if log_callback:
+                log_callback(f"[{datetime.utcnow().isoformat()}] Uploading automation script to {ip_address}...\n")
+
             uploaded = self.upload_file_sftp(
                 ip_address=ip_address,
                 local_path=local_script,
@@ -799,20 +807,11 @@ class DigitalOceanService:
             # Ensure permissions
             self.execute_ssh_command(
                 ip_address=ip_address,
-                command=f"sed -i 's/\r$//' {remote_script} && chmod +x {remote_script}",
+                command=f"sed -i 's/\\r$//' {remote_script} && chmod +x {remote_script}",
                 username='root',
                 ssh_key_path=ssh_key_path
             )
 
-            # Check dependencies
-            check_dep_command = "pip3 show undetected-chromedriver > /dev/null 2>&1 || pip3 install undetected-chromedriver"
-            self.execute_ssh_command(
-                ip_address=ip_address,
-                command=check_dep_command,
-                username='root',
-                ssh_key_path=ssh_key_path
-            )
-            
             # 2. Prepare execution
             cleaned_email = email.replace('@', '_')
             result_file = f"/tmp/result_{cleaned_email}.json"
@@ -830,6 +829,9 @@ class DigitalOceanService:
             # We explicitly verify command construction to ensure non-blocking execution
             run_cmd = f"nohup /usr/bin/python3 {remote_script} --email '{email}' --password '{password}' --output {result_file} > {log_file} 2>&1 & echo $!"
             
+            if log_callback:
+                log_callback(f"[{datetime.utcnow().isoformat()}] Starting background automation script on {ip_address}...\n")
+
             success, stdout, stderr = self.execute_ssh_command(
                 ip_address=ip_address,
                 command=run_cmd,
@@ -840,6 +842,8 @@ class DigitalOceanService:
             if success:
                 pid = stdout.strip()
                 logger.info(f"Started automation {pid} on {ip_address} for {email}")
+                if log_callback:
+                    log_callback(f"[{datetime.utcnow().isoformat()}] Automation started successfully (PID: {pid}). Monitoring logs...\n")
                 return {'success': True, 'message': 'Automation started', 'pid': pid, 'log_file': log_file, 'result_file': result_file}
             else:
                 return {'success': False, 'error': f"Failed to start script: {stderr}"}
@@ -858,8 +862,8 @@ class DigitalOceanService:
             log_callback: Optional function(logs: str) to receive real-time logs
         """
         try:
-            # 1. Start execution
-            start_res = self.start_automation_script(ip_address, email, password, ssh_key_path)
+            # 1. Start execution (Passing log_callback for setup transparency)
+            start_res = self.start_automation_script(ip_address, email, password, ssh_key_path, log_callback=log_callback)
             
             if not start_res.get('success'):
                 return start_res
