@@ -9,6 +9,7 @@ import logging
 import requests
 import paramiko
 from typing import List, Dict, Optional, Tuple
+from datetime import datetime
 from io import StringIO
 
 logger = logging.getLogger(__name__)
@@ -770,7 +771,7 @@ class DigitalOceanService:
         try:
              # Progress update
             if log_callback:
-                log_callback(f"[{datetime.utcnow().isoformat()}] Preparing remote directory on {ip_address}...\n")
+                log_callback(f"[{datetime.utcnow().isoformat()}] Preparing remote directory on {ip_address}...\n", append=True)
 
             # 1. Upload automation script
             local_script = os.path.join(os.getcwd(), 'repo_digitalocean_files', 'do_automation.py')
@@ -791,7 +792,7 @@ class DigitalOceanService:
                 return {'success': False, 'error': f"Local script not found at {local_script}"}
                 
             if log_callback:
-                log_callback(f"[{datetime.utcnow().isoformat()}] Uploading automation script to {ip_address}...\n")
+                log_callback(f"[{datetime.utcnow().isoformat()}] Uploading automation script to {ip_address}...\n", append=True)
 
             uploaded = self.upload_file_sftp(
                 ip_address=ip_address,
@@ -830,7 +831,7 @@ class DigitalOceanService:
             run_cmd = f"nohup /usr/bin/python3 {remote_script} --email '{email}' --password '{password}' --output {result_file} > {log_file} 2>&1 & echo $!"
             
             if log_callback:
-                log_callback(f"[{datetime.utcnow().isoformat()}] Starting background automation script on {ip_address}...\n")
+                log_callback(f"[{datetime.utcnow().isoformat()}] Starting background automation script on {ip_address}...\n", append=True)
 
             success, stdout, stderr = self.execute_ssh_command(
                 ip_address=ip_address,
@@ -843,7 +844,7 @@ class DigitalOceanService:
                 pid = stdout.strip()
                 logger.info(f"Started automation {pid} on {ip_address} for {email}")
                 if log_callback:
-                    log_callback(f"[{datetime.utcnow().isoformat()}] Automation started successfully (PID: {pid}). Monitoring logs...\n")
+                    log_callback(f"[{datetime.utcnow().isoformat()}] Automation started successfully (PID: {pid}). Monitoring logs...\n", append=True)
                 return {'success': True, 'message': 'Automation started', 'pid': pid, 'log_file': log_file, 'result_file': result_file}
             else:
                 return {'success': False, 'error': f"Failed to start script: {stderr}"}

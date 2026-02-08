@@ -344,14 +344,15 @@ class BulkExecutionOrchestrator:
                     continue
                 
                 # Define log callback
-                def log_callback(logs):
+                def log_callback(logs, append=False):
                     try:
                         log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
                         os.makedirs(log_dir, exist_ok=True)
                         log_file = os.path.join(log_dir, f"{droplet['id']}.log")
                         
-                        # OVERWRITE logs because DigitalOceanService returns the full 'cat' history
-                        with open(log_file, 'w', encoding='utf-8') as f:
+                        # Use 'a' for manual status updates, 'w' for full remote logs
+                        mode = 'a' if append else 'w'
+                        with open(log_file, mode, encoding='utf-8') as f:
                              f.write(logs)
                     except Exception as le:
                         logger.error(f"Log callback error: {le}")
