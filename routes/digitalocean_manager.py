@@ -1120,7 +1120,7 @@ def get_bulk_droplet_logs(execution_id, droplet_id):
         if not os.path.exists(log_file):
             return jsonify({
                 'success': True,
-                'logs': f"Waiting for logs... (File not found: {log_file})"
+                'logs': "Initializing connection to droplet... (Please wait a moment)"
             })
             
         with open(log_file, 'r', encoding='utf-8') as f:

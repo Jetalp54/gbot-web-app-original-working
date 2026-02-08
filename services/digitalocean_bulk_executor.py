@@ -317,6 +317,17 @@ class BulkExecutionOrchestrator:
         
         logger.info(f"[{self.execution_id}] Processing {len(users)} users on {droplet['name']} ({ip_address})")
         
+        # Pre-initialize log directory and file so UI doesn't show "File not found"
+        try:
+            log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
+            os.makedirs(log_dir, exist_ok=True)
+            log_file_path = os.path.join(log_dir, f"{droplet['id']}.log")
+            if not os.path.exists(log_file_path):
+                with open(log_file_path, 'w', encoding='utf-8') as f:
+                    f.write(f"[{datetime.utcnow().isoformat()}] Initializing connection to droplet {droplet['name']}...\n")
+        except Exception as init_le:
+            logger.error(f"Failed to pre-initialize log file: {init_le}")
+
         try:
             # For each user, run the automation script
             for user in users:
@@ -339,8 +350,8 @@ class BulkExecutionOrchestrator:
                         os.makedirs(log_dir, exist_ok=True)
                         log_file = os.path.join(log_dir, f"{droplet['id']}.log")
                         
-                        # Append logs to avoid overwriting previous chunks
-                        with open(log_file, 'a', encoding='utf-8') as f:
+                        # OVERWRITE logs because DigitalOceanService returns the full 'cat' history
+                        with open(log_file, 'w', encoding='utf-8') as f:
                              f.write(logs)
                     except Exception as le:
                         logger.error(f"Log callback error: {le}")
