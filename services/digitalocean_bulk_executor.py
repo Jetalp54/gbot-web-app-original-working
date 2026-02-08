@@ -210,6 +210,28 @@ class BulkExecutionOrchestrator:
             # Wait additional time for SSH to be ready
             time.sleep(30)
             
+            # Save droplet to database
+            droplet_record = DigitalOceanDroplet(
+                droplet_id=str(droplet_id),
+                droplet_name=name,
+                ip_address=ip_address,
+                region=region,
+                size=size,
+                status='active',
+                execution_task_id=self.execution_id,
+                created_by_username=self.config.get('username', 'system'), # execution_id often suffices
+                auto_destroy=True # Default for bulk
+            )
+            
+            # Use a new session/context if needed, but here we share the main app context
+            # We must ensure we are in app context. The thread wrapper in manager.py handles this.
+            try:
+                db.session.add(droplet_record)
+                db.session.commit()
+            except Exception as db_e:
+                logger.error(f"[{self.execution_id}] Failed to save droplet record: {db_e}")
+                # Continue anyway, as we have the droplet object
+            
             return {
                 'id': droplet_id,
                 'name': name,
@@ -277,12 +299,36 @@ class BulkExecutionOrchestrator:
                     })
                     continue
                 
+                # Define log callback
+                def log_callback(logs):
+                    try:
+                        log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
+                        os.makedirs(log_dir, exist_ok=True)
+                        log_file = os.path.join(log_dir, f"{droplet['id']}.log")
+                        
+                        # Append logs (simple approach)
+                        with open(log_file, 'w', encoding='utf-8') as f:
+                             # Overwrite or append? run_automation_script polls tails, so it might return overlapping chunks
+                             # But actually run_automation_script returns the TAIL.
+                             # If we want a full log, we should append new content.
+                             # But the callback receives the "latest chunk" or "current tail"?
+                             # run_automation_script calls callback with `status_res.get('logs')`.
+                             # check_automation_status returns `tail -n 50`.
+                             # So we are getting the last 50 lines repeatedly.
+                             # Writing it effectively updates the "live view" file.
+                             # For a true persistent log we'd need more complex cursor tracking logic.
+                             # For the UI "Real Time View", overwriting with the latest tail is actually sufficient/correct for a "monitor".
+                             f.write(logs)
+                    except Exception as le:
+                        logger.error(f"Log callback error: {le}")
+
                 # Execute automation via reusable service method
                 result_data = self.service.run_automation_script(
                     ip_address=ip_address,
                     email=email,
                     password=password,
-                    ssh_key_path=self.config.get('ssh_private_key_path')
+                    ssh_key_path=self.config.get('ssh_private_key_path'),
+                    log_callback=log_callback
                 )
                 
                 if not result_data.get('success'):

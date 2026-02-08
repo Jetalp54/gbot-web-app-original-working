@@ -1055,3 +1055,53 @@ def get_generated_passwords(execution_id):
     except Exception as e:
         logger.error(f"Error fetching passwords for execution {execution_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@digitalocean_manager.route('/api/do/execution/<execution_id>/droplets', methods=['GET'])
+@login_required
+def get_execution_droplets(execution_id):
+    """Get list of droplets associated with an execution"""
+    try:
+        droplets = DigitalOceanDroplet.query.filter_by(execution_task_id=execution_id).all()
+        
+        return jsonify({
+            'success': True,
+            'droplets': [{
+                'id': d.droplet_id,
+                'name': d.droplet_name,
+                'ip_address': d.ip_address,
+                'status': d.status,
+                'region': d.region,
+                'size': d.size
+            } for d in droplets]
+        })
+    except Exception as e:
+        logger.error(f"Error fetching droplets for execution {execution_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@digitalocean_manager.route('/api/do/execution/<execution_id>/droplets/<droplet_id>/logs', methods=['GET'])
+@login_required
+def get_bulk_droplet_logs(execution_id, droplet_id):
+    """Get logs for a specific droplet in a bulk execution"""
+    try:
+        # Logs are stored in logs/bulk_executions/<execution_id>/<droplet_id>.log
+        log_dir = os.path.join('logs', 'bulk_executions', execution_id)
+        log_file = os.path.join(log_dir, f"{droplet_id}.log")
+        
+        if not os.path.exists(log_file):
+            return jsonify({
+                'success': True,
+                'logs': f"Waiting for logs... (File not found: {log_file})"
+            })
+            
+        with open(log_file, 'r', encoding='utf-8') as f:
+            logs = f.read()
+            
+        return jsonify({
+            'success': True,
+            'logs': logs
+        })
+    except Exception as e:
+        logger.error(f"Error fetching logs for droplet {droplet_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

@@ -659,10 +659,13 @@ class DigitalOceanService:
             return {'success': False, 'error': str(e)}
 
 
-    def run_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None) -> Dict:
+    def run_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None) -> Dict:
         """
         Synchronous wrapper for automation script execution (for backward compatibility and bulk execution).
         Starts the script and polls for completion.
+        
+        Args:
+            log_callback: Optional function(logs: str) to receive real-time logs
         """
         try:
             # 1. Start execution
@@ -695,6 +698,12 @@ class DigitalOceanService:
                  
                  # Access fields directly (check_automation_status returns direct dict)
                  status = status_res.get('status')
+                 
+                 # Callback with logs
+                 if log_callback:
+                     logs = status_res.get('logs', '')
+                     if logs:
+                         log_callback(logs)
                  
                  if status == 'completed':
                      # Result is already in the response
