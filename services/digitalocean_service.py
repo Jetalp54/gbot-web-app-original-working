@@ -335,6 +335,7 @@ class DigitalOceanService:
                     'name': s['name'],
                     'regions': s['regions'],
                     'size_gigabytes': s['size_gigabytes'],
+                    'min_disk_size': s.get('min_disk_size'),
                     'created_at': s['created_at']
                 } for s in snapshots]
             return []

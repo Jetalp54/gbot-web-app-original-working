@@ -386,12 +386,18 @@
 <script>
     // === Global Variables ===
     let currentExecutionId = null;  // Track current bulk execution
+    let currentMinDisk = 0;         // Track min disk required by selected snapshot
 
     // === Page Initialization ===
     $(document).ready(function () {
         loadRegionsAndSizes();
         loadSnapshots();
         loadDroplets();
+
+        // Reset min disk if ID is manually changed
+        $('#snapshotId').on('input', function () {
+            currentMinDisk = 0;
+        });
     });
 
     // === Load Regions and Sizes ===
@@ -422,8 +428,8 @@
 
                     response.sizes.forEach(function (size) {
                         const price = size.price_monthly ? ` ($${size.price_monthly}/mo)` : '';
-                        sizeSelect.append(`<option value="${size.slug}">${size.description}${price}</option>`);
-                        bulkSizeSelect.append(`<option value="${size.slug}">${size.description}${price}</option>`);
+                        sizeSelect.append(`<option value="${size.slug}" data-disk="${size.disk}">${size.description}${price}</option>`);
+                        bulkSizeSelect.append(`<option value="${size.slug}" data-disk="${size.disk}">${size.description}${price}</option>`);
                     });
                 }
             },
@@ -584,6 +590,21 @@
         if (!executionData.snapshot_id) {
             showMessage('bulkExecutionMessages', 'Snapshot ID is required', 'danger');
             return;
+        }
+
+        // DISK SIZE VALIDATION
+        const selectedSizeOption = $('#bulkSize option:selected');
+        const selectedDisk = parseInt(selectedSizeOption.data('disk') || 0);
+
+        // If snapshot was selected via UI, we know its min disk
+        if (currentMinDisk > 0 && selectedDisk > 0 && selectedDisk < currentMinDisk) {
+            const confirmMsg = `⚠️ WARNING: The selected snapshot requires at least ${currentMinDisk}GB of disk, but the selected size only provides ${selectedDisk}GB.\n\n` +
+                `This execution will likely FAIL with a "smaller disk" error.\n\n` +
+                `Do you want to proceed anyway?`;
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
         }
 
         showMessage('bulkExecutionMessages', '⏳ Starting bulk execution...', 'info');
@@ -980,8 +1001,8 @@
             return;
         }
 
-        let html = '<table class="table table-sm"><thead><tr>' +
-            '<th>Name</th><th>ID</th><th>Size (GB)</th><th>Regions</th><th>Actions</th>' +
+        let html = '<table class="table table-sm text-center"><thead><tr>' +
+            '<th class="text-start">Name</th><th>ID</th><th>Min Disk</th><th>Size (GB)</th><th>Regions</th><th>Actions</th>' +
             '</tr></thead><tbody>';
 
         snapshots.forEach(function (snapshot) {
@@ -990,14 +1011,18 @@
             const rowClass = isAuto ? 'table-success' : '';
 
             html += `<tr class="${rowClass}">
-            <td>${snapshot.name}</td>
+            <td class="text-start">${snapshot.name}</td>
             <td>
                 <code>${snapshot.id}</code>
-                <button class="btn btn-sm btn-link p-0 ms-1 text-muted" onclick="copyToClipboard('${snapshot.id}')">
+                <button class="btn btn-sm btn-link p-0 ms-1 text-muted" onclick="copyToClipboard('${snapshot.id}')" title="Copy ID">
                     <i class="fa fa-copy"></i>
                 </button>
+                <button class="btn btn-sm btn-link p-0 ms-1 text-primary" onclick="selectSnapshot('${snapshot.id}', ${snapshot.min_disk_size || 0})" title="Use for Bulk Execution">
+                    <i class="fa fa-rocket"></i>
+                </button>
             </td>
-            <td>${snapshot.size_gigabytes} GB</td>
+            <td><span class="badge bg-info text-dark">${snapshot.min_disk_size || '?'} GB</span></td>
+            <td>${snapshot.size_gigabytes.toFixed(2)} GB</td>
             <td>${snapshot.regions.join(', ')}</td>
             <td>
                 <button class="btn btn-sm btn-danger" onclick="deleteSnapshot('${snapshot.id}', '${snapshot.name}')">
@@ -1009,6 +1034,23 @@
 
         html += '</tbody></table>';
         $('#snapshotsList').html(html);
+    }
+
+    // Select Snapshot for Bulk Execution
+    function selectSnapshot(id, minDisk) {
+        $('#snapshotId').val(id);
+        currentMinDisk = minDisk;
+
+        // Auto-scroll to bulk section
+        $('html, body').animate({
+            scrollTop: $('#bulkExecutionForm').offset().top - 100
+        }, 500);
+
+        // Brief highlight effect on the input
+        $('#snapshotId').css('background-color', '#fff3cd');
+        setTimeout(() => {
+            $('#snapshotId').css('background-color', '');
+        }, 1000);
     }
 
     // Delete Snapshot
