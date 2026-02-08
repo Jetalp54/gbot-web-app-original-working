@@ -166,9 +166,12 @@ class BulkExecutionOrchestrator:
                     if droplet:
                         droplets.append(droplet)
                         self.droplets_created.append(droplet)
+                    else:
+                        errors.append("Droplet creation returned None without exception")
                 except Exception as e:
-                    logger.error(f"[{self.execution_id}] Droplet creation failed: {e}")
-                    errors.append(str(e))
+                    error_str = str(e)
+                    logger.error(f"[{self.execution_id}] Future creation failed: {error_str}")
+                    errors.append(error_str)
         
         return droplets, errors
     
@@ -180,103 +183,99 @@ class BulkExecutionOrchestrator:
         size: str
     ) -> Optional[Dict]:
         """Create a droplet and wait for it to be active"""
+        # No broad try-except here - let exceptions bubble up to the parallel executor
+        # PRIORITY: Look for SSH key named 'Default' in DigitalOcean account
+        ssh_keys = []
         try:
-            # PRIORITY: Look for SSH key named 'Default' in DigitalOcean account
-            ssh_keys = []
-            try:
-                # Attempt 1: Look for "Default" key
-                default_key = self.service.get_ssh_key_by_name('Default')
-                if default_key:
-                    ssh_keys.append(default_key['id'])
-                    logger.info(f"[{self.execution_id}] Using 'Default' SSH key ID: {default_key['id']}")
-                else:
-                    logger.warning(f"[{self.execution_id}] 'Default' SSH key NOT found on DigitalOcean.")
-                    
-                    # Attempt 2: Use configured key from Settings
-                    ssh_key_id = self.config.get('ssh_key_id')
-                    if ssh_key_id:
-                        logger.info(f"[{self.execution_id}] Using configured SSH key ID from settings: {ssh_key_id}")
-                        ssh_keys.append(int(ssh_key_id) if str(ssh_key_id).isdigit() else ssh_key_id)
-                    else:
-                        # Attempt 3: Last resort - use the FIRST key found in account
-                        all_keys = self.service.list_keys()
-                        if all_keys:
-                            last_resort_key = all_keys[0]
-                            logger.warning(f"[{self.execution_id}] Using FIRST available key as last resort: {last_resort_key.get('name')} ({last_resort_key.get('id')})")
-                            ssh_keys.append(last_resort_key['id'])
-            
-            except Exception as e:
-                logger.error(f"[{self.execution_id}] Error resolving SSH keys: {e}")
-                # Critical fallback
+            # Attempt 1: Look for "Default" key
+            default_key = self.service.get_ssh_key_by_name('Default')
+            if default_key:
+                ssh_keys.append(default_key['id'])
+                logger.info(f"[{self.execution_id}] Using 'Default' SSH key ID: {default_key['id']}")
+            else:
+                logger.warning(f"[{self.execution_id}] 'Default' SSH key NOT found on DigitalOcean.")
+                
+                # Attempt 2: Use configured key from Settings
                 ssh_key_id = self.config.get('ssh_key_id')
                 if ssh_key_id:
+                    logger.info(f"[{self.execution_id}] Using configured SSH key ID from settings: {ssh_key_id}")
                     ssh_keys.append(int(ssh_key_id) if str(ssh_key_id).isdigit() else ssh_key_id)
-            
-            if not ssh_keys:
-                 logger.error(f"[{self.execution_id}] ❌ NO SSH KEYS FOUND. Droplet creation will fail.")
-                 raise Exception("No usable SSH key found. Please add a key named 'Default' to your DigitalOcean account or configure one in Settings.")
-
-            # Create droplet
-            logger.info(f"[{self.execution_id}] Creating droplet {name} in {region} (Size: {size}, Image: {snapshot_id})")
-            result, error_msg = self.service.create_droplet(
-                name=name,
-                region=region,
-                size=size,
-                image=snapshot_id,
-                ssh_keys=ssh_keys,
-                tags=['bulk-execution', self.execution_id]
-            )
-            
-            if not result:
-                logger.error(f"[{self.execution_id}] ❌ API Error creating droplet {name}: {error_msg}")
-                raise Exception(f"API Error: {error_msg}")
-            
-            droplet_id = result['id']
-            
-            # Wait for active status and IP
-            ip_address = self.service.wait_for_droplet_active(droplet_id, timeout=300)
-            
-            if not ip_address:
-                logger.error(f"[{self.execution_id}] Droplet {droplet_id} did not become active")
-                raise Exception(f"Droplet {droplet_id} timed out waiting for IP")
-            
-            # Wait additional time for SSH to be ready
-            time.sleep(30)
-            
-            # Save droplet to database
-            if self.app:
-                with self.app.app_context():
-                    try:
-                        droplet_record = DigitalOceanDroplet(
-                            droplet_id=str(droplet_id),
-                            droplet_name=name,
-                            ip_address=ip_address,
-                            region=region,
-                            size=size,
-                            status='active',
-                            execution_task_id=self.execution_id,
-                            created_by_username=self.config.get('username', 'system'),
-                            auto_destroy=True
-                        )
-                        db.session.add(droplet_record)
-                        db.session.commit()
-                        logger.info(f"[{self.execution_id}] Saved droplet {droplet_id} to DB")
-                    except Exception as db_e:
-                        logger.error(f"[{self.execution_id}] Failed to save droplet record: {db_e}")
-            else:
-                 logger.warning(f"[{self.execution_id}] No app context - skipping DB save for droplet {droplet_id}")
-
-            return {
-                'id': droplet_id,
-                'name': name,
-                'ip_address': ip_address,
-                'region': region,
-                'size': size
-            }
-            
+                else:
+                    # Attempt 3: Last resort - use the FIRST key found in account
+                    all_keys = self.service.list_keys()
+                    if all_keys:
+                        last_resort_key = all_keys[0]
+                        logger.warning(f"[{self.execution_id}] Using FIRST available key as last resort: {last_resort_key.get('name')} ({last_resort_key.get('id')})")
+                        ssh_keys.append(last_resort_key['id'])
+        
         except Exception as e:
-            logger.error(f"[{self.execution_id}] Error creating droplet {name}: {e}")
-            return None
+            logger.error(f"[{self.execution_id}] Error resolving SSH keys: {e}")
+            # Critical fallback
+            ssh_key_id = self.config.get('ssh_key_id')
+            if ssh_key_id:
+                ssh_keys.append(int(ssh_key_id) if str(ssh_key_id).isdigit() else ssh_key_id)
+        
+        if not ssh_keys:
+             logger.error(f"[{self.execution_id}] ❌ NO SSH KEYS FOUND. Droplet creation will fail.")
+             raise Exception("No usable SSH key found. Please add a key named 'Default' to your DigitalOcean account or configure one in Settings.")
+
+        # Create droplet
+        logger.info(f"[{self.execution_id}] Creating droplet {name} in {region} (Size: {size}, Image: {snapshot_id})")
+        result, error_msg = self.service.create_droplet(
+            name=name,
+            region=region,
+            size=size,
+            image=snapshot_id,
+            ssh_keys=ssh_keys,
+            tags=['bulk-execution', self.execution_id]
+        )
+        
+        if not result:
+            logger.error(f"[{self.execution_id}] ❌ API Error creating droplet {name}: {error_msg}")
+            raise Exception(f"DigitalOcean API Error: {error_msg}")
+        
+        droplet_id = result['id']
+        
+        # Wait for active status and IP
+        ip_address = self.service.wait_for_droplet_active(droplet_id, timeout=300)
+        
+        if not ip_address:
+            logger.error(f"[{self.execution_id}] Droplet {droplet_id} did not become active")
+            raise Exception(f"Droplet {droplet_id} timed out waiting for IP address after activation")
+        
+        # Wait additional time for SSH to be ready
+        time.sleep(30)
+        
+        # Save droplet to database
+        if self.app:
+            with self.app.app_context():
+                try:
+                    droplet_record = DigitalOceanDroplet(
+                        droplet_id=str(droplet_id),
+                        droplet_name=name,
+                        ip_address=ip_address,
+                        region=region,
+                        size=size,
+                        status='active',
+                        execution_task_id=self.execution_id,
+                        created_by_username=self.config.get('username', 'system'),
+                        auto_destroy=True
+                    )
+                    db.session.add(droplet_record)
+                    db.session.commit()
+                    logger.info(f"[{self.execution_id}] Saved droplet {droplet_id} to DB")
+                except Exception as db_e:
+                    logger.error(f"[{self.execution_id}] Failed to save droplet record: {db_e}")
+        else:
+             logger.warning(f"[{self.execution_id}] No app context - skipping DB save for droplet {droplet_id}")
+
+        return {
+            'id': droplet_id,
+            'name': name,
+            'ip_address': ip_address,
+            'region': region,
+            'size': size
+        }
     
     def _execute_on_droplets_parallel(
         self,

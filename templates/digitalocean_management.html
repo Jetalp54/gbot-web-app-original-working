@@ -676,9 +676,16 @@
 
                     if (response.status === 'failed' && response.error_message) {
                         $('#noDropletsMessage').html(`
-                            <div class="alert alert-danger m-3">
-                                <h6 class="alert-heading"><i class="fa fa-exclamation-triangle"></i> Execution Failed</h6>
-                                <p class="mb-0 small">${response.error_message}</p>
+                            <div class="alert alert-danger m-3 border-start border-4 border-danger shadow-sm">
+                                <h5 class="alert-heading text-danger fw-bold"><i class="fa fa-exclamation-circle"></i> Creation Failed</h5>
+                                <hr>
+                                <p class="mb-2">The system encountered an error while setting up your droplets:</p>
+                                <div class="bg-white p-2 rounded border border-danger-subtle text-dark font-monospace small mb-3">
+                                    ${response.error_message}
+                                </div>
+                                <p class="mb-0 small text-muted">
+                                    <i class="fa fa-info-circle"></i> Please check your <strong>DigitalOcean API Token</strong> and <strong>SSH Key</strong> configuration in Settings.
+                                </p>
                             </div>
                         `);
                     }
