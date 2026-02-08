@@ -345,6 +345,15 @@
                 </div>
 
                 <div id="testAutomationResult" class="mt-3"></div>
+
+                <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#setupLogsCollapse" aria-expanded="false" aria-controls="setupLogsCollapse">
+                    Show/Hide Setup Logs
+                </button>
+                <div class="collapse" id="setupLogsCollapse">
+                    <pre id="setupLogs" class="bg-light p-3 border rounded"
+                        style="max-height: 300px; overflow-y: auto; font-size: 0.8rem;"></pre>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
