@@ -562,10 +562,10 @@ class DigitalOceanService:
         
         return batches
     
-    def run_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None) -> Dict:
+    def start_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None) -> Dict:
         """
-        Run the automation script for a single user on a droplet.
-        Uploads do_automation.py, executes it, and retrieves the result.
+        Start the automation script in the background (Async).
+        Uploads script and executes with nohup.
         
         Args:
             ip_address: Droplet IP address
@@ -574,15 +574,14 @@ class DigitalOceanService:
             ssh_key_path: Path to SSH private key
             
         Returns:
-            Dict containing success status, result data, or error message
+            Dict containing success status and message
         """
         try:
             # 1. Upload automation script
             local_script = os.path.join(os.getcwd(), 'repo_digitalocean_files', 'do_automation.py')
             remote_script = '/opt/automation/do_automation.py'
             
-            # Ensure remote directory exists (in case setup failed or wasn't run)
-            # Ensure remote directory exists (in case setup failed or wasn't run)
+            # Ensure remote directory exists
             success, stdout, stderr = self.execute_ssh_command(
                 ip_address=ip_address,
                 command="mkdir -p /opt/automation",
@@ -591,7 +590,7 @@ class DigitalOceanService:
             )
             
             if not success:
-                 return {'success': False, 'error': f"Failed to create remote directory (SSH Error): {stderr or 'Unknown SSH error'}"}
+                 return {'success': False, 'error': f"Failed to create remote directory: {stderr}"}
             
             if not os.path.exists(local_script):
                 return {'success': False, 'error': f"Local script not found at {local_script}"}
@@ -607,8 +606,7 @@ class DigitalOceanService:
             if not uploaded:
                 return {'success': False, 'error': "Failed to upload automation script"}
                 
-            # Ensure proper syntax and executable
-            # Convert CRLF to LF just in case (for Windows uploads) -> usually handled by SFTP mode but safe to sed
+            # Ensure permissions
             self.execute_ssh_command(
                 ip_address=ip_address,
                 command=f"sed -i 's/\r$//' {remote_script} && chmod +x {remote_script}",
@@ -616,8 +614,7 @@ class DigitalOceanService:
                 ssh_key_path=ssh_key_path
             )
 
-            # Check for critical dependencies (undetected-chromedriver) and install if missing
-            # This handles cases where the droplet was created before setup_droplet.sh was updated
+            # Check dependencies
             check_dep_command = "pip3 show undetected-chromedriver > /dev/null 2>&1 || pip3 install undetected-chromedriver"
             self.execute_ssh_command(
                 ip_address=ip_address,
@@ -626,57 +623,95 @@ class DigitalOceanService:
                 ssh_key_path=ssh_key_path
             )
             
-            # 2. Execute script
-            result_file = f"/tmp/result_{email.replace('@', '_')}.json"
-            # Cleaning up any previous result
+            # 2. Prepare execution
+            cleaned_email = email.replace('@', '_')
+            result_file = f"/tmp/result_{cleaned_email}.json"
+            log_file = f"/var/log/automation_{cleaned_email}.log"
+            
+            # Clean up previous runs
             self.execute_ssh_command(
                 ip_address=ip_address,
-                command=f"rm -f {result_file}",
+                command=f"rm -f {result_file} {log_file}",
                 username='root',
                 ssh_key_path=ssh_key_path
             )
             
-            command = f"/usr/bin/python3 {remote_script} --email '{email}' --password '{password}' --output {result_file} | tee -a /var/log/gbot_automation.log"
-            logger.info(f"Running automation on {ip_address} for {email}")
+            # 3. Execute in background (nohup)
+            # We explicitly verify command construction to ensure non-blocking execution
+            run_cmd = f"nohup /usr/bin/python3 {remote_script} --email '{email}' --password '{password}' --output {result_file} > {log_file} 2>&1 & echo $!"
             
             success, stdout, stderr = self.execute_ssh_command(
                 ip_address=ip_address,
-                command=command,
+                command=run_cmd,
                 username='root',
                 ssh_key_path=ssh_key_path
             )
             
-            # Log output for debugging
-            if stdout:
-                logger.info(f"STDOUT ({email}): {stdout}")
-            if stderr:
-                logger.warning(f"STDERR ({email}): {stderr}")
-                
-            # 3. Retrieve result
-            local_result_file = f"/tmp/do_result_{email.replace('@', '_')}_{int(time.time())}.json"
-            
-            downloaded = self.download_file_sftp(
-                ip_address=ip_address,
-                remote_path=result_file,
-                local_path=local_result_file,
-                username='root',
-                ssh_key_path=ssh_key_path
-            )
-            
-            if downloaded and os.path.exists(local_result_file):
-                with open(local_result_file, 'r') as f:
-                    result_data = json.load(f)
-                os.remove(local_result_file)
-                return result_data
+            if success:
+                pid = stdout.strip()
+                logger.info(f"Started automation {pid} on {ip_address} for {email}")
+                return {'success': True, 'message': 'Automation started', 'pid': pid, 'log_file': log_file, 'result_file': result_file}
             else:
-                # If script failed but printed to stdout, maybe we can parse it?
-                # For now assume failure if no result file
+                return {'success': False, 'error': f"Failed to start script: {stderr}"}
+                
+        except Exception as e:
+            logger.error(f"Error starting automation on {ip_address}: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def check_automation_status(self, ip_address: str, log_file: str, result_file: str, ssh_key_path: str = None) -> Dict:
+        """
+        Check status of running automation by reading logs and looking for result file.
+        """
+        try:
+            # 1. Check if result file exists (completed)
+            check_cmd = f"[ -f {result_file} ] && echo 'yes' || echo 'no'"
+            success, stdout, stderr = self.execute_ssh_command(
+                ip_address=ip_address,
+                command=check_cmd,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            is_complete = stdout.strip() == 'yes'
+            
+            # 2. Read logs (tail)
+            # Read last 50 lines to keep payload small but informative
+            log_cmd = f"tail -n 50 {log_file}"
+            _, logs, _ = self.execute_ssh_command(
+                ip_address=ip_address,
+                command=log_cmd,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            if is_complete:
+                # Retrieve final result
+                local_result = f"/tmp/do_result_{int(time.time())}.json"
+                downloaded = self.download_file_sftp(
+                    ip_address=ip_address,
+                    remote_path=result_file,
+                    local_path=local_result,
+                    username='root',
+                    ssh_key_path=ssh_key_path
+                )
+                
+                result_data = {}
+                if downloaded and os.path.exists(local_result):
+                    with open(local_result, 'r') as f:
+                        result_data = json.load(f)
+                    os.remove(local_result)
+                
                 return {
-                    'success': False, 
-                    'error': f"Script executed but no result file generated. Stderr: {stderr}",
-                    'stdout': stdout
+                    'status': 'completed',
+                    'logs': logs,
+                    'result': result_data
+                }
+            else:
+                return {
+                    'status': 'running',
+                    'logs': logs
                 }
                 
         except Exception as e:
-            logger.error(f"Error running automation script on {ip_address}: {e}")
-            return {'success': False, 'error': str(e)}
+            logger.error(f"Error checking status on {ip_address}: {e}")
+            return {'status': 'error', 'error': str(e)}

@@ -948,104 +948,119 @@
         const email = $('#testEmail').val().trim();
         const password = $('#testPassword').val().trim();
 
+
+
         if (!email || !password) {
             $('#testAutomationResult').html('<div class="alert alert-danger">Email and password are required</div>');
             return;
         }
 
-        $('#testAutomationResult').html('<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Running test... This may take a minute.</div>');
+        $('#testAutomationResult').html(`
+        <div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Test Started... Waiting for logs...</div>
+        <div class="mt-2"><small><strong>Live Logs:</strong></small>
+        <pre id="liveAutomationLogs" class="bg-dark text-white p-2 border rounded" style="max-height: 300px; overflow-y: auto; font-size: 0.8rem; font-family: monospace;">Initializing...</pre>
+        </div>
+    `);
 
+        // 1. Start Automation
         $.ajax({
             url: `/api/do/droplets/${dropletId}/test-automation`,
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ email: email, password: password }),
             success: function (response) {
-                if (response.success) {
-                    const result = response.result;
-                    let html = `<div class="alert alert-success">
-                        <strong>✅ Test Passed!</strong><br>
-                        App Password: <code>${result.app_password || 'N/A'}</code>
-                    </div>`;
-
-                    if (result.stdout) {
-                        let stdout = result.stdout;
-                        // Check for screenshot
-                        const screenshotMatch = stdout.match(/<SCREENSHOT>(.*?)<\/SCREENSHOT>/);
-                        if (screenshotMatch) {
-                            const base64Image = screenshotMatch[1];
-                            html += `<div class="mt-2"><strong>Debug Screenshot:</strong><br><img src="data:image/png;base64,${base64Image}" class="img-fluid border rounded" style="max-height: 400px;"></div>`;
-                            // Remove screenshot from log to make it readable
-                            stdout = stdout.replace(/<SCREENSHOT>.*?<\/SCREENSHOT>/, '[Screenshot captured]');
-                        }
-
-                        html += `<div class="mt-2"><small><strong>Stdout:</strong></small><pre class="bg-light p-2 border" style="max-height: 200px; font-size: 0.8em;">${stdout}</pre></div>`;
-                    }
-
-                    $('#testAutomationResult').html(html);
+                if (response.success && response.status === 'running') {
+                    const logFile = response.log_file;
+                    const resultFile = response.result_file;
+                    pollAutomationStatus(dropletId, logFile, resultFile);
                 } else {
-                    let errorMsg = response.error || (response.result && response.result.error) || 'Unknown error';
-                    let html = `<div class="alert alert-danger">
-                        <strong>❌ Test Failed:</strong> ${errorMsg}
-                    </div>`;
-
-                    if (response.result) {
-                        if (response.result.stdout) {
-                            let stdout = response.result.stdout;
-                            // Check for screenshot in error output too
-                            const screenshotMatch = stdout.match(/<SCREENSHOT>(.*?)<\/SCREENSHOT>/);
-                            if (screenshotMatch) {
-                                const base64Image = screenshotMatch[1];
-                                html += `<div class="mt-2"><strong>Error Screenshot:</strong><br><img src="data:image/png;base64,${base64Image}" class="img-fluid border rounded" style="max-height: 400px;"></div>`;
-                                stdout = stdout.replace(/<SCREENSHOT>.*?<\/SCREENSHOT>/, '[Screenshot captured]');
-                            }
-
-                            html += `<div class="mt-2"><small><strong>Stdout:</strong></small><pre class="bg-light p-2 border" style="max-height: 200px; font-size: 0.8em;">${stdout}</pre></div>`;
-                        }
-                        if (response.result.stderr) {
-                            html += `<div class="mt-2"><small><strong>Stderr:</strong></small><pre class="bg-light p-2 border text-danger" style="max-height: 200px; font-size: 0.8em;">${response.result.stderr}</pre></div>`;
-                        }
-                    }
-
-                    $('#testAutomationResult').html(html);
+                    $('#testAutomationResult').html(`<div class="alert alert-danger"><strong>❌ Start Failed:</strong> ${response.error || 'Unknown error'}</div>`);
                 }
             },
             error: function (xhr) {
-                let html = '';
-                const response = xhr.responseJSON;
-                const errorMsg = (response && response.error) || 'Failed to run test';
-
-                html += `<div class="alert alert-danger"><strong>❌ Error:</strong> ${errorMsg}</div>`;
-
-                if (response && response.result) {
-                    // Check if we have logs/stdout with screenshots even on error
-                    if (response.result.stdout) {
-                        let stdout = response.result.stdout;
-                        // Check for screenshot
-                        const screenshotMatch = stdout.match(/<SCREENSHOT>(.*?)<\/SCREENSHOT>/);
-                        if (screenshotMatch) {
-                            const base64Image = screenshotMatch[1];
-                            html += `<div class="mt-2"><strong>Error Screenshot:</strong><br><img src="data:image/png;base64,${base64Image}" class="img-fluid border rounded" style="max-height: 400px;"></div>`;
-                            // Remove screenshot from log to make it readable
-                            stdout = stdout.replace(/<SCREENSHOT>.*?<\/SCREENSHOT>/, '[Screenshot captured]');
-                        }
-
-                        html += `<div class="mt-2"><small><strong>Stdout:</strong></small><pre class="bg-light p-2 border" style="max-height: 200px; font-size: 0.8em;">${stdout}</pre></div>`;
-                    }
-
-                    if (response.result.stderr) {
-                        html += `<div class="mt-2"><small><strong>Stderr:</strong></small><pre class="bg-light p-2 border text-danger" style="max-height: 200px; font-size: 0.8em;">${response.result.stderr}</pre></div>`;
-                    }
-                } else if (response && response.logs) {
-                    // Fallback if result object is not present but logs are (legacy backend behavior)
-                    html += `<div class="mt-2"><small><strong>Logs:</strong></small><pre class="bg-light p-2 border" style="max-height: 200px; font-size: 0.8em;">${response.logs}</pre></div>`;
-                }
-
-                $('#testAutomationResult').html(html);
+                const error = xhr.responseJSON?.error || 'Failed to start test';
+                $('#testAutomationResult').html(`<div class="alert alert-danger"><strong>❌ Error:</strong> ${error}</div>`);
             }
         });
     }
 
+    function pollAutomationStatus(dropletId, logFile, resultFile) {
+        const pollInterval = setInterval(() => {
+            $.ajax({
+                url: `/api/do/droplets/${dropletId}/automation-status`,
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ log_file: logFile, result_file: resultFile }),
+                success: function (response) {
+                    if (response.success) {
+                        const data = response.data;
+
+                        // Update Logs
+                        if (data.logs) {
+                            $('#liveAutomationLogs').text(data.logs);
+                            // Auto-scroll to bottom
+                            const logContainer = document.getElementById('liveAutomationLogs');
+                            if (logContainer) logContainer.scrollTop = logContainer.scrollHeight;
+                        }
+
+                        // Check for completion
+                        if (data.status === 'completed') {
+                            clearInterval(pollInterval);
+                            displayFinalResult(data.result);
+                        } else if (data.status === 'error') {
+                            clearInterval(pollInterval);
+                            $('#testAutomationResult').prepend(`<div class="alert alert-danger"><strong>❌ Polling Error:</strong> ${data.error}</div>`);
+                        }
+                    }
+                },
+                error: function () {
+                    // Keep polling on transient network errors, but stop after N retries if needed (omitted for simplicity)
+                }
+            });
+        }, 2000); // Poll every 2 seconds
+    }
+
+    function displayFinalResult(result) {
+        // Re-use logic to display final result (success/fail + screenshots)
+        let html = '';
+
+        // Check for explicit success in JSON result
+        if (result.status === 'success') {
+            html += `<div class="alert alert-success">
+            <strong>✅ Test Passed!</strong><br>
+            App Password: <code>${result.app_password || 'N/A'}</code>
+        </div>`;
+        } else {
+            const errorMsg = result.error_message || result.error || 'Test Failed';
+            html += `<div class="alert alert-danger">
+            <strong>❌ Test Failed:</strong> ${errorMsg}
+        </div>`;
+        }
+
+        // Check for screenshot in stdout (from final result or logs)
+        // Note: The 'logs' polling showed the tail, but 'result.stdout' has the full run potentially
+        // Actually, result.stdout might NOT be in the JSON file if we didn't capture it there explicitly
+        // But our Python script writes to stdout AND result file.
+        // Let's use the 'logs' we last saw if result doesn't have screenshot, OR check result.
+
+        // Wait, do_automation.py writes the JSON result file. It does NOT put stdout IN the JSON result file.
+        // But start_automation_script captures stdout/stderr in the log file, which we are polling!
+
+        // So we should check the FINAL logs for the screenshot tag.
+        const finalLogs = $('#liveAutomationLogs').text();
+        const screenshotMatch = finalLogs.match(/<SCREENSHOT>(.*?)<\/SCREENSHOT>/);
+
+        if (screenshotMatch) {
+            const base64Image = screenshotMatch[1];
+            html += `<div class="mt-2"><strong>Debug Screenshot:</strong><br><img src="data:image/png;base64,${base64Image}" class="img-fluid border rounded" style="max-height: 400px;"></div>`;
+
+            // Clean up logs
+            const cleanLogs = finalLogs.replace(/<SCREENSHOT>.*?<\/SCREENSHOT>/, '[Screenshot captured]');
+            $('#liveAutomationLogs').text(cleanLogs);
+        }
+
+        $('#testAutomationResult').prepend(html);
+    }
     // === Setup Logs Functions Removed ===
 </script>
 

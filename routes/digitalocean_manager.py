@@ -573,34 +573,71 @@ def test_droplet_automation(droplet_id):
         if stdout.strip() != 'yes':
              return jsonify({'success': False, 'error': 'Droplet is still setting up. Please wait for "Setup complete!" in the logs.'}), 400
 
-        # 3. Run automation
-        result = service.run_automation_script(
+        # 3. Run automation (Async Start)
+        result = service.start_automation_script(
             ip_address=ip_address,
             email=email,
             password=password,
             ssh_key_path=ssh_key_path
         )
         
-        # Check if execution was successful (script ran and returned valid JSON)
-        # Note: run_automation_script returns either the JSON result from the script OR an error dict
-        
-        # If the script failed to run or upload, it returns {'success': False, 'error': ...}
-        if 'success' in result and result['success'] is False:
-             # Include full result object so frontend can parse stdout for screenshots
-             return jsonify({'success': False, 'error': result.get('error', 'Unknown Execution Error'), 'result': result}), 500
-
-        # If the script ran, it returns the JSON output which has a 'status' field
-        is_success = result.get('status') == 'success'
-        
-        if is_success:
-            return jsonify({'success': True, 'message': 'Automation completed successfully', 'result': result})
+        if result.get('success'):
+            return jsonify({
+                'success': True, 
+                'message': 'Automation started', 
+                'status': 'running',
+                'log_file': result.get('log_file'),
+                'result_file': result.get('result_file')
+            })
         else:
-            # Script ran but failed logic (e.g. login failed)
-            error_msg = result.get('error_message') or result.get('error') or 'Automation script reported failure'
-            return jsonify({'success': False, 'error': error_msg, 'result': result}), 400
+             return jsonify({'success': False, 'error': result.get('error', 'Failed to start automation')}), 500
 
     except Exception as e:
         logger.error(f"Test automation error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@digitalocean_manager.route('/api/do/droplets/<droplet_id>/automation-status', methods=['POST'])
+@login_required
+def get_automation_status(droplet_id):
+    """Check status of running automation"""
+    try:
+        data = request.json
+        log_file = data.get('log_file')
+        result_file = data.get('result_file')
+        
+        if not log_file or not result_file:
+            return jsonify({'success': False, 'error': 'Log file and result file paths required'}), 400
+            
+        config = DigitalOceanConfig.query.first()
+        if not config or not config.api_token:
+            return jsonify({'success': False, 'error': 'DigitalOcean not configured'}), 400
+            
+        service = DigitalOceanService(config.api_token)
+        droplet = service.get_droplet(droplet_id)
+        if not droplet or not droplet.get('ip_address'):
+             return jsonify({'success': False, 'error': 'Droplet not found or no IP'}), 404
+             
+        # Resolve SSH key
+        ssh_key_path = None
+        if config.ssh_private_key_path and os.path.exists(config.ssh_private_key_path):
+            ssh_key_path = config.ssh_private_key_path
+        elif os.path.exists(os.path.abspath("digitalocean_key.pem")):
+            ssh_key_path = os.path.abspath("digitalocean_key.pem")
+        elif os.path.exists("edu-gw-creation-key.pem"):
+             ssh_key_path = os.path.abspath("edu-gw-creation-key.pem")
+             
+        status_result = service.check_automation_status(
+            ip_address=droplet['ip_address'],
+            log_file=log_file,
+            result_file=result_file,
+            ssh_key_path=ssh_key_path
+        )
+        
+        return jsonify({'success': True, 'data': status_result})
+        
+    except Exception as e:
+        logger.error(f"Automation status check error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
