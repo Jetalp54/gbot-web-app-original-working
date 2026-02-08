@@ -290,27 +290,20 @@ class BulkExecutionOrchestrator:
                 app_password = result_data.get('app_password')
                 
                 # Save app password with dual-save backup system
-                        if user_result.get('success') and user_result.get('app_password'):
-                            self._save_app_password_with_backup(
-                                email=email,
-                                app_password=user_result['app_password']
-                            )
-                        
-                        results.append(user_result)
-                    else:
-                        results.append({
-                            'success': False,
-                            'email': email,
-                            'error': 'Could not download result file',
-                            'droplet_id': droplet['id']
-                        })
-                else:
-                    results.append({
-                        'success': False,
-                        'email': email,
-                        'error': f'SSH command failed: {stderr}',
-                        'droplet_id': droplet['id']
-                    })
+                # Save app password with dual-save backup system
+                if app_password:
+                    self._save_app_password_with_backup(
+                        email=email,
+                        app_password=app_password
+                    )
+
+                results.append({
+                    'success': True,
+                    'email': email,
+                    'app_password': app_password,
+                    'droplet_id': droplet['id'],
+                    'timestamp': datetime.utcnow().isoformat()
+                })
                 
         except Exception as e:
             logger.error(f"[{self.execution_id}] Error executing on droplet {droplet['name']}: {e}")
