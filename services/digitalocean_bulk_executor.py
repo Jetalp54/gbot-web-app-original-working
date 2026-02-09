@@ -120,12 +120,13 @@ class BulkExecutionOrchestrator:
             workers_per_droplet = max(1, parallel_users // final_droplet_count) if final_droplet_count > 0 else 1
             logger.info(f"[{self.execution_id}] Using {workers_per_droplet} parallel workers per droplet")
             
-            # 3. Execute automation on each droplet
-            results = self._execute_on_droplets_parallel(droplet_info, user_batches, workers_per_droplet)
-            
-            # 4. Optionally destroy droplets
-            if auto_destroy:
-                self._destroy_droplets_parallel(droplet_info)
+            # 3. Execute automation on each droplet (and destroy if auto_destroy=True)
+            results = self._execute_on_droplets_parallel(
+                droplet_info, 
+                user_batches, 
+                workers_per_droplet,
+                auto_destroy=auto_destroy
+            )
             
             # 5. Compile results
             exec_end = datetime.utcnow()
@@ -147,7 +148,7 @@ class BulkExecutionOrchestrator:
             
         except Exception as e:
             logger.error(f"[{self.execution_id}] Bulk execution failed: {e}")
-            # Clean up any created droplets
+            # Clean up any created droplets (safety net)
             if self.droplets_created and auto_destroy:
                 self._destroy_droplets_parallel(self.droplets_created)
             
@@ -302,7 +303,8 @@ class BulkExecutionOrchestrator:
         self,
         droplets: List[Dict],
         user_batches: List[List[Dict]],
-        workers_per_droplet: int = 1
+        workers_per_droplet: int = 1,
+        auto_destroy: bool = False
     ) -> List[Dict]:
         """Execute automation on multiple droplets in parallel"""
         all_results = []
@@ -312,8 +314,8 @@ class BulkExecutionOrchestrator:
             
             for droplet, users in zip(droplets, user_batches):
                 future = executor.submit(
-                    self._execute_on_single_droplet,
-                    droplet, users, workers_per_droplet
+                    self._execute_and_destroy_droplet,
+                    droplet, users, workers_per_droplet, auto_destroy
                 )
                 futures[future] = droplet
             
@@ -322,11 +324,44 @@ class BulkExecutionOrchestrator:
                 try:
                     results = future.result()
                     all_results.extend(results)
-                    logger.info(f"[{self.execution_id}] Completed execution on {droplet['name']}")
+                    logger.info(f"[{self.execution_id}] Completed execution flow on {droplet['name']}")
                 except Exception as e:
                     logger.error(f"[{self.execution_id}] Execution failed on {droplet['name']}: {e}")
         
         return all_results
+    
+    def _execute_and_destroy_droplet(
+        self,
+        droplet: Dict,
+        users: List[Dict],
+        workers_per_droplet: int,
+        auto_destroy: bool
+    ) -> List[Dict]:
+        """Wrapper to execute on a droplet and immediately destroy it regardless of outcome"""
+        try:
+            results = self._execute_on_single_droplet(droplet, users, workers_per_droplet)
+        except Exception as e:
+            logger.error(f"[{self.execution_id}] Execution error in single droplet wrapper: {e}")
+            results = [] 
+        finally:
+            if auto_destroy:
+                try:
+                    logger.info(f"[{self.execution_id}] IMMEDIATE DESTRUCTION: Destroying droplet {droplet['name']} ({droplet['id']})")
+                    self.service.delete_droplet(droplet['id'])
+                    
+                    # Update DB status if possible
+                    if self.app:
+                        with self.app.app_context():
+                            db_droplet = DigitalOceanDroplet.query.filter_by(droplet_id=str(droplet['id'])).first()
+                            if db_droplet:
+                                db_droplet.status = 'destroyed'
+                                db_droplet.destroyed_at = datetime.utcnow()
+                                db.session.commit()
+                                
+                except Exception as cleanup_error:
+                    logger.error(f"[{self.execution_id}] Failed to auto-destroy droplet {droplet['name']}: {cleanup_error}")
+        
+        return results
     
     def _execute_on_single_droplet(
         self,
@@ -444,7 +479,8 @@ class BulkExecutionOrchestrator:
         # 1. IMMEDIATE BACKUP TO FILE (fastest, most reliable)
         backup_success = False
         try:
-            backup_dir = 'do_app_passwords_backup'
+            # Use ABSOLUTE path relative to CWD (app root)
+            backup_dir = os.path.join(os.getcwd(), 'do_app_passwords_backup')
             os.makedirs(backup_dir, exist_ok=True)
             
             # Create backup file with timestamp
