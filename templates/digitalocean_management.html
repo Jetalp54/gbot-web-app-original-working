@@ -719,6 +719,7 @@
     let activePollInterval = null;
     let isLogPollingPaused = false;
     let activeDropletIds = new Set();
+    let logCursors = {}; // Tracks next_cursor per dropletId
 
     // Ensure Controls (Dropdown + Pause) exist
     function ensureMonitorControls() {
@@ -787,9 +788,10 @@
         // Clear any previous monitoring state
         if (monitorInterval) clearInterval(monitorInterval);
         stopActivePolling();
-        activeDropletIds = new Set();
 
-        // Clear Content Area
+        // Clear Content Area and cursors
+        logCursors = {};
+        activeDropletIds = new Set();
         $('#dropletLogsContent').html(`
             <div id="noDropletsMessage" class="text-center p-5 text-muted">
                 <i class="fa fa-spinner fa-spin fa-2x"></i><br>
@@ -853,10 +855,10 @@
     }
 
     function pollDropletLog(executionId, dropletId) {
-        if (dropletId !== activePollDropletId) return; // Safety check
+        const cursor = logCursors[dropletId] || 0;
 
         $.ajax({
-            url: `/api/do/execution/${executionId}/droplets/${dropletId}/logs`,
+            url: `/api/do/execution/${executionId}/droplets/${dropletId}/logs?cursor=${cursor}`,
             method: 'GET',
             success: function (response) {
                 if (dropletId !== activePollDropletId) return; // Switched during request
@@ -864,9 +866,20 @@
                 const logElement = document.getElementById(`logs-${dropletId}`);
                 const statusBadge = $(`#status-${dropletId}`);
 
-                if (response.success && response.logs) {
-                    if (logElement) {
-                        logElement.textContent = response.logs;
+                if (response.success) {
+                    // Update cursor for next call
+                    if (response.next_cursor !== undefined) {
+                        logCursors[dropletId] = response.next_cursor;
+                    }
+
+                    if (response.logs && logElement) {
+                        if (cursor === 0) {
+                            // First load or reset: Replace content
+                            logElement.textContent = response.logs;
+                        } else {
+                            // Incremental load: Append content
+                            logElement.textContent += response.logs;
+                        }
                         logElement.scrollTop = logElement.scrollHeight;
                     }
 

@@ -1137,8 +1137,11 @@ def get_execution_droplets(execution_id):
 @digitalocean_manager.route('/api/do/execution/<execution_id>/droplets/<droplet_id>/logs', methods=['GET'])
 @login_required
 def get_bulk_droplet_logs(execution_id, droplet_id):
-    """Get logs for a specific droplet in a bulk execution"""
+    """Get logs for a specific droplet in a bulk execution (Supports Incremental Polling)"""
     try:
+        from flask import request
+        cursor = request.args.get('cursor', 0, type=int)
+        
         # Logs are stored in logs/bulk_executions/<execution_id>/<droplet_id>.log
         log_dir = os.path.join('logs', 'bulk_executions', execution_id)
         log_file = os.path.join(log_dir, f"{droplet_id}.log")
@@ -1146,7 +1149,8 @@ def get_bulk_droplet_logs(execution_id, droplet_id):
         if not os.path.exists(log_file):
             return jsonify({
                 'success': True,
-                'logs': "Initializing connection to droplet... (Please wait a moment)"
+                'logs': "Initializing connection to droplet... (Please wait a moment)" if cursor == 0 else "",
+                'next_cursor': 0
             })
             
         from database import DigitalOceanExecution
@@ -1155,12 +1159,18 @@ def get_bulk_droplet_logs(execution_id, droplet_id):
         if execution and execution.status in ['completed', 'failed']:
             is_active = False
 
-        with open(log_file, 'r', encoding='utf-8') as f:
-            logs = f.read()
+        file_size = os.path.getsize(log_file)
+        logs = ""
+        
+        if cursor < file_size:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                f.seek(cursor)
+                logs = f.read()
             
         return jsonify({
             'success': True,
             'logs': logs,
+            'next_cursor': file_size,
             'is_active': is_active
         })
     except Exception as e:
