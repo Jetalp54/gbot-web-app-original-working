@@ -433,8 +433,18 @@ class BulkExecutionOrchestrator:
                 
                 # Prefix logs with email
                 prefixed_logs = ""
-                for line in logs.splitlines():
-                    prefixed_logs += f"[{email}] {line}\n"
+                # Handle both string and list inputs
+                if isinstance(logs, str):
+                    log_lines = logs.splitlines()
+                else:
+                     log_lines = logs
+                     
+                for line in log_lines:
+                    # Avoid double prefixing if already prefixed
+                    if f"[{email}]" not in line:
+                         prefixed_logs += f"[{email}] {line}\n"
+                    else:
+                         prefixed_logs += f"{line}\n"
                 
                 # Since multiple users write to the same file, we append to the communal log file.
                 with open(log_file, 'a', encoding='utf-8') as f:
@@ -442,13 +452,25 @@ class BulkExecutionOrchestrator:
             except Exception as le:
                 logger.error(f"Log callback error for {email}: {le}")
 
-        # Execute automation via reusable service method
-        result_data = self.service.run_automation_script(
+        # Fetch existing secret key if available
+        secret_key = None
+        # Need to import strictly inside method or at top? using inline to be safe
+        from database import AwsGeneratedPassword
+        with self.app.app_context():
+            existing_creds = AwsGeneratedPassword.query.filter_by(email=email).first()
+            if existing_creds and existing_creds.secret_key:
+                secret_key = existing_creds.secret_key
+                # logger.info(f"[{self.execution_id}] Found existing secret key for {email}")
+
+        # Execute automation via reusable service method (Async Polling version for robustness)
+        # We renamed the async wrapper to run_automation_script_async_poll to distinguish it
+        result_data = self.service.run_automation_script_async_poll(
             ip_address=ip_address,
             email=email,
             password=password,
             ssh_key_path=self.config.get('ssh_private_key_path'),
-            log_callback=log_callback
+            log_callback=log_callback,
+            secret_key=secret_key
         )
         
         # Normalize result (ensure 'success' key exists for easier checking)
@@ -459,13 +481,18 @@ class BulkExecutionOrchestrator:
         result_data['email'] = email
         result_data['droplet_id'] = droplet['id']
         
-        # Save app password if successful
-        if result_data.get('success') and result_data.get('app_password'):
-            self._save_app_password_with_backup(email, result_data.get('app_password'))
+        # Save app password and secret key if successful
+        if result_data.get('success'):
+             # Explicitly capture secret_key from result if present
+             returned_secret = result_data.get('secret_key')
+             returned_app_pass = result_data.get('app_password')
+             
+             if returned_app_pass:
+                self._save_app_password_with_backup(email, returned_app_pass, returned_secret)
             
         return result_data
 
-    def _save_app_password_with_backup(self, email: str, app_password: str):
+    def _save_app_password_with_backup(self, email: str, app_password: str, secret_key: str = None):
         """
         Dual-save system: Save app password to both database AND backup file.
         This ensures no data loss even if server crashes or database fails.
@@ -492,6 +519,7 @@ class BulkExecutionOrchestrator:
             backup_data = {
                 'email': email,
                 'app_password': app_password,
+                'secret_key': secret_key,
                 'execution_id': self.execution_id,
                 'timestamp': datetime.utcnow().isoformat(),
                 'saved_to_db': False  # Will update after DB save
@@ -522,10 +550,14 @@ class BulkExecutionOrchestrator:
                     existing = AwsGeneratedPassword.query.filter_by(email=email).first()
                     if existing:
                         existing.app_password = app_password
+                        # Only update secret key if new one provided
+                        if secret_key:
+                            existing.secret_key = secret_key
                     else:
                         new_password = AwsGeneratedPassword()
                         new_password.email = email
                         new_password.app_password = app_password
+                        new_password.secret_key = secret_key
                         db.session.add(new_password)
                     
                     # Immediate commit (don't batch)

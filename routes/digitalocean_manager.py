@@ -1054,6 +1054,7 @@ def get_generated_passwords(execution_id):
                             passwords.append({
                                 'email': data.get('email'),
                                 'app_password': data.get('app_password'),
+                                'secret_key': data.get('secret_key'),
                                 'created_at': data.get('timestamp'),
                                 'updated_at': data.get('db_save_timestamp'),
                                 'saved_to_db': data.get('saved_to_db', False),
@@ -1081,6 +1082,7 @@ def get_generated_passwords(execution_id):
                             passwords.append({
                                 'email': db_p.email,
                                 'app_password': db_p.app_password,
+                                'secret_key': db_p.secret_key,
                                 'created_at': db_p.created_at.isoformat() if db_p.created_at else None,
                                 'source': 'database'
                             })

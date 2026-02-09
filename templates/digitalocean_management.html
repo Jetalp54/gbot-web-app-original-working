@@ -677,8 +677,40 @@
 
     // === Bulk Execution Monitor Logic ===
     let monitorInterval = null;
-    let pollerIntervals = {};
+    let activePollDropletId = null;
+    let activePollInterval = null;
+    let isLogPollingPaused = false;
     let activeDropletIds = new Set();
+
+    // Add "Pause Logs" toggle to the UI dynamically if not present
+    function ensurePauseControl() {
+        if ($('#pauseLogsControl').length === 0) {
+            $('#dropletLogsContent').before(`
+                <div class="d-flex justify-content-end mb-2" id="pauseLogsControl">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="pauseLogsToggle">
+                        <label class="form-check-label text-white" for="pauseLogsToggle">Pause Live Logs</label>
+                    </div>
+                </div>
+            `);
+
+            $('#pauseLogsToggle').on('change', function () {
+                isLogPollingPaused = $(this).is(':checked');
+                if (isLogPollingPaused) {
+                    stopActivePolling();
+                    $('#monitorStatus').append(' <span id="pausedBadge" class="badge bg-warning text-dark">LOGS PAUSED</span>');
+                } else {
+                    $('#pausedBadge').remove();
+                    // Restart polling for active tab
+                    const activeTabId = $('#dropletTabs .nav-link.active').attr('id');
+                    if (activeTabId) {
+                        const dropletId = activeTabId.replace('tab-', '');
+                        startSingleDropletPolling(dropletId);
+                    }
+                }
+            });
+        }
+    }
 
     function initializeLogMonitor(executionId) {
         console.log("Initializing Monitor for Execution:", executionId);
@@ -686,8 +718,7 @@
 
         // Clear any previous monitoring state
         if (monitorInterval) clearInterval(monitorInterval);
-        Object.values(pollerIntervals).forEach(clearInterval);
-        pollerIntervals = {};
+        stopActivePolling();
         activeDropletIds = new Set();
 
         // Reset Tabs and Content
@@ -699,6 +730,8 @@
             </div>
         `);
 
+        ensurePauseControl();
+
         // Start polling for droplets assigned to this execution
         monitorInterval = setInterval(function () {
             updateMonitorTabs(executionId);
@@ -706,6 +739,88 @@
 
         // Immediate check
         updateMonitorTabs(executionId);
+
+        // Setup Tab Change Listener (Global)
+        $(document).off('shown.bs.tab', 'a[data-bs-toggle="tab"]'); // Remove old listeners
+        $(document).on('shown.bs.tab', 'button[data-bs-toggle="tab"]', function (e) {
+            const targetId = $(e.target).attr('id'); // e.g. "tab-123456"
+            if (targetId && targetId.startsWith('tab-')) {
+                const dropletId = targetId.replace('tab-', '');
+                console.log("Tab switched to droplet:", dropletId);
+                startSingleDropletPolling(dropletId, executionId); // Pass executionId? function needs it.
+                // We need to store currentExecutionId globally or pass it. 
+                // Using global currentExecutionId variable which is set in start execution.
+            }
+        });
+    }
+
+    function stopActivePolling() {
+        if (activePollInterval) {
+            clearInterval(activePollInterval);
+            activePollInterval = null;
+        }
+        activePollDropletId = null;
+    }
+
+    function startSingleDropletPolling(dropletId, executionId) {
+        // Stop previous
+        stopActivePolling();
+
+        if (isLogPollingPaused) return;
+
+        // Use global execution ID if not passed (monitor logic uses closures usually, but here separated)
+        // We relied on 'startDropletLogPolling(executionId...)' before. 
+        // We need executionId. Let's assume currentExecutionId global is available or pass it.
+        const execId = executionId || currentExecutionId;
+        if (!execId) return;
+
+        activePollDropletId = dropletId;
+        console.log("Starting SINGLE polling for:", dropletId);
+
+        // Poll immediately
+        pollDropletLog(execId, dropletId);
+
+        // Then interval
+        activePollInterval = setInterval(function () {
+            pollDropletLog(execId, dropletId);
+        }, 3000);
+    }
+
+    function pollDropletLog(executionId, dropletId) {
+        if (dropletId !== activePollDropletId) return; // Safety check
+
+        $.ajax({
+            url: `/api/do/execution/${executionId}/droplets/${dropletId}/logs`,
+            method: 'GET',
+            success: function (response) {
+                if (dropletId !== activePollDropletId) return; // Tab switched during request
+
+                const logElement = document.getElementById(`logs-${dropletId}`);
+                const statusBadge = $(`#status-${dropletId}`);
+
+                if (response.success && response.logs) {
+                    if (logElement) {
+                        // Only update if changed to avoid heavy DOM ops? 
+                        // TextContent is fast enough usually.
+                        logElement.textContent = response.logs;
+                        logElement.scrollTop = logElement.scrollHeight;
+                    }
+
+                    if (response.is_active) {
+                        statusBadge.text('RUNNING').removeClass('bg-secondary').addClass('bg-primary');
+                    } else {
+                        statusBadge.text('FINISHED').removeClass('bg-primary bg-secondary').addClass('bg-success');
+                        // Don't stop polling immediately if we want to see final result? 
+                        // Actually if it's finished, logs might not change, but maybe we want to keep polling 
+                        // just in case of late flush. But usually safe to stop or slow down.
+                        // Let's keep polling for now to be safe, user can pause.
+                    }
+                }
+            },
+            error: function () {
+                $(`#status-${dropletId}`).text('Offline').addClass('bg-danger');
+            }
+        });
     }
 
     function updateMonitorTabs(executionId) {
@@ -736,9 +851,6 @@
                                 <div class="bg-white p-2 rounded border border-danger-subtle text-dark font-monospace small mb-3">
                                     ${response.error_message}
                                 </div>
-                                <p class="mb-0 small text-muted">
-                                    <i class="fa fa-info-circle"></i> Please check your <strong>DigitalOcean API Token</strong> and <strong>SSH Key</strong> configuration in Settings.
-                                </p>
                             </div>
                         `);
                     }
@@ -782,47 +894,15 @@
                                 </div>
                             `);
 
-                            // Start log polling for this specific droplet
-                            startDropletLogPolling(executionId, droplet.droplet_id);
+                            // If this is the FIRST droplet (isActive is true), start polling for it
+                            if (isActive) {
+                                startSingleDropletPolling(droplet.droplet_id, executionId);
+                            }
                         }
                     });
                 }
             }
         });
-    }
-
-    function startDropletLogPolling(executionId, dropletId) {
-        if (pollerIntervals[dropletId]) return;
-
-        console.log("Starting log polling for droplet:", dropletId);
-
-        pollerIntervals[dropletId] = setInterval(function () {
-            $.ajax({
-                url: `/api/do/execution/${executionId}/droplets/${dropletId}/logs`,
-                method: 'GET',
-                success: function (response) {
-                    const logElement = document.getElementById(`logs-${dropletId}`);
-                    const statusBadge = $(`#status-${dropletId}`);
-
-                    if (response.success && response.logs) {
-                        if (logElement) {
-                            logElement.textContent = response.logs;
-                            logElement.scrollTop = logElement.scrollHeight;
-                        }
-
-                        if (response.is_active) {
-                            statusBadge.text('RUNNING').removeClass('bg-secondary').addClass('bg-primary');
-                        } else {
-                            statusBadge.text('FINISHED').removeClass('bg-primary bg-secondary').addClass('bg-success');
-                            clearInterval(pollerIntervals[dropletId]);
-                        }
-                    }
-                },
-                error: function () {
-                    $(`#status-${dropletId}`).text('Offline').addClass('bg-danger');
-                }
-            });
-        }, 3000);
     }
 
     // === Instant Live Logs Polling ===
