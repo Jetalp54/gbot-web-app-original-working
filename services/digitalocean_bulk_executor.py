@@ -356,6 +356,7 @@ class BulkExecutionOrchestrator:
             logger.error(f"[{self.execution_id}] Execution error in single droplet wrapper: {e}")
             results = [] 
         finally:
+            logger.info(f"[{self.execution_id}] Finalizing droplet {droplet['name']}. Auto-destroy={auto_destroy}")
             if auto_destroy:
                 try:
                     logger.info(f"[{self.execution_id}] IMMEDIATE DESTRUCTION: Destroying droplet {droplet['name']} ({droplet['id']})")

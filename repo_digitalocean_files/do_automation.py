@@ -2298,6 +2298,36 @@ def handle_post_login_pages(driver, max_attempts=20):
             current_url = driver.current_url
             logger.info(f"[STEP] Post-login check {attempt + 1}/{max_attempts}: URL = {current_url}")
             
+            # Check if it's the IAP Challenge (Verify it's you)
+            if "challenge/iap" in current_url:
+                logger.info(f"[STEP] IAP Challenge (Verify it's you) detected: {current_url}")
+                try:
+                    # Look for "Continue", "I understand", or "Yes, it's me" buttons
+                    iap_buttons = [
+                        "//span[contains(text(), 'Continue')]",
+                        "//span[contains(text(), 'confirm')]",
+                        "//div[@role='button']//span[contains(text(), 'Continue')]",
+                        "//button[contains(., 'Continue')]",
+                        "//button[contains(., 'I understand')]"
+                    ]
+                    
+                    clicked = False
+                    for xpath in iap_buttons:
+                         if element_exists(driver, xpath, timeout=2):
+                            click_xpath(driver, xpath, timeout=5)
+                            logger.info(f"[STEP] Clicked IAP confirmation button: {xpath}")
+                            time.sleep(3)
+                            clicked = True
+                            break
+                    
+                    if clicked:
+                        continue 
+                    else:
+                        logger.warning("[STEP] Could not find 'Continue' button on IAP challenge")
+                        
+                except Exception as e:
+                    logger.warning(f"[STEP] Failed to handle IAP challenge: {e}")
+
             # Check if it's the 2SV Required Interstitial (MUST BE BEFORE myaccount check as it contains myaccount)
             if "interstitials/twosvrequired" in current_url:
                 logger.info(f"[STEP] 2SV Required Interstitial detected: {current_url}")
