@@ -740,7 +740,23 @@ class DigitalOceanService:
                 ssh_key_path=ssh_key_path
             )
             
-            # Check dependencies
+            # 2. Prepare Environment: Add 2GB Swap for stability
+            logger.info(f"[{ip_address}] Setting up 2GB swap space for resource stability...")
+            swap_commands = [
+                "fallocate -l 2G /swapfile",
+                "chmod 600 /swapfile",
+                "mkswap /swapfile",
+                "swapon /swapfile",
+                "echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab"
+            ]
+            self.execute_ssh_command(
+                ip_address=ip_address,
+                command=" && ".join(swap_commands),
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+
+            # 3. Check dependencies
             check_dep_command = "pip3 show undetected-chromedriver > /dev/null 2>&1 || pip3 install undetected-chromedriver"
             self.execute_ssh_command(
                 ip_address=ip_address,

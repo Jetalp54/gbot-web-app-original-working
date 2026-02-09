@@ -363,6 +363,12 @@ def get_chrome_driver():
     chrome_options.add_argument("--disable-software-rasterizer")
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--lang=en-US")
+    
+    # 2026 Resource Optimization Flags
+    chrome_options.add_argument("--disable-site-isolation-trials")
+    chrome_options.add_argument("--disk-cache-size=1048576") # 1MB cache
+    chrome_options.add_argument("--media-cache-size=1048576") # 1MB media cache
+    
     # Hide automation flags
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -4948,6 +4954,13 @@ def process_single_user(email, password, secret_key=None):
             if browser_attempt > 0:
                 logger.info(f"[LAMBDA] Restarting browser (Attempt {browser_attempt + 1}/{max_browser_attempts})...")
             
+            # RESOURCE OPTIMIZATION: Thread Staggering
+            # Only stagger on first attempt to avoid triple-staggering on restarts
+            if browser_attempt == 0:
+                jitter = random.uniform(0.5, 5.0)
+                logger.info(f"[RESOURCE] Staggering browser start by {round(jitter, 2)}s to reduce RAM spike...")
+                time.sleep(jitter)
+
             # Step 0: Initialize Chrome driver
             step_start = time.time()
             driver = get_chrome_driver()

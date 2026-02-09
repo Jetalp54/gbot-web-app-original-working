@@ -717,7 +717,6 @@
     let monitorInterval = null;
     let activePollDropletId = null;
     let activePollInterval = null;
-    let isLogPollingPaused = false;
     let activeDropletIds = new Set();
     let logCursors = {}; // Tracks next_cursor per dropletId
 
@@ -741,10 +740,6 @@
                         
                         <div class="d-flex align-items-center">
                             <span id="monitorStatusBadge" class="badge bg-secondary me-3">INITIALIZING</span>
-                            <div class="form-check form-switch m-0">
-                                <input class="form-check-input" type="checkbox" id="pauseLogsToggle">
-                                <label class="form-check-label text-white small" for="pauseLogsToggle">Pause</label>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -759,21 +754,6 @@
                 }
             });
 
-            // 2. Pause Toggle
-            $('#pauseLogsToggle').on('change', function () {
-                isLogPollingPaused = $(this).is(':checked');
-                if (isLogPollingPaused) {
-                    stopActivePolling();
-                    $('#monitorStatusBadge').text('PAUSED').removeClass('bg-primary bg-success bg-danger').addClass('bg-warning text-dark');
-                } else {
-                    // Resume current
-                    const currentId = $('#dropletLogSelector').val();
-                    if (currentId) {
-                        $('#monitorStatusBadge').text('RESUMING...').removeClass('bg-warning text-dark').addClass('bg-info');
-                        startSingleDropletPolling(currentId);
-                    }
-                }
-            });
         }
     }
 
@@ -829,14 +809,14 @@
         $(`#pane-${droplet_id}`).show(); // Show target
 
         // 2. Logic: Start polling
-        startSingleDropletPolling(dropletId, executionId);
+        startSingleDropletPolling(droplet_id, executionId);
     }
 
     function startSingleDropletPolling(dropletId, executionId) {
         // Stop previous
         stopActivePolling();
 
-        if (isLogPollingPaused || !dropletId) return;
+        if (!dropletId) return;
 
         // Use global execution ID if not passed
         const execId = executionId || currentExecutionId;
@@ -855,7 +835,6 @@
     }
 
     function pollDropletLog(executionId, dropletId) {
-        if (isLogPollingPaused) return;
         const cursor = logCursors[dropletId] || 0;
 
         $.ajax({
