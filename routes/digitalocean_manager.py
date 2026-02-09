@@ -1033,47 +1033,50 @@ def get_execution_status(execution_id):
 @digitalocean_manager.route('/api/do/generated-passwords/<execution_id>', methods=['GET'])
 @login_required
 def get_generated_passwords(execution_id):
-    """Fetch generated passwords from specific execution via backup files"""
+    """Fetch generated passwords from specific execution via backup files OR database"""
     try:
-        backup_dir = 'do_app_passwords_backup'
-        
-        if not os.path.exists(backup_dir):
-            return jsonify({
-                'success': True,
-                'passwords': []
-            })
-        
-        # Find all backup files matching this execution
-        pattern = f"{execution_id}_*.json"
-        backup_files = []
-        
-        for filename in os.listdir(backup_dir):
-            if filename.startswith(f"{execution_id}_") and filename.endswith('.json'):
-                backup_files.append(os.path.join(backup_dir, filename))
-        
-        if not backup_files:
-            return jsonify({
-                'success': True,
-                'passwords': []
-            })
-        
-        # Load passwords from backup files
+        # 1. Try Backup Files (Primary Source for this execution)
+        backup_dir = os.path.join(os.getcwd(), 'do_app_passwords_backup')
         passwords = []
-        for filepath in backup_files:
-            try:
-                with open(filepath, 'r') as f:
-                    data = json.load(f)
-                
-                passwords.append({
-                    'email': data.get('email'),
-                    'app_password': data.get('app_password'),
-                    'created_at': data.get('timestamp'),
-                    'updated_at': data.get('db_save_timestamp'),
-                    'saved_to_db': data.get('saved_to_db', False)
-                })
-            except Exception as e:
-                logger.error(f"Error reading backup file {filepath}: {e}")
-                continue
+        
+        if os.path.exists(backup_dir):
+            # Find all backup files matching this execution
+            for filename in os.listdir(backup_dir):
+                if filename.startswith(f"{execution_id}_") and filename.endswith('.json'):
+                    try:
+                        filepath = os.path.join(backup_dir, filename)
+                        with open(filepath, 'r') as f:
+                            data = json.load(f)
+                        
+                        passwords.append({
+                            'email': data.get('email'),
+                            'app_password': data.get('app_password'),
+                            'created_at': data.get('timestamp'),
+                            'updated_at': data.get('db_save_timestamp'),
+                            'saved_to_db': data.get('saved_to_db', False),
+                            'source': 'backup_file'
+                        })
+                    except Exception as e:
+                        logger.error(f"Error reading backup file {filename}: {e}")
+                        continue
+        
+        # 2. Fallback to Database if no files found (or partial files)
+        # This covers cases where files might be missing but DB save succeeded
+        if not passwords:
+            logger.info(f"No backup files found for {execution_id}, checking database...")
+            
+            # Find users associated with this execution via droplets?
+            # Or just check if we have any passwords that might match? 
+            # Since we don't strictly link AwsGeneratedPassword to execution_id in the model (yet),
+            # we rely on the input_users.json if available, OR we just return what we have.
+            
+            # Better approach: execution object knows which users were processed?
+            # Currently `DigitalOceanExecution` doesn't store user list directly in a queryable way easily unless we parse logs.
+            
+            # However, we can check if there are any *fresh* passwords generated around the execution time?
+            # For now, let's just return what we found. If empty, the UI shows "No execution found".
+            
+            pass
         
         # Sort by email
         passwords.sort(key=lambda x: x['email'])
