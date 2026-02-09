@@ -859,7 +859,7 @@ class DigitalOceanService:
             logger.error(f"Error running automation script on {ip_address}: {e}")
             return {'success': False, 'error': str(e)}
 
-    def start_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None, secret_key: str = None) -> Dict:
+    def start_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None, secret_key: str = None, twocaptcha_config: Dict = None) -> Dict:
         """
         Start the automation script in the background (Async).
         Uploads script and executes with nohup.
@@ -933,11 +933,20 @@ class DigitalOceanService:
             
             # 3. Execute in background (nohup)
             # We explicitly verify command construction to ensure non-blocking execution
+            
+            # Add 2Captcha environment variables if enabled
+            env_vars = ""
+            if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
+                api_key = twocaptcha_config.get('api_key')
+                env_vars = f"export TWOCAPTCHA_API_KEY='{api_key}' && export TWOCAPTCHA_ENABLED='true' && "
+                if log_callback:
+                    log_callback(f"[{datetime.utcnow().isoformat()}] Injecting 2Captcha configuration...\n", append=True)
+
             cmd_args = f"--email '{email}' --password '{password}' --output {result_file}"
             if secret_key:
                 cmd_args += f" --secret_key '{secret_key}'"
                 
-            run_cmd = f"nohup /usr/bin/python3 {remote_script} {cmd_args} > {log_file} 2>&1 & echo $!"
+            run_cmd = f"{env_vars}nohup /usr/bin/python3 {remote_script} {cmd_args} > {log_file} 2>&1 & echo $!"
             
             if log_callback:
                 log_callback(f"[{datetime.utcnow().isoformat()}] Starting background automation script on {ip_address}...\n", append=True)
@@ -965,7 +974,7 @@ class DigitalOceanService:
             return {'success': False, 'error': str(e)}
 
 
-    def run_automation_script_async_poll(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None, secret_key: str = None) -> Dict:
+    def run_automation_script_async_poll(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None, secret_key: str = None, twocaptcha_config: Dict = None) -> Dict:
         """
         Synchronous wrapper for automation script execution (for backward compatibility and bulk execution).
         Starts the script and polls for completion.
@@ -993,7 +1002,7 @@ class DigitalOceanService:
             # I will apply the secret_key logic here too, but I should probably rename this method to unique name if possible.
             # However, strictly following instructions to update logic.
             
-            start_res = self.start_automation_script(ip_address, email, password, ssh_key_path, log_callback=log_callback, secret_key=secret_key)
+            start_res = self.start_automation_script(ip_address, email, password, ssh_key_path, log_callback=log_callback, secret_key=secret_key, twocaptcha_config=twocaptcha_config)
             
             if not start_res.get('success'):
                 return start_res

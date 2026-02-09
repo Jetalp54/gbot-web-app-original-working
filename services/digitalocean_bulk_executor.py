@@ -106,6 +106,22 @@ class BulkExecutionOrchestrator:
             final_droplet_count = len(user_batches)
             logger.info(f"[{self.execution_id}] Distributed {len(users)} users into {final_droplet_count} batches")
             
+            # 1.5 Fetch 2Captcha Config from DB
+            self.twocaptcha_config = {'enabled': False, 'api_key': None}
+            if self.app:
+                try:
+                    with self.app.app_context():
+                        from database import TwoCaptchaConfig
+                        config = TwoCaptchaConfig.query.first()
+                        if config:
+                            self.twocaptcha_config = {
+                                'enabled': config.enabled,
+                                'api_key': config.api_key
+                            }
+                            logger.info(f"[{self.execution_id}] 2Captcha Config: Enabled={config.enabled}")
+                except Exception as cap_e:
+                    logger.warning(f"[{self.execution_id}] Failed to fetch 2Captcha config: {cap_e}")
+            
             # 2. Create droplets
             droplet_info, creation_errors = self._create_droplets_parallel(
                 count=final_droplet_count,
@@ -500,7 +516,8 @@ class BulkExecutionOrchestrator:
             password=password,
             ssh_key_path=self.config.get('ssh_private_key_path'),
             log_callback=log_callback,
-            secret_key=secret_key
+            secret_key=secret_key,
+            twocaptcha_config=getattr(self, 'twocaptcha_config', None)
         )
         
         # Normalize result (ensure 'success' key exists for easier checking)

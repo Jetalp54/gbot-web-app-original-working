@@ -352,10 +352,6 @@
         <small class="text-muted">Execution ID: <span id="executionId"></span></small>
     </div>
 </div>
-</div>
-</div>
-</div>
-</div>
 
 <!-- View Generated App Passwords Section -->
 <div class="row">
@@ -697,7 +693,7 @@
                     showMessage('bulkExecutionMessages', `✅ Bulk execution started! Execution ID: ${response.execution_id}`, 'success');
 
                     // Switch to Monitor View
-                    $('#executionMonitor').show();
+                    // $('#executionMonitor').hide(); // Stay hidden initially
                     $('#executionId').text(response.execution_id);
 
                     // Initialize Monitor
@@ -817,10 +813,18 @@
         }
     }
 
-    function switchToDropletLog(dropletId, executionId) {
-        // 1. UI: Show correct pane
+    function switchToDropletLog(droplet_id, executionId) {
+        // 1. UI: Show the monitor container if hidden
+        $('#executionMonitor').slideDown();
+
+        // Scroll to monitor for better UX
+        $('html, body').animate({
+            scrollTop: $('#executionMonitor').offset().top - 50
+        }, 300);
+
+        // 2. UI: Show correct pane
         $('.droplet-log-pane').hide(); // Hide all
-        $(`#pane-${dropletId}`).show(); // Show target
+        $(`#pane-${droplet_id}`).show(); // Show target
 
         // 2. Logic: Start polling
         startSingleDropletPolling(dropletId, executionId);
