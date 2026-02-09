@@ -2298,8 +2298,39 @@ def handle_post_login_pages(driver, max_attempts=20):
             current_url = driver.current_url
             logger.info(f"[STEP] Post-login check {attempt + 1}/{max_attempts}: URL = {current_url}")
             
-            # Check if we've reached myaccount
-            if "myaccount.google.com" in current_url:
+            # Check if it's the 2SV Required Interstitial (MUST BE BEFORE myaccount check as it contains myaccount)
+            if "interstitials/twosvrequired" in current_url:
+                logger.info(f"[STEP] 2SV Required Interstitial detected: {current_url}")
+                try:
+                    # Click "Turn on" or "Start" to proceed to 2SV setup
+                    turn_on_xpaths = [
+                        "//span[contains(text(), 'Turn on')]",
+                        "//span[contains(text(), 'Enroll')]",
+                        "//div[@role='button']//span[contains(text(), 'Turn on')]",
+                        "//button[contains(., 'Turn on')]",
+                        "//button[contains(., 'Start')]",
+                        "//a[contains(@href, 'signinoptions/two-step-verification/enroll')]"
+                    ]
+                    
+                    clicked = False
+                    for xpath in turn_on_xpaths:
+                         if element_exists(driver, xpath, timeout=2):
+                            click_xpath(driver, xpath, timeout=5)
+                            logger.info(f"[STEP] Clicked 2SV 'Turn on' button: {xpath}")
+                            time.sleep(3)
+                            clicked = True
+                            break
+                    
+                    if clicked:
+                        continue # Continue loop to check where we land (likely 2SV setup page)
+                    else:
+                        logger.warning("[STEP] Could not find 'Turn on' button on 2SV interstitial")
+                        
+                except Exception as e:
+                    logger.warning(f"[STEP] Failed to handle 2SV interstitial: {e}")
+
+            # Check if we've reached myaccount (and NOT an interstitial)
+            if "myaccount.google.com" in current_url and "interstitials" not in current_url:
                 logger.info("[STEP] Successfully reached myaccount.google.com")
                 return True, None, None
             
@@ -4919,7 +4950,7 @@ def process_single_user(email, password, secret_key=None):
             # Step 1: Login
             step_completed = "login"
             step_start = time.time()
-            success, message = login_google(driver, email, password, known_totp_secret=secret_key)
+            success, error_code, error_message = login_google(driver, email, password, known_totp_secret=secret_key)
             timings["login"] = round(time.time() - step_start, 2)
             
             if success:

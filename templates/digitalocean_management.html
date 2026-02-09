@@ -1216,7 +1216,7 @@
                     let passwords = response.passwords;
 
                     // Filter by Input Users if present
-                    const inputUsersText = $('#usersList').val().trim();
+                    const inputUsersText = $('#bulkUsers').val() ? $('#bulkUsers').val().trim() : '';
                     if (inputUsersText) {
                         const inputEmails = inputUsersText.split('\n')
                             .map(line => line.split(':')[0].trim().toLowerCase()) // Handle email:pass format too
