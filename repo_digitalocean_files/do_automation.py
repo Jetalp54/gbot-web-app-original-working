@@ -5330,6 +5330,19 @@ def process_users_batch(users: List[Dict], parallel_users: int = 5) -> List[Dict
     completed_count = 0
     lock = threading.Lock()
     
+    # Heartbeat thread to keep logs alive
+    def heartbeat():
+        while completed_count < total_users:
+            try:
+                # Print to stdout to ensure log rotation/flushing
+                print(f"[HEARTBEAT] {time.strftime('%H:%M:%S')} - Processing... ({completed_count}/{total_users} completed)")
+                sys.stdout.flush()
+                time.sleep(10)
+            except:
+                break
+    
+    threading.Thread(target=heartbeat, daemon=True).start()
+    
     def process_and_track(user_dict):
         nonlocal completed_count
         email = user_dict.get('email')
