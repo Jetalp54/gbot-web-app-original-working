@@ -1,997 +1,939 @@
-[2026-02-09T15:52:28.154075] Initializing connection to droplet bulk-exec-exec-1770652283-1...
-[emilyjenkins0531@lauraneumann.mywire.org] [2026-02-09T15:52:28.164633] Preparing remote directory on 46.101.215.193...
-[craiglucas4020@lauraneumann.mywire.org] [2026-02-09T15:52:28.167704] Preparing remote directory on 46.101.215.193...
-[davidweaver2566@lauraneumann.mywire.org] [2026-02-09T15:52:28.170074] Preparing remote directory on 46.101.215.193...
-[marissaburns6232@lauraneumann.mywire.org] [2026-02-09T15:52:28.172686] Preparing remote directory on 46.101.215.193...
-[larrycain7904@lauraneumann.mywire.org] [2026-02-09T15:52:28.175012] Preparing remote directory on 46.101.215.193...
-[sherryprice0396@lauraneumann.mywire.org] [2026-02-09T15:52:28.177461] Preparing remote directory on 46.101.215.193...
-[matthewwarren0898@lauraneumann.mywire.org] [2026-02-09T15:52:28.180438] Preparing remote directory on 46.101.215.193...
-[sherigomez0161@lauraneumann.mywire.org] [2026-02-09T15:52:28.181154] Preparing remote directory on 46.101.215.193...
-[kendraarmstrong7093@lauraneumann.mywire.org] [2026-02-09T15:52:28.184891] Preparing remote directory on 46.101.215.193...
-[nicolecollins0908@lauraneumann.mywire.org] [2026-02-09T15:52:28.185825] Preparing remote directory on 46.101.215.193...
-[sherigomez0161@lauraneumann.mywire.org] [2026-02-09T15:52:33.008467] Uploading automation script to 46.101.215.193...
-[emilyjenkins0531@lauraneumann.mywire.org] [2026-02-09T15:52:33.012155] Uploading automation script to 46.101.215.193...
-[larrycain7904@lauraneumann.mywire.org] [2026-02-09T15:52:34.452162] Uploading automation script to 46.101.215.193...
-[craiglucas4020@lauraneumann.mywire.org] [2026-02-09T15:52:35.443860] Uploading automation script to 46.101.215.193...
-[davidweaver2566@lauraneumann.mywire.org] [2026-02-09T15:52:35.936831] Uploading automation script to 46.101.215.193...
-[sherryprice0396@lauraneumann.mywire.org] [2026-02-09T15:52:36.175589] Uploading automation script to 46.101.215.193...
-[matthewwarren0898@lauraneumann.mywire.org] [2026-02-09T15:52:36.624208] Uploading automation script to 46.101.215.193...
-[nicolecollins0908@lauraneumann.mywire.org] [2026-02-09T15:52:36.622110] Uploading automation script to 46.101.215.193...
-[marissaburns6232@lauraneumann.mywire.org] [2026-02-09T15:52:36.625696] Uploading automation script to 46.101.215.193...
-[kendraarmstrong7093@lauraneumann.mywire.org] [2026-02-09T15:52:36.631678] Uploading automation script to 46.101.215.193...
-[lindablair5996@automatedsupply.clarionex.cv] [2026-02-09T15:52:37.986506] Preparing remote directory on 46.101.215.193...
-[veronicabradford9992@automatedsupply.clarionex.cv] [2026-02-09T15:52:37.990403] Preparing remote directory on 46.101.215.193...
-[emilyjenkins0531@lauraneumann.mywire.org] [2026-02-09T15:52:38.142494] Injecting 2Captcha configuration...
-[emilyjenkins0531@lauraneumann.mywire.org] [2026-02-09T15:52:38.142827] Starting background automation script on 46.101.215.193...
-[sherigomez0161@lauraneumann.mywire.org] [2026-02-09T15:52:38.217400] Injecting 2Captcha configuration...
-[sherigomez0161@lauraneumann.mywire.org] [2026-02-09T15:52:38.220181] Starting background automation script on 46.101.215.193...
-[christinawhite8428@automatedsupply.clarionex.cv] [2026-02-09T15:52:39.567077] Preparing remote directory on 46.101.215.193...
-[lindablair5996@automatedsupply.clarionex.cv] [2026-02-09T15:52:39.576002] Uploading automation script to 46.101.215.193...
-[larrycain7904@lauraneumann.mywire.org] [2026-02-09T15:52:39.586624] Injecting 2Captcha configuration...
-[larrycain7904@lauraneumann.mywire.org] [2026-02-09T15:52:39.586835] Starting background automation script on 46.101.215.193...
-[veronicabradford9992@automatedsupply.clarionex.cv] [2026-02-09T15:52:39.787389] Uploading automation script to 46.101.215.193...
-[christinawhite8428@automatedsupply.clarionex.cv] [2026-02-09T15:52:42.598423] Uploading automation script to 46.101.215.193...
-[sherryprice0396@lauraneumann.mywire.org] [2026-02-09T15:52:43.541302] Injecting 2Captcha configuration...
-[sherryprice0396@lauraneumann.mywire.org] [2026-02-09T15:52:43.541728] Starting background automation script on 46.101.215.193...
-[nicolecollins0908@lauraneumann.mywire.org] [2026-02-09T15:52:43.976502] Injecting 2Captcha configuration...
-[nicolecollins0908@lauraneumann.mywire.org] [2026-02-09T15:52:43.976977] Starting background automation script on 46.101.215.193...
-[matthewwarren0898@lauraneumann.mywire.org] [2026-02-09T15:52:44.304833] Injecting 2Captcha configuration...
-[matthewwarren0898@lauraneumann.mywire.org] [2026-02-09T15:52:44.305039] Starting background automation script on 46.101.215.193...
-[marissaburns6232@lauraneumann.mywire.org] [2026-02-09T15:52:45.667147] Injecting 2Captcha configuration...
-[marissaburns6232@lauraneumann.mywire.org] [2026-02-09T15:52:45.667360] Starting background automation script on 46.101.215.193...
-[veronicabradford9992@automatedsupply.clarionex.cv] [2026-02-09T15:52:46.040187] Injecting 2Captcha configuration...
-[veronicabradford9992@automatedsupply.clarionex.cv] [2026-02-09T15:52:46.040393] Starting background automation script on 46.101.215.193...
-[lindablair5996@automatedsupply.clarionex.cv] [2026-02-09T15:52:46.494263] Injecting 2Captcha configuration...
-[lindablair5996@automatedsupply.clarionex.cv] [2026-02-09T15:52:46.494609] Starting background automation script on 46.101.215.193...
-[christinawhite8428@automatedsupply.clarionex.cv] [2026-02-09T15:52:47.754406] Injecting 2Captcha configuration...
-[christinawhite8428@automatedsupply.clarionex.cv] [2026-02-09T15:52:47.755084] Starting background automation script on 46.101.215.193...
-[veronicabradford9992@automatedsupply.clarionex.cv] --- SCRIPT INITIALIZING ---
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:52:48,914 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:52:48,914 - INFO - [BROWSER] Checking /opt directory contents...
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:52:48,915 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:52:48,915 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:52:48,915 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:52:48,915 - INFO - [PROXY] Proxy disabled or not configured
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:52:48,915 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:52:48,915 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:52:57,310 - INFO - [BROWSER] ✓ Standard selenium driver started
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:53:01,998 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:53:02,020 - INFO - [BROWSER] ✓ Browser initialization complete
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:53:02,088 - INFO - [LAMBDA] Chrome driver started for veronicabradford9992@automatedsupply.clarionex.cv
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:53:02,159 - INFO - [STEP] Login started for veronicabradford9992@automatedsupply.clarionex.cv
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:53:02,159 - INFO - [STEP] Navigating to Google login page (English)...
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:55:09,284 - ERROR - [STEP] Navigation failed: Message: timeout: Timed out receiving message from renderer: 73.425
-[veronicabradford9992@automatedsupply.clarionex.cv]   (Session info: chrome=144.0.7559.132)
-[veronicabradford9992@automatedsupply.clarionex.cv] Stacktrace:
-[veronicabradford9992@automatedsupply.clarionex.cv] #0 0x55a9668cfa7a <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #1 0x55a9662e86a2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #2 0x55a9662cfd87 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #3 0x55a9662cf996 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #4 0x55a9662cd4a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #5 0x55a9662cde2f <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #6 0x55a9662dd360 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #7 0x55a9662f7357 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #8 0x55a9662fe56b <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #9 0x55a9662ce599 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #10 0x55a9662f6bba <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #11 0x55a966386b68 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #12 0x55a96632f8b2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #13 0x55a9663306a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #14 0x55a9668958d9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #15 0x55a9668987e1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #16 0x55a966881ed9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #17 0x55a96689939e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #18 0x55a966868440 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #19 0x55a9668bd0f8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #20 0x55a9668bd2cb <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #21 0x55a9668cede8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #22 0x7f0e7f5b0ac3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:55:09,622 - ERROR - Traceback (most recent call last):
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/opt/automation/do_automation.py", line 2565, in login_google
-[veronicabradford9992@automatedsupply.clarionex.cv]     driver.get(login_url)
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 356, in get
-[veronicabradford9992@automatedsupply.clarionex.cv]     self.execute(Command.GET, {"url": url})
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 347, in execute
-[veronicabradford9992@automatedsupply.clarionex.cv]     self.error_handler.check_response(response)
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/errorhandler.py", line 229, in check_response
-[veronicabradford9992@automatedsupply.clarionex.cv]     raise exception_class(message, screen, stacktrace)
-[veronicabradford9992@automatedsupply.clarionex.cv] selenium.common.exceptions.TimeoutException: Message: timeout: Timed out receiving message from renderer: 73.425
-[veronicabradford9992@automatedsupply.clarionex.cv]   (Session info: chrome=144.0.7559.132)
-[veronicabradford9992@automatedsupply.clarionex.cv] Stacktrace:
-[veronicabradford9992@automatedsupply.clarionex.cv] #0 0x55a9668cfa7a <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #1 0x55a9662e86a2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #2 0x55a9662cfd87 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #3 0x55a9662cf996 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #4 0x55a9662cd4a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #5 0x55a9662cde2f <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #6 0x55a9662dd360 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #7 0x55a9662f7357 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #8 0x55a9662fe56b <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #9 0x55a9662ce599 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #10 0x55a9662f6bba <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #11 0x55a966386b68 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #12 0x55a96632f8b2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #13 0x55a9663306a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #14 0x55a9668958d9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #15 0x55a9668987e1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #16 0x55a966881ed9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #17 0x55a96689939e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #18 0x55a966868440 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #19 0x55a9668bd0f8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #20 0x55a9668bd2cb <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #21 0x55a9668cede8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #22 0x7f0e7f5b0ac3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:10,721 - ERROR - [SCREENSHOT] Failed to capture screenshot: Message: timeout: Timed out receiving message from renderer: 10.000
-[veronicabradford9992@automatedsupply.clarionex.cv]   (Session info: chrome=144.0.7559.132)
-[veronicabradford9992@automatedsupply.clarionex.cv] Stacktrace:
-[veronicabradford9992@automatedsupply.clarionex.cv] #0 0x55a9668cfa7a <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #1 0x55a9662e86a2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #2 0x55a9662cfd87 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #3 0x55a9662cf996 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #4 0x55a9662cd4a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #5 0x55a9662cde2f <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #6 0x55a9662f7e29 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #7 0x55a966393ec1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #8 0x55a9663867f0 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #9 0x55a96632f8b2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #10 0x55a9663306a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #11 0x55a9668958d9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #12 0x55a9668987e1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #13 0x55a966881ed9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #14 0x55a96689939e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #15 0x55a966868440 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #16 0x55a9668bd0f8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #17 0x55a9668bd2cb <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #18 0x55a9668cede8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #19 0x7f0e7f5b0ac3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:10,723 - WARNING - [LAMBDA] Login failed with error: navigation_failed - Message: timeout: Timed out receiving message from renderer: 73.425
-[veronicabradford9992@automatedsupply.clarionex.cv]   (Session info: chrome=144.0.7559.132)
-[veronicabradford9992@automatedsupply.clarionex.cv] Stacktrace:
-[veronicabradford9992@automatedsupply.clarionex.cv] #0 0x55a9668cfa7a <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #1 0x55a9662e86a2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #2 0x55a9662cfd87 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #3 0x55a9662cf996 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #4 0x55a9662cd4a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #5 0x55a9662cde2f <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #6 0x55a9662dd360 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #7 0x55a9662f7357 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #8 0x55a9662fe56b <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #9 0x55a9662ce599 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #10 0x55a9662f6bba <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #11 0x55a966386b68 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #12 0x55a96632f8b2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #13 0x55a9663306a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #14 0x55a9668958d9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #15 0x55a9668987e1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #16 0x55a966881ed9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #17 0x55a96689939e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #18 0x55a966868440 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #19 0x55a9668bd0f8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #20 0x55a9668bd2cb <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #21 0x55a9668cede8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #22 0x7f0e7f5b0ac3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:10,724 - WARNING - [LAMBDA] Retrying with fresh browser (Attempt 1/3)...
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:11,721 - INFO - [LAMBDA] Restarting browser (Attempt 2/3)...
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:11,722 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:11,723 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:11,727 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:11,807 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:11,839 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:11,839 - INFO - [PROXY] Proxy disabled or not configured
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:11,839 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:56:11,839 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:27,409 - ERROR - [BROWSER] CRITICAL: Failed to create driver: Message: session not created
-[veronicabradford9992@automatedsupply.clarionex.cv] from chrome not reachable
-[veronicabradford9992@automatedsupply.clarionex.cv] Stacktrace:
-[veronicabradford9992@automatedsupply.clarionex.cv] #0 0x557e38d58a7a <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #1 0x557e38771390 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #2 0x557e3875cad8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #3 0x557e387b456e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #4 0x557e387afc30 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #5 0x557e387a9ef9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #6 0x557e387fc06e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #7 0x557e387fb75c <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #8 0x557e387b88b2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #9 0x557e387b96a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #10 0x557e38d1e8d9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #11 0x557e38d217e1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #12 0x557e38d0aed9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #13 0x557e38d2239e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #14 0x557e38cf1440 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #15 0x557e38d460f8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #16 0x557e38d462cb <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #17 0x557e38d57de8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #18 0x7f239467dac3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:27,457 - ERROR - Traceback (most recent call last):
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/opt/automation/do_automation.py", line 400, in get_chrome_driver
-[veronicabradford9992@automatedsupply.clarionex.cv]     driver = webdriver.Chrome(service=service, options=chrome_options)
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chrome/webdriver.py", line 45, in __init__
-[veronicabradford9992@automatedsupply.clarionex.cv]     super().__init__(
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chromium/webdriver.py", line 56, in __init__
-[veronicabradford9992@automatedsupply.clarionex.cv]     super().__init__(
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 208, in __init__
-[veronicabradford9992@automatedsupply.clarionex.cv]     self.start_session(capabilities)
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 292, in start_session
-[veronicabradford9992@automatedsupply.clarionex.cv]     response = self.execute(Command.NEW_SESSION, caps)["value"]
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 347, in execute
-[veronicabradford9992@automatedsupply.clarionex.cv]     self.error_handler.check_response(response)
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/errorhandler.py", line 229, in check_response
-[veronicabradford9992@automatedsupply.clarionex.cv]     raise exception_class(message, screen, stacktrace)
-[veronicabradford9992@automatedsupply.clarionex.cv] selenium.common.exceptions.SessionNotCreatedException: Message: session not created
-[veronicabradford9992@automatedsupply.clarionex.cv] from chrome not reachable
-[veronicabradford9992@automatedsupply.clarionex.cv] Stacktrace:
-[veronicabradford9992@automatedsupply.clarionex.cv] #0 0x557e38d58a7a <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #1 0x557e38771390 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #2 0x557e3875cad8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #3 0x557e387b456e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #4 0x557e387afc30 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #5 0x557e387a9ef9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #6 0x557e387fc06e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #7 0x557e387fb75c <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #8 0x557e387b88b2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #9 0x557e387b96a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #10 0x557e38d1e8d9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #11 0x557e38d217e1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #12 0x557e38d0aed9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #13 0x557e38d2239e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #14 0x557e38cf1440 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #15 0x557e38d460f8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #16 0x557e38d462cb <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #17 0x557e38d57de8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #18 0x7f239467dac3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:27,457 - ERROR - [LAMBDA] Exception during browser attempt 2: Message: session not created
-[veronicabradford9992@automatedsupply.clarionex.cv] from chrome not reachable
-[veronicabradford9992@automatedsupply.clarionex.cv] Stacktrace:
-[veronicabradford9992@automatedsupply.clarionex.cv] #0 0x557e38d58a7a <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #1 0x557e38771390 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #2 0x557e3875cad8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #3 0x557e387b456e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #4 0x557e387afc30 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #5 0x557e387a9ef9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #6 0x557e387fc06e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #7 0x557e387fb75c <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #8 0x557e387b88b2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #9 0x557e387b96a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #10 0x557e38d1e8d9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #11 0x557e38d217e1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #12 0x557e38d0aed9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #13 0x557e38d2239e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #14 0x557e38cf1440 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #15 0x557e38d460f8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #16 0x557e38d462cb <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #17 0x557e38d57de8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #18 0x7f239467dac3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:29,636 - INFO - [LAMBDA] Restarting browser (Attempt 3/3)...
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:29,764 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:29,765 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:29,765 - INFO - [BROWSER] Contents of /opt: ['google', 'automation']
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:29,802 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:29,803 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:29,803 - INFO - [PROXY] Proxy disabled or not configured
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:29,803 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:57:29,803 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:58:46,741 - ERROR - [BROWSER] CRITICAL: Failed to create driver: Message: session not created: DevToolsActivePort file doesn't exist
-[veronicabradford9992@automatedsupply.clarionex.cv] Stacktrace:
-[veronicabradford9992@automatedsupply.clarionex.cv] #0 0x563b82437a7a <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #1 0x563b81e506a2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #2 0x563b81e92cb3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #3 0x563b81e8ea12 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #4 0x563b81e88ef9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #5 0x563b81edb06e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #6 0x563b81eda75c <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #7 0x563b81e978b2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #8 0x563b81e986a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #9 0x563b823fd8d9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #10 0x563b824007e1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #11 0x563b823e9ed9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #12 0x563b8240139e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #13 0x563b823d0440 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #14 0x563b824250f8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #15 0x563b824252cb <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #16 0x563b82436de8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #17 0x7f1584e39ac3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:58:46,742 - ERROR - Traceback (most recent call last):
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/opt/automation/do_automation.py", line 400, in get_chrome_driver
-[veronicabradford9992@automatedsupply.clarionex.cv]     driver = webdriver.Chrome(service=service, options=chrome_options)
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chrome/webdriver.py", line 45, in __init__
-[veronicabradford9992@automatedsupply.clarionex.cv]     super().__init__(
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chromium/webdriver.py", line 56, in __init__
-[veronicabradford9992@automatedsupply.clarionex.cv]     super().__init__(
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 208, in __init__
-[veronicabradford9992@automatedsupply.clarionex.cv]     self.start_session(capabilities)
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 292, in start_session
-[veronicabradford9992@automatedsupply.clarionex.cv]     response = self.execute(Command.NEW_SESSION, caps)["value"]
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 347, in execute
-[veronicabradford9992@automatedsupply.clarionex.cv]     self.error_handler.check_response(response)
-[veronicabradford9992@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/errorhandler.py", line 229, in check_response
-[veronicabradford9992@automatedsupply.clarionex.cv]     raise exception_class(message, screen, stacktrace)
-[veronicabradford9992@automatedsupply.clarionex.cv] selenium.common.exceptions.SessionNotCreatedException: Message: session not created: DevToolsActivePort file doesn't exist
-[veronicabradford9992@automatedsupply.clarionex.cv] Stacktrace:
-[veronicabradford9992@automatedsupply.clarionex.cv] #0 0x563b82437a7a <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #1 0x563b81e506a2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #2 0x563b81e92cb3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #3 0x563b81e8ea12 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #4 0x563b81e88ef9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #5 0x563b81edb06e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #6 0x563b81eda75c <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #7 0x563b81e978b2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #8 0x563b81e986a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #9 0x563b823fd8d9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #10 0x563b824007e1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #11 0x563b823e9ed9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #12 0x563b8240139e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #13 0x563b823d0440 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #14 0x563b824250f8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #15 0x563b824252cb <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #16 0x563b82436de8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #17 0x7f1584e39ac3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] 2026-02-09 15:58:46,742 - ERROR - [LAMBDA] Exception during browser attempt 3: Message: session not created: DevToolsActivePort file doesn't exist
-[veronicabradford9992@automatedsupply.clarionex.cv] Stacktrace:
-[veronicabradford9992@automatedsupply.clarionex.cv] #0 0x563b82437a7a <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #1 0x563b81e506a2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #2 0x563b81e92cb3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #3 0x563b81e8ea12 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #4 0x563b81e88ef9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #5 0x563b81edb06e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #6 0x563b81eda75c <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #7 0x563b81e978b2 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #8 0x563b81e986a1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #9 0x563b823fd8d9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #10 0x563b824007e1 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #11 0x563b823e9ed9 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #12 0x563b8240139e <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #13 0x563b823d0440 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #14 0x563b824250f8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #15 0x563b824252cb <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #16 0x563b82436de8 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] #17 0x7f1584e39ac3 <unknown>
-[veronicabradford9992@automatedsupply.clarionex.cv] 
-[veronicabradford9992@automatedsupply.clarionex.cv] <JSON_RESULT>{"email": "veronicabradford9992@automatedsupply.clarionex.cv", "status": "failed", "step_completed": "login", "error_step": "login", "error_message": "Max browser retries reached: Message: session not created: DevToolsActivePort file doesn't exist\nStacktrace:\n#0 0x563b82437a7a <unknown>\n#1 0x563b81e506a2 <unknown>\n#2 0x563b81e92cb3 <unknown>\n#3 0x563b81e8ea12 <unknown>\n#4 0x563b81e88ef9 <unknown>\n#5 0x563b81edb06e <unknown>\n#6 0x563b81eda75c <unknown>\n#7 0x563b81e978b2 <unknown>\n#8 0x563b81e986a1 <unknown>\n#9 0x563b823fd8d9 <unknown>\n#10 0x563b824007e1 <unknown>\n#11 0x563b823e9ed9 <unknown>\n#12 0x563b8240139e <unknown>\n#13 0x563b823d0440 <unknown>\n#14 0x563b824250f8 <unknown>\n#15 0x563b824252cb <unknown>\n#16 0x563b82436de8 <unknown>\n#17 0x7f1584e39ac3 <unknown>\n", "app_password": null, "secret_key": null, "timings": {"driver_init": 13.13, "login": 188.56}}</JSON_RESULT>
-[aaronrivers6555@automatedsupply.clarionex.cv] [2026-02-09T15:59:05.121986] Preparing remote directory on 46.101.215.193...
-[sherryprice0396@lauraneumann.mywire.org] --- SCRIPT INITIALIZING ---
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:47,151 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:47,151 - INFO - [BROWSER] Checking /opt directory contents...
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:47,151 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:47,151 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:47,151 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:47,151 - INFO - [PROXY] Proxy disabled or not configured
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:47,151 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:47,151 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:54,317 - INFO - [BROWSER] ✓ Standard selenium driver started
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:57,484 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:57,489 - INFO - [BROWSER] ✓ Browser initialization complete
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:57,489 - INFO - [LAMBDA] Chrome driver started for sherryprice0396@lauraneumann.mywire.org
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:57,489 - INFO - [STEP] Login started for sherryprice0396@lauraneumann.mywire.org
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:52:57,489 - INFO - [STEP] Navigating to Google login page (English)...
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:55:04,745 - ERROR - [STEP] Navigation failed: Message: timeout: Timed out receiving message from renderer: 100.048
-[sherryprice0396@lauraneumann.mywire.org]   (Session info: chrome=144.0.7559.132)
-[sherryprice0396@lauraneumann.mywire.org] Stacktrace:
-[sherryprice0396@lauraneumann.mywire.org] #0 0x5571acdcda7a <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #1 0x5571ac7e66a2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #2 0x5571ac7cdd87 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #3 0x5571ac7cd996 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #4 0x5571ac7cb4a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #5 0x5571ac7cbe2f <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #6 0x5571ac7db360 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #7 0x5571ac7f5357 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #8 0x5571ac7fc56b <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #9 0x5571ac7cc599 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #10 0x5571ac7f4bba <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #11 0x5571ac884b68 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #12 0x5571ac82d8b2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #13 0x5571ac82e6a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #14 0x5571acd938d9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #15 0x5571acd967e1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #16 0x5571acd7fed9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #17 0x5571acd9739e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #18 0x5571acd66440 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #19 0x5571acdbb0f8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #20 0x5571acdbb2cb <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #21 0x5571acdccde8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #22 0x7f5a76740ac3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:55:04,953 - ERROR - Traceback (most recent call last):
-[sherryprice0396@lauraneumann.mywire.org]   File "/opt/automation/do_automation.py", line 2565, in login_google
-[sherryprice0396@lauraneumann.mywire.org]     driver.get(login_url)
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 356, in get
-[sherryprice0396@lauraneumann.mywire.org]     self.execute(Command.GET, {"url": url})
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 347, in execute
-[sherryprice0396@lauraneumann.mywire.org]     self.error_handler.check_response(response)
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/errorhandler.py", line 229, in check_response
-[sherryprice0396@lauraneumann.mywire.org]     raise exception_class(message, screen, stacktrace)
-[sherryprice0396@lauraneumann.mywire.org] selenium.common.exceptions.TimeoutException: Message: timeout: Timed out receiving message from renderer: 100.048
-[sherryprice0396@lauraneumann.mywire.org]   (Session info: chrome=144.0.7559.132)
-[sherryprice0396@lauraneumann.mywire.org] Stacktrace:
-[sherryprice0396@lauraneumann.mywire.org] #0 0x5571acdcda7a <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #1 0x5571ac7e66a2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #2 0x5571ac7cdd87 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #3 0x5571ac7cd996 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #4 0x5571ac7cb4a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #5 0x5571ac7cbe2f <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #6 0x5571ac7db360 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #7 0x5571ac7f5357 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #8 0x5571ac7fc56b <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #9 0x5571ac7cc599 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #10 0x5571ac7f4bba <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #11 0x5571ac884b68 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #12 0x5571ac82d8b2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #13 0x5571ac82e6a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #14 0x5571acd938d9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #15 0x5571acd967e1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #16 0x5571acd7fed9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #17 0x5571acd9739e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #18 0x5571acd66440 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #19 0x5571acdbb0f8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #20 0x5571acdbb2cb <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #21 0x5571acdccde8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #22 0x7f5a76740ac3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:08,805 - ERROR - [SCREENSHOT] Failed to capture screenshot: Message: timeout: Timed out receiving message from renderer: 10.000
-[sherryprice0396@lauraneumann.mywire.org]   (Session info: chrome=144.0.7559.132)
-[sherryprice0396@lauraneumann.mywire.org] Stacktrace:
-[sherryprice0396@lauraneumann.mywire.org] #0 0x5571acdcda7a <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #1 0x5571ac7e66a2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #2 0x5571ac7cdd87 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #3 0x5571ac7cd996 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #4 0x5571ac7cb4a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #5 0x5571ac7cbe2f <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #6 0x5571ac7f5e29 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #7 0x5571ac891ec1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #8 0x5571ac8847f0 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #9 0x5571ac82d8b2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #10 0x5571ac82e6a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #11 0x5571acd938d9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #12 0x5571acd967e1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #13 0x5571acd7fed9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #14 0x5571acd9739e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #15 0x5571acd66440 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #16 0x5571acdbb0f8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #17 0x5571acdbb2cb <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #18 0x5571acdccde8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #19 0x7f5a76740ac3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:08,810 - WARNING - [LAMBDA] Login failed with error: navigation_failed - Message: timeout: Timed out receiving message from renderer: 100.048
-[sherryprice0396@lauraneumann.mywire.org]   (Session info: chrome=144.0.7559.132)
-[sherryprice0396@lauraneumann.mywire.org] Stacktrace:
-[sherryprice0396@lauraneumann.mywire.org] #0 0x5571acdcda7a <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #1 0x5571ac7e66a2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #2 0x5571ac7cdd87 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #3 0x5571ac7cd996 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #4 0x5571ac7cb4a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #5 0x5571ac7cbe2f <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #6 0x5571ac7db360 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #7 0x5571ac7f5357 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #8 0x5571ac7fc56b <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #9 0x5571ac7cc599 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #10 0x5571ac7f4bba <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #11 0x5571ac884b68 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #12 0x5571ac82d8b2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #13 0x5571ac82e6a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #14 0x5571acd938d9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #15 0x5571acd967e1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #16 0x5571acd7fed9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #17 0x5571acd9739e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #18 0x5571acd66440 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #19 0x5571acdbb0f8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #20 0x5571acdbb2cb <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #21 0x5571acdccde8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #22 0x7f5a76740ac3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:08,810 - WARNING - [LAMBDA] Retrying with fresh browser (Attempt 1/3)...
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:11,827 - INFO - [LAMBDA] Restarting browser (Attempt 2/3)...
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:11,828 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:11,828 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:11,828 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:11,828 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:11,839 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:11,839 - INFO - [PROXY] Proxy disabled or not configured
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:11,839 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:56:11,839 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:27,859 - ERROR - [BROWSER] CRITICAL: Failed to create driver: Message: session not created
-[sherryprice0396@lauraneumann.mywire.org] from chrome not reachable
-[sherryprice0396@lauraneumann.mywire.org] Stacktrace:
-[sherryprice0396@lauraneumann.mywire.org] #0 0x5619d8877a7a <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #1 0x5619d8290390 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #2 0x5619d827bad8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #3 0x5619d82d356e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #4 0x5619d82cec30 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #5 0x5619d82c8ef9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #6 0x5619d831b06e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #7 0x5619d831a75c <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #8 0x5619d82d78b2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #9 0x5619d82d86a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #10 0x5619d883d8d9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #11 0x5619d88407e1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #12 0x5619d8829ed9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #13 0x5619d884139e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #14 0x5619d8810440 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #15 0x5619d88650f8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #16 0x5619d88652cb <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #17 0x5619d8876de8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #18 0x7f2a72f83ac3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:27,878 - ERROR - Traceback (most recent call last):
-[sherryprice0396@lauraneumann.mywire.org]   File "/opt/automation/do_automation.py", line 400, in get_chrome_driver
-[sherryprice0396@lauraneumann.mywire.org]     driver = webdriver.Chrome(service=service, options=chrome_options)
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chrome/webdriver.py", line 45, in __init__
-[sherryprice0396@lauraneumann.mywire.org]     super().__init__(
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chromium/webdriver.py", line 56, in __init__
-[sherryprice0396@lauraneumann.mywire.org]     super().__init__(
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 208, in __init__
-[sherryprice0396@lauraneumann.mywire.org]     self.start_session(capabilities)
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 292, in start_session
-[sherryprice0396@lauraneumann.mywire.org]     response = self.execute(Command.NEW_SESSION, caps)["value"]
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 347, in execute
-[sherryprice0396@lauraneumann.mywire.org]     self.error_handler.check_response(response)
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/errorhandler.py", line 229, in check_response
-[sherryprice0396@lauraneumann.mywire.org]     raise exception_class(message, screen, stacktrace)
-[sherryprice0396@lauraneumann.mywire.org] selenium.common.exceptions.SessionNotCreatedException: Message: session not created
-[sherryprice0396@lauraneumann.mywire.org] from chrome not reachable
-[sherryprice0396@lauraneumann.mywire.org] Stacktrace:
-[sherryprice0396@lauraneumann.mywire.org] #0 0x5619d8877a7a <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #1 0x5619d8290390 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #2 0x5619d827bad8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #3 0x5619d82d356e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #4 0x5619d82cec30 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #5 0x5619d82c8ef9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #6 0x5619d831b06e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #7 0x5619d831a75c <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #8 0x5619d82d78b2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #9 0x5619d82d86a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #10 0x5619d883d8d9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #11 0x5619d88407e1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #12 0x5619d8829ed9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #13 0x5619d884139e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #14 0x5619d8810440 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #15 0x5619d88650f8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #16 0x5619d88652cb <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #17 0x5619d8876de8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #18 0x7f2a72f83ac3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:27,878 - ERROR - [LAMBDA] Exception during browser attempt 2: Message: session not created
-[sherryprice0396@lauraneumann.mywire.org] from chrome not reachable
-[sherryprice0396@lauraneumann.mywire.org] Stacktrace:
-[sherryprice0396@lauraneumann.mywire.org] #0 0x5619d8877a7a <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #1 0x5619d8290390 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #2 0x5619d827bad8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #3 0x5619d82d356e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #4 0x5619d82cec30 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #5 0x5619d82c8ef9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #6 0x5619d831b06e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #7 0x5619d831a75c <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #8 0x5619d82d78b2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #9 0x5619d82d86a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #10 0x5619d883d8d9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #11 0x5619d88407e1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #12 0x5619d8829ed9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #13 0x5619d884139e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #14 0x5619d8810440 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #15 0x5619d88650f8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #16 0x5619d88652cb <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #17 0x5619d8876de8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #18 0x7f2a72f83ac3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:29,886 - INFO - [LAMBDA] Restarting browser (Attempt 3/3)...
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:29,936 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:29,936 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:29,936 - INFO - [BROWSER] Contents of /opt: ['google', 'automation']
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:29,945 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:29,945 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:29,945 - INFO - [PROXY] Proxy disabled or not configured
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:29,945 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:57:29,945 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:58:36,527 - ERROR - [BROWSER] CRITICAL: Failed to create driver: Message: session not created: DevToolsActivePort file doesn't exist
-[sherryprice0396@lauraneumann.mywire.org] Stacktrace:
-[sherryprice0396@lauraneumann.mywire.org] #0 0x55f47348da7a <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #1 0x55f472ea66a2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #2 0x55f472ee8cb3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #3 0x55f472ee4a12 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #4 0x55f472edeef9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #5 0x55f472f3106e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #6 0x55f472f3075c <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #7 0x55f472eed8b2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #8 0x55f472eee6a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #9 0x55f4734538d9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #10 0x55f4734567e1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #11 0x55f47343fed9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #12 0x55f47345739e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #13 0x55f473426440 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #14 0x55f47347b0f8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #15 0x55f47347b2cb <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #16 0x55f47348cde8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #17 0x7f054500dac3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:58:42,475 - ERROR - Traceback (most recent call last):
-[sherryprice0396@lauraneumann.mywire.org]   File "/opt/automation/do_automation.py", line 400, in get_chrome_driver
-[sherryprice0396@lauraneumann.mywire.org]     driver = webdriver.Chrome(service=service, options=chrome_options)
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chrome/webdriver.py", line 45, in __init__
-[sherryprice0396@lauraneumann.mywire.org]     super().__init__(
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chromium/webdriver.py", line 56, in __init__
-[sherryprice0396@lauraneumann.mywire.org]     super().__init__(
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 208, in __init__
-[sherryprice0396@lauraneumann.mywire.org]     self.start_session(capabilities)
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 292, in start_session
-[sherryprice0396@lauraneumann.mywire.org]     response = self.execute(Command.NEW_SESSION, caps)["value"]
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 347, in execute
-[sherryprice0396@lauraneumann.mywire.org]     self.error_handler.check_response(response)
-[sherryprice0396@lauraneumann.mywire.org]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/errorhandler.py", line 229, in check_response
-[sherryprice0396@lauraneumann.mywire.org]     raise exception_class(message, screen, stacktrace)
-[sherryprice0396@lauraneumann.mywire.org] selenium.common.exceptions.SessionNotCreatedException: Message: session not created: DevToolsActivePort file doesn't exist
-[sherryprice0396@lauraneumann.mywire.org] Stacktrace:
-[sherryprice0396@lauraneumann.mywire.org] #0 0x55f47348da7a <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #1 0x55f472ea66a2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #2 0x55f472ee8cb3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #3 0x55f472ee4a12 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #4 0x55f472edeef9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #5 0x55f472f3106e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #6 0x55f472f3075c <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #7 0x55f472eed8b2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #8 0x55f472eee6a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #9 0x55f4734538d9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #10 0x55f4734567e1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #11 0x55f47343fed9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #12 0x55f47345739e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #13 0x55f473426440 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #14 0x55f47347b0f8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #15 0x55f47347b2cb <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #16 0x55f47348cde8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #17 0x7f054500dac3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] 2026-02-09 15:58:42,477 - ERROR - [LAMBDA] Exception during browser attempt 3: Message: session not created: DevToolsActivePort file doesn't exist
-[sherryprice0396@lauraneumann.mywire.org] Stacktrace:
-[sherryprice0396@lauraneumann.mywire.org] #0 0x55f47348da7a <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #1 0x55f472ea66a2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #2 0x55f472ee8cb3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #3 0x55f472ee4a12 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #4 0x55f472edeef9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #5 0x55f472f3106e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #6 0x55f472f3075c <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #7 0x55f472eed8b2 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #8 0x55f472eee6a1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #9 0x55f4734538d9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #10 0x55f4734567e1 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #11 0x55f47343fed9 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #12 0x55f47345739e <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #13 0x55f473426440 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #14 0x55f47347b0f8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #15 0x55f47347b2cb <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #16 0x55f47348cde8 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] #17 0x7f054500dac3 <unknown>
-[sherryprice0396@lauraneumann.mywire.org] 
-[sherryprice0396@lauraneumann.mywire.org] <JSON_RESULT>{"email": "sherryprice0396@lauraneumann.mywire.org", "status": "failed", "step_completed": "login", "error_step": "login", "error_message": "Max browser retries reached: Message: session not created: DevToolsActivePort file doesn't exist\nStacktrace:\n#0 0x55f47348da7a <unknown>\n#1 0x55f472ea66a2 <unknown>\n#2 0x55f472ee8cb3 <unknown>\n#3 0x55f472ee4a12 <unknown>\n#4 0x55f472edeef9 <unknown>\n#5 0x55f472f3106e <unknown>\n#6 0x55f472f3075c <unknown>\n#7 0x55f472eed8b2 <unknown>\n#8 0x55f472eee6a1 <unknown>\n#9 0x55f4734538d9 <unknown>\n#10 0x55f4734567e1 <unknown>\n#11 0x55f47343fed9 <unknown>\n#12 0x55f47345739e <unknown>\n#13 0x55f473426440 <unknown>\n#14 0x55f47347b0f8 <unknown>\n#15 0x55f47347b2cb <unknown>\n#16 0x55f47348cde8 <unknown>\n#17 0x7f054500dac3 <unknown>\n", "app_password": null, "secret_key": null, "timings": {"driver_init": 10.36, "login": 191.32}}</JSON_RESULT>
-[jenniferdavidson0746@automatedsupply.clarionex.cv] [2026-02-09T15:59:05.195211] Preparing remote directory on 46.101.215.193...
-[lindablair5996@automatedsupply.clarionex.cv] --- SCRIPT INITIALIZING ---
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:52:49,366 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:52:49,367 - INFO - [BROWSER] Checking /opt directory contents...
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:52:49,367 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:52:49,367 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:52:49,367 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:52:49,367 - INFO - [PROXY] Proxy disabled or not configured
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:52:49,367 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:52:49,367 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:53:01,662 - INFO - [BROWSER] ✓ Standard selenium driver started
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:53:06,912 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:53:07,014 - INFO - [BROWSER] ✓ Browser initialization complete
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:53:07,016 - INFO - [LAMBDA] Chrome driver started for lindablair5996@automatedsupply.clarionex.cv
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:53:07,017 - INFO - [STEP] Login started for lindablair5996@automatedsupply.clarionex.cv
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:53:07,017 - INFO - [STEP] Navigating to Google login page (English)...
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:55:10,598 - ERROR - [STEP] Navigation failed: Message: timeout: Timed out receiving message from renderer: 105.429
-[lindablair5996@automatedsupply.clarionex.cv]   (Session info: chrome=144.0.7559.132)
-[lindablair5996@automatedsupply.clarionex.cv] Stacktrace:
-[lindablair5996@automatedsupply.clarionex.cv] #0 0x5615a5c6ba7a <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #1 0x5615a56846a2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #2 0x5615a566bd87 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #3 0x5615a566b996 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #4 0x5615a56694a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #5 0x5615a5669e2f <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #6 0x5615a5679360 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #7 0x5615a5693357 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #8 0x5615a569a56b <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #9 0x5615a566a599 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #10 0x5615a56930ec <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #11 0x5615a5722b68 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #12 0x5615a56cb8b2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #13 0x5615a56cc6a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #14 0x5615a5c318d9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #15 0x5615a5c347e1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #16 0x5615a5c1ded9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #17 0x5615a5c3539e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #18 0x5615a5c04440 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #19 0x5615a5c590f8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #20 0x5615a5c592cb <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #21 0x5615a5c6ade8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #22 0x7fd9d3407ac3 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:55:12,386 - ERROR - Traceback (most recent call last):
-[lindablair5996@automatedsupply.clarionex.cv]   File "/opt/automation/do_automation.py", line 2565, in login_google
-[lindablair5996@automatedsupply.clarionex.cv]     driver.get(login_url)
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 356, in get
-[lindablair5996@automatedsupply.clarionex.cv]     self.execute(Command.GET, {"url": url})
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 347, in execute
-[lindablair5996@automatedsupply.clarionex.cv]     self.error_handler.check_response(response)
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/errorhandler.py", line 229, in check_response
-[lindablair5996@automatedsupply.clarionex.cv]     raise exception_class(message, screen, stacktrace)
-[lindablair5996@automatedsupply.clarionex.cv] selenium.common.exceptions.TimeoutException: Message: timeout: Timed out receiving message from renderer: 105.429
-[lindablair5996@automatedsupply.clarionex.cv]   (Session info: chrome=144.0.7559.132)
-[lindablair5996@automatedsupply.clarionex.cv] Stacktrace:
-[lindablair5996@automatedsupply.clarionex.cv] #0 0x5615a5c6ba7a <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #1 0x5615a56846a2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #2 0x5615a566bd87 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #3 0x5615a566b996 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #4 0x5615a56694a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #5 0x5615a5669e2f <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #6 0x5615a5679360 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #7 0x5615a5693357 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #8 0x5615a569a56b <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #9 0x5615a566a599 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #10 0x5615a56930ec <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #11 0x5615a5722b68 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #12 0x5615a56cb8b2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #13 0x5615a56cc6a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #14 0x5615a5c318d9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #15 0x5615a5c347e1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #16 0x5615a5c1ded9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #17 0x5615a5c3539e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #18 0x5615a5c04440 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #19 0x5615a5c590f8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #20 0x5615a5c592cb <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #21 0x5615a5c6ade8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #22 0x7fd9d3407ac3 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:13,315 - ERROR - [SCREENSHOT] Failed to capture screenshot: Message: timeout: Timed out receiving message from renderer: 10.000
-[lindablair5996@automatedsupply.clarionex.cv]   (Session info: chrome=144.0.7559.132)
-[lindablair5996@automatedsupply.clarionex.cv] Stacktrace:
-[lindablair5996@automatedsupply.clarionex.cv] #0 0x5615a5c6ba7a <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #1 0x5615a56846a2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #2 0x5615a566bd87 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #3 0x5615a566b996 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #4 0x5615a56694a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #5 0x5615a5669e2f <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #6 0x5615a5693e29 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #7 0x5615a572fec1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #8 0x5615a57227f0 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #9 0x5615a56cb8b2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #10 0x5615a56cc6a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #11 0x5615a5c318d9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #12 0x5615a5c347e1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #13 0x5615a5c1ded9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #14 0x5615a5c3539e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #15 0x5615a5c04440 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #16 0x5615a5c590f8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #17 0x5615a5c592cb <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #18 0x5615a5c6ade8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #19 0x7fd9d3407ac3 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:13,322 - WARNING - [LAMBDA] Login failed with error: navigation_failed - Message: timeout: Timed out receiving message from renderer: 105.429
-[lindablair5996@automatedsupply.clarionex.cv]   (Session info: chrome=144.0.7559.132)
-[lindablair5996@automatedsupply.clarionex.cv] Stacktrace:
-[lindablair5996@automatedsupply.clarionex.cv] #0 0x5615a5c6ba7a <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #1 0x5615a56846a2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #2 0x5615a566bd87 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #3 0x5615a566b996 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #4 0x5615a56694a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #5 0x5615a5669e2f <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #6 0x5615a5679360 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #7 0x5615a5693357 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #8 0x5615a569a56b <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #9 0x5615a566a599 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #10 0x5615a56930ec <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #11 0x5615a5722b68 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #12 0x5615a56cb8b2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #13 0x5615a56cc6a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #14 0x5615a5c318d9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #15 0x5615a5c347e1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #16 0x5615a5c1ded9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #17 0x5615a5c3539e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #18 0x5615a5c04440 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #19 0x5615a5c590f8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #20 0x5615a5c592cb <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #21 0x5615a5c6ade8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #22 0x7fd9d3407ac3 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:13,322 - WARNING - [LAMBDA] Retrying with fresh browser (Attempt 1/3)...
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:14,146 - INFO - [LAMBDA] Restarting browser (Attempt 2/3)...
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:14,146 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:14,146 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:14,195 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:14,199 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:14,224 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:14,224 - INFO - [PROXY] Proxy disabled or not configured
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:14,224 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:56:14,224 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:26,139 - ERROR - [BROWSER] CRITICAL: Failed to create driver: Message: session not created
-[lindablair5996@automatedsupply.clarionex.cv] from chrome not reachable
-[lindablair5996@automatedsupply.clarionex.cv] Stacktrace:
-[lindablair5996@automatedsupply.clarionex.cv] #0 0x56077a76aa7a <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #1 0x56077a183390 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #2 0x56077a16ead8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #3 0x56077a1c656e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #4 0x56077a1c1c30 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #5 0x56077a1bbef9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #6 0x56077a20e06e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #7 0x56077a20d75c <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #8 0x56077a1ca8b2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #9 0x56077a1cb6a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #10 0x56077a7308d9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #11 0x56077a7337e1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #12 0x56077a71ced9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #13 0x56077a73439e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #14 0x56077a703440 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #15 0x56077a7580f8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #16 0x56077a7582cb <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #17 0x56077a769de8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #18 0x7f78b37b3ac3 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:26,209 - ERROR - Traceback (most recent call last):
-[lindablair5996@automatedsupply.clarionex.cv]   File "/opt/automation/do_automation.py", line 400, in get_chrome_driver
-[lindablair5996@automatedsupply.clarionex.cv]     driver = webdriver.Chrome(service=service, options=chrome_options)
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chrome/webdriver.py", line 45, in __init__
-[lindablair5996@automatedsupply.clarionex.cv]     super().__init__(
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chromium/webdriver.py", line 56, in __init__
-[lindablair5996@automatedsupply.clarionex.cv]     super().__init__(
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 208, in __init__
-[lindablair5996@automatedsupply.clarionex.cv]     self.start_session(capabilities)
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 292, in start_session
-[lindablair5996@automatedsupply.clarionex.cv]     response = self.execute(Command.NEW_SESSION, caps)["value"]
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 347, in execute
-[lindablair5996@automatedsupply.clarionex.cv]     self.error_handler.check_response(response)
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/errorhandler.py", line 229, in check_response
-[lindablair5996@automatedsupply.clarionex.cv]     raise exception_class(message, screen, stacktrace)
-[lindablair5996@automatedsupply.clarionex.cv] selenium.common.exceptions.SessionNotCreatedException: Message: session not created
-[lindablair5996@automatedsupply.clarionex.cv] from chrome not reachable
-[lindablair5996@automatedsupply.clarionex.cv] Stacktrace:
-[lindablair5996@automatedsupply.clarionex.cv] #0 0x56077a76aa7a <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #1 0x56077a183390 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #2 0x56077a16ead8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #3 0x56077a1c656e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #4 0x56077a1c1c30 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #5 0x56077a1bbef9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #6 0x56077a20e06e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #7 0x56077a20d75c <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #8 0x56077a1ca8b2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #9 0x56077a1cb6a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #10 0x56077a7308d9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #11 0x56077a7337e1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #12 0x56077a71ced9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #13 0x56077a73439e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #14 0x56077a703440 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #15 0x56077a7580f8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #16 0x56077a7582cb <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #17 0x56077a769de8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #18 0x7f78b37b3ac3 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:26,209 - ERROR - [LAMBDA] Exception during browser attempt 2: Message: session not created
-[lindablair5996@automatedsupply.clarionex.cv] from chrome not reachable
-[lindablair5996@automatedsupply.clarionex.cv] Stacktrace:
-[lindablair5996@automatedsupply.clarionex.cv] #0 0x56077a76aa7a <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #1 0x56077a183390 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #2 0x56077a16ead8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #3 0x56077a1c656e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #4 0x56077a1c1c30 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #5 0x56077a1bbef9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #6 0x56077a20e06e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #7 0x56077a20d75c <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #8 0x56077a1ca8b2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #9 0x56077a1cb6a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #10 0x56077a7308d9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #11 0x56077a7337e1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #12 0x56077a71ced9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #13 0x56077a73439e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #14 0x56077a703440 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #15 0x56077a7580f8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #16 0x56077a7582cb <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #17 0x56077a769de8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #18 0x7f78b37b3ac3 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:28,228 - INFO - [LAMBDA] Restarting browser (Attempt 3/3)...
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:28,229 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:28,230 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:28,230 - INFO - [BROWSER] Contents of /opt: ['google', 'automation']
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:28,242 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:28,243 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:28,243 - INFO - [PROXY] Proxy disabled or not configured
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:28,243 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:57:28,243 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:58:45,604 - ERROR - [BROWSER] CRITICAL: Failed to create driver: Message: session not created
-[lindablair5996@automatedsupply.clarionex.cv] from chrome not reachable
-[lindablair5996@automatedsupply.clarionex.cv] Stacktrace:
-[lindablair5996@automatedsupply.clarionex.cv] #0 0x555fba781a7a <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #1 0x555fba19a390 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #2 0x555fba185ad8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #3 0x555fba1dd56e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #4 0x555fba1d8c30 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #5 0x555fba1d2ef9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #6 0x555fba22506e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #7 0x555fba22475c <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #8 0x555fba1e18b2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #9 0x555fba1e26a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #10 0x555fba7478d9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #11 0x555fba74a7e1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #12 0x555fba733ed9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #13 0x555fba74b39e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #14 0x555fba71a440 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #15 0x555fba76f0f8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #16 0x555fba76f2cb <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #17 0x555fba780de8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #18 0x7f4525366ac3 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:58:45,658 - ERROR - Traceback (most recent call last):
-[lindablair5996@automatedsupply.clarionex.cv]   File "/opt/automation/do_automation.py", line 400, in get_chrome_driver
-[lindablair5996@automatedsupply.clarionex.cv]     driver = webdriver.Chrome(service=service, options=chrome_options)
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chrome/webdriver.py", line 45, in __init__
-[lindablair5996@automatedsupply.clarionex.cv]     super().__init__(
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/chromium/webdriver.py", line 56, in __init__
-[lindablair5996@automatedsupply.clarionex.cv]     super().__init__(
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 208, in __init__
-[lindablair5996@automatedsupply.clarionex.cv]     self.start_session(capabilities)
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 292, in start_session
-[lindablair5996@automatedsupply.clarionex.cv]     response = self.execute(Command.NEW_SESSION, caps)["value"]
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/webdriver.py", line 347, in execute
-[lindablair5996@automatedsupply.clarionex.cv]     self.error_handler.check_response(response)
-[lindablair5996@automatedsupply.clarionex.cv]   File "/usr/local/lib/python3.10/dist-packages/selenium/webdriver/remote/errorhandler.py", line 229, in check_response
-[lindablair5996@automatedsupply.clarionex.cv]     raise exception_class(message, screen, stacktrace)
-[lindablair5996@automatedsupply.clarionex.cv] selenium.common.exceptions.SessionNotCreatedException: Message: session not created
-[lindablair5996@automatedsupply.clarionex.cv] from chrome not reachable
-[lindablair5996@automatedsupply.clarionex.cv] Stacktrace:
-[lindablair5996@automatedsupply.clarionex.cv] #0 0x555fba781a7a <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #1 0x555fba19a390 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #2 0x555fba185ad8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #3 0x555fba1dd56e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #4 0x555fba1d8c30 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #5 0x555fba1d2ef9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #6 0x555fba22506e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #7 0x555fba22475c <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #8 0x555fba1e18b2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #9 0x555fba1e26a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #10 0x555fba7478d9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #11 0x555fba74a7e1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #12 0x555fba733ed9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #13 0x555fba74b39e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #14 0x555fba71a440 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #15 0x555fba76f0f8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #16 0x555fba76f2cb <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #17 0x555fba780de8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #18 0x7f4525366ac3 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] 2026-02-09 15:58:45,674 - ERROR - [LAMBDA] Exception during browser attempt 3: Message: session not created
-[lindablair5996@automatedsupply.clarionex.cv] from chrome not reachable
-[lindablair5996@automatedsupply.clarionex.cv] Stacktrace:
-[lindablair5996@automatedsupply.clarionex.cv] #0 0x555fba781a7a <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #1 0x555fba19a390 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #2 0x555fba185ad8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #3 0x555fba1dd56e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #4 0x555fba1d8c30 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #5 0x555fba1d2ef9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #6 0x555fba22506e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #7 0x555fba22475c <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #8 0x555fba1e18b2 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #9 0x555fba1e26a1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #10 0x555fba7478d9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #11 0x555fba74a7e1 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #12 0x555fba733ed9 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #13 0x555fba74b39e <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #14 0x555fba71a440 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #15 0x555fba76f0f8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #16 0x555fba76f2cb <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #17 0x555fba780de8 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] #18 0x7f4525366ac3 <unknown>
-[lindablair5996@automatedsupply.clarionex.cv] 
-[lindablair5996@automatedsupply.clarionex.cv] <JSON_RESULT>{"email": "lindablair5996@automatedsupply.clarionex.cv", "status": "failed", "step_completed": "login", "error_step": "login", "error_message": "Max browser retries reached: Message: session not created\nfrom chrome not reachable\nStacktrace:\n#0 0x555fba781a7a <unknown>\n#1 0x555fba19a390 <unknown>\n#2 0x555fba185ad8 <unknown>\n#3 0x555fba1dd56e <unknown>\n#4 0x555fba1d8c30 <unknown>\n#5 0x555fba1d2ef9 <unknown>\n#6 0x555fba22506e <unknown>\n#7 0x555fba22475c <unknown>\n#8 0x555fba1e18b2 <unknown>\n#9 0x555fba1e26a1 <unknown>\n#10 0x555fba7478d9 <unknown>\n#11 0x555fba74a7e1 <unknown>\n#12 0x555fba733ed9 <unknown>\n#13 0x555fba74b39e <unknown>\n#14 0x555fba71a440 <unknown>\n#15 0x555fba76f0f8 <unknown>\n#16 0x555fba76f2cb <unknown>\n#17 0x555fba780de8 <unknown>\n#18 0x7f4525366ac3 <unknown>\n", "app_password": null, "secret_key": null, "timings": {"driver_init": 17.66, "login": 186.3}}</JSON_RESULT>
+[2026-02-09T21:52:32.259365] Preparing remote directory on 159.223.30.144...
+[2026-02-09T21:52:33.751939] Uploading automation script to 159.223.30.144...
+[2026-02-09T21:52:35.049507] Uploading batch file (10 users)...
+[2026-02-09T21:52:36.275476] Injecting 2Captcha configuration...
+[2026-02-09T21:52:36.275703] Starting background automation script on 159.223.30.144...
+--- SCRIPT INITIALIZING ---
+=======================================================
+=== BATCH PROCESSING: 10 users | 5 parallel workers ===
+=======================================================
+2026-02-09 21:52:37,633 - INFO - [BATCH] Processing 10 users with 5 parallel workers
+[HEARTBEAT] 21:52:37 - Processing... (0/10 completed)
+2026-02-09 21:52:37,639 - INFO - [BATCH] Starting user 1/10: michelehopkins4656@lauraneumann.mywire.org
+2026-02-09 21:52:37,639 - INFO - [RESOURCE] Staggering browser start by 3.65s to reduce RAM spike...
+2026-02-09 21:52:37,639 - INFO - [BATCH] Starting user 1/10: michaeldudley4874@lauraneumann.mywire.org
+2026-02-09 21:52:37,639 - INFO - [RESOURCE] Staggering browser start by 1.39s to reduce RAM spike...
+2026-02-09 21:52:37,639 - INFO - [BATCH] Starting user 1/10: gabriellewilliams4930@nextgen151.zenvorahgtr.fun
+2026-02-09 21:52:37,639 - INFO - [RESOURCE] Staggering browser start by 3.25s to reduce RAM spike...
+2026-02-09 21:52:37,640 - INFO - [BATCH] Starting user 1/10: brianshaw8045@nextgen151.zenvorahgtr.fun
+2026-02-09 21:52:37,640 - INFO - [RESOURCE] Staggering browser start by 3.29s to reduce RAM spike...
+2026-02-09 21:52:37,640 - INFO - [BATCH] Starting user 1/10: emilyflynn5697@nextgen151.zenvorahgtr.fun
+2026-02-09 21:52:37,640 - INFO - [RESOURCE] Staggering browser start by 1.59s to reduce RAM spike...
+2026-02-09 21:52:39,042 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-09 21:52:39,042 - INFO - [BROWSER] Checking /opt directory contents...
+2026-02-09 21:52:39,042 - INFO - [BROWSER] Contents of /opt: ['google', 'automation']
+2026-02-09 21:52:39,043 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-09 21:52:39,043 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-09 21:52:39,043 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-09 21:52:39,043 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-09 21:52:39,043 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:52:39,229 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-09 21:52:39,229 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:52:39,229 - INFO - [BROWSER] Contents of /opt: ['google', 'automation']
+2026-02-09 21:52:39,229 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-09 21:52:39,229 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-09 21:52:39,229 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-09 21:52:39,229 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-09 21:52:39,229 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:52:40,894 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-09 21:52:40,894 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:52:40,894 - INFO - [BROWSER] Contents of /opt: ['google', 'automation']
+2026-02-09 21:52:40,894 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-09 21:52:40,894 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-09 21:52:40,894 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-09 21:52:40,894 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-09 21:52:40,894 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:52:40,933 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-09 21:52:40,933 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:52:40,933 - INFO - [BROWSER] Contents of /opt: ['google', 'automation']
+2026-02-09 21:52:40,933 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-09 21:52:40,933 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-09 21:52:40,933 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-09 21:52:40,933 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-09 21:52:40,933 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:52:41,075 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-09 21:52:41,165 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-09 21:52:41,297 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-09 21:52:41,297 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:52:41,297 - INFO - [BROWSER] Contents of /opt: ['google', 'automation']
+2026-02-09 21:52:41,297 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-09 21:52:41,297 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-09 21:52:41,297 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-09 21:52:41,297 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-09 21:52:41,297 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:52:42,018 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-09 21:52:42,408 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-09 21:52:42,408 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-09 21:52:42,408 - INFO - [LAMBDA] Chrome driver started for michaeldudley4874@lauraneumann.mywire.org
+2026-02-09 21:52:42,408 - INFO - [STEP] Login started for michaeldudley4874@lauraneumann.mywire.org
+2026-02-09 21:52:42,408 - INFO - [STEP] Navigating to Google login page (English)...
+2026-02-09 21:52:42,462 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-09 21:52:42,463 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-09 21:52:42,463 - INFO - [LAMBDA] Chrome driver started for emilyflynn5697@nextgen151.zenvorahgtr.fun
+2026-02-09 21:52:42,463 - INFO - [STEP] Login started for emilyflynn5697@nextgen151.zenvorahgtr.fun
+2026-02-09 21:52:42,463 - INFO - [STEP] Navigating to Google login page (English)...
+2026-02-09 21:52:43,519 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-09 21:52:43,519 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-09 21:52:43,519 - INFO - [LAMBDA] Chrome driver started for gabriellewilliams4930@nextgen151.zenvorahgtr.fun
+2026-02-09 21:52:43,519 - INFO - [STEP] Login started for gabriellewilliams4930@nextgen151.zenvorahgtr.fun
+2026-02-09 21:52:43,519 - INFO - [STEP] Navigating to Google login page (English)...
+2026-02-09 21:52:43,987 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-09 21:52:44,002 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-09 21:52:45,463 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-09 21:52:45,463 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-09 21:52:45,463 - INFO - [LAMBDA] Chrome driver started for michelehopkins4656@lauraneumann.mywire.org
+2026-02-09 21:52:45,463 - INFO - [STEP] Login started for michelehopkins4656@lauraneumann.mywire.org
+2026-02-09 21:52:45,463 - INFO - [STEP] Navigating to Google login page (English)...
+2026-02-09 21:52:45,467 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-09 21:52:45,467 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-09 21:52:45,467 - INFO - [LAMBDA] Chrome driver started for brianshaw8045@nextgen151.zenvorahgtr.fun
+2026-02-09 21:52:45,467 - INFO - [STEP] Login started for brianshaw8045@nextgen151.zenvorahgtr.fun
+2026-02-09 21:52:45,467 - INFO - [STEP] Navigating to Google login page (English)...
+[HEARTBEAT] 21:52:47 - Processing... (0/10 completed)
+2026-02-09 21:52:52,034 - INFO - [STEP] Navigation to Google login page completed
+2026-02-09 21:52:52,360 - INFO - [STEP] Navigation to Google login page completed
+2026-02-09 21:52:52,746 - INFO - [STEP] Navigation to Google login page completed
+2026-02-09 21:52:54,918 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-09 21:52:54,919 - INFO - [STEP] Email submission attempt 1/3
+2026-02-09 21:52:54,919 - INFO - [STEP] Locating email input field...
+2026-02-09 21:52:55,367 - INFO - [STEP] Navigation to Google login page completed
+2026-02-09 21:52:55,445 - INFO - [STEP] Navigation to Google login page completed
+2026-02-09 21:52:55,790 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-09 21:52:55,790 - INFO - [STEP] Email submission attempt 1/3
+2026-02-09 21:52:55,790 - INFO - [STEP] Locating email input field...
+2026-02-09 21:52:56,033 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-09 21:52:56,033 - INFO - [STEP] Email submission attempt 1/3
+2026-02-09 21:52:56,033 - INFO - [STEP] Locating email input field...
+2026-02-09 21:52:56,417 - INFO - [STEP] Clearing and typing email...
+[HEARTBEAT] 21:52:57 - Processing... (0/10 completed)
+2026-02-09 21:52:57,680 - INFO - [STEP] Clearing and typing email...
+2026-02-09 21:52:57,811 - INFO - [STEP] Clearing and typing email...
+2026-02-09 21:52:57,893 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-09 21:52:57,893 - INFO - [STEP] Email submission attempt 1/3
+2026-02-09 21:52:57,893 - INFO - [STEP] Locating email input field...
+2026-02-09 21:52:58,757 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-09 21:52:58,757 - INFO - [STEP] Email submission attempt 1/3
+2026-02-09 21:52:58,757 - INFO - [STEP] Locating email input field...
+2026-02-09 21:52:59,714 - INFO - [STEP] Clearing and typing email...
+2026-02-09 21:53:00,299 - INFO - [STEP] Clearing and typing email...
+[HEARTBEAT] 21:53:07 - Processing... (0/10 completed)
+2026-02-09 21:53:12,676 - INFO - [STEP] Email entered with human-like typing
+2026-02-09 21:53:13,304 - INFO - [STEP] Locating 'Next' button...
+2026-02-09 21:53:13,643 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-09 21:53:13,643 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+2026-02-09 21:53:14,878 - INFO - [STEP] Email entered with human-like typing
+2026-02-09 21:53:15,533 - INFO - [STEP] Locating 'Next' button...
+2026-02-09 21:53:15,723 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-09 21:53:15,723 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+2026-02-09 21:53:16,367 - INFO - [STEP] Email entered with human-like typing
+2026-02-09 21:53:16,801 - INFO - [STEP] Email entered with human-like typing
+2026-02-09 21:53:17,027 - INFO - [STEP] Email entered with human-like typing
+2026-02-09 21:53:17,264 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-09 21:53:17,264 - INFO - [STEP] Waiting for page transition...
+2026-02-09 21:53:17,339 - INFO - [STEP] Locating 'Next' button...
+2026-02-09 21:53:17,412 - INFO - [STEP] Locating 'Next' button...
+2026-02-09 21:53:17,471 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-09 21:53:17,471 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+2026-02-09 21:53:17,515 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-09 21:53:17,515 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+[HEARTBEAT] 21:53:17 - Processing... (0/10 completed)
+2026-02-09 21:53:17,729 - INFO - [STEP] Locating 'Next' button...
+2026-02-09 21:53:17,840 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-09 21:53:17,840 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+2026-02-09 21:53:19,302 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-09 21:53:19,303 - INFO - [STEP] Waiting for page transition...
+2026-02-09 21:53:20,481 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcbVsOIqtUOK3zOqWXl9zstuSV1fFMcjWPPFvPIVN..., Title: Welcome
+2026-02-09 21:53:21,056 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-09 21:53:21,056 - INFO - [STEP] Waiting for page transition...
+2026-02-09 21:53:21,200 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-09 21:53:21,200 - INFO - [STEP] Waiting for page transition...
+2026-02-09 21:53:21,396 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-09 21:53:21,397 - INFO - [STEP] Waiting for page transition...
+2026-02-09 21:53:22,692 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcZnkbr10LufsJw11yhcXWYIerxbBEEtbD36HFMVb..., Title: Welcome
+2026-02-09 21:53:23,995 - INFO - [STEP] Waiting 5.8s for password field to appear (after CAPTCHA solve)...
+2026-02-09 21:53:24,250 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcbNw6kiTB9ZVsd-k-xR5s0I99j0SpYV9v_rZ4aZp..., Title: Welcome
+2026-02-09 21:53:24,561 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcajPr6z4djfOjWUsenk1I7CUZtaaG7MIV1X49_5C..., Title: Welcome
+2026-02-09 21:53:25,231 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcbfE0WO-U-Pt69C3miv51jntoa5zeMfaB_I6eyNK..., Title: Welcome
+2026-02-09 21:53:26,192 - INFO - [STEP] Waiting 5.6s for password field to appear (after CAPTCHA solve)...
+[HEARTBEAT] 21:53:27 - Processing... (0/10 completed)
+2026-02-09 21:53:27,786 - INFO - [STEP] Waiting 6.8s for password field to appear (after CAPTCHA solve)...
+2026-02-09 21:53:28,151 - INFO - [STEP] Waiting 7.0s for password field to appear (after CAPTCHA solve)...
+2026-02-09 21:53:28,710 - INFO - [STEP] Waiting 6.2s for password field to appear (after CAPTCHA solve)...
+2026-02-09 21:53:29,762 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-09 21:53:29,763 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-09 21:53:30,079 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-09 21:53:31,837 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-09 21:53:31,837 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-09 21:53:32,163 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-09 21:53:34,639 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-09 21:53:34,640 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-09 21:53:34,807 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-09 21:53:34,823 - INFO - [STEP] Password entered successfully
+2026-02-09 21:53:34,895 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-09 21:53:34,895 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-09 21:53:34,964 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-09 21:53:35,140 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-09 21:53:35,141 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-09 21:53:35,374 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-09 21:53:35,396 - INFO - [STEP] Password submitted using Enter key
+2026-02-09 21:53:35,589 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-09 21:53:36,576 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-09 21:53:36,590 - INFO - [STEP] Password entered successfully
+2026-02-09 21:53:37,162 - INFO - [STEP] Password submitted using Enter key
+[HEARTBEAT] 21:53:37 - Processing... (0/10 completed)
+2026-02-09 21:53:39,875 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-09 21:53:39,890 - INFO - [STEP] Password entered successfully
+2026-02-09 21:53:39,980 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcbVsOIqtUOK3zOqWXl9zstuSV1fFMcjWPPFvPIVN571YO90bcmFF9If7VRE&checkConnection=youtube%3A1876&checkedDomains=youtube&dsh=S-1207432468%3A1770673962519287&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuCs_nGJT4n_l4tffarL5BnJDzgsD1jhFslhM8KAfVPVoqniyKptosUlEnIPx1exeddmrEFRxg&pstMsg=1
+2026-02-09 21:53:40,122 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcbVsOIqtUOK3zOqWXl9zstuSV1fFMcjWPPFvPIVN571YO90bcmFF9If7VRE&checkConnection=youtube%3A1876&checkedDomains=youtube&dsh=S-1207432468%3A1770673962519287&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuCs_nGJT4n_l4tffarL5BnJDzgsD1jhFslhM8KAfVPVoqniyKptosUlEnIPx1exeddmrEFRxg&pstMsg=1
+2026-02-09 21:53:40,122 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-09 21:53:40,365 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-09 21:53:40,380 - INFO - [STEP] Password entered successfully
+2026-02-09 21:53:40,506 - INFO - [STEP] Password submitted using Enter key
+2026-02-09 21:53:40,530 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-09 21:53:40,544 - INFO - [STEP] Password entered successfully
+2026-02-09 21:53:41,048 - INFO - [STEP] Password submitted using Enter key
+2026-02-09 21:53:41,066 - INFO - [STEP] Password submitted using Enter key
+2026-02-09 21:53:42,322 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZnkbr10LufsJw11yhcXWYIerxbBEEtbD36HFMVbn4PoTxGUTuKUwFPl0SX&checkConnection=youtube%3A1915&checkedDomains=youtube&dsh=S-2045891996%3A1770673962612994&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuA04rULarxsPFg-3HD65cU3jEnbcYt7FZ_2pmbx6E9hgDhXKURvajIE5YS_liIy9-j19tViJg&pstMsg=1
+2026-02-09 21:53:42,522 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZnkbr10LufsJw11yhcXWYIerxbBEEtbD36HFMVbn4PoTxGUTuKUwFPl0SX&checkConnection=youtube%3A1915&checkedDomains=youtube&dsh=S-2045891996%3A1770673962612994&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuA04rULarxsPFg-3HD65cU3jEnbcYt7FZ_2pmbx6E9hgDhXKURvajIE5YS_liIy9-j19tViJg&pstMsg=1
+2026-02-09 21:53:42,522 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-09 21:53:43,106 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-09 21:53:44,753 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-09 21:53:45,025 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcbNw6kiTB9ZVsd-k-xR5s0I99j0SpYV9v_rZ4aZpA-NygXjHJLToqgMfb-T&checkConnection=youtube%3A840&checkedDomains=youtube&dsh=S-1022009651%3A1770673965582069&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuBFZV6Jwf05yz8ciDzZ1ho2goke09RAHVC2grhFn2Q-IFEjSAJy1UuJtGv9BluVXaYU6P5w9Q&pstMsg=1
+2026-02-09 21:53:45,131 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcbNw6kiTB9ZVsd-k-xR5s0I99j0SpYV9v_rZ4aZpA-NygXjHJLToqgMfb-T&checkConnection=youtube%3A840&checkedDomains=youtube&dsh=S-1022009651%3A1770673965582069&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuBFZV6Jwf05yz8ciDzZ1ho2goke09RAHVC2grhFn2Q-IFEjSAJy1UuJtGv9BluVXaYU6P5w9Q&pstMsg=1
+2026-02-09 21:53:45,131 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-09 21:53:46,916 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcajPr6z4djfOjWUsenk1I7CUZtaaG7MIV1X49_5CU_kgT4DhHhikJcCfGSq&checkConnection=youtube%3A998&checkedDomains=youtube&dsh=S-1104084559%3A1770673963587719&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuBbJkIytNPpd2bQXy_ah9y9RA1BiySR6A4HwAx0ZTrnE2j3HvEwsaZNDrgGsGPsvkKpBgG4ow&pstMsg=1
+2026-02-09 21:53:46,925 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-09 21:53:46,996 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcbfE0WO-U-Pt69C3miv51jntoa5zeMfaB_I6eyNKt8CqfEh7T9G59pVbifZ&checkConnection=youtube%3A1034&checkedDomains=youtube&dsh=S438529598%3A1770673965586716&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuAAjiKveMPjgcTZoBvjYqUAcWogUp3mtLDvro52WzYvvjq_3SkVclj5LAhqRAl4fMWlcVGtvg&pstMsg=1
+2026-02-09 21:53:47,035 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcajPr6z4djfOjWUsenk1I7CUZtaaG7MIV1X49_5CU_kgT4DhHhikJcCfGSq&checkConnection=youtube%3A998&checkedDomains=youtube&dsh=S-1104084559%3A1770673963587719&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuBbJkIytNPpd2bQXy_ah9y9RA1BiySR6A4HwAx0ZTrnE2j3HvEwsaZNDrgGsGPsvkKpBgG4ow&pstMsg=1
+2026-02-09 21:53:47,035 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-09 21:53:47,117 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:1876%26pstMsg%3D1&tsvesd=1786226020&tsvenfd=0&pli=1
+2026-02-09 21:53:47,136 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcbfE0WO-U-Pt69C3miv51jntoa5zeMfaB_I6eyNKt8CqfEh7T9G59pVbifZ&checkConnection=youtube%3A1034&checkedDomains=youtube&dsh=S438529598%3A1770673965586716&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuAAjiKveMPjgcTZoBvjYqUAcWogUp3mtLDvro52WzYvvjq_3SkVclj5LAhqRAl4fMWlcVGtvg&pstMsg=1
+2026-02-09 21:53:47,136 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-09 21:53:47,380 - INFO - [STEP] Login success - reached account page
+[HEARTBEAT] 21:53:47 - Processing... (0/10 completed)
+2026-02-09 21:53:48,765 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:1915%26pstMsg%3D1&tsvesd=1786226023&tsvenfd=0&pli=1
+2026-02-09 21:53:49,250 - INFO - [STEP] Login success - reached account page
+2026-02-09 21:53:49,583 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-09 21:53:49,682 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-09 21:53:49,815 - INFO - [STEP] Setting up Authenticator for michaeldudley4874@lauraneumann.mywire.org
+2026-02-09 21:53:49,815 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-09 21:53:50,935 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:840%26pstMsg%3D1&tsvesd=1786226025&tsvenfd=0&pli=1
+2026-02-09 21:53:51,156 - INFO - [STEP] Setting up Authenticator for emilyflynn5697@nextgen151.zenvorahgtr.fun
+2026-02-09 21:53:51,156 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-09 21:53:51,180 - INFO - [STEP] Login success - reached account page
+2026-02-09 21:53:53,595 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:998%26pstMsg%3D1&tsvesd=1786226027&tsvenfd=0&pli=1
+2026-02-09 21:53:53,690 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:1034%26pstMsg%3D1&tsvesd=1786226027&tsvenfd=0&pli=1
+2026-02-09 21:53:53,832 - INFO - [STEP] Login success - reached account page
+2026-02-09 21:53:53,928 - INFO - [STEP] Setting up Authenticator for michelehopkins4656@lauraneumann.mywire.org
+2026-02-09 21:53:53,929 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-09 21:53:53,970 - INFO - [STEP] Login success - reached account page
+2026-02-09 21:53:55,579 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-09 21:53:55,660 - INFO - [STEP] Setting up Authenticator for gabriellewilliams4930@nextgen151.zenvorahgtr.fun
+2026-02-09 21:53:55,660 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-09 21:53:56,298 - INFO - [STEP] Setting up Authenticator for brianshaw8045@nextgen151.zenvorahgtr.fun
+2026-02-09 21:53:56,298 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-09 21:53:57,652 - INFO - [STEP] Looking for 'Set up authenticator' button...
+[HEARTBEAT] 21:53:57 - Processing... (0/10 completed)
+2026-02-09 21:53:58,804 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+2026-02-09 21:54:00,807 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-09 21:54:00,869 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+2026-02-09 21:54:01,384 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-09 21:54:01,795 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-09 21:54:02,871 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-09 21:54:02,888 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-09 21:54:03,035 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-09 21:54:03,084 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-09 21:54:04,085 - INFO - [STEP] Extracting secret key...
+2026-02-09 21:54:04,675 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+2026-02-09 21:54:04,974 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-09 21:54:05,017 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-09 21:54:05,041 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+2026-02-09 21:54:05,125 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-09 21:54:05,187 - INFO - [STEP] Extracted secret key using div[12]: XOPF****MVB3
+2026-02-09 21:54:05,187 - INFO - [STEP] Secret key successfully extracted: XOPF****MVB3
+2026-02-09 21:54:05,187 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-09 21:54:06,019 - INFO - [STEP] Extracting secret key...
+2026-02-09 21:54:06,113 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+2026-02-09 21:54:06,677 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-09 21:54:07,043 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-09 21:54:07,053 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-09 21:54:07,086 - INFO - [STEP] Extracted secret key using div[12]: RFHQ****4V67
+2026-02-09 21:54:07,086 - INFO - [STEP] Secret key successfully extracted: RFHQ****4V67
+2026-02-09 21:54:07,086 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+[HEARTBEAT] 21:54:07 - Processing... (0/10 completed)
+2026-02-09 21:54:08,116 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-09 21:54:08,781 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-09 21:54:08,824 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-09 21:54:09,129 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-09 21:54:09,180 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-09 21:54:09,825 - INFO - [STEP] Extracting secret key...
+2026-02-09 21:54:10,181 - INFO - [STEP] Extracting secret key...
+2026-02-09 21:54:10,258 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-09 21:54:10,282 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-09 21:54:10,856 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-09 21:54:10,887 - INFO - [STEP] Extracted secret key using div[12]: DFGW****JZZ6
+2026-02-09 21:54:10,887 - INFO - [STEP] Secret key successfully extracted: DFGW****JZZ6
+2026-02-09 21:54:10,887 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-09 21:54:11,218 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-09 21:54:11,259 - INFO - [STEP] Extracted secret key using div[12]: S3UB****6ZHK
+2026-02-09 21:54:11,259 - INFO - [STEP] Secret key successfully extracted: S3UB****6ZHK
+2026-02-09 21:54:11,259 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-09 21:54:11,283 - INFO - [STEP] Extracting secret key...
+2026-02-09 21:54:11,472 - INFO - [STEP] Clicked 'Next' button using div[12]
+2026-02-09 21:54:12,318 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-09 21:54:12,357 - INFO - [STEP] Extracted secret key using div[12]: C2OO****M54Q
+2026-02-09 21:54:12,357 - INFO - [STEP] Secret key successfully extracted: C2OO****M54Q
+2026-02-09 21:54:12,357 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-09 21:54:13,373 - INFO - [STEP] Clicked 'Next' button using div[12]
+2026-02-09 21:54:13,473 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-09 21:54:13,473 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-09 21:54:13,473 - INFO - [STEP] Verifying Authenticator setup for michaeldudley4874@lauraneumann.mywire.org
+2026-02-09 21:54:13,474 - INFO - [STEP] Generated TOTP code for verification: 703458
+2026-02-09 21:54:15,375 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-09 21:54:15,375 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-09 21:54:15,375 - INFO - [STEP] Verifying Authenticator setup for emilyflynn5697@nextgen151.zenvorahgtr.fun
+2026-02-09 21:54:15,376 - INFO - [STEP] Generated TOTP code for verification: 751322
+2026-02-09 21:54:17,141 - INFO - [STEP] Clicked 'Next' button using div[12]
+2026-02-09 21:54:17,542 - INFO - [STEP] Clicked 'Next' button using div[12]
+[HEARTBEAT] 21:54:17 - Processing... (0/10 completed)
+2026-02-09 21:54:18,619 - INFO - [STEP] Clicked 'Next' button using div[12]
+2026-02-09 21:54:19,143 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-09 21:54:19,143 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-09 21:54:19,143 - INFO - [STEP] Verifying Authenticator setup for michelehopkins4656@lauraneumann.mywire.org
+2026-02-09 21:54:19,143 - INFO - [STEP] Generated TOTP code for verification: 297802
+2026-02-09 21:54:19,544 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-09 21:54:19,544 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-09 21:54:19,544 - INFO - [STEP] Verifying Authenticator setup for gabriellewilliams4930@nextgen151.zenvorahgtr.fun
+2026-02-09 21:54:19,545 - INFO - [STEP] Generated TOTP code for verification: 890800
+2026-02-09 21:54:20,621 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-09 21:54:20,621 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-09 21:54:20,621 - INFO - [STEP] Verifying Authenticator setup for brianshaw8045@nextgen151.zenvorahgtr.fun
+2026-02-09 21:54:20,621 - INFO - [STEP] Generated TOTP code for verification: 996497
+2026-02-09 21:54:20,736 - INFO - [STEP] Found OTP input using div[12]
+2026-02-09 21:54:21,370 - INFO - [STEP] Entered TOTP code
+2026-02-09 21:54:22,704 - INFO - [STEP] Found OTP input using div[12]
+2026-02-09 21:54:23,383 - INFO - [STEP] Entered TOTP code
+2026-02-09 21:54:25,522 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-09 21:54:26,404 - INFO - [STEP] Found OTP input using div[12]
+2026-02-09 21:54:26,856 - INFO - [STEP] Found OTP input using div[12]
+2026-02-09 21:54:27,054 - INFO - [STEP] Entered TOTP code
+2026-02-09 21:54:27,540 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-09 21:54:27,611 - INFO - [STEP] Entered TOTP code
+[HEARTBEAT] 21:54:27 - Processing... (0/10 completed)
+2026-02-09 21:54:27,920 - INFO - [STEP] Found OTP input using div[12]
+2026-02-09 21:54:28,525 - INFO - [STEP] Authenticator verified successfully
+2026-02-09 21:54:28,525 - INFO - [STEP] Navigating to 2-Step Verification page for michaeldudley4874@lauraneumann.mywire.org...
+2026-02-09 21:54:28,591 - INFO - [STEP] Entered TOTP code
+2026-02-09 21:54:30,544 - INFO - [STEP] Authenticator verified successfully
+2026-02-09 21:54:30,544 - INFO - [STEP] Navigating to 2-Step Verification page for emilyflynn5697@nextgen151.zenvorahgtr.fun...
+2026-02-09 21:54:31,229 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-09 21:54:31,762 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-09 21:54:32,869 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-09 21:54:34,232 - INFO - [STEP] Authenticator verified successfully
+2026-02-09 21:54:34,232 - INFO - [STEP] Navigating to 2-Step Verification page for michelehopkins4656@lauraneumann.mywire.org...
+2026-02-09 21:54:34,765 - INFO - [STEP] Authenticator verified successfully
+2026-02-09 21:54:34,765 - INFO - [STEP] Navigating to 2-Step Verification page for gabriellewilliams4930@nextgen151.zenvorahgtr.fun...
+2026-02-09 21:54:35,872 - INFO - [STEP] Authenticator verified successfully
+2026-02-09 21:54:35,872 - INFO - [STEP] Navigating to 2-Step Verification page for brianshaw8045@nextgen151.zenvorahgtr.fun...
+[HEARTBEAT] 21:54:37 - Processing... (0/10 completed)
+2026-02-09 21:54:41,998 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:54:43,991 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:54:47,145 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+[HEARTBEAT] 21:54:47 - Processing... (0/10 completed)
+2026-02-09 21:54:49,067 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:54:49,138 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:54:49,601 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:54:50,168 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:54:52,279 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:54:54,201 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:54:54,293 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:54:54,760 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:54:55,323 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:54:57,414 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:54:57,547 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+[HEARTBEAT] 21:54:57 - Processing... (0/10 completed)
+2026-02-09 21:54:59,340 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:54:59,425 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:54:59,542 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+2026-02-09 21:54:59,897 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:55:00,451 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:55:04,493 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:55:04,569 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+2026-02-09 21:55:04,827 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-09 21:55:04,827 - INFO - [STEP] 2-Step Verification enabled successfully for michaeldudley4874@lauraneumann.mywire.org
+2026-02-09 21:55:04,827 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-09 21:55:05,046 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:55:05,160 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+2026-02-09 21:55:05,622 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:55:05,721 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+2026-02-09 21:55:06,812 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-09 21:55:06,812 - INFO - [STEP] 2-Step Verification enabled successfully for emilyflynn5697@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:06,812 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+[HEARTBEAT] 21:55:07 - Processing... (0/10 completed)
+2026-02-09 21:55:09,832 - INFO - [STEP] Generating App Password for michaeldudley4874@lauraneumann.mywire.org
+2026-02-09 21:55:09,833 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+2026-02-09 21:55:11,816 - INFO - [STEP] Generating App Password for emilyflynn5697@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:11,816 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+2026-02-09 21:55:11,854 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-09 21:55:11,856 - INFO - [STEP] 2-Step Verification enabled successfully for michelehopkins4656@lauraneumann.mywire.org
+2026-02-09 21:55:11,856 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-09 21:55:12,477 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-09 21:55:12,477 - INFO - [STEP] 2-Step Verification enabled successfully for gabriellewilliams4930@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:12,477 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-09 21:55:13,012 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-09 21:55:13,012 - INFO - [STEP] 2-Step Verification enabled successfully for brianshaw8045@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:13,012 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-09 21:55:16,861 - INFO - [STEP] Generating App Password for michelehopkins4656@lauraneumann.mywire.org
+2026-02-09 21:55:16,861 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+2026-02-09 21:55:17,331 - INFO - [STEP] App passwords page loaded
+2026-02-09 21:55:17,481 - INFO - [STEP] Generating App Password for gabriellewilliams4930@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:17,481 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+[HEARTBEAT] 21:55:17 - Processing... (0/10 completed)
+2026-02-09 21:55:17,957 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-09 21:55:17,957 - INFO - [STEP] Generated app name: App-1770674117
+2026-02-09 21:55:18,017 - INFO - [STEP] Generating App Password for brianshaw8045@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:18,017 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+2026-02-09 21:55:18,410 - INFO - [STEP] Entered app name using regular method
+2026-02-09 21:55:19,413 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-09 21:55:19,447 - INFO - [STEP] App passwords page loaded
+2026-02-09 21:55:19,651 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-09 21:55:20,206 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-09 21:55:20,206 - INFO - [STEP] Generated app name: App-1770674120
+2026-02-09 21:55:20,469 - INFO - [STEP] Entered app name using regular method
+2026-02-09 21:55:21,470 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-09 21:55:21,568 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-09 21:55:21,653 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-09 21:55:21,670 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-09 21:55:21,670 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-09 21:55:22,213 - INFO - [STEP] Extracted app password from spans: ndaw****lwjq
+2026-02-09 21:55:22,213 - INFO - [STEP] App Password generated successfully
+2026-02-09 21:55:22,214 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-09 21:55:22,214 - INFO - [STORAGE] ✓ Password saved successfully for michaeldudley4874@lauraneumann.mywire.org
+2026-02-09 21:55:22,214 - INFO - [LAMBDA] All steps completed successfully for michaeldudley4874@lauraneumann.mywire.org in 164.58 seconds
+2026-02-09 21:55:22,452 - INFO - [LAMBDA] Chrome driver closed for michaeldudley4874@lauraneumann.mywire.org
+[1/10] ✓ michaeldudley4874@lauraneumann.mywire.org - success
+2026-02-09 21:55:22,455 - INFO - [BATCH] Starting user 2/10: carolynthomas5186@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:22,455 - INFO - [RESOURCE] Staggering browser start by 4.89s to reduce RAM spike...
+2026-02-09 21:55:23,569 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-09 21:55:23,585 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-09 21:55:23,585 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-09 21:55:24,005 - INFO - [STEP] Extracted app password from spans: vvqc****epto
+2026-02-09 21:55:24,005 - INFO - [STEP] App Password generated successfully
+2026-02-09 21:55:24,005 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-09 21:55:24,006 - INFO - [STORAGE] ✓ Password saved successfully for emilyflynn5697@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:24,006 - INFO - [LAMBDA] All steps completed successfully for emilyflynn5697@nextgen151.zenvorahgtr.fun in 166.37 seconds
+2026-02-09 21:55:24,283 - INFO - [LAMBDA] Chrome driver closed for emilyflynn5697@nextgen151.zenvorahgtr.fun
+[2/10] ✓ emilyflynn5697@nextgen151.zenvorahgtr.fun - success
+2026-02-09 21:55:24,284 - INFO - [BATCH] Starting user 3/10: rebeccataylor0429@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:24,284 - INFO - [RESOURCE] Staggering browser start by 2.99s to reduce RAM spike...
+2026-02-09 21:55:25,227 - INFO - [STEP] App passwords page loaded
+2026-02-09 21:55:25,810 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-09 21:55:25,810 - INFO - [STEP] Generated app name: App-1770674125
+2026-02-09 21:55:25,964 - INFO - [STEP] Entered app name using regular method
+2026-02-09 21:55:26,218 - INFO - [STEP] App passwords page loaded
+2026-02-09 21:55:26,287 - INFO - [STEP] App passwords page loaded
+2026-02-09 21:55:26,767 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-09 21:55:26,767 - INFO - [STEP] Generated app name: App-1770674126
+2026-02-09 21:55:26,877 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-09 21:55:26,878 - INFO - [STEP] Generated app name: App-1770674126
+2026-02-09 21:55:26,965 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-09 21:55:27,093 - INFO - [STEP] Entered app name using regular method
+2026-02-09 21:55:27,207 - INFO - [STEP] Entered app name using regular method
+2026-02-09 21:55:27,228 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-09 21:55:27,276 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-09 21:55:27,276 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:55:27,277 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
+2026-02-09 21:55:27,277 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-09 21:55:27,278 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-09 21:55:27,278 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-09 21:55:27,278 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-09 21:55:27,278 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:55:27,353 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-09 21:55:27,354 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:55:27,354 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
+2026-02-09 21:55:27,354 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-09 21:55:27,354 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-09 21:55:27,354 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-09 21:55:27,354 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-09 21:55:27,354 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+[HEARTBEAT] 21:55:27 - Processing... (2/10 completed)
+2026-02-09 21:55:28,101 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-09 21:55:28,208 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-09 21:55:28,354 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-09 21:55:28,649 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-09 21:55:28,697 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-09 21:55:28,979 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-09 21:55:29,229 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-09 21:55:29,243 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-09 21:55:29,243 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-09 21:55:29,503 - INFO - [STEP] Extracted app password from spans: iida****gluc
+2026-02-09 21:55:29,503 - INFO - [STEP] App Password generated successfully
+2026-02-09 21:55:29,503 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-09 21:55:29,503 - INFO - [STORAGE] ✓ Password saved successfully for michelehopkins4656@lauraneumann.mywire.org
+2026-02-09 21:55:29,503 - INFO - [LAMBDA] All steps completed successfully for michelehopkins4656@lauraneumann.mywire.org in 171.86 seconds
+2026-02-09 21:55:29,619 - INFO - [LAMBDA] Chrome driver closed for michelehopkins4656@lauraneumann.mywire.org
+[3/10] ✓ michelehopkins4656@lauraneumann.mywire.org - success
+2026-02-09 21:55:29,621 - INFO - [BATCH] Starting user 4/10: marywillis8833@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:29,621 - INFO - [RESOURCE] Staggering browser start by 1.28s to reduce RAM spike...
+2026-02-09 21:55:29,756 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-09 21:55:29,756 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-09 21:55:29,756 - INFO - [LAMBDA] Chrome driver started for rebeccataylor0429@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:29,756 - INFO - [STEP] Login started for rebeccataylor0429@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:29,756 - INFO - [STEP] Navigating to Google login page (English)...
+2026-02-09 21:55:30,041 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-09 21:55:30,041 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-09 21:55:30,041 - INFO - [LAMBDA] Chrome driver started for carolynthomas5186@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:30,041 - INFO - [STEP] Login started for carolynthomas5186@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:30,041 - INFO - [STEP] Navigating to Google login page (English)...
+2026-02-09 21:55:30,356 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-09 21:55:30,377 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-09 21:55:30,377 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-09 21:55:30,652 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-09 21:55:30,678 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-09 21:55:30,678 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-09 21:55:30,906 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-09 21:55:30,906 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:55:30,906 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
+2026-02-09 21:55:30,907 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-09 21:55:30,907 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-09 21:55:30,907 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-09 21:55:30,907 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-09 21:55:30,907 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:55:30,954 - INFO - [STEP] Extracted app password from spans: qikk****qafb
+2026-02-09 21:55:30,954 - INFO - [STEP] App Password generated successfully
+2026-02-09 21:55:30,954 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-09 21:55:30,954 - INFO - [STORAGE] ✓ Password saved successfully for brianshaw8045@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:30,954 - INFO - [LAMBDA] All steps completed successfully for brianshaw8045@nextgen151.zenvorahgtr.fun in 173.31 seconds
+2026-02-09 21:55:31,298 - INFO - [STEP] Extracted app password from spans: rlyz****badr
+2026-02-09 21:55:31,298 - INFO - [STEP] App Password generated successfully
+2026-02-09 21:55:31,298 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-09 21:55:31,298 - INFO - [STORAGE] ✓ Password saved successfully for gabriellewilliams4930@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:31,299 - INFO - [LAMBDA] All steps completed successfully for gabriellewilliams4930@nextgen151.zenvorahgtr.fun in 173.66 seconds
+2026-02-09 21:55:31,301 - INFO - [LAMBDA] Chrome driver closed for brianshaw8045@nextgen151.zenvorahgtr.fun
+[4/10] ✓ brianshaw8045@nextgen151.zenvorahgtr.fun - success
+2026-02-09 21:55:31,306 - INFO - [BATCH] Starting user 5/10: brittanywhite0808@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:31,306 - INFO - [RESOURCE] Staggering browser start by 3.5s to reduce RAM spike...
+2026-02-09 21:55:31,959 - INFO - [LAMBDA] Chrome driver closed for gabriellewilliams4930@nextgen151.zenvorahgtr.fun
+[5/10] ✓ gabriellewilliams4930@nextgen151.zenvorahgtr.fun - success
+2026-02-09 21:55:31,960 - INFO - [BATCH] Starting user 6/10: aaronvalencia2163@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:31,960 - INFO - [RESOURCE] Staggering browser start by 4.74s to reduce RAM spike...
+2026-02-09 21:55:32,659 - INFO - [STEP] Navigation to Google login page completed
+2026-02-09 21:55:32,749 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-09 21:55:33,791 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-09 21:55:33,792 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-09 21:55:33,792 - INFO - [LAMBDA] Chrome driver started for marywillis8833@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:33,792 - INFO - [STEP] Login started for marywillis8833@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:33,792 - INFO - [STEP] Navigating to Google login page (English)...
+2026-02-09 21:55:34,809 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-09 21:55:34,809 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:55:34,809 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
+2026-02-09 21:55:34,809 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-09 21:55:34,809 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-09 21:55:34,809 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-09 21:55:34,809 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-09 21:55:34,809 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:55:34,932 - INFO - [STEP] Navigation to Google login page completed
+2026-02-09 21:55:35,606 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-09 21:55:35,606 - INFO - [STEP] Email submission attempt 1/3
+2026-02-09 21:55:35,606 - INFO - [STEP] Locating email input field...
+2026-02-09 21:55:35,766 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-09 21:55:36,378 - INFO - [STEP] Navigation to Google login page completed
+2026-02-09 21:55:36,703 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-09 21:55:36,703 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:55:36,703 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
+2026-02-09 21:55:36,703 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-09 21:55:36,704 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-09 21:55:36,704 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-09 21:55:36,704 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-09 21:55:36,704 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-09 21:55:36,837 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-09 21:55:36,837 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-09 21:55:36,837 - INFO - [LAMBDA] Chrome driver started for brittanywhite0808@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:36,837 - INFO - [STEP] Login started for brittanywhite0808@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:36,837 - INFO - [STEP] Navigating to Google login page (English)...
+2026-02-09 21:55:37,241 - INFO - [STEP] Clearing and typing email...
+2026-02-09 21:55:37,750 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-09 21:55:37,750 - INFO - [STEP] Email submission attempt 1/3
+2026-02-09 21:55:37,750 - INFO - [STEP] Locating email input field...
+[HEARTBEAT] 21:55:37 - Processing... (5/10 completed)
+2026-02-09 21:55:38,329 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-09 21:55:38,675 - INFO - [STEP] Navigation to Google login page completed
+2026-02-09 21:55:39,378 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-09 21:55:39,378 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-09 21:55:39,378 - INFO - [LAMBDA] Chrome driver started for aaronvalencia2163@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:39,378 - INFO - [STEP] Login started for aaronvalencia2163@nextgen151.zenvorahgtr.fun
+2026-02-09 21:55:39,379 - INFO - [STEP] Navigating to Google login page (English)...
+2026-02-09 21:55:39,451 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-09 21:55:39,451 - INFO - [STEP] Email submission attempt 1/3
+2026-02-09 21:55:39,451 - INFO - [STEP] Locating email input field...
+2026-02-09 21:55:39,765 - INFO - [STEP] Clearing and typing email...
+2026-02-09 21:55:41,557 - INFO - [STEP] Clearing and typing email...
+2026-02-09 21:55:41,719 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-09 21:55:41,719 - INFO - [STEP] Email submission attempt 1/3
+2026-02-09 21:55:41,719 - INFO - [STEP] Locating email input field...
+2026-02-09 21:55:42,449 - INFO - [STEP] Navigation to Google login page completed
+2026-02-09 21:55:43,547 - INFO - [STEP] Clearing and typing email...
+2026-02-09 21:55:45,524 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-09 21:55:45,525 - INFO - [STEP] Email submission attempt 1/3
+2026-02-09 21:55:45,525 - INFO - [STEP] Locating email input field...
+2026-02-09 21:55:47,413 - INFO - [STEP] Clearing and typing email...
+[HEARTBEAT] 21:55:47 - Processing... (5/10 completed)
+2026-02-09 21:55:49,032 - INFO - [STEP] Email entered with human-like typing
+2026-02-09 21:55:49,563 - INFO - [STEP] Locating 'Next' button...
+2026-02-09 21:55:49,785 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-09 21:55:49,785 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+2026-02-09 21:55:50,308 - INFO - [STEP] Email entered with human-like typing
+2026-02-09 21:55:50,882 - INFO - [STEP] Locating 'Next' button...
+2026-02-09 21:55:51,122 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-09 21:55:51,123 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+2026-02-09 21:55:53,426 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-09 21:55:53,426 - INFO - [STEP] Waiting for page transition...
+2026-02-09 21:55:54,422 - INFO - [STEP] Email entered with human-like typing
+2026-02-09 21:55:54,723 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-09 21:55:54,724 - INFO - [STEP] Waiting for page transition...
+2026-02-09 21:55:55,248 - INFO - [STEP] Locating 'Next' button...
+2026-02-09 21:55:55,331 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-09 21:55:55,331 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+2026-02-09 21:55:56,046 - INFO - [STEP] Email entered with human-like typing
+2026-02-09 21:55:56,932 - INFO - [STEP] Locating 'Next' button...
+2026-02-09 21:55:57,016 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-09 21:55:57,016 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+2026-02-09 21:55:57,342 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcZJK6FDHCqRo2bAT0d7AecQUFzvgMUB4uT2rzMFh..., Title: Welcome
+[HEARTBEAT] 21:55:57 - Processing... (5/10 completed)
+2026-02-09 21:55:57,988 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcaMJa7fUzt9FrQqkR0ddbTbcDclhsNZR6RBKtOR3..., Title: Welcome
+2026-02-09 21:55:58,676 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-09 21:55:58,677 - INFO - [STEP] Waiting for page transition...
+2026-02-09 21:55:59,469 - INFO - [STEP] Email entered with human-like typing
+2026-02-09 21:56:00,307 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-09 21:56:00,307 - INFO - [STEP] Waiting for page transition...
+2026-02-09 21:56:00,370 - INFO - [STEP] Locating 'Next' button...
+2026-02-09 21:56:00,451 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-09 21:56:00,451 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+2026-02-09 21:56:00,948 - INFO - [STEP] Waiting 6.4s for password field to appear (after CAPTCHA solve)...
+2026-02-09 21:56:01,539 - INFO - [STEP] Waiting 6.4s for password field to appear (after CAPTCHA solve)...
+2026-02-09 21:56:02,260 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcYJ-4gN9aKUjo1zU0Y8ag8fejiI3dUsGEd8fX-Nx..., Title: Welcome
+2026-02-09 21:56:03,296 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcYNjP_mL6t4pJMFzyaa67TQ3Yc_qdNWaN7CSIcVZ..., Title: Welcome
+2026-02-09 21:56:03,706 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-09 21:56:03,706 - INFO - [STEP] Waiting for page transition...
+2026-02-09 21:56:05,803 - INFO - [STEP] Waiting 6.2s for password field to appear (after CAPTCHA solve)...
+2026-02-09 21:56:06,862 - INFO - [STEP] Waiting 7.0s for password field to appear (after CAPTCHA solve)...
+2026-02-09 21:56:06,991 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcacmMuwPc4Z8j1Ur9pLEbE75kzDUDK8tnZx1uNlt..., Title: Welcome
+2026-02-09 21:56:07,344 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-09 21:56:07,344 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-09 21:56:07,640 - INFO - [STEP] Found password input using By.NAME='Passwd'
+[HEARTBEAT] 21:56:07 - Processing... (5/10 completed)
+2026-02-09 21:56:07,985 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-09 21:56:07,985 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-09 21:56:08,307 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-09 21:56:10,439 - INFO - [STEP] Waiting 6.5s for password field to appear (after CAPTCHA solve)...
+2026-02-09 21:56:11,988 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-09 21:56:11,988 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-09 21:56:12,205 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-09 21:56:12,221 - INFO - [STEP] Password entered successfully
+2026-02-09 21:56:12,382 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-09 21:56:12,775 - INFO - [STEP] Password submitted using Enter key
+2026-02-09 21:56:13,313 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-09 21:56:13,326 - INFO - [STEP] Password entered successfully
+2026-02-09 21:56:13,859 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-09 21:56:13,859 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-09 21:56:13,998 - INFO - [STEP] Password submitted using Enter key
+2026-02-09 21:56:14,305 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-09 21:56:16,951 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-09 21:56:16,951 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-09 21:56:17,007 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-09 21:56:17,023 - INFO - [STEP] Password entered successfully
+2026-02-09 21:56:17,300 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-09 21:56:17,675 - INFO - [STEP] Password submitted using Enter key
+2026-02-09 21:56:17,685 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZJK6FDHCqRo2bAT0d7AecQUFzvgMUB4uT2rzMFhM9TKaIAkZG-kYql1Z4R&checkConnection=youtube%3A387&checkedDomains=youtube&dsh=S-1674657900%3A1770674130112399&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuD1Oc3CsSeGqNDAQwvURqD_t4TXrdW3IoyoT1808tRp7rEGKvh8ou5aOmV4UgwvPVWgL50r&pstMsg=1
+2026-02-09 21:56:17,801 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZJK6FDHCqRo2bAT0d7AecQUFzvgMUB4uT2rzMFhM9TKaIAkZG-kYql1Z4R&checkConnection=youtube%3A387&checkedDomains=youtube&dsh=S-1674657900%3A1770674130112399&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuD1Oc3CsSeGqNDAQwvURqD_t4TXrdW3IoyoT1808tRp7rEGKvh8ou5aOmV4UgwvPVWgL50r&pstMsg=1
+2026-02-09 21:56:17,801 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+[HEARTBEAT] 21:56:17 - Processing... (5/10 completed)
+2026-02-09 21:56:18,639 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcaMJa7fUzt9FrQqkR0ddbTbcDclhsNZR6RBKtOR3z3uAgTSsqRl7jipfTbe&checkConnection=youtube%3A152&checkedDomains=youtube&dsh=S271110935%3A1770674133857504&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuAY4kT87D_3mLe5idVlkcbLPJpw0Zgf_dsjAHJ1KyEZVIr3NnK3jB8gWrO4FnxGvYS8JVLbNA&pstMsg=1
+2026-02-09 21:56:18,816 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcaMJa7fUzt9FrQqkR0ddbTbcDclhsNZR6RBKtOR3z3uAgTSsqRl7jipfTbe&checkConnection=youtube%3A152&checkedDomains=youtube&dsh=S271110935%3A1770674133857504&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuAY4kT87D_3mLe5idVlkcbLPJpw0Zgf_dsjAHJ1KyEZVIr3NnK3jB8gWrO4FnxGvYS8JVLbNA&pstMsg=1
+2026-02-09 21:56:18,817 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-09 21:56:19,444 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-09 21:56:19,458 - INFO - [STEP] Password entered successfully
+2026-02-09 21:56:19,842 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-09 21:56:20,073 - INFO - [STEP] Password submitted using Enter key
+2026-02-09 21:56:20,807 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-09 21:56:21,822 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-09 21:56:21,834 - INFO - [STEP] Password entered successfully
+2026-02-09 21:56:22,346 - INFO - [STEP] Password submitted using Enter key
+2026-02-09 21:56:22,890 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcYJ-4gN9aKUjo1zU0Y8ag8fejiI3dUsGEd8fX-NxBovACqTySJn46oW7x3k&checkConnection=youtube%3A5200&checkedDomains=youtube&dsh=S739033160%3A1770674129812247&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuCVtsds0cOuodJesWGXPz7fFGr5q7xJ4ws_m4UMy5Lra0sLpPrmoKBtAo10u8nn4oHSL9MR0w&pstMsg=1
+2026-02-09 21:56:22,994 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcYJ-4gN9aKUjo1zU0Y8ag8fejiI3dUsGEd8fX-NxBovACqTySJn46oW7x3k&checkConnection=youtube%3A5200&checkedDomains=youtube&dsh=S739033160%3A1770674129812247&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuCVtsds0cOuodJesWGXPz7fFGr5q7xJ4ws_m4UMy5Lra0sLpPrmoKBtAo10u8nn4oHSL9MR0w&pstMsg=1
+2026-02-09 21:56:22,994 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-09 21:56:23,853 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:387%26pstMsg%3D1&tsvesd=1786226178&tsvenfd=0&pli=1
+2026-02-09 21:56:24,079 - INFO - [STEP] Login success - reached account page
+2026-02-09 21:56:24,817 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:152%26pstMsg%3D1&tsvesd=1786226179&tsvenfd=0&pli=1
+2026-02-09 21:56:24,923 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-09 21:56:24,975 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcYNjP_mL6t4pJMFzyaa67TQ3Yc_qdNWaN7CSIcVZqVyduhDU6UafSI9QvhB&checkConnection=youtube%3A478&checkedDomains=youtube&dsh=S119549381%3A1770674136892675&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuDOlJT2-R1-ldC9DZUbnuU9BGym9mjq37uNnzfr2XvL3lW4BC1t_MXASJxoIZ06mT485CXH2w&pstMsg=1
+2026-02-09 21:56:25,050 - INFO - [STEP] Login success - reached account page
+2026-02-09 21:56:25,074 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcYNjP_mL6t4pJMFzyaa67TQ3Yc_qdNWaN7CSIcVZqVyduhDU6UafSI9QvhB&checkConnection=youtube%3A478&checkedDomains=youtube&dsh=S119549381%3A1770674136892675&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuDOlJT2-R1-ldC9DZUbnuU9BGym9mjq37uNnzfr2XvL3lW4BC1t_MXASJxoIZ06mT485CXH2w&pstMsg=1
+2026-02-09 21:56:25,074 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-09 21:56:26,453 - INFO - [STEP] Setting up Authenticator for carolynthomas5186@nextgen151.zenvorahgtr.fun
+2026-02-09 21:56:26,453 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-09 21:56:26,942 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-09 21:56:27,131 - INFO - [STEP] Setting up Authenticator for marywillis8833@nextgen151.zenvorahgtr.fun
+2026-02-09 21:56:27,131 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-09 21:56:27,639 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcacmMuwPc4Z8j1Ur9pLEbE75kzDUDK8tnZx1uNltbencHJv-VyTr5FblDJA&checkConnection=youtube%3A569&checkedDomains=youtube&dsh=S-1207432468%3A1770674139431795&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuCVvwafQYF4jMIKK_VNf7-ixRZpm2u2tfa2kbuzELTCZiss6k8T0RJc3XIF9L--vw-U7RQZ-A&pstMsg=1
+[HEARTBEAT] 21:56:27 - Processing... (5/10 completed)
+2026-02-09 21:56:27,924 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcacmMuwPc4Z8j1Ur9pLEbE75kzDUDK8tnZx1uNltbencHJv-VyTr5FblDJA&checkConnection=youtube%3A569&checkedDomains=youtube&dsh=S-1207432468%3A1770674139431795&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuCVvwafQYF4jMIKK_VNf7-ixRZpm2u2tfa2kbuzELTCZiss6k8T0RJc3XIF9L--vw-U7RQZ-A&pstMsg=1
+2026-02-09 21:56:27,924 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-09 21:56:28,934 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:5200%26pstMsg%3D1&tsvesd=1786226183&tsvenfd=0&pli=1
+2026-02-09 21:56:29,188 - INFO - [STEP] Login success - reached account page
+2026-02-09 21:56:29,844 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-09 21:56:30,871 - INFO - [STEP] Setting up Authenticator for rebeccataylor0429@nextgen151.zenvorahgtr.fun
+2026-02-09 21:56:30,871 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-09 21:56:30,952 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:478%26pstMsg%3D1&tsvesd=1786226185&tsvenfd=0&pli=1
+2026-02-09 21:56:31,144 - INFO - [STEP] Login success - reached account page
+2026-02-09 21:56:33,189 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-09 21:56:33,251 - INFO - [STEP] Setting up Authenticator for brittanywhite0808@nextgen151.zenvorahgtr.fun
+2026-02-09 21:56:33,251 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-09 21:56:33,860 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:569%26pstMsg%3D1&tsvesd=1786226188&tsvenfd=0&pli=1
+2026-02-09 21:56:34,205 - INFO - [STEP] Login success - reached account page
+2026-02-09 21:56:34,339 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-09 21:56:35,870 - INFO - [STEP] Setting up Authenticator for aaronvalencia2163@nextgen151.zenvorahgtr.fun
+2026-02-09 21:56:35,870 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-09 21:56:36,449 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+2026-02-09 21:56:36,798 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-09 21:56:37,568 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+[HEARTBEAT] 21:56:37 - Processing... (5/10 completed)
+2026-02-09 21:56:38,451 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-09 21:56:39,246 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-09 21:56:39,571 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-09 21:56:40,118 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+2026-02-09 21:56:40,561 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-09 21:56:40,598 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-09 21:56:41,554 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-09 21:56:41,599 - INFO - [STEP] Extracting secret key...
+2026-02-09 21:56:41,701 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-09 21:56:41,741 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-09 21:56:42,120 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-09 21:56:42,453 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+2026-02-09 21:56:42,638 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-09 21:56:42,691 - INFO - [STEP] Extracted secret key using div[12]: WOEJ****3FSO
+2026-02-09 21:56:42,691 - INFO - [STEP] Secret key successfully extracted: WOEJ****3FSO
+2026-02-09 21:56:42,691 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-09 21:56:42,751 - INFO - [STEP] Extracting secret key...
+2026-02-09 21:56:43,800 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-09 21:56:43,853 - INFO - [STEP] Extracted secret key using div[12]: MDTQ****DQKZ
+2026-02-09 21:56:43,853 - INFO - [STEP] Secret key successfully extracted: MDTQ****DQKZ
+2026-02-09 21:56:43,853 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-09 21:56:44,235 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-09 21:56:44,283 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-09 21:56:44,456 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-09 21:56:44,743 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+2026-02-09 21:56:45,284 - INFO - [STEP] Extracting secret key...
+2026-02-09 21:56:46,324 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-09 21:56:46,357 - INFO - [STEP] Extracted secret key using div[12]: SDS5****7KS4
+2026-02-09 21:56:46,357 - INFO - [STEP] Secret key successfully extracted: SDS5****7KS4
+2026-02-09 21:56:46,357 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-09 21:56:46,551 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-09 21:56:46,581 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-09 21:56:46,746 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-09 21:56:47,582 - INFO - [STEP] Extracting secret key...
+[HEARTBEAT] 21:56:47 - Processing... (5/10 completed)
+2026-02-09 21:56:48,620 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-09 21:56:48,652 - INFO - [STEP] Extracted secret key using div[12]: YGU4****DR5U
+2026-02-09 21:56:48,652 - INFO - [STEP] Secret key successfully extracted: YGU4****DR5U
+2026-02-09 21:56:48,652 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-09 21:56:48,853 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-09 21:56:48,880 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-09 21:56:49,010 - INFO - [STEP] Clicked 'Next' button using div[12]
+2026-02-09 21:56:49,881 - INFO - [STEP] Extracting secret key...
+2026-02-09 21:56:50,131 - INFO - [STEP] Clicked 'Next' button using div[12]
+2026-02-09 21:56:50,912 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-09 21:56:50,950 - INFO - [STEP] Extracted secret key using div[12]: 6EJS****PU32
+2026-02-09 21:56:50,950 - INFO - [STEP] Secret key successfully extracted: 6EJS****PU32
+2026-02-09 21:56:50,950 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-09 21:56:51,013 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-09 21:56:51,013 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-09 21:56:51,013 - INFO - [STEP] Verifying Authenticator setup for carolynthomas5186@nextgen151.zenvorahgtr.fun
+2026-02-09 21:56:51,017 - INFO - [STEP] Generated TOTP code for verification: 864678
+2026-02-09 21:56:52,133 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-09 21:56:52,133 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-09 21:56:52,133 - INFO - [STEP] Verifying Authenticator setup for marywillis8833@nextgen151.zenvorahgtr.fun
+2026-02-09 21:56:52,133 - INFO - [STEP] Generated TOTP code for verification: 083745
+2026-02-09 21:56:52,619 - INFO - [STEP] Clicked 'Next' button using div[12]
+2026-02-09 21:56:54,621 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-09 21:56:54,621 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-09 21:56:54,621 - INFO - [STEP] Verifying Authenticator setup for rebeccataylor0429@nextgen151.zenvorahgtr.fun
+2026-02-09 21:56:54,621 - INFO - [STEP] Generated TOTP code for verification: 741926
+2026-02-09 21:56:54,918 - INFO - [STEP] Clicked 'Next' button using div[12]
+2026-02-09 21:56:56,920 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-09 21:56:56,920 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-09 21:56:56,921 - INFO - [STEP] Verifying Authenticator setup for brittanywhite0808@nextgen151.zenvorahgtr.fun
+2026-02-09 21:56:56,921 - INFO - [STEP] Generated TOTP code for verification: 115546
+2026-02-09 21:56:57,205 - INFO - [STEP] Clicked 'Next' button using div[12]
+[HEARTBEAT] 21:56:57 - Processing... (5/10 completed)
+2026-02-09 21:56:58,315 - INFO - [STEP] Found OTP input using div[12]
+2026-02-09 21:56:59,012 - INFO - [STEP] Entered TOTP code
+2026-02-09 21:56:59,208 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-09 21:56:59,208 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-09 21:56:59,208 - INFO - [STEP] Verifying Authenticator setup for aaronvalencia2163@nextgen151.zenvorahgtr.fun
+2026-02-09 21:56:59,209 - INFO - [STEP] Generated TOTP code for verification: 195972
+2026-02-09 21:56:59,406 - INFO - [STEP] Found OTP input using div[12]
+2026-02-09 21:57:00,090 - INFO - [STEP] Entered TOTP code
+2026-02-09 21:57:01,889 - INFO - [STEP] Found OTP input using div[12]
+2026-02-09 21:57:02,531 - INFO - [STEP] Entered TOTP code
+2026-02-09 21:57:03,124 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-09 21:57:04,183 - INFO - [STEP] Found OTP input using div[12]
+2026-02-09 21:57:04,248 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-09 21:57:04,861 - INFO - [STEP] Entered TOTP code
+2026-02-09 21:57:06,125 - INFO - [STEP] Authenticator verified successfully
+2026-02-09 21:57:06,125 - INFO - [STEP] Navigating to 2-Step Verification page for carolynthomas5186@nextgen151.zenvorahgtr.fun...
+2026-02-09 21:57:06,476 - INFO - [STEP] Found OTP input using div[12]
+2026-02-09 21:57:06,664 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-09 21:57:07,199 - INFO - [STEP] Entered TOTP code
+2026-02-09 21:57:07,250 - INFO - [STEP] Authenticator verified successfully
+2026-02-09 21:57:07,250 - INFO - [STEP] Navigating to 2-Step Verification page for marywillis8833@nextgen151.zenvorahgtr.fun...
+[HEARTBEAT] 21:57:07 - Processing... (5/10 completed)
+2026-02-09 21:57:09,105 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-09 21:57:09,665 - INFO - [STEP] Authenticator verified successfully
+2026-02-09 21:57:09,665 - INFO - [STEP] Navigating to 2-Step Verification page for rebeccataylor0429@nextgen151.zenvorahgtr.fun...
+2026-02-09 21:57:11,354 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-09 21:57:12,108 - INFO - [STEP] Authenticator verified successfully
+2026-02-09 21:57:12,108 - INFO - [STEP] Navigating to 2-Step Verification page for brittanywhite0808@nextgen151.zenvorahgtr.fun...
+2026-02-09 21:57:14,357 - INFO - [STEP] Authenticator verified successfully
+2026-02-09 21:57:14,357 - INFO - [STEP] Navigating to 2-Step Verification page for aaronvalencia2163@nextgen151.zenvorahgtr.fun...
+[HEARTBEAT] 21:57:17 - Processing... (5/10 completed)
+2026-02-09 21:57:19,979 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:57:20,705 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:57:22,888 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:57:25,131 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:57:25,355 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:57:25,886 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:57:27,533 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+[HEARTBEAT] 21:57:27 - Processing... (5/10 completed)
+2026-02-09 21:57:28,053 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:57:30,269 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:57:30,494 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:57:31,031 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:57:32,701 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-09 21:57:33,216 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:57:35,405 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:57:35,522 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+2026-02-09 21:57:35,631 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:57:36,165 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:57:36,290 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+2026-02-09 21:57:37,853 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+[HEARTBEAT] 21:57:37 - Processing... (5/10 completed)
+2026-02-09 21:57:38,387 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:57:38,470 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+2026-02-09 21:57:40,772 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:57:40,839 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+2026-02-09 21:57:42,783 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-09 21:57:42,783 - INFO - [STEP] 2-Step Verification enabled successfully for carolynthomas5186@nextgen151.zenvorahgtr.fun
+2026-02-09 21:57:42,783 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-09 21:57:43,008 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-09 21:57:43,095 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+2026-02-09 21:57:43,563 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-09 21:57:43,563 - INFO - [STEP] 2-Step Verification enabled successfully for marywillis8833@nextgen151.zenvorahgtr.fun
+2026-02-09 21:57:43,563 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-09 21:57:45,723 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-09 21:57:45,723 - INFO - [STEP] 2-Step Verification enabled successfully for rebeccataylor0429@nextgen151.zenvorahgtr.fun
+2026-02-09 21:57:45,723 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-09 21:57:47,788 - INFO - [STEP] Generating App Password for carolynthomas5186@nextgen151.zenvorahgtr.fun
+2026-02-09 21:57:47,789 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+[HEARTBEAT] 21:57:47 - Processing... (5/10 completed)
+2026-02-09 21:57:48,072 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-09 21:57:48,072 - INFO - [STEP] 2-Step Verification enabled successfully for brittanywhite0808@nextgen151.zenvorahgtr.fun
+2026-02-09 21:57:48,072 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-09 21:57:48,565 - INFO - [STEP] Generating App Password for marywillis8833@nextgen151.zenvorahgtr.fun
+2026-02-09 21:57:48,565 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+2026-02-09 21:57:50,420 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-09 21:57:50,420 - INFO - [STEP] 2-Step Verification enabled successfully for aaronvalencia2163@nextgen151.zenvorahgtr.fun
+2026-02-09 21:57:50,420 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-09 21:57:50,729 - INFO - [STEP] Generating App Password for rebeccataylor0429@nextgen151.zenvorahgtr.fun
+2026-02-09 21:57:50,729 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+2026-02-09 21:57:53,077 - INFO - [STEP] Generating App Password for brittanywhite0808@nextgen151.zenvorahgtr.fun
+2026-02-09 21:57:53,077 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+2026-02-09 21:57:55,425 - INFO - [STEP] Generating App Password for aaronvalencia2163@nextgen151.zenvorahgtr.fun
+2026-02-09 21:57:55,425 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+2026-02-09 21:57:56,207 - INFO - [STEP] App passwords page loaded
+2026-02-09 21:57:56,473 - INFO - [STEP] App passwords page loaded
+2026-02-09 21:57:56,890 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-09 21:57:56,891 - INFO - [STEP] Generated app name: App-1770674276
+2026-02-09 21:57:57,023 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-09 21:57:57,023 - INFO - [STEP] Generated app name: App-1770674277
+2026-02-09 21:57:57,101 - INFO - [STEP] Entered app name using regular method
+2026-02-09 21:57:57,287 - INFO - [STEP] Entered app name using regular method
+[HEARTBEAT] 21:57:57 - Processing... (5/10 completed)
+2026-02-09 21:57:58,102 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-09 21:57:58,206 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-09 21:57:58,288 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-09 21:57:58,396 - INFO - [STEP] App passwords page loaded
+2026-02-09 21:57:58,423 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-09 21:57:59,023 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-09 21:57:59,023 - INFO - [STEP] Generated app name: App-1770674279
+2026-02-09 21:57:59,305 - INFO - [STEP] Entered app name using regular method
+2026-02-09 21:58:00,208 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-09 21:58:00,224 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-09 21:58:00,224 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-09 21:58:00,309 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-09 21:58:00,425 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-09 21:58:00,447 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-09 21:58:00,447 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-09 21:58:00,515 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-09 21:58:00,788 - INFO - [STEP] Extracted app password from spans: giqt****mbfy
+2026-02-09 21:58:00,788 - INFO - [STEP] App Password generated successfully
+2026-02-09 21:58:00,790 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-09 21:58:00,790 - INFO - [STORAGE] ✓ Password saved successfully for carolynthomas5186@nextgen151.zenvorahgtr.fun
+2026-02-09 21:58:00,790 - INFO - [LAMBDA] All steps completed successfully for carolynthomas5186@nextgen151.zenvorahgtr.fun in 158.33 seconds
+2026-02-09 21:58:00,959 - INFO - [STEP] Extracted app password from spans: xidh****pavt
+2026-02-09 21:58:00,959 - INFO - [STEP] App Password generated successfully
+2026-02-09 21:58:00,959 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-09 21:58:00,959 - INFO - [STORAGE] ✓ Password saved successfully for marywillis8833@nextgen151.zenvorahgtr.fun
+2026-02-09 21:58:00,959 - INFO - [LAMBDA] All steps completed successfully for marywillis8833@nextgen151.zenvorahgtr.fun in 151.34 seconds
+2026-02-09 21:58:01,056 - INFO - [LAMBDA] Chrome driver closed for carolynthomas5186@nextgen151.zenvorahgtr.fun
+[6/10] ✓ carolynthomas5186@nextgen151.zenvorahgtr.fun - success
+2026-02-09 21:58:01,653 - INFO - [STEP] App passwords page loaded
+2026-02-09 21:58:02,112 - INFO - [LAMBDA] Chrome driver closed for marywillis8833@nextgen151.zenvorahgtr.fun
+[7/10] ✓ marywillis8833@nextgen151.zenvorahgtr.fun - success
+2026-02-09 21:58:02,318 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-09 21:58:02,318 - INFO - [STEP] Generated app name: App-1770674282
+2026-02-09 21:58:02,495 - INFO - [STEP] Entered app name using regular method
+2026-02-09 21:58:02,517 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-09 21:58:02,533 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-09 21:58:02,534 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-09 21:58:02,733 - INFO - [STEP] Extracted app password from spans: nuwo****yelh
+2026-02-09 21:58:02,733 - INFO - [STEP] App Password generated successfully
+2026-02-09 21:58:02,733 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-09 21:58:02,733 - INFO - [STORAGE] ✓ Password saved successfully for rebeccataylor0429@nextgen151.zenvorahgtr.fun
+2026-02-09 21:58:02,733 - INFO - [LAMBDA] All steps completed successfully for rebeccataylor0429@nextgen151.zenvorahgtr.fun in 158.45 seconds
+2026-02-09 21:58:02,819 - INFO - [LAMBDA] Chrome driver closed for rebeccataylor0429@nextgen151.zenvorahgtr.fun
+[8/10] ✓ rebeccataylor0429@nextgen151.zenvorahgtr.fun - success
+2026-02-09 21:58:03,355 - INFO - [STEP] App passwords page loaded
+2026-02-09 21:58:03,496 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-09 21:58:03,615 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-09 21:58:03,925 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-09 21:58:03,925 - INFO - [STEP] Generated app name: App-1770674283
+2026-02-09 21:58:04,140 - INFO - [STEP] Entered app name using regular method
+2026-02-09 21:58:05,142 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-09 21:58:05,239 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-09 21:58:05,617 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-09 21:58:05,637 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-09 21:58:05,637 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-09 21:58:05,887 - INFO - [STEP] Extracted app password from spans: iaud****bedc
+2026-02-09 21:58:05,887 - INFO - [STEP] App Password generated successfully
+2026-02-09 21:58:05,887 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-09 21:58:05,887 - INFO - [STORAGE] ✓ Password saved successfully for brittanywhite0808@nextgen151.zenvorahgtr.fun
+2026-02-09 21:58:05,887 - INFO - [LAMBDA] All steps completed successfully for brittanywhite0808@nextgen151.zenvorahgtr.fun in 154.58 seconds
+2026-02-09 21:58:06,994 - INFO - [LAMBDA] Chrome driver closed for brittanywhite0808@nextgen151.zenvorahgtr.fun
+[9/10] ✓ brittanywhite0808@nextgen151.zenvorahgtr.fun - success
+2026-02-09 21:58:07,241 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-09 21:58:07,255 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-09 21:58:07,256 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-09 21:58:07,418 - INFO - [STEP] Extracted app password from spans: qdkd****tqtr
+2026-02-09 21:58:07,418 - INFO - [STEP] App Password generated successfully
+2026-02-09 21:58:07,418 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-09 21:58:07,418 - INFO - [STORAGE] ✓ Password saved successfully for aaronvalencia2163@nextgen151.zenvorahgtr.fun
+2026-02-09 21:58:07,418 - INFO - [LAMBDA] All steps completed successfully for aaronvalencia2163@nextgen151.zenvorahgtr.fun in 155.46 seconds
+[HEARTBEAT] 21:58:07 - Processing... (9/10 completed)
+2026-02-09 21:58:08,528 - INFO - [LAMBDA] Chrome driver closed for aaronvalencia2163@nextgen151.zenvorahgtr.fun
+[10/10] ✓ aaronvalencia2163@nextgen151.zenvorahgtr.fun - success
+=======================================================
+=== BATCH COMPLETE: 10 succeeded | 0 failed ===
+=======================================================
+2026-02-09 21:58:08,529 - INFO - [BATCH] Completed: 10 succeeded, 0 failed
+<JSON_RESULTS>[{"email": "michaeldudley4874@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "ndaw-kqtt-tpol-lwjq", "secret_key": null, "timings": {"driver_init": 3.37, "login": 64.97, "authenticator_setup": 26.09, "sftp_upload": 0.0, "verify_authenticator": 15.05, "enable_2sv": 36.3, "app_password": 12.38, "save_credential": 0.0, "total": 164.58}}, {"email": "emilyflynn5697@nextgen151.zenvorahgtr.fun", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "vvqc-djbd-aqpg-epto", "secret_key": null, "timings": {"driver_init": 3.23, "login": 66.79, "authenticator_setup": 26.12, "sftp_upload": 0.0, "verify_authenticator": 15.17, "enable_2sv": 36.27, "app_password": 12.19, "save_credential": 0.0, "total": 166.37}}, {"email": "michelehopkins4656@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "iida-rvjg-durs-gluc", "secret_key": null, "timings": {"driver_init": 4.17, "login": 65.72, "authenticator_setup": 27.96, "sftp_upload": 0.0, "verify_authenticator": 15.09, "enable_2sv": 37.62, "app_password": 12.64, "save_credential": 0.0, "total": 171.86}}, {"email": "brianshaw8045@nextgen151.zenvorahgtr.fun", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "qikk-udhm-epor-qafb", "secret_key": null, "timings": {"driver_init": 4.53, "login": 68.5, "authenticator_setup": 26.65, "sftp_upload": 0.0, "verify_authenticator": 15.25, "enable_2sv": 37.14, "app_password": 12.94, "save_credential": 0.0, "total": 173.31}}, {"email": "gabriellewilliams4930@nextgen151.zenvorahgtr.fun", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "rlyz-ylvn-wvmo-badr", "secret_key": null, "timings": {"driver_init": 2.63, "login": 70.31, "authenticator_setup": 25.71, "sftp_upload": 0.0, "verify_authenticator": 15.22, "enable_2sv": 37.71, "app_password": 13.82, "save_credential": 0.0, "total": 173.66}}, {"email": "carolynthomas5186@nextgen151.zenvorahgtr.fun", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "giqt-sqel-udny-mbfy", "secret_key": null, "timings": {"driver_init": 2.69, "login": 54.04, "authenticator_setup": 26.93, "sftp_upload": 0.0, "verify_authenticator": 15.11, "enable_2sv": 36.66, "app_password": 13.0, "save_credential": 0.0, "total": 158.33}}, {"email": "marywillis8833@nextgen151.zenvorahgtr.fun", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "xidh-izbq-hbtc-pavt", "secret_key": null, "timings": {"driver_init": 2.89, "login": 51.26, "authenticator_setup": 27.08, "sftp_upload": 0.0, "verify_authenticator": 15.12, "enable_2sv": 36.31, "app_password": 12.39, "save_credential": 0.0, "total": 151.34}}, {"email": "rebeccataylor0429@nextgen151.zenvorahgtr.fun", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "nuwo-tvsd-dmlq-yelh", "secret_key": null, "timings": {"driver_init": 2.48, "login": 59.43, "authenticator_setup": 25.43, "sftp_upload": 0.0, "verify_authenticator": 15.04, "enable_2sv": 36.06, "app_password": 12.0, "save_credential": 0.0, "total": 158.45}}, {"email": "brittanywhite0808@nextgen151.zenvorahgtr.fun", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "iaud-tjrd-efez-bedc", "secret_key": null, "timings": {"driver_init": 2.03, "login": 54.31, "authenticator_setup": 25.78, "sftp_upload": 0.0, "verify_authenticator": 15.19, "enable_2sv": 35.96, "app_password": 12.81, "save_credential": 0.0, "total": 154.58}}, {"email": "aaronvalencia2163@nextgen151.zenvorahgtr.fun", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "qdkd-nolo-xfwd-tqtr", "secret_key": null, "timings": {"driver_init": 2.68, "login": 54.83, "authenticator_setup": 25.0, "sftp_upload": 0.0, "verify_authenticator": 15.15, "enable_2sv": 36.06, "app_password": 11.99, "save_credential": 0.0, "total": 155.46}}]</JSON_RESULTS>

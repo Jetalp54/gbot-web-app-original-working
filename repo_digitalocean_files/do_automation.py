@@ -4781,44 +4781,55 @@ def generate_app_password(driver, email):
                 
                 # Extract app password from spans first (from reference script extract_app_password_from_spans)
                 logger.info("[STEP] Attempting to extract password from span elements...")
+                sys.stdout.flush()
                 app_password = None
                 
                 span_container_xpaths = [
-                    "//strong[@class='v2CTKd KaSAf']//div[@dir='ltr']",
-                    "//strong[@class='v2CTKd KaSAf']//div",
-                    "//div[@class='lY6Rwe riHXqb']//strong//div",
-                    "//h2[@class='XfTrZ']//strong//div",
-                    "//article//strong//div[@dir='ltr']"
+                    "//div[@dir='ltr']//span",
+                    "//div[@class='v2CTKd KaSAf']//span",
+                    "//div[@class='lY6Rwe riHXqb']//span",
+                    "//strong//span"
                 ]
                 
+                # Method 1: Try specific span containers
                 for xpath in span_container_xpaths:
                     try:
-                        container = WebDriverWait(driver, 5).until(
-                            EC.presence_of_element_located((By.XPATH, xpath))
-                        )
-                        spans = container.find_elements(By.TAG_NAME, "span")
-                        if spans:
-                            password_chars = []
-                            for span in spans:
-                                char = span.text.strip()
-                                if char:
-                                    password_chars.append(char)
-                            
-                            if password_chars:
-                                full_password = ''.join(password_chars)
-                                clean_password = full_password.replace(' ', '')
-                                
-                                # Reconstruct dashes if needed
-                                if len(clean_password) >= 16 and '-' not in clean_password:
-                                    if len(clean_password) == 16:
-                                        clean_password = f"{clean_password[:4]}-{clean_password[4:8]}-{clean_password[8:12]}-{clean_password[12:16]}"
-                                
-                                if len(clean_password) >= 16 and (clean_password.count('-') >= 3 or len(clean_password) == 19):
-                                    app_password = clean_password
-                                    logger.info(f"[STEP] Extracted app password from spans: {app_password[:4]}****{app_password[-4:]}")
+                        spans = driver.find_elements(By.XPATH, xpath)
+                        if spans and len(spans) >= 4:
+                            # Verify they look like password parts (4 chars each usually)
+                            parts = [s.text.strip() for s in spans if s.text.strip()]
+                            if len(parts) >= 4:
+                                app_password = "".join(parts).replace(" ", "")
+                                if len(app_password) == 16:
+                                    logger.info(f"[STEP] Successfully extracted password from spans: {xpath}")
                                     break
-                    except:
+                    except Exception as e:
                         continue
+                
+                # Method 2: Regex search in the dialog text (Fallback)
+                if not app_password:
+                    logger.warning("[STEP] Standard extraction failed. Trying regex search on dialog text...")
+                    try:
+                        dialog_text = driver.find_element(By.XPATH, "//body").text
+                        # Look for pattern: 4 groups of 4 lowercase chars separated by spaces
+                        # e.g., "abcd efgh ijkl mnop"
+                        matches = re.findall(r'\b[a-z]{4} [a-z]{4} [a-z]{4} [a-z]{4}\b', dialog_text)
+                        if matches:
+                            app_password = matches[0].replace(" ", "")
+                            logger.info("[STEP] Successfully extracted password using Regex!")
+                    except Exception as regex_err:
+                        logger.error(f"[STEP] Regex extraction failed: {regex_err}")
+
+                if app_password:
+                    # Validate length
+                    if len(app_password) == 16:
+                        logger.info(f"[STEP] App Password Generated Successfully: {app_password[:4]}...{app_password[-4:]}")
+                        sys.stdout.flush()
+                        return True, app_password, None, None
+                    else:
+                        logger.error(f"[STEP] Extracted password has invalid length: {len(app_password)}")
+
+
                 
                 # Fallback to dynamic XPath patterns if span extraction failed (updated with priority XPath)
                 if not app_password:
@@ -5303,6 +5314,17 @@ def process_single_user(email, password, secret_key=None):
             except:
                 pass
 
+def print_batch_header(total_users: int, parallel_users: int):
+    """
+    Print configuration header for monitoring.
+    Format: "=== BATCH PROCESSING: {total_users} users | {parallel_users} parallel workers ==="
+    """
+    header = f"=== BATCH PROCESSING: {total_users} users | {parallel_users} parallel workers ==="
+    print("=" * len(header))
+    print(header)
+    print("=" * len(header))
+    sys.stdout.flush()
+
 def process_users_batch(users: List[Dict], parallel_users: int = 5) -> List[Dict]:
     """
     Process multiple users in parallel using ThreadPoolExecutor.
@@ -5315,6 +5337,9 @@ def process_users_batch(users: List[Dict], parallel_users: int = 5) -> List[Dict
         List of result dictionaries (one per user)
     """
     total_users = len(users)
+    print_batch_header(total_users, parallel_users)
+    
+    # Print header for monitoring
     
     # Print header for monitoring
     header = f"=== BATCH PROCESSING: {total_users} users | {parallel_users} parallel workers ==="

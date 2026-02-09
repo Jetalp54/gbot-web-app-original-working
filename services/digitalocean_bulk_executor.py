@@ -90,9 +90,12 @@ class BulkExecutionOrchestrator:
         # If droplet_count is 0 or None, we calculate it based on users_per_droplet
         if not droplet_count or droplet_count <= 0:
             if users_per_droplet and users_per_droplet > 0:
-                droplet_count = (len(users) + users_per_droplet - 1) // users_per_droplet
+                calculated_count = (len(users) + users_per_droplet - 1) // users_per_droplet
+                logger.info(f"[{self.execution_id}] Auto-calculated droplet count: {calculated_count} (Users: {len(users)}, Per Droplet: {users_per_droplet})")
+                droplet_count = calculated_count
             else:
                 droplet_count = 1
+                logger.info(f"[{self.execution_id}] Defaulting to 1 droplet (No users_per_droplet specified)")
         
         logger.info(f"[{self.execution_id}] Starting bulk execution: {len(users)} users, {droplet_count} droplets, {parallel_users} total parallel")
         
