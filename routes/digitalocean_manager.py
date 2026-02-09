@@ -906,10 +906,13 @@ def execute_automation():
         db.session.commit()
         
         # Execute in background thread
+        # Pass the actual app object to avoiding import issues in thread
+        app = current_app._get_current_object()
+        
         try:
             execution_thread = threading.Thread(
                 target=_run_bulk_execution_background,
-                args=(orchestrator, users, droplet_count, snapshot_id, region, size, auto_destroy, execution_id)
+                args=(app, orchestrator, users, droplet_count, snapshot_id, region, size, auto_destroy, execution_id)
             )
             execution_thread.daemon = True
             execution_thread.start()
@@ -932,6 +935,7 @@ def execute_automation():
 
 
 def _run_bulk_execution_background(
+    app,
     orchestrator,
     users,
     droplet_count,
@@ -942,9 +946,12 @@ def _run_bulk_execution_background(
     execution_id
 ):
     """Background task for bulk execution"""
-    # Create a new app context for the thread
-    from app import app
+    # Create a new app context for the thread using the passed app object
     with app.app_context():
+        # Inject app into orchestrator for DB access
+        if hasattr(orchestrator, 'set_app'):
+            orchestrator.set_app(app)
+            
         try:
             logger.info(f"THREAD START [{execution_id}]: Starting background execution for {len(users)} users")
             

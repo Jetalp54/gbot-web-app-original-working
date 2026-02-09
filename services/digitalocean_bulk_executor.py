@@ -33,10 +33,18 @@ class BulkExecutionOrchestrator:
         """
         self.config = config
         self.service = service
-        self.app = app
+        self.app = app or current_app # If app not passed, try to grab current (risky in thread if not careful)
+        # Actually, if we pass app in init, we are good.
+        # But wait, in the manager route, we initialized `orchestrator = BulkExecutionOrchestrator(config_dict, service)` 
+        # WITHOUT app.
+        
+        # We need to make sure `execute_bulk` can receive app or we set it later.
+        # Let's check where it's initialized.
+
         self.execution_id = None
-        self.droplets_created = []
-        self.results = []
+    def set_app(self, app):
+        """Set Flask app instance for context"""
+        self.app = app
         
     def execute_bulk(
         self,
