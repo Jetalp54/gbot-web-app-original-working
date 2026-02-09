@@ -974,13 +974,10 @@
                                 </div>
                             `);
 
-                            // 3. If first droplet, auto-select it AND force poll start
+                            // 3. Removed auto-select/auto-show logic to respect visibility preferences
+                            // User must click "View Logs" to see the monitor.
                             if (isFirst) {
                                 $('#dropletLogSelector').val(droplet.droplet_id);
-                                switchToDropletLog(droplet.droplet_id, executionId);
-                            } else if (activePollDropletId === droplet.droplet_id) {
-                                // If we were somehow already polling this ID (reconnect), ensure UI is consistent
-                                switchToDropletLog(droplet.droplet_id, executionId);
                             }
                         }
                     });
@@ -1513,6 +1510,26 @@
 
     .card-header {
         border-radius: 8px 8px 0 0;
+    }
+
+    /* Monitor Responsive & Sizing Fixes */
+    #executionMonitor {
+        max-width: 100% !important;
+        width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    .droplet-log-pane pre {
+        white-space: pre-wrap !important;
+        word-break: break-all !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+        border: 1px solid #333 !important;
+    }
+
+    .container-fluid {
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
     }
 
     code {
