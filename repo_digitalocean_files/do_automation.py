@@ -5302,30 +5302,154 @@ def process_single_user(email, password, secret_key=None):
             except:
                 pass
 
-def main():
-    parser = argparse.ArgumentParser(description='Google Workspace Automation')
-    parser.add_argument('--email', required=True, help='User email')
-    parser.add_argument('--password', required=True, help='User password')
-    parser.add_argument('--output', required=False, help='Output JSON file path')
-    parser.add_argument('--secret_key', required=False, help='Existing 2FA Secret Key')
-    args = parser.parse_args()
-
-    # process_single_user is defined above this block
-    result = process_single_user(args.email, args.password, args.secret_key)
+def process_users_batch(users: List[Dict], parallel_users: int = 5) -> List[Dict]:
+    """
+    Process multiple users in parallel using ThreadPoolExecutor.
     
-    # Print result to stdout as JSON (for immediate feedback/logging)
-    # Wrap in tags for reliable parsing
-    json_output = json.dumps(result)
-    print(f"<JSON_RESULT>{json_output}</JSON_RESULT>")
+    Args:
+        users: List of dicts with 'email', 'password', optional 'secret_key'
+        parallel_users: Number of concurrent threads to use
+        
+    Returns:
+        List of result dictionaries (one per user)
+    """
+    total_users = len(users)
+    
+    # Print header for monitoring
+    header = f"=== BATCH PROCESSING: {total_users} users | {parallel_users} parallel workers ==="
+    separator = "=" * len(header)
+    print(separator)
+    print(header)
+    print(separator)
     sys.stdout.flush()
     
-    # Write to output file if specified (required by DigitalOceanService)
-    if args.output:
+    logger.info(f"[BATCH] Processing {total_users} users with {parallel_users} parallel workers")
+    
+    results = []
+    completed_count = 0
+    lock = threading.Lock()
+    
+    def process_and_track(user_dict):
+        nonlocal completed_count
+        email = user_dict.get('email')
+        password = user_dict.get('password')
+        secret_key = user_dict.get('secret_key')
+        
+        logger.info(f"[BATCH] Starting user {completed_count + 1}/{total_users}: {email}")
+        result = process_single_user(email, password, secret_key)
+        
+        with lock:
+            completed_count += 1
+            status_icon = "✓" if result.get('success') else "✗"
+            print(f"[{completed_count}/{total_users}] {status_icon} {email} - {result.get('status', 'unknown')}")
+            sys.stdout.flush()
+        
+        return result
+    
+    # Process users in parallel
+    with ThreadPoolExecutor(max_workers=parallel_users) as executor:
+        futures = []
+        for user in users:
+            future = executor.submit(process_and_track, user)
+            futures.append(future)
+        
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                logger.error(f"[BATCH] Thread execution failed: {e}")
+                results.append({
+                    'success': False,
+                    'status': 'failed',
+                    'error': f'Thread error: {str(e)}',
+                    'email': 'unknown'
+                })
+    
+    # Print summary
+    success_count = sum(1 for r in results if r.get('success'))
+    fail_count = total_users - success_count
+    print(separator)
+    print(f"=== BATCH COMPLETE: {success_count} succeeded | {fail_count} failed ===")
+    print(separator)
+    sys.stdout.flush()
+    
+    logger.info(f"[BATCH] Completed: {success_count} succeeded, {fail_count} failed")
+    
+    return results
+
+def main():
+    parser = argparse.ArgumentParser(description='Google Workspace Automation')
+    
+    # Single-user mode arguments (backward compatibility)
+    parser.add_argument('--email', required=False, help='User email (single-user mode)')
+    parser.add_argument('--password', required=False, help='User password (single-user mode)')
+    parser.add_argument('--secret_key', required=False, help='Existing 2FA Secret Key (single-user mode)')
+    
+    # Batch mode arguments
+    parser.add_argument('--users-file', required=False, help='JSON file with list of users (batch mode)')
+    parser.add_argument('--parallel-users', type=int, default=5, help='Number of parallel users to process (batch mode)')
+    
+    # Common arguments
+    parser.add_argument('--output', required=False, help='Output JSON file path')
+    
+    args = parser.parse_args()
+    
+    # Determine mode: batch or single-user
+    if args.users_file:
+        # BATCH MODE
         try:
-            with open(args.output, 'w') as f:
-                f.write(json_output)
-        except Exception as e:
-            logger.error(f"Failed to write output to {args.output}: {e}")
+            with open(args.users_file, 'r') as f:
+                users_data = json.load(f)
+            
+            # users_data should be a list of dicts with 'email', 'password', optional 'secret_key'
+            if not isinstance(users_data, list):
+                logger.error("Users file must contain a JSON array of user objects")
+                sys.exit(1)
+            
+            results = process_users_batch(users_data, args.parallel_users)
+            
+            # Print results as JSON array
+            json_output = json.dumps(results)
+            print(f"<JSON_RESULTS>{json_output}</JSON_RESULTS>")
+            sys.stdout.flush()
+            
+            # Write to output file if specified
+            if args.output:
+                try:
+                    with open(args.output, 'w') as f:
+                        f.write(json_output)
+                except Exception as e:
+                    logger.error(f"Failed to write output to {args.output}: {e}")
+                    
+        except FileNotFoundError:
+            logger.error(f"Users file not found: {args.users_file}")
+            sys.exit(1)
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in users file: {e}")
+            sys.exit(1)
+    
+    elif args.email and args.password:
+        # SINGLE-USER MODE (backward compatibility)
+        result = process_single_user(args.email, args.password, args.secret_key)
+        
+        # Print result to stdout as JSON (for immediate feedback/logging)
+        json_output = json.dumps(result)
+        print(f"<JSON_RESULT>{json_output}</JSON_RESULT>")
+        sys.stdout.flush()
+        
+        # Write to output file if specified
+        if args.output:
+            try:
+                with open(args.output, 'w') as f:
+                    f.write(json_output)
+            except Exception as e:
+                logger.error(f"Failed to write output to {args.output}: {e}")
+    
+    else:
+        logger.error("Must provide either --users-file OR (--email and --password)")
+        parser.print_help()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

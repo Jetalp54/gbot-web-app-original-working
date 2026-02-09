@@ -875,19 +875,11 @@ class DigitalOceanService:
             logger.error(f"Error running automation script on {ip_address}: {e}")
             return {'success': False, 'error': str(e)}
 
-    def start_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None, secret_key: str = None, twocaptcha_config: Dict = None) -> Dict:
+    def start_automation_script(self, ip_address: str, email: str = None, password: str = None, ssh_key_path: str = None, log_callback=None, secret_key: str = None, twocaptcha_config: Dict = None, users: List[Dict] = None, parallel_users: int = 5) -> Dict:
         """
         Start the automation script in the background (Async).
         Uploads script and executes with nohup.
-        
-        Args:
-            ip_address: Droplet IP address
-            email: User email
-            password: User password
-            ssh_key_path: Path to SSH private key
-            ssh_key_path: Path to SSH private key
-            log_callback: Optional function(logs: str) to receive setup progress
-            secret_key: Optional 2FA secret key
+        Supports both single-user and batch mode.
         """
         try:
              # Progress update
@@ -935,9 +927,56 @@ class DigitalOceanService:
             )
 
             # 2. Prepare execution
-            cleaned_email = email.replace('@', '_')
-            result_file = f"/tmp/result_{cleaned_email}.json"
-            log_file = f"/var/log/automation_{cleaned_email}.log"
+            cmd_args = ""
+            run_id = int(time.time())
+            
+            if users:
+                # BATCH MODE
+                batch_filename = f"users_batch_{run_id}.json"
+                local_batch_file = os.path.join(os.getcwd(), batch_filename)
+                remote_batch_file = f"/opt/automation/{batch_filename}"
+                
+                # Create local JSON file
+                try:
+                    with open(local_batch_file, 'w') as f:
+                        json.dump(users, f)
+                    
+                    # Upload batch file
+                    if log_callback:
+                        log_callback(f"[{datetime.utcnow().isoformat()}] Uploading batch file ({len(users)} users)...\n", append=True)
+                        
+                    uploaded_batch = self.upload_file_sftp(
+                        ip_address=ip_address,
+                        local_path=local_batch_file,
+                        remote_path=remote_batch_file,
+                        username='root',
+                        ssh_key_path=ssh_key_path
+                    )
+                    
+                    # Cleanup local file
+                    os.remove(local_batch_file)
+                    
+                    if not uploaded_batch:
+                        return {'success': False, 'error': "Failed to upload users batch file"}
+                        
+                except Exception as e:
+                    return {'success': False, 'error': f"Failed to handle batch file: {e}"}
+                
+                result_file = f"/tmp/result_batch_{run_id}.json"
+                log_file = f"/var/log/automation_batch_{run_id}.log"
+                cmd_args = f"--users-file '{remote_batch_file}' --parallel-users {parallel_users} --output {result_file}"
+                
+            elif email and password:
+                # SINGLE USER MODE
+                cleaned_email = email.replace('@', '_')
+                result_file = f"/tmp/result_{cleaned_email}.json"
+                log_file = f"/var/log/automation_{cleaned_email}.log"
+                
+                cmd_args = f"--email '{email}' --password '{password}' --output {result_file}"
+                if secret_key:
+                    cmd_args += f" --secret_key '{secret_key}'"
+            else:
+                return {'success': False, 'error': "Missing user credentials or batch list"}
             
             # Clean up previous runs
             self.execute_ssh_command(
@@ -948,8 +987,6 @@ class DigitalOceanService:
             )
             
             # 3. Execute in background (nohup)
-            # We explicitly verify command construction to ensure non-blocking execution
-            
             # Add 2Captcha environment variables if enabled
             env_vars = ""
             if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
@@ -958,10 +995,6 @@ class DigitalOceanService:
                 if log_callback:
                     log_callback(f"[{datetime.utcnow().isoformat()}] Injecting 2Captcha configuration...\n", append=True)
 
-            cmd_args = f"--email '{email}' --password '{password}' --output {result_file}"
-            if secret_key:
-                cmd_args += f" --secret_key '{secret_key}'"
-                
             # REVERTED: Use absolute path /usr/bin/python3 for safety in non-interactive shells
             run_cmd = f"{env_vars}export PYTHONUNBUFFERED=1 && nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 & echo $!"
             
@@ -992,10 +1025,11 @@ class DigitalOceanService:
             return {'success': False, 'error': str(e)}
 
 
-    def run_automation_script_async_poll(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None, secret_key: str = None, twocaptcha_config: Dict = None) -> Dict:
+    def run_automation_script_async_poll(self, ip_address: str, email: str = None, password: str = None, ssh_key_path: str = None, log_callback=None, secret_key: str = None, twocaptcha_config: Dict = None, users: List[Dict] = None, parallel_users: int = 5) -> Dict:
         """
         Synchronous wrapper for automation script execution (for backward compatibility and bulk execution).
         Starts the script and polls for completion.
+        Supports both single-user and batch mode.
         
         Args:
             log_callback: Optional function(logs: str) to receive real-time logs
@@ -1020,7 +1054,7 @@ class DigitalOceanService:
             # I will apply the secret_key logic here too, but I should probably rename this method to unique name if possible.
             # However, strictly following instructions to update logic.
             
-            start_res = self.start_automation_script(ip_address, email, password, ssh_key_path, log_callback=log_callback, secret_key=secret_key, twocaptcha_config=twocaptcha_config)
+            start_res = self.start_automation_script(ip_address, email, password, ssh_key_path, log_callback=log_callback, secret_key=secret_key, twocaptcha_config=twocaptcha_config, users=users, parallel_users=parallel_users)
             
             if not start_res.get('success'):
                 return start_res
@@ -1035,11 +1069,21 @@ class DigitalOceanService:
             # Wait up to 10 minutes (300 * 2s)
             max_retries = 300 
             
-            logger.info(f"Polling automation status for {email} on {ip_address}...")
+            # Determine suitable pattern for pgrep
+            if users:
+                 # Batch mode: check for script running with --users-file argument
+                 process_pattern = "do_automation.py.*--users-file"
+                 log_identifier = f"batch_{len(users)}_users"
+            else:
+                 # Single user mode: check for specific email
+                 process_pattern = f"do_automation.py.*{email}"
+                 log_identifier = email
+            
+            logger.info(f"Polling automation status for {log_identifier} on {ip_address}...")
             log_cursor = 0
             
             for _ in range(max_retries):
-                 status_res = self.check_automation_status(ip_address, log_file, result_file, ssh_key_path, cursor=log_cursor)
+                 status_res = self.check_automation_status(ip_address, log_file, result_file, ssh_key_path, cursor=log_cursor, process_pattern=process_pattern)
                  
                  # Store new cursor for next iteration
                  if 'next_cursor' in status_res:
@@ -1060,10 +1104,24 @@ class DigitalOceanService:
                  
                  if status == 'completed':
                     result = status_res.get('result') or {}
-                    # Normalize success status across API changes
-                    if 'success' not in result:
-                        result['success'] = result.get('status') == 'success'
-                    return result
+                    
+                    # Batch mode returns a LIST of results
+                    if isinstance(result, list):
+                        # Batch mode result
+                        success_count = sum(1 for r in result if r.get('success'))
+                        total = len(result)
+                        return {
+                            'success': True, 
+                            'results': result,
+                            'batch_success_count': success_count,
+                            'batch_total': total
+                        }
+                    else:
+                        # Single user mode
+                        # Normalize success status across API changes
+                        if 'success' not in result:
+                            result['success'] = result.get('status') == 'success'
+                        return result
                      
                  elif status == 'error':
                      return {'success': False, 'error': status_res.get('error', 'Unknown error during execution')}
@@ -1078,7 +1136,7 @@ class DigitalOceanService:
             logger.error(f"Error in run_automation_script: {e}")
             return {'success': False, 'error': str(e)}
 
-    def check_automation_status(self, ip_address: str, log_file: str, result_file: str, ssh_key_path: str = None, cursor: int = 0) -> Dict:
+    def check_automation_status(self, ip_address: str, log_file: str, result_file: str, ssh_key_path: str = None, cursor: int = 0, process_pattern: str = None) -> Dict:
         """
         Check status of running automation by reading logs and looking for result file.
         Supports incremental log reading via cursor (byte offset).
@@ -1086,8 +1144,10 @@ class DigitalOceanService:
         try:
             # 2. Check if process is running
             # Use pgrep -f to match the exact command line (more robust than grep)
-            # We match 'do_automation.py' and the specific email to avoid false positives
-            is_running_cmd = f"pgrep -f 'do_automation.py.*{email}' > /dev/null && echo 'yes' || echo 'no'"
+            if not process_pattern:
+                process_pattern = "do_automation.py"
+                
+            is_running_cmd = f"pgrep -f '{process_pattern}' > /dev/null && echo 'yes' || echo 'no'"
             _, running_out, _ = self.execute_ssh_command(ip_address, is_running_cmd, 'root', ssh_key_path)
             is_running = running_out.strip() == 'yes'
 

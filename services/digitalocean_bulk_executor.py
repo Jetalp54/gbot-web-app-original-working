@@ -396,144 +396,119 @@ class BulkExecutionOrchestrator:
         self,
         droplet: Dict,
         users: List[Dict],
-        parallel_users: int = 1
+        parallel_users: int = 5
     ) -> List[Dict]:
-        """Execute automation for a batch of users on a single droplet"""
+        """Execute automation for a batch of users on a single droplet using batch processing"""
         results = []
         ip_address = droplet['ip_address']
         
-        logger.info(f"[{self.execution_id}] Processing {len(users)} users on {droplet['name']} ({ip_address})")
+        logger.info(f"[{self.execution_id}] Processing batch of {len(users)} users on {droplet['name']} ({ip_address})")
         
-        # Pre-initialize log directory and file so UI doesn't show "File not found"
+        # 1. Prepare users with secret keys
+        # We need to look up secret keys from DB before sending to droplet
+        enriched_users = []
         try:
-            log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
-            os.makedirs(log_dir, exist_ok=True)
-            log_file_path = os.path.join(log_dir, f"{droplet['id']}.log")
-            if not os.path.exists(log_file_path):
-                with open(log_file_path, 'w', encoding='utf-8') as f:
-                    f.write(f"[{datetime.utcnow().isoformat()}] Initializing connection to droplet {droplet['name']}...\n")
-        except Exception as init_le:
-            logger.error(f"Failed to pre-initialize log file: {init_le}")
+             # Ensure app context
+             if not self.app:
+                 try:
+                     from app import app
+                     self.app = app
+                 except ImportError:
+                     logger.warning(f"[{self.execution_id}] Could not import 'app' for context.")
 
-        try:
-            # Execute automation for multiple users in parallel on this droplet
-            with ThreadPoolExecutor(max_workers=parallel_users) as user_executor:
-                user_futures = []
-                for user in users:
-                    user_futures.append(user_executor.submit(self._execute_single_user_automation, droplet, user))
-                
-                for future in as_completed(user_futures):
-                    try:
-                        res = future.result()
-                        results.append(res)
-                    except Exception as e:
-                        logger.error(f"[{self.execution_id}] Individual user execution failed on {droplet['name']}: {e}")
-                        results.append({
-                            'success': False, 
-                            'email': 'unknown',
-                            'error': f"Thread error: {e}",
-                            'droplet_id': droplet['id']
-                        })
+             if self.app:
+                 with self.app.app_context():
+                     from database import AwsGeneratedPassword
+                     for user in users:
+                         email = user.get('email')
+                         # Create a copy to avoid mutating original list if retry needed later
+                         user_copy = user.copy()
+                         
+                         existing = AwsGeneratedPassword.query.filter_by(email=email).first()
+                         if existing and existing.secret_key:
+                             user_copy['secret_key'] = existing.secret_key
+                             # logger.info(f"[{self.execution_id}] Found secret key for {email}")
+                             
+                         enriched_users.append(user_copy)
+             else:
+                 enriched_users = [u.copy() for u in users]
+                 
         except Exception as e:
-            logger.error(f"[{self.execution_id}] Batch execution failed on {droplet['name']}: {e}")
-            
-        return results
+            logger.error(f"[{self.execution_id}] Error fetching secret keys: {e}")
+            enriched_users = [u.copy() for u in users]
 
-    def _execute_single_user_automation(self, droplet: Dict, user: Dict) -> Dict:
-        """Helper to execute automation for a single user (called in parallel)"""
-        email = user.get('email')
-        password = user.get('password')
-        ip_address = droplet['ip_address']
-        
-        if not email or not password:
-            return {
-                'success': False,
-                'email': email or 'unknown',
-                'error': 'Missing email or password',
-                'droplet_id': droplet['id']
-            }
-        
-        # Define log callback with history preservation and user-specific prefixing
+        # 2. Define Log Callback
         def log_callback(logs, append=False):
-            try:
-                log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
-                os.makedirs(log_dir, exist_ok=True)
-                log_file = os.path.join(log_dir, f"{droplet['id']}.log")
-                
-                # Prefix logs with email
-                prefixed_logs = ""
-                # Handle both string and list inputs
-                log_lines = logs.splitlines() if isinstance(logs, str) else logs
-                     
-                for line in log_lines:
-                    # Avoid double prefixing
-                    prefix = f"[{email}] "
-                    prefixed_logs += (line if prefix in line else f"{prefix}{line}") + "\n"
-                
-                # Since we are now fetching logs incrementally from the droplet, 
-                # we simply append the new chunk to the local file.
-                with open(log_file, 'a', encoding='utf-8') as f:
-                    f.write(prefixed_logs)
-            except Exception as le:
-                logger.error(f"Log callback error for {email}: {le}")
+             try:
+                 log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
+                 os.makedirs(log_dir, exist_ok=True)
+                 log_file = os.path.join(log_dir, f"{droplet['id']}.log")
+                 
+                 # Simply append logs since they come from the single batch execution
+                 with open(log_file, 'a', encoding='utf-8') as f:
+                     if isinstance(logs, str):
+                         f.write(logs)
+                     elif isinstance(logs, list):
+                         f.write("\n".join(logs) + "\n")
+             except Exception as le:
+                 logger.error(f"Log callback error: {le}")
 
-        # Fetch existing secret key if available
-        secret_key = None
-        # Need to import strictly inside method or at top? using inline to be safe
-        from database import AwsGeneratedPassword
-        
+        # 3. Execute Batch
         try:
-            # Ensure we have an app context
-            if not self.app:
-                # Fallback: Try to import app if not set
-                try:
-                    from app import app
-                    self.app = app
-                except ImportError:
-                    logger.warning(f"[{self.execution_id}] Could not import 'app' for context.")
+            # Call the updated service method with batch arguments
+            batch_result = self.service.run_automation_script_async_poll(
+                ip_address=ip_address,
+                ssh_key_path=self.config.get('ssh_private_key_path'),
+                log_callback=log_callback,
+                twocaptcha_config=getattr(self, 'twocaptcha_config', None),
+                users=enriched_users,
+                parallel_users=parallel_users
+            )
             
-            if self.app:
-                with self.app.app_context():
-                    existing_creds = AwsGeneratedPassword.query.filter_by(email=email).first()
-                    if existing_creds and existing_creds.secret_key:
-                        secret_key = existing_creds.secret_key
-                        # logger.info(f"[{self.execution_id}] Found existing secret key for {email}")
+            # 4. Process Results
+            if batch_result.get('results'):
+                user_results = batch_result['results']
+                logger.info(f"[{self.execution_id}] Batch on {droplet['name']} returned {len(user_results)} results")
+                
+                for res in user_results:
+                    email = res.get('email')
+                    
+                    # Save successful ones
+                    if res.get('success'):
+                         self._save_app_password_with_backup(
+                             email, 
+                             res.get('app_password'), 
+                             res.get('secret_key')
+                         )
+                    
+                    # Standardize result format
+                    res['droplet_id'] = droplet['id']
+                    results.append(res)
             else:
-                 logger.warning(f"[{self.execution_id}] No app context - skipping secret key lookup for {email}")
+                # Batch failed or no results list
+                error = batch_result.get('error', 'Unknown batch error attached to execution')
+                logger.error(f"[{self.execution_id}] Batch failed on {droplet['name']}: {error}")
+                
+                # Mark all users as failed if we didn't get individual results
+                for user in users:
+                    results.append({
+                        'success': False,
+                        'email': user['email'],
+                        'error': error,
+                        'droplet_id': droplet['id']
+                    })
+                    
+        except Exception as e:
+            logger.error(f"[{self.execution_id}] Batch execution exception on {droplet['name']}: {e}")
+            for user in users:
+                results.append({
+                    'success': False, 
+                    'email': user['email'], 
+                    'error': str(e), 
+                    'droplet_id': droplet['id']
+                })
 
-        except Exception as db_e:
-            logger.error(f"[{self.execution_id}] DB Lookup failed for {email}: {db_e}")
-
-        # Execute automation via reusable service method (Async Polling version for robustness)
-        # We renamed the async wrapper to run_automation_script_async_poll to distinguish it
-        result_data = self.service.run_automation_script_async_poll(
-            ip_address=ip_address,
-            email=email,
-            password=password,
-            ssh_key_path=self.config.get('ssh_private_key_path'),
-            log_callback=log_callback,
-            secret_key=secret_key,
-            twocaptcha_config=getattr(self, 'twocaptcha_config', None)
-        )
-        
-        # Normalize result (ensure 'success' key exists for easier checking)
-        if 'success' not in result_data:
-            result_data['success'] = result_data.get('status') == 'success'
-        
-        # Add metadata
-        result_data['email'] = email
-        result_data['droplet_id'] = droplet['id']
-        
-        # Save app password and secret key if successful
-        if result_data.get('success'):
-             # Explicitly capture secret_key from result if present
-             returned_secret = result_data.get('secret_key')
-             returned_app_pass = result_data.get('app_password')
-             
-             if returned_app_pass:
-                self._save_app_password_with_backup(email, returned_app_pass, returned_secret)
-            
-        return result_data
+        return results
 
     def _save_app_password_with_backup(self, email: str, app_password: str, secret_key: str = None):
         """
