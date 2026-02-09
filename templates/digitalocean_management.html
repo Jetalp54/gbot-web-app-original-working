@@ -1111,23 +1111,29 @@
 
     // Load Generated Passwords
     function loadGeneratedPasswords() {
+        const executionId = currentExecutionId || 'all';
+
         if (!currentExecutionId) {
-            showMessage('passwordsMessages', '⚠️ No execution found. Please run a bulk execution first.', 'warning');
-            return;
+            showMessage('passwordsMessages', 'ℹ️ No active execution in this session. Loading ALL recent generated passwords...', 'info');
+        } else {
+            showMessage('passwordsMessages', `⏳ Loading passwords from execution: ${currentExecutionId}...`, 'info');
         }
 
-        showMessage('passwordsMessages', `⏳ Loading passwords from execution: ${currentExecutionId}...`, 'info');
-
         $.ajax({
-            url: '/api/do/generated-passwords/' + currentExecutionId,
+            url: '/api/do/generated-passwords/' + executionId,
             method: 'GET',
             success: function (response) {
                 if (response.success) {
                     if (response.passwords.length === 0) {
-                        showMessage('passwordsMessages', '📭 No app passwords found for this execution.', 'warning');
+                        showMessage('passwordsMessages', '📭 No app passwords found.', 'warning');
                         $('#passwordsList').html('');
                     } else {
-                        showMessage('passwordsMessages', `✅ Loaded ${response.passwords.length} passwords from execution ${currentExecutionId}`, 'success');
+                        const count = response.passwords.length;
+                        const msg = currentExecutionId
+                            ? `✅ Loaded ${count} passwords from execution ${currentExecutionId}`
+                            : `✅ Loaded ${count} passwords from database/backups`;
+
+                        showMessage('passwordsMessages', msg, 'success');
                         renderPasswords(response.passwords);
                     }
                 } else {

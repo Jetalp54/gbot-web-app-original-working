@@ -1035,48 +1035,58 @@ def get_execution_status(execution_id):
 def get_generated_passwords(execution_id):
     """Fetch generated passwords from specific execution via backup files OR database"""
     try:
+        passwords = []
+        is_all = (execution_id.lower() == 'all')
+        
         # 1. Try Backup Files (Primary Source for this execution)
         backup_dir = os.path.join(os.getcwd(), 'do_app_passwords_backup')
-        passwords = []
         
         if os.path.exists(backup_dir):
-            # Find all backup files matching this execution
+            # Find all backup files matching this execution OR all if requested
             for filename in os.listdir(backup_dir):
-                if filename.startswith(f"{execution_id}_") and filename.endswith('.json'):
-                    try:
-                        filepath = os.path.join(backup_dir, filename)
-                        with open(filepath, 'r') as f:
-                            data = json.load(f)
-                        
-                        passwords.append({
-                            'email': data.get('email'),
-                            'app_password': data.get('app_password'),
-                            'created_at': data.get('timestamp'),
-                            'updated_at': data.get('db_save_timestamp'),
-                            'saved_to_db': data.get('saved_to_db', False),
-                            'source': 'backup_file'
-                        })
-                    except Exception as e:
-                        logger.error(f"Error reading backup file {filename}: {e}")
-                        continue
-        
-        # 2. Fallback to Database if no files found (or partial files)
-        # This covers cases where files might be missing but DB save succeeded
-        if not passwords:
-            logger.info(f"No backup files found for {execution_id}, checking database...")
-            
-            # Find users associated with this execution via droplets?
-            # Or just check if we have any passwords that might match? 
-            # Since we don't strictly link AwsGeneratedPassword to execution_id in the model (yet),
-            # we rely on the input_users.json if available, OR we just return what we have.
-            
-            # Better approach: execution object knows which users were processed?
-            # Currently `DigitalOceanExecution` doesn't store user list directly in a queryable way easily unless we parse logs.
-            
-            # However, we can check if there are any *fresh* passwords generated around the execution time?
-            # For now, let's just return what we found. If empty, the UI shows "No execution found".
-            
-            pass
+                if filename.endswith('.json'):
+                    if is_all or filename.startswith(f"{execution_id}_"):
+                        try:
+                            filepath = os.path.join(backup_dir, filename)
+                            with open(filepath, 'r') as f:
+                                data = json.load(f)
+                            
+                            passwords.append({
+                                'email': data.get('email'),
+                                'app_password': data.get('app_password'),
+                                'created_at': data.get('timestamp'),
+                                'updated_at': data.get('db_save_timestamp'),
+                                'saved_to_db': data.get('saved_to_db', False),
+                                'source': 'backup_file'
+                            })
+                        except Exception as e:
+                            logger.error(f"Error reading backup file {filename}: {e}")
+                            continue
+
+        # 2. ALSO Fetch from Database if 'all' is requested OR if backups are missing
+        # This ensures we get everything even if files were deleted
+        if is_all or not passwords:
+            logger.info(f"Fetching passwords from DB for execution_id={execution_id}")
+            try:
+                # If specific ID, we can't easily filter unless we added execution_id to the model (which we did in migration but maybe not populated for old ones)
+                # But for 'all', we just get everything.
+                if is_all:
+                    db_passwords = AwsGeneratedPassword.query.all()
+                    
+                    # Deduplicate based on email
+                    existing_emails = set(p['email'] for p in passwords)
+                    
+                    for db_p in db_passwords:
+                        if db_p.email not in existing_emails:
+                            passwords.append({
+                                'email': db_p.email,
+                                'app_password': db_p.app_password,
+                                'created_at': db_p.created_at.isoformat() if db_p.created_at else None,
+                                'source': 'database'
+                            })
+                            existing_emails.add(db_p.email)
+            except Exception as db_e:
+                logger.error(f"Error fetching from DB: {db_e}")
         
         # Sort by email
         passwords.sort(key=lambda x: x['email'])
