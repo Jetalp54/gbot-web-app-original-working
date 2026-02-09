@@ -105,9 +105,15 @@ from selenium.webdriver.common.action_chains import ActionChains
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
 )
 logger = logging.getLogger(__name__)
+
+# Force flush for "SCRIPT INITIALIZING"
+sys.stdout.flush()
 
 # Global Constants
 DEFAULT_TIMEOUT = 10

@@ -962,6 +962,7 @@ class DigitalOceanService:
             if secret_key:
                 cmd_args += f" --secret_key '{secret_key}'"
                 
+            # REVERTED: Use absolute path /usr/bin/python3 for safety in non-interactive shells
             run_cmd = f"{env_vars}export PYTHONUNBUFFERED=1 && nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 & echo $!"
             
             if log_callback:
@@ -975,12 +976,13 @@ class DigitalOceanService:
             )
             
             if success:
-                logger.info(f"Automation script started on {ip_address}")
-                # We don't have the PID easily unless we parse stdout, but we know it started.
-                # Let's try to find PID in stdout if possible, or just return success
-                pid = "unknown"
-                # stdout might contain "1234\n" if we just echoed it, but we complicated it.
-                # For now just return success
+                # Robust PID extraction: take the last line, strip whitespace
+                try:
+                    pid = stdout.strip().splitlines()[-1]
+                except (IndexError, AttributeError):
+                    pid = "unknown"
+                    
+                logger.info(f"Automation script started on {ip_address} with PID: {pid}")
                 return {'success': True, 'message': 'Automation started', 'pid': pid, 'log_file': log_file, 'result_file': result_file}
             else:
                 return {'success': False, 'error': f"Failed to start script: {stderr}"}
@@ -1080,7 +1082,14 @@ class DigitalOceanService:
         Supports incremental log reading via cursor (byte offset).
         """
         try:
-            # 1. Check if result file exists (completed)
+            # 2. Check if process is running
+            # Use pgrep -f to match the exact command line (more robust than grep)
+            # We match 'do_automation.py' and the specific email to avoid false positives
+            is_running_cmd = f"pgrep -f 'do_automation.py.*{email}' > /dev/null && echo 'yes' || echo 'no'"
+            _, running_out, _ = self.execute_ssh_command(ip_address, is_running_cmd, 'root', ssh_key_path)
+            is_running = running_out.strip() == 'yes'
+
+            # 3. Check if result file exists (completed)
             check_cmd = f"[ -f {result_file} ] && echo 'yes' || echo 'no'"
             success, stdout, stderr = self.execute_ssh_command(
                 ip_address=ip_address,
@@ -1091,23 +1100,31 @@ class DigitalOceanService:
             
             is_complete = stdout.strip() == 'yes'
             
-            # 2. Get current file size (next_cursor)
+            # 4. Get current file size (next_cursor)
             size_cmd = f"stat -c%s {log_file} 2>/dev/null || echo '0'"
             _, size_out, _ = self.execute_ssh_command(ip_address, size_cmd, 'root', ssh_key_path)
             new_size = int(size_out.strip() or 0)
 
-            # 3. Read logs (Incremental if cursor > 0)
+            # 5. Read logs (Incremental if cursor > 0)
             if cursor >= new_size:
                 logs = ""
             else:
-                # Use tail to get only new bytes: +N starts at byte N (1-indexed)
-                # So to start after byte 'cursor', we use cursor + 1
                 log_cmd = f"tail -c +{cursor + 1} {log_file}"
                 _, logs, _ = self.execute_ssh_command(ip_address, log_cmd, 'root', ssh_key_path)
             
-            # Return status, new logs, and the new cursor position
+            # Logic Table:
+            # Running | Complete | Status
+            # Yes     | Any      | running
+            # No      | Yes      | completed
+            # No      | No       | error (Crashed)
             
-            if is_complete:
+            if is_running:
+                 return {
+                    'status': 'running',
+                    'logs': logs,
+                    'next_cursor': new_size
+                }
+            elif is_complete:
                 # Retrieve final result
                 local_result = f"/tmp/do_result_{int(time.time())}.json"
                 downloaded = self.download_file_sftp(
@@ -1131,9 +1148,15 @@ class DigitalOceanService:
                     'result': result_data
                 }
             else:
+                # Process is dead AND no result file -> CRASHED
+                error_msg = 'Process crashed unexpectedly (Zombie state)'
+                if logs:
+                    error_msg += f". Last logs: {logs[-200:]}" # Append last 200 chars to error message
+                    
                 return {
-                    'status': 'running',
-                    'logs': logs,
+                    'status': 'error',
+                    'error': error_msg,
+                    'logs': logs, 
                     'next_cursor': new_size
                 }
                 
