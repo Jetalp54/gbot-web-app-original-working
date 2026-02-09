@@ -5250,6 +5250,9 @@ def process_single_user(email, password, secret_key=None):
 
 def main():
     parser = argparse.ArgumentParser(description='Google Workspace Automation')
+    parser.add_argument('--email', required=True, help='User email')
+    parser.add_argument('--password', required=True, help='User password')
+    parser.add_argument('--output', required=False, help='Output JSON file path')
     parser.add_argument('--secret_key', required=False, help='Existing 2FA Secret Key')
     args = parser.parse_args()
 
