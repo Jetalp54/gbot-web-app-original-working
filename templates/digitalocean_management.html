@@ -1124,17 +1124,37 @@
             method: 'GET',
             success: function (response) {
                 if (response.success) {
-                    if (response.passwords.length === 0) {
-                        showMessage('passwordsMessages', '📭 No app passwords found.', 'warning');
+                    let passwords = response.passwords;
+
+                    // Filter by Input Users if present
+                    const inputUsersText = $('#usersList').val().trim();
+                    if (inputUsersText) {
+                        const inputEmails = inputUsersText.split('\n')
+                            .map(line => line.split(':')[0].trim().toLowerCase()) // Handle email:pass format too
+                            .filter(email => email.length > 0);
+
+                        if (inputEmails.length > 0) {
+                            passwords = passwords.filter(p => inputEmails.includes(p.email.toLowerCase()));
+                            console.log(`Filtered passwords from ${response.passwords.length} to ${passwords.length} based on input list.`);
+                        }
+                    }
+
+                    if (passwords.length === 0) {
+                        const msg = inputUsersText
+                            ? '📭 No recent passwords found matching the input users.'
+                            : '📭 No app passwords found.';
+                        showMessage('passwordsMessages', msg, 'warning');
                         $('#passwordsList').html('');
                     } else {
-                        const count = response.passwords.length;
-                        const msg = currentExecutionId
-                            ? `✅ Loaded ${count} passwords from execution ${currentExecutionId}`
-                            : `✅ Loaded ${count} passwords from database/backups`;
+                        const count = passwords.length;
+                        const msg = inputUsersText
+                            ? `✅ Loaded ${count} matching passwords`
+                            : (currentExecutionId
+                                ? `✅ Loaded ${count} passwords from execution ${currentExecutionId}`
+                                : `✅ Loaded ${count} passwords from database/backups`);
 
                         showMessage('passwordsMessages', msg, 'success');
-                        renderPasswords(response.passwords);
+                        renderPasswords(passwords);
                     }
                 } else {
                     showMessage('passwordsMessages', `❌ ${response.error}`, 'danger');
