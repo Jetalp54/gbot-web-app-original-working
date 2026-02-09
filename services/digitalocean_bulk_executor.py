@@ -155,14 +155,18 @@ class BulkExecutionOrchestrator:
             }
             
         except Exception as e:
-            logger.error(f"[{self.execution_id}] Bulk execution failed: {e}")
+            import traceback
+            logger.error(f"[{self.execution_id}] Bulk execution CRASHED: {e}")
+            logger.error(traceback.format_exc())
+            
             # Clean up any created droplets (safety net)
             if self.droplets_created and auto_destroy:
+                logger.warning(f"[{self.execution_id}] Triggering safety cleanup of {len(self.droplets_created)} droplets due to crash.")
                 self._destroy_droplets_parallel(self.droplets_created)
             
             return {
                 'success': False,
-                'error': str(e),
+                'error': f"Crash: {str(e)}",
                 'execution_id': self.execution_id
             }
     
@@ -464,11 +468,28 @@ class BulkExecutionOrchestrator:
         secret_key = None
         # Need to import strictly inside method or at top? using inline to be safe
         from database import AwsGeneratedPassword
-        with self.app.app_context():
-            existing_creds = AwsGeneratedPassword.query.filter_by(email=email).first()
-            if existing_creds and existing_creds.secret_key:
-                secret_key = existing_creds.secret_key
-                # logger.info(f"[{self.execution_id}] Found existing secret key for {email}")
+        
+        try:
+            # Ensure we have an app context
+            if not self.app:
+                # Fallback: Try to import app if not set
+                try:
+                    from app import app
+                    self.app = app
+                except ImportError:
+                    logger.warning(f"[{self.execution_id}] Could not import 'app' for context.")
+            
+            if self.app:
+                with self.app.app_context():
+                    existing_creds = AwsGeneratedPassword.query.filter_by(email=email).first()
+                    if existing_creds and existing_creds.secret_key:
+                        secret_key = existing_creds.secret_key
+                        # logger.info(f"[{self.execution_id}] Found existing secret key for {email}")
+            else:
+                 logger.warning(f"[{self.execution_id}] No app context - skipping secret key lookup for {email}")
+
+        except Exception as db_e:
+            logger.error(f"[{self.execution_id}] DB Lookup failed for {email}: {db_e}")
 
         # Execute automation via reusable service method (Async Polling version for robustness)
         # We renamed the async wrapper to run_automation_script_async_poll to distinguish it
