@@ -12,8 +12,6 @@ import threading
 import time
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
-import re
-import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from database import db, DigitalOceanDroplet, DigitalOceanExecution, AwsGeneratedPassword
@@ -400,144 +398,46 @@ class BulkExecutionOrchestrator:
         users: List[Dict],
         parallel_users: int = 1
     ) -> List[Dict]:
-        """
-        Execute automation for a batch of users on a single droplet using Remote Parallelism.
-        Uploads users.json and runs one script that handles threading internally.
-        """
+        """Execute automation for a batch of users on a single droplet"""
         results = []
         ip_address = droplet['ip_address']
         
-        logger.info(f"[{self.execution_id}] Starting Bulk Execution on {droplet['name']} ({ip_address}) for {len(users)} users with {parallel_users} workers")
+        logger.info(f"[{self.execution_id}] Processing {len(users)} users on {droplet['name']} ({ip_address})")
         
-        # 1. Start Bulk Automation
+        # Pre-initialize log directory and file so UI doesn't show "File not found"
         try:
-           start_res = self.service.run_bulk_automation(
-               ip_address=ip_address,
-               users=users,
-               max_workers=parallel_users, # Pass directly as max_workers
-               ssh_key_path=self._get_ssh_key_path(),
-               twocaptcha_config=self.twocaptcha_config
-           )
-           
-           if not start_res.get('success'):
-               logger.error(f"[{self.execution_id}] Failed to start bulk on {droplet['name']}: {start_res.get('error')}")
-               return [{'email': u['email'], 'success': False, 'error': f"Start failed: {start_res.get('error')}"} for u in users]
-               
-           # Give the remote process 3 seconds to actually register in pgrep/system
-           time.sleep(3)
-           
-           log_file = start_res['log_file']
-           result_file = start_res['result_file']
-           
+            log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
+            os.makedirs(log_dir, exist_ok=True)
+            log_file_path = os.path.join(log_dir, f"{droplet['id']}.log")
+            if not os.path.exists(log_file_path):
+                with open(log_file_path, 'w', encoding='utf-8') as f:
+                    f.write(f"[{datetime.utcnow().isoformat()}] Initializing connection to droplet {droplet['name']}...\n")
+        except Exception as init_le:
+            logger.error(f"Failed to pre-initialize log file: {init_le}")
+
+        try:
+            # Execute automation for multiple users in parallel on this droplet
+            with ThreadPoolExecutor(max_workers=parallel_users) as user_executor:
+                user_futures = []
+                for user in users:
+                    user_futures.append(user_executor.submit(self._execute_single_user_automation, droplet, user))
+                
+                for future in as_completed(user_futures):
+                    try:
+                        res = future.result()
+                        results.append(res)
+                    except Exception as e:
+                        logger.error(f"[{self.execution_id}] Individual user execution failed on {droplet['name']}: {e}")
+                        results.append({
+                            'success': False, 
+                            'email': 'unknown',
+                            'error': f"Thread error: {e}",
+                            'droplet_id': droplet['id']
+                        })
         except Exception as e:
-            logger.error(f"[{self.execution_id}] Exception starting bulk on {droplet['name']}: {e}")
-            return [{'email': u['email'], 'success': False, 'error': str(e)} for u in users]
-
-        # 2. Poll for completion and stream results
-        cursor = 0
-        timeout = 3600 * 24 # 24 hours (long timeout for bulk)
-        start_time = time.time()
-        
-        # Track processed emails to ensure we don't miss any or duplicate
-        processed_emails = set()
-        
-        # Local log file for UI streaming
-        local_log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
-        os.makedirs(local_log_dir, exist_ok=True)
-        local_log_file = os.path.join(local_log_dir, f"{droplet['id']}.log")
-
-        while (time.time() - start_time) < timeout:
-            try:
-                # Check status (pass email=None for bulk mode)
-                status_res = self.service.check_automation_status(
-                    ip_address=ip_address,
-                    log_file=log_file,
-                    result_file=result_file,
-                    ssh_key_path=self._get_ssh_key_path(),
-                    cursor=cursor,
-                    email=None
-                )
-                
-                # Update cursor
-                if 'next_cursor' in status_res:
-                    cursor = status_res['next_cursor']
-                    
-                # Parse logs for JSON results
-                new_logs = status_res.get('logs', '')
-                if new_logs:
-                    # SYNC TO LOCAL LOG FILE (for UI)
-                    with open(local_log_file, 'a', encoding='utf-8') as f:
-                        f.write(new_logs)
-
-                    # Find all <JSON_RESULT>...</JSON_RESULT> blocks
-                    json_matches = re.findall(r'<JSON_RESULT>(.*?)</JSON_RESULT>', new_logs, re.DOTALL)
-                    for json_str in json_matches:
-                        try:
-                           res = json.loads(json_str)
-                           email = res.get('email')
-                           
-                           # Only add if not already processed (deduplication)
-                           # Although logs should be sequential, network retries might cause duplicates?
-                           # Actually, incremental logs shouldn't have duplicates.
-                           # But simpler to just append.
-                           results.append(res)
-                           processed_emails.add(email)
-                           
-                           logger.info(f"[{self.execution_id}] ✓ Result received for {email}: {'Success' if res.get('success') else 'Failed'}")
-                           
-                           # Optional: Update DB real-time?
-                           # For now, we collect all and return.
-                           
-                        except json.JSONDecodeError:
-                            logger.warning(f"Failed to decode JSON result tag: {json_str[:50]}...")
-
-                status = status_res.get('status')
-                
-                if status == 'completed':
-                    logger.info(f"[{self.execution_id}] Bulk execution completed on {droplet['name']}")
-                    
-                    # Merge with final result file if exists (for safety)
-                    final_data = status_res.get('result')
-                    if isinstance(final_data, list):
-                        # Use final data as source of truth if available?
-                        # Or just rely on stream.
-                        # Streaming is better for real-time, but final file matches Phase 2 retries.
-                        # Remote script saves ALL results to file at end.
-                        # So we can just use final_data if available.
-                        pass
-                    
-                    break
-                    
-                elif status == 'error':
-                    # False Positive Protection:
-                    # If process is dead but we haven't even seen a single log line yet,
-                    # and it's within the first 30 seconds, maybe it's just slow to start?
-                    # BUT we already added a sleep(3).
-                    # Let's check if we have ANY results or logs.
-                    if (time.time() - start_time) < 30 and cursor == 0:
-                        logger.warning(f"[{self.execution_id}] Droplet {droplet['name']} report 'error' but no logs yet. Retrying...")
-                        time.sleep(5)
-                        continue
-
-                    error = status_res.get('error', 'Unknown error')
-                    logger.error(f"[{self.execution_id}] Bulk execution crashed on {droplet['name']}: {error}")
-                    # Fill missing users with error
-                    for u in users:
-                        if u['email'] not in processed_emails:
-                            results.append({'email': u['email'], 'success': False, 'error': f"Process crashed: {error}"})
-                    break
-                
-                # Sleep with jitter
-                time.sleep(random.uniform(5.0, 10.0))
-                
-            except Exception as e:
-                logger.error(f"[{self.execution_id}] Error monitoring droplet {droplet['name']}: {e}")
-                time.sleep(10)
-        
+            logger.error(f"[{self.execution_id}] Batch execution failed on {droplet['name']}: {e}")
+            
         return results
-
-    def _execute_single_user_automation(self, droplet: Dict, user: Dict) -> Dict:
-        """Helper to execute automation for a single user (DEPRECATED - Kept for legacy if needed)"""
 
     def _execute_single_user_automation(self, droplet: Dict, user: Dict) -> Dict:
         """Helper to execute automation for a single user (called in parallel)"""

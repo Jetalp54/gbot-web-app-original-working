@@ -5302,137 +5302,30 @@ def process_single_user(email, password, secret_key=None):
             except:
                 pass
 
-def process_users_parallel(users_file, max_workers, output_file=None):
-    """
-    Process users in parallel using internal threading (Remote Parallelism).
-    Phase 1: Process all users.
-    Phase 2: Retry failed users.
-    """
-    try:
-        with open(users_file, 'r') as f:
-            users = json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load users file: {e}")
-        return
-
-    total_users = len(users)
-    logger.info(f"--- STAR LOG: Starting {max_workers} parallel workers for {total_users} total users ---")
-    sys.stdout.flush()
-
-    results = []
-    failed_users = []
-    
-    # Shared lock for writing results safely
-    result_lock = threading.Lock()
-    
-    # Function to save individual result immediately
-    def save_result(result):
-        with result_lock:
-            results.append(result)
-            # Real-time JSON stream to stdout for the UI to pick up
-            print(f"<JSON_RESULT>{json.dumps(result)}</JSON_RESULT>")
-            sys.stdout.flush()
-
-    # PHASE 1: Main Execution
-    logger.info(f"--- PHASE 1: Processing {total_users} users ---")
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_user = {
-            executor.submit(process_single_user, u['email'], u['password'], u.get('secret_key')): u 
-            for u in users
-        }
-        
-        for future in as_completed(future_to_user):
-            user = future_to_user[future]
-            try:
-                res = future.result()
-                save_result(res)
-                if not res.get('success'):
-                    failed_users.append(user)
-                    logger.warning(f"User {user['email']} failed, adding to retry list.")
-            except Exception as exc:
-                logger.error(f"User {user['email']} generated an exception: {exc}")
-                failed_users.append(user)
-                # Create a failure result for the exception
-                save_result({
-                    "email": user['email'],
-                    "success": False,
-                    "status": "failed",
-                    "error_message": f"Thread Exception: {str(exc)}",
-                    "timings": {}
-                })
-
-    # PHASE 2: Retry Failures
-    if failed_users:
-        logger.info(f"--- PHASE 2: Retrying {len(failed_users)} failed users ---")
-        sys.stdout.flush()
-        
-        # We can reuse the same executor logic or simple loop depending on count.
-        # Let's use parallel again for retries.
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_user = {
-                executor.submit(process_single_user, u['email'], u['password'], u.get('secret_key')): u 
-                for u in failed_users
-            }
-            
-            for future in as_completed(future_to_user):
-                user = future_to_user[future]
-                try:
-                    res = future.result()
-                    # We might want to mark this as a retry result
-                    res['is_retry'] = True
-                    save_result(res)
-                except Exception as exc:
-                    logger.error(f"Retry for {user['email']} exception: {exc}")
-    else:
-        logger.info("--- PHASE 2 SKIPPED: No failures to retry ---")
-
-    # SAVE FINAL AGGREGATE IF NEEDED
-    if output_file:
-        try:
-            with open(output_file, 'w') as f:
-                json.dump(results, f, indent=2)
-            logger.info(f"Saved all results to {output_file}")
-        except Exception as e:
-            logger.error(f"Failed to save output file: {e}")
-
-    logger.info("--- ALL PROCESSING COMPLETE ---")
-    sys.stdout.flush()
-
 def main():
     parser = argparse.ArgumentParser(description='Google Workspace Automation')
-    
-    # Mode 1: Single User (Legacy support for test button)
-    parser.add_argument('--email', help='User email')
-    parser.add_argument('--password', help='User password')
-    parser.add_argument('--secret_key', help='Existing 2FA Secret Key')
-    
-    # Mode 2: Bulk Execution (Remote Parallelism)
-    parser.add_argument('--users_file', help='Path to JSON file containing list of users')
-    parser.add_argument('--max_workers', type=int, default=1, help='Number of parallel threads')
-    
+    parser.add_argument('--email', required=True, help='User email')
+    parser.add_argument('--password', required=True, help='User password')
     parser.add_argument('--output', required=False, help='Output JSON file path')
-    
+    parser.add_argument('--secret_key', required=False, help='Existing 2FA Secret Key')
     args = parser.parse_args()
 
-    if args.users_file:
-        # Bulk Parallel Execution
-        process_users_parallel(args.users_file, args.max_workers, args.output)
-    elif args.email and args.password:
-        # Single User Execution
-        result = process_single_user(args.email, args.password, args.secret_key)
-        json_output = json.dumps(result)
-        print(f"<JSON_RESULT>{json_output}</JSON_RESULT>")
-        sys.stdout.flush()
-        if args.output:
-            try:
-                with open(args.output, 'w') as f:
-                    f.write(json_output)
-            except Exception as e:
-                logger.error(f"Failed to write output to {args.output}: {e}")
-    else:
-        logger.error("Invalid arguments: Provide either --users_file OR --email/--password")
-        sys.exit(1)
+    # process_single_user is defined above this block
+    result = process_single_user(args.email, args.password, args.secret_key)
+    
+    # Print result to stdout as JSON (for immediate feedback/logging)
+    # Wrap in tags for reliable parsing
+    json_output = json.dumps(result)
+    print(f"<JSON_RESULT>{json_output}</JSON_RESULT>")
+    sys.stdout.flush()
+    
+    # Write to output file if specified (required by DigitalOceanService)
+    if args.output:
+        try:
+            with open(args.output, 'w') as f:
+                f.write(json_output)
+        except Exception as e:
+            logger.error(f"Failed to write output to {args.output}: {e}")
 
 if __name__ == "__main__":
     main()
