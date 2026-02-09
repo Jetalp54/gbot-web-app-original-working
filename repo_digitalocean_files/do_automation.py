@@ -29,6 +29,7 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+from typing import List, Dict, Any, Optional
 
 # 3rd-party libraries
 # Standard imports
