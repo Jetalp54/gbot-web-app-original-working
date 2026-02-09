@@ -291,6 +291,62 @@ class DigitalOceanService:
             logger.error(f"Error deleting droplet {droplet_id}: {e}")
             return False
     
+    def wait_for_ssh(self, ip_address: str, username: str = 'root', timeout: int = 300, ssh_key_path: Optional[str] = None, log_callback=None) -> bool:
+        """
+        Wait for SSH to become available on the droplet.
+        
+        Args:
+            ip_address: Droplet IP address
+            username: SSH username
+            timeout: Timeout in seconds
+            ssh_key_path: Path to SSH private key (optional)
+            log_callback: Optional function(logs: str) to receive progress
+            
+        Returns:
+            True if SSH is available, False otherwise
+        """
+        start_time = time.time()
+        
+        if log_callback:
+            log_callback(f"[{datetime.utcnow().isoformat()}] Waiting for SSH on {ip_address} (Timeout: {timeout}s)...\n", append=True)
+            
+        while time.time() - start_time < timeout:
+            try:
+                client = paramiko.SSHClient()
+                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                
+                # Try connecting with a short timeout
+                if ssh_key_path and os.path.exists(ssh_key_path):
+                    client.connect(
+                        hostname=ip_address,
+                        username=username,
+                        timeout=5,
+                        key_filename=ssh_key_path
+                    )
+                else:
+                    # Attempt connection without key if not provided or invalid
+                    client.connect(
+                        hostname=ip_address,
+                        username=username,
+                        timeout=5
+                    )
+                client.close()
+                if log_callback:
+                    log_callback(f"[{datetime.utcnow().isoformat()}] SSH Connection ESTABLISHED on {ip_address}.\n", append=True)
+                return True
+            except Exception as e:
+                # Expected while booting
+                time.sleep(5)
+                if int(time.time() - start_time) % 15 == 0: # Log every 15s avoid spam
+                     if log_callback:
+                        log_callback(f"[{datetime.utcnow().isoformat()}] Still waiting for SSH... ({int(time.time() - start_time)}s)\n", append=True)
+        
+        error_msg = f"[{datetime.utcnow().isoformat()}] Timeout waiting for SSH on {ip_address} after {timeout} seconds.\n"
+        if log_callback:
+            log_callback(error_msg, append=True)
+        logger.error(error_msg)
+        return False
+    
     def wait_for_droplet_active(self, droplet_id: str, timeout: int = 300) -> Optional[str]:
         """
         Wait for droplet to become active and return its IP address.
@@ -894,10 +950,12 @@ class DigitalOceanService:
             )
             
             if success:
-                pid = stdout.strip()
-                logger.info(f"Started automation {pid} on {ip_address} for {email}")
-                if log_callback:
-                    log_callback(f"[{datetime.utcnow().isoformat()}] Automation started successfully (PID: {pid}). Monitoring logs...\n", append=True)
+                logger.info(f"Automation script started on {ip_address}")
+                # We don't have the PID easily unless we parse stdout, but we know it started.
+                # Let's try to find PID in stdout if possible, or just return success
+                pid = "unknown"
+                # stdout might contain "1234\n" if we just echoed it, but we complicated it.
+                # For now just return success
                 return {'success': True, 'message': 'Automation started', 'pid': pid, 'log_file': log_file, 'result_file': result_file}
             else:
                 return {'success': False, 'error': f"Failed to start script: {stderr}"}

@@ -899,9 +899,12 @@
                                 </div>
                             `);
 
-                            // 3. If first droplet, auto-select it
+                            // 3. If first droplet, auto-select it AND force poll start
                             if (isFirst) {
                                 $('#dropletLogSelector').val(droplet.droplet_id);
+                                switchToDropletLog(droplet.droplet_id, executionId);
+                            } else if (activePollDropletId === droplet.droplet_id) {
+                                // If we were somehow already polling this ID (reconnect), ensure UI is consistent
                                 switchToDropletLog(droplet.droplet_id, executionId);
                             }
                         }
