@@ -1463,7 +1463,7 @@ def solve_recaptcha_v2(driver, api_key, site_key=None, page_url=None):
                 logger.info(f"[2CAPTCHA] Task created successfully. Task ID: {task_id}")
         except urllib.error.HTTPError as e:
             logger.error(f"[2CAPTCHA] HTTP error creating task: {e}")
-            return False, None, f"HTTP error creating task: {e}"
+            return False, None, f"HTTP error while creating task: {e}"
         except json.JSONDecodeError as e:
             logger.error(f"[2CAPTCHA] Invalid JSON response from 2Captcha: {e}")
             return False, None, f"Invalid response from 2Captcha: {e}"
