@@ -630,7 +630,7 @@ class DigitalOceanService:
         
         return batches
     
-    def run_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None, secret_key: str = None) -> Dict:
+    def run_automation_script(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None) -> Dict:
         """
         Run the automation script synchronously with real-time logging.
         Uploads script, executes with streaming output, and retrieves result.
@@ -641,7 +641,6 @@ class DigitalOceanService:
             password: User password
             ssh_key_path: Path to SSH private key
             log_callback: Optional function to handle real-time logs
-            secret_key: Optional 2FA secret key
             
         Returns:
             Dict containing success status, result data, or error message
@@ -657,7 +656,7 @@ class DigitalOceanService:
                 command="mkdir -p /opt/automation",
                 username='root',
                 ssh_key_path=ssh_key_path
-              )
+            )
 
             if not success:
                  return {'success': False, 'error': f"Failed to create remote directory: {stderr}"}
@@ -704,12 +703,8 @@ class DigitalOceanService:
             )
             
             # Use unbuffered output (-u) for real-time logging
-            cmd_args = f"--email '{email}' --password '{password}' --output {result_file}"
-            if secret_key:
-                cmd_args += f" --secret_key '{secret_key}'"
-            
-            command = f"/usr/bin/python3 -u {remote_script} {cmd_args}"
-            logger.info(f"Running automation on {ip_address} for {email}" + (" with secret_key" if secret_key else ""))
+            command = f"/usr/bin/python3 -u {remote_script} --email '{email}' --password '{password}' --output {result_file}"
+            logger.info(f"Running automation on {ip_address} for {email}")
             
             stdout_full = ""
             if log_callback:
@@ -761,24 +756,22 @@ class DigitalOceanService:
                 return result_data
             
             # Fallback: Try to find JSON result in stdout if file download failed or was invalid
-            # We now use the <JSON_RESULT> tag for 100% reliable extraction
             import re
-            json_match = re.search(r'<JSON_RESULT>(.*?)</JSON_RESULT>', stdout_full, re.DOTALL)
+            # Look for JSON structure containing "success": true
+            json_match = re.search(r'(\{.*"success":\s*true.*\})', stdout_full, re.DOTALL)
+            if not json_match:
+                # Try finding any JSON-like structure at the end of stdout
+                try:
+                    last_line = stdout_full.strip().split('\n')[-1]
+                    if last_line.startswith('{') and last_line.endswith('}'):
+                        json_match = re.search(r'(\{.*\})$', last_line)
+                except:
+                    pass
             
             if json_match:
                 try:
-                    result_data = json.loads(json_match.group(1).strip())
-                    logger.info(f"Recovered automation result from stdout <JSON_RESULT> for {email}")
-                    return result_data
-                except Exception as e:
-                    logger.error(f"Failed to parse delimited JSON in stdout for {email}: {e}")
-            
-            # Legacy fallback as a last resort
-            legacy_match = re.search(r'(\{.*"success":\s*(true|false).*\})', stdout_full, re.DOTALL)
-            if legacy_match:
-                try:
-                    result_data = json.loads(legacy_match.group(1))
-                    logger.info(f"Recovered automation result from stdout (legacy) for {email}")
+                    result_data = json.loads(json_match.group(1))
+                    logger.info(f"Recovered automation result from stdout for {email}")
                     return result_data
                 except:
                     pass

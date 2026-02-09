@@ -82,8 +82,6 @@ class AwsGeneratedPassword(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), nullable=False, unique=True)
     app_password = db.Column(db.String(255), nullable=False)
-    secret_key = db.Column(db.String(100), nullable=True)
-    execution_id = db.Column(db.String(50), nullable=True)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 

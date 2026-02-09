@@ -4878,7 +4878,7 @@ def save_credential(email, app_password, secret_key=None):
 
 
 
-def process_single_user(email, password, known_totp_secret=None):
+def process_single_user(email, password):
     """
     Process a single user account through all steps.
     Returns result dictionary with status, app_password, secret_key, etc.
@@ -4914,7 +4914,7 @@ def process_single_user(email, password, known_totp_secret=None):
             # Step 1: Login
             step_completed = "login"
             step_start = time.time()
-            success, error_code, error_message = login_google(driver, email, password, known_totp_secret=known_totp_secret)
+            success, error_code, error_message = login_google(driver, email, password)
             timings["login"] = round(time.time() - step_start, 2)
             
             if success:
@@ -5197,7 +5197,7 @@ def process_single_user(email, password, known_totp_secret=None):
             "error_step": None,
             "error_message": None,
             "app_password": app_password,
-            "secret_key": secret_key,  # UNMASKED for storage and re-runs
+            "secret_key": secret_key[:4] + "****" + secret_key[-4:] if secret_key else None,  # Masked for security
             "timings": timings
         }
     
@@ -5222,7 +5222,7 @@ def process_single_user(email, password, known_totp_secret=None):
             "error_step": step_completed,
             "error_message": f"Unhandled exception: {str(e)}",
             "app_password": app_password,
-            "secret_key": secret_key, # UNMASKED
+            "secret_key": secret_key[:4] + "****" + secret_key[-4:] if secret_key else None,
             "timings": timings
         }
     
@@ -5239,17 +5239,15 @@ def main():
     parser = argparse.ArgumentParser(description='Google Workspace Automation')
     parser.add_argument('--email', required=True, help='Google email')
     parser.add_argument('--password', required=True, help='Google password')
-    parser.add_argument('--secret_key', required=False, help='TOTP Secret Key')
     parser.add_argument('--output', required=False, help='Path to output JSON result file')
     args = parser.parse_args()
 
     # process_single_user is defined above this block
-    result = process_single_user(args.email, args.password, known_totp_secret=args.secret_key)
+    result = process_single_user(args.email, args.password)
     
-    # Print result to stdout as JSON (with delimiters for robust parsing)
+    # Print result to stdout as JSON (for immediate feedback/logging)
     json_output = json.dumps(result)
-    print(f"<JSON_RESULT>{json_output}</JSON_RESULT>")
-    sys.stdout.flush()
+    print(json_output)
     
     # Write to output file if specified (required by DigitalOceanService)
     if args.output:
