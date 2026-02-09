@@ -2300,33 +2300,10 @@ def handle_post_login_pages(driver, max_attempts=20):
             
             # Check if it's the IAP Challenge (Verify it's you)
             if "challenge/iap" in current_url:
-                logger.info(f"[STEP] IAP Challenge (Verify it's you) detected: {current_url}")
-                try:
-                    # Look for "Continue", "I understand", or "Yes, it's me" buttons
-                    iap_buttons = [
-                        "//span[contains(text(), 'Continue')]",
-                        "//span[contains(text(), 'confirm')]",
-                        "//div[@role='button']//span[contains(text(), 'Continue')]",
-                        "//button[contains(., 'Continue')]",
-                        "//button[contains(., 'I understand')]"
-                    ]
-                    
-                    clicked = False
-                    for xpath in iap_buttons:
-                         if element_exists(driver, xpath, timeout=2):
-                            click_xpath(driver, xpath, timeout=5)
-                            logger.info(f"[STEP] Clicked IAP confirmation button: {xpath}")
-                            time.sleep(3)
-                            clicked = True
-                            break
-                    
-                    if clicked:
-                        continue 
-                    else:
-                        logger.warning("[STEP] Could not find 'Continue' button on IAP challenge")
-                        
-                except Exception as e:
-                    logger.warning(f"[STEP] Failed to handle IAP challenge: {e}")
+                logger.warning(f"[STEP] IAP Challenge (Verify it's you) detected: {current_url}")
+                # User requested to SKIP this user if IAP appears
+                return False, "IAP_CHALLENGE", "IAP Challenge detected - Skipping user"
+
 
             # Check if it's the 2SV Required Interstitial (MUST BE BEFORE myaccount check as it contains myaccount)
             if "interstitials/twosvrequired" in current_url:
@@ -5078,10 +5055,7 @@ def process_single_user(email, password, secret_key=None):
         # If we already have a functional secret, we might skip this? 
         # The current logic seems to assume we ALWAYS want to setup/reset authenticator if not configured.
         # But for this task, let's capture the key it generates.
-        success, message = setup_authenticator(driver, email)
-        # If setup_authenticator returns the secret key (it should be modified to do so), capture it.
-        # Currently it returns (success, message). We need to verify if it can return the key.
-        # For now, let's assume we might need to parse it or it's saved to a file.
+        success, secret_key, error_code, error_message = setup_authenticator(driver, email)
         timings["authenticator_setup"] = round(time.time() - step_start, 2)
         
         if not success:

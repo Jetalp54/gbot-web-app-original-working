@@ -278,41 +278,83 @@
                 </form>
 
                 <div id="bulkExecutionMessages" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
 
-                <!-- Real-Time Execution Monitor -->
-                <div id="executionMonitor" class="mt-4" style="display: none;">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="mb-0"><i class="fa fa-desktop"></i> Real-Time Monitor</h6>
-                        <span class="badge bg-info" id="monitorStatus">Initializing...</span>
-                    </div>
-
-                    <div class="card bg-light border-0">
-                        <div class="card-header border-0 pb-0">
-                            <ul class="nav nav-tabs card-header-tabs" id="dropletTabs" role="tablist">
-                                <!-- Tabs injected here -->
-                                <li class="nav-item">
-                                    <a class="nav-link active" href="#">Loading...</a>
-                                </li>
-                            </ul>
-                        </div>
-                        <div class="card-body bg-white border border-top-0 rounded-bottom">
-                            <div class="tab-content" id="dropletLogsContent">
-                                <!-- Log panes injected here -->
-                                <div class="text-center p-5 text-muted">
-                                    <i class="fa fa-circle-o-notch fa-spin fa-2x"></i><br>
-                                    Waiting for droplets to be created...
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-2 text-end">
-                        <small class="text-muted">Execution ID: <span id="executionId"></span></small>
-                    </div>
+<!-- Active Droplets Status Section (Red Line) -->
+<div id="activeDropletsSection" class="row mt-4" style="display: none;">
+    <div class="col-12">
+        <div class="card border-danger shadow-sm">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fa fa-heartbeat"></i> Active Droplets Monitor
+                </h5>
+                <button class="btn btn-sm btn-light text-danger" onclick="refreshActiveDroplets()">
+                    <i class="fa fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0" id="activeDropletsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Droplet Name</th>
+                                <th>IP Address</th>
+                                <th>Status</th>
+                                <th>Current Activity</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Active droplets injected here -->
+                            <tr>
+                                <td colspan="5" class="text-center py-3">Waiting for execution...</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
+</div>
+
+
+<!-- Real-Time Execution Monitor -->
+<div id="executionMonitor" class="mt-4" style="display: none;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0"><i class="fa fa-desktop"></i> Real-Time Monitor</h6>
+        <span class="badge bg-info" id="monitorStatus">Initializing...</span>
+    </div>
+
+    <div class="card bg-light border-0">
+        <div class="card-header border-0 pb-0">
+            <ul class="nav nav-tabs card-header-tabs" id="dropletTabs" role="tablist">
+                <!-- Tabs injected here -->
+                <li class="nav-item">
+                    <a class="nav-link active" href="#">Loading...</a>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body bg-white border border-top-0 rounded-bottom">
+            <div class="tab-content" id="dropletLogsContent">
+                <!-- Log panes injected here -->
+                <div class="text-center p-5 text-muted">
+                    <i class="fa fa-circle-o-notch fa-spin fa-2x"></i><br>
+                    Waiting for droplets to be created...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-2 text-end">
+        <small class="text-muted">Execution ID: <span id="executionId"></span></small>
+    </div>
+</div>
+</div>
+</div>
+</div>
 </div>
 
 <!-- View Generated App Passwords Section -->
@@ -868,13 +910,42 @@
                 // Process Droplets
                 if (response.droplets && response.droplets.length > 0) {
                     $('#noDropletsMessage').hide();
+                    $('#activeDropletsSection').show(); // Show the new section
+
+                    // Update Active Droplets Table
+                    const tableBody = $('#activeDropletsTable tbody');
+                    tableBody.empty();
 
                     response.droplets.forEach(function (droplet) {
+                        const displayName = droplet.droplet_name.replace('bulk-exec-', '');
+                        // Determine status badge
+                        let statusBadge = '<span class="badge bg-secondary">Unknown</span>';
+                        if (droplet.status === 'active') statusBadge = '<span class="badge bg-success">Active</span>';
+                        else if (droplet.status === 'new') statusBadge = '<span class="badge bg-info">Initializing</span>';
+                        else if (droplet.status === 'off') statusBadge = '<span class="badge bg-dark">Off</span>';
+                        else if (droplet.status === 'archive') statusBadge = '<span class="badge bg-warning text-dark">Archived</span>';
+                        else if (droplet.status === 'destroyed') statusBadge = '<span class="badge bg-danger">Destroyed</span>';
+
+                        // Row HTML
+                        const rowHtml = `
+                            <tr>
+                                <td><strong>${displayName}</strong></td>
+                                <td class="font-monospace">${droplet.ip_address || 'Pending...'}</td>
+                                <td>${statusBadge}</td>
+                                <td>${droplet.current_activity || 'Running automation...'}</td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="switchToDropletLog('${droplet.droplet_id}', '${executionId}')">
+                                        <i class="fa fa-terminal"></i> View Logs
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                        tableBody.append(rowHtml);
+
                         if (!activeDropletIds.has(droplet.droplet_id)) {
                             activeDropletIds.add(droplet.droplet_id);
 
-                            // 1. Add Option to Dropdown
-                            const displayName = droplet.droplet_name.replace('bulk-exec-', '');
+                            // 1. Add Option to Dropdown (Existing logic)
                             const isFirst = $('#dropletLogSelector option').length <= 1; // 1 because of default
 
                             // Remove default "Waiting" if real droplets arrive
@@ -884,7 +955,7 @@
 
                             $('#dropletLogSelector').append(new Option(`${displayName} (${droplet.ip_address})`, droplet.droplet_id));
 
-                            // 2. Create Hidden Log Pane
+                            // 2. Create Hidden Log Pane (Existing logic)
                             // We use .droplet-log-pane class to toggle visibility
                             $('#dropletLogsContent').append(`
                                 <div class="droplet-log-pane" id="pane-${droplet.droplet_id}" style="display: none;">
@@ -912,6 +983,16 @@
                 }
             }
         });
+    }
+
+    // === Refresh Active Droplets Button ===
+    function refreshActiveDroplets() {
+        if (currentExecutionId) {
+            monitorExecution(currentExecutionId);
+        } else {
+            // Try to find execution ID from URL or page state if needed, or just warn
+            showMessage('bulkExecutionMessages', 'No active execution to refresh', 'warning');
+        }
     }
 
     // === Instant Live Logs Polling ===
