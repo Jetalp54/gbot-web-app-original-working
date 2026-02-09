@@ -740,6 +740,9 @@
                         
                         <div class="d-flex align-items-center">
                             <span id="monitorStatusBadge" class="badge bg-secondary me-3">INITIALIZING</span>
+                            <button id="forceRefreshBtn" class="btn btn-sm btn-outline-light" title="Force Refresh Logs">
+                                <i class="fa fa-sync"></i> Refresh
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -751,6 +754,20 @@
                 const dropletId = $(this).val();
                 if (dropletId) {
                     switchToDropletLog(dropletId);
+                }
+            });
+
+            // 2. Force Refresh
+            $('#forceRefreshBtn').on('click', function () {
+                const dropletId = $('#dropletLogSelector').val();
+                const icon = $(this).find('i');
+
+                if (dropletId && currentExecutionId) {
+                    icon.addClass('fa-spin');
+                    pollDropletLog(currentExecutionId, dropletId);
+
+                    // Remove spin after 500ms
+                    setTimeout(() => icon.removeClass('fa-spin'), 500);
                 }
             });
 

@@ -1068,7 +1068,9 @@ class DigitalOceanService:
                  elif status == 'error':
                      return {'success': False, 'error': status_res.get('error', 'Unknown error during execution')}
                  
-                 time.sleep(2)
+                 # Optimization: Random jitter 3-7s to prevent SSH DDoS on droplet
+                 sleep_time = random.uniform(3.0, 7.0)
+                 time.sleep(sleep_time)
             
             return {'success': False, 'error': 'Timeout waiting for automation script to complete'}
             
