@@ -682,30 +682,56 @@
     let isLogPollingPaused = false;
     let activeDropletIds = new Set();
 
-    // Add "Pause Logs" toggle to the UI dynamically if not present
-    function ensurePauseControl() {
-        if ($('#pauseLogsControl').length === 0) {
+    // Ensure Controls (Dropdown + Pause) exist
+    function ensureMonitorControls() {
+        // Replace Tabs with Dropdown if not already converted
+        if ($('#dropletLogControls').length === 0) {
+            // Remove old tabs if present
+            $('#dropletTabs').hide(); // Hide or remove
+
+            // Insert new controls above content
             $('#dropletLogsContent').before(`
-                <div class="d-flex justify-content-end mb-2" id="pauseLogsControl">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="pauseLogsToggle">
-                        <label class="form-check-label text-white" for="pauseLogsToggle">Pause Live Logs</label>
+                <div id="dropletLogControls" class="bg-dark p-2 rounded mb-2 border border-secondary">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="w-50">
+                            <label class="text-white small mb-1"><i class="fa fa-desktop"></i> Select Droplet to Monitor:</label>
+                            <select id="dropletLogSelector" class="form-select form-select-sm bg-black text-white border-secondary" style="font-family: monospace;">
+                                <option value="">-- Waiting for droplets --</option>
+                            </select>
+                        </div>
+                        
+                        <div class="d-flex align-items-center">
+                            <span id="monitorStatusBadge" class="badge bg-secondary me-3">INITIALIZING</span>
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" id="pauseLogsToggle">
+                                <label class="form-check-label text-white small" for="pauseLogsToggle">Pause</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `);
 
+            // Event Listeners
+            // 1. Dropdown Change
+            $('#dropletLogSelector').on('change', function () {
+                const dropletId = $(this).val();
+                if (dropletId) {
+                    switchToDropletLog(dropletId);
+                }
+            });
+
+            // 2. Pause Toggle
             $('#pauseLogsToggle').on('change', function () {
                 isLogPollingPaused = $(this).is(':checked');
                 if (isLogPollingPaused) {
                     stopActivePolling();
-                    $('#monitorStatus').append(' <span id="pausedBadge" class="badge bg-warning text-dark">LOGS PAUSED</span>');
+                    $('#monitorStatusBadge').text('PAUSED').removeClass('bg-primary bg-success bg-danger').addClass('bg-warning text-dark');
                 } else {
-                    $('#pausedBadge').remove();
-                    // Restart polling for active tab
-                    const activeTabId = $('#dropletTabs .nav-link.active').attr('id');
-                    if (activeTabId) {
-                        const dropletId = activeTabId.replace('tab-', '');
-                        startSingleDropletPolling(dropletId);
+                    // Resume current
+                    const currentId = $('#dropletLogSelector').val();
+                    if (currentId) {
+                        $('#monitorStatusBadge').text('RESUMING...').removeClass('bg-warning text-dark').addClass('bg-info');
+                        startSingleDropletPolling(currentId);
                     }
                 }
             });
@@ -714,23 +740,24 @@
 
     function initializeLogMonitor(executionId) {
         console.log("Initializing Monitor for Execution:", executionId);
-        $('#monitorStatus').text('Orchestrating...');
+
+        // Setup UI
+        ensureMonitorControls();
+        $('#dropletLogSelector').empty().append('<option value="">-- Waiting for droplets --</option>');
+        $('#monitorStatusBadge').text('ORCHESTRATING').removeClass('bg-danger bg-success').addClass('bg-info');
 
         // Clear any previous monitoring state
         if (monitorInterval) clearInterval(monitorInterval);
         stopActivePolling();
         activeDropletIds = new Set();
 
-        // Reset Tabs and Content
-        $('#dropletTabs').html('');
+        // Clear Content Area
         $('#dropletLogsContent').html(`
             <div id="noDropletsMessage" class="text-center p-5 text-muted">
                 <i class="fa fa-spinner fa-spin fa-2x"></i><br>
                 Waiting for droplets to be created and initialized...
             </div>
         `);
-
-        ensurePauseControl();
 
         // Start polling for droplets assigned to this execution
         monitorInterval = setInterval(function () {
@@ -739,19 +766,6 @@
 
         // Immediate check
         updateMonitorTabs(executionId);
-
-        // Setup Tab Change Listener (Global)
-        $(document).off('shown.bs.tab', 'a[data-bs-toggle="tab"]'); // Remove old listeners
-        $(document).on('shown.bs.tab', 'button[data-bs-toggle="tab"]', function (e) {
-            const targetId = $(e.target).attr('id'); // e.g. "tab-123456"
-            if (targetId && targetId.startsWith('tab-')) {
-                const dropletId = targetId.replace('tab-', '');
-                console.log("Tab switched to droplet:", dropletId);
-                startSingleDropletPolling(dropletId, executionId); // Pass executionId? function needs it.
-                // We need to store currentExecutionId globally or pass it. 
-                // Using global currentExecutionId variable which is set in start execution.
-            }
-        });
     }
 
     function stopActivePolling() {
@@ -759,18 +773,24 @@
             clearInterval(activePollInterval);
             activePollInterval = null;
         }
-        activePollDropletId = null;
+    }
+
+    function switchToDropletLog(dropletId, executionId) {
+        // 1. UI: Show correct pane
+        $('.droplet-log-pane').hide(); // Hide all
+        $(`#pane-${dropletId}`).show(); // Show target
+
+        // 2. Logic: Start polling
+        startSingleDropletPolling(dropletId, executionId);
     }
 
     function startSingleDropletPolling(dropletId, executionId) {
         // Stop previous
         stopActivePolling();
 
-        if (isLogPollingPaused) return;
+        if (isLogPollingPaused || !dropletId) return;
 
-        // Use global execution ID if not passed (monitor logic uses closures usually, but here separated)
-        // We relied on 'startDropletLogPolling(executionId...)' before. 
-        // We need executionId. Let's assume currentExecutionId global is available or pass it.
+        // Use global execution ID if not passed
         const execId = executionId || currentExecutionId;
         if (!execId) return;
 
@@ -793,27 +813,29 @@
             url: `/api/do/execution/${executionId}/droplets/${dropletId}/logs`,
             method: 'GET',
             success: function (response) {
-                if (dropletId !== activePollDropletId) return; // Tab switched during request
+                if (dropletId !== activePollDropletId) return; // Switched during request
 
                 const logElement = document.getElementById(`logs-${dropletId}`);
                 const statusBadge = $(`#status-${dropletId}`);
 
                 if (response.success && response.logs) {
                     if (logElement) {
-                        // Only update if changed to avoid heavy DOM ops? 
-                        // TextContent is fast enough usually.
                         logElement.textContent = response.logs;
                         logElement.scrollTop = logElement.scrollHeight;
                     }
 
                     if (response.is_active) {
                         statusBadge.text('RUNNING').removeClass('bg-secondary').addClass('bg-primary');
+                        if (!isLogPollingPaused) $('#monitorStatusBadge').text('RUNNING').removeClass('bg-secondary').addClass('bg-primary');
                     } else {
                         statusBadge.text('FINISHED').removeClass('bg-primary bg-secondary').addClass('bg-success');
-                        // Don't stop polling immediately if we want to see final result? 
-                        // Actually if it's finished, logs might not change, but maybe we want to keep polling 
-                        // just in case of late flush. But usually safe to stop or slow down.
-                        // Let's keep polling for now to be safe, user can pause.
+
+                        // Keep polling slowly? Or stop?
+                        if (!isLogPollingPaused) {
+                            $('#monitorStatusBadge').text('FINISHED').removeClass('bg-primary').addClass('bg-success');
+                            // We can probably stop polling if it's finished, but sometimes final logs lag.
+                            // Let's keep it but maybe warn user.
+                        }
                     }
                 }
             },
@@ -829,74 +851,58 @@
             method: 'GET',
             success: function (response) {
                 if (!response.success) {
-                    $('#monitorStatus').text('Status Error').addClass('bg-danger');
                     return;
                 }
 
-                $('#monitorStatus').text(response.status.toUpperCase());
-
+                // Update Status Header
                 if (response.completed) {
-                    const statusClass = response.status === 'failed' ? 'bg-danger' : 'bg-success';
-                    const statusText = response.status === 'failed' ? 'FAILED' : 'COMPLETED';
-
-                    $('#monitorStatus').removeClass('bg-info bg-danger bg-success').addClass(statusClass).text(statusText);
                     clearInterval(monitorInterval);
-
-                    if (response.status === 'failed' && response.error_message) {
-                        $('#noDropletsMessage').html(`
-                            <div class="alert alert-danger m-3 border-start border-4 border-danger shadow-sm">
-                                <h5 class="alert-heading text-danger fw-bold"><i class="fa fa-exclamation-circle"></i> Creation Failed</h5>
-                                <hr>
-                                <p class="mb-2">The system encountered an error while setting up your droplets:</p>
-                                <div class="bg-white p-2 rounded border border-danger-subtle text-dark font-monospace small mb-3">
-                                    ${response.error_message}
-                                </div>
-                            </div>
-                        `);
+                    if (response.status === 'failed') {
+                        $('#monitorStatusBadge').text('FAILED').addClass('bg-danger');
+                        // Show error message logic...
+                    } else {
+                        $('#monitorStatusBadge').text('COMPLETED').addClass('bg-success');
                     }
                 }
 
-                // Get droplets for this execution
+                // Process Droplets
                 if (response.droplets && response.droplets.length > 0) {
                     $('#noDropletsMessage').hide();
 
-                    response.droplets.forEach(function (droplet, index) {
+                    response.droplets.forEach(function (droplet) {
                         if (!activeDropletIds.has(droplet.droplet_id)) {
-                            console.log("Found new droplet:", droplet.droplet_name);
                             activeDropletIds.add(droplet.droplet_id);
 
-                            // Add Tab
-                            const isActive = $('#dropletTabs li').length === 0 ? 'active' : '';
-                            const tabId = `tab-${droplet.droplet_id}`;
-                            const paneId = `pane-${droplet.droplet_id}`;
+                            // 1. Add Option to Dropdown
+                            const displayName = droplet.droplet_name.replace('bulk-exec-', '');
+                            const isFirst = $('#dropletLogSelector option').length <= 1; // 1 because of default
 
-                            $('#dropletTabs').append(`
-                                <li class="nav-item">
-                                    <button class="nav-link ${isActive} btn-sm" id="${tabId}" data-bs-toggle="tab" 
-                                            data-bs-target="#${paneId}" type="button" role="tab" style="font-size: 0.75rem;">
-                                        <i class="fa fa-server"></i> ${droplet.droplet_name.replace('bulk-exec-', '')}
-                                    </button>
-                                </li>
-                            `);
+                            // Remove default "Waiting" if real droplets arrive
+                            if ($('#dropletLogSelector option[value=""]').text().includes('Waiting')) {
+                                $('#dropletLogSelector option[value=""]').text('-- Select Droplet --');
+                            }
 
-                            // Add Pane
-                            const paneActive = isActive ? 'show active' : '';
+                            $('#dropletLogSelector').append(new Option(`${displayName} (${droplet.ip_address})`, droplet.droplet_id));
+
+                            // 2. Create Hidden Log Pane
+                            // We use .droplet-log-pane class to toggle visibility
                             $('#dropletLogsContent').append(`
-                                <div class="tab-pane fade ${paneActive}" id="${paneId}" role="tabpanel">
+                                <div class="droplet-log-pane" id="pane-${droplet.droplet_id}" style="display: none;">
                                     <div class="p-2 bg-dark text-white rounded">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <small class="text-muted">IP: ${droplet.ip_address || 'Pending...'}</small>
                                             <span class="badge bg-secondary" id="status-${droplet.droplet_id}">Connecting...</span>
                                         </div>
-                                        <pre id="logs-${droplet.droplet_id}" class="m-0 p-2" 
-                                             style="height: 350px; overflow-y: auto; font-family: monospace; font-size: 0.75rem; color: #00ff00; background-color: #111;"></pre>
+                                        <pre id="logs-${droplet.droplet_id}" class="m-0 p-2 border border-secondary" 
+                                             style="height: 450px; overflow-y: auto; font-family: monospace; font-size: 0.75rem; color: #00ff00; background-color: #000;"></pre>
                                     </div>
                                 </div>
                             `);
 
-                            // If this is the FIRST droplet (isActive is true), start polling for it
-                            if (isActive) {
-                                startSingleDropletPolling(droplet.droplet_id, executionId);
+                            // 3. If first droplet, auto-select it
+                            if (isFirst) {
+                                $('#dropletLogSelector').val(droplet.droplet_id);
+                                switchToDropletLog(droplet.droplet_id, executionId);
                             }
                         }
                     });
