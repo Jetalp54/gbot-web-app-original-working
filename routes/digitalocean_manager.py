@@ -849,6 +849,8 @@ def execute_automation():
         snapshot_id = data.get('snapshot_id', '').strip()
         region = data.get('region', '').strip()
         size = data.get('size', '').strip()
+        parallel_users = int(data.get('parallel_users', 5))
+        users_per_droplet = int(data.get('users_per_droplet', 50))
         auto_destroy = data.get('auto_destroy', True)
         
         # Validation
@@ -912,7 +914,7 @@ def execute_automation():
         try:
             execution_thread = threading.Thread(
                 target=_run_bulk_execution_background,
-                args=(app, orchestrator, users, droplet_count, snapshot_id, region, size, auto_destroy, execution_id)
+                args=(app, orchestrator, users, droplet_count, snapshot_id, region, size, auto_destroy, execution_id, parallel_users, users_per_droplet)
             )
             execution_thread.daemon = True
             execution_thread.start()
@@ -943,7 +945,9 @@ def _run_bulk_execution_background(
     region,
     size,
     auto_destroy,
-    execution_id
+    execution_id,
+    parallel_users=5,
+    users_per_droplet=50
 ):
     """Background task for bulk execution"""
     # Create a new app context for the thread using the passed app object
@@ -969,7 +973,9 @@ def _run_bulk_execution_background(
                 region=region,
                 size=size,
                 auto_destroy=auto_destroy,
-                execution_id=execution_id
+                execution_id=execution_id,
+                parallel_users=parallel_users,
+                users_per_droplet=users_per_droplet
             )
             
             logger.info(f"THREAD RESULT [{execution_id}]: Orchestrator finished. Success={result.get('success')}, Error={result.get('error')}")

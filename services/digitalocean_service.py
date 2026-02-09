@@ -946,7 +946,7 @@ class DigitalOceanService:
             if secret_key:
                 cmd_args += f" --secret_key '{secret_key}'"
                 
-            run_cmd = f"{env_vars}nohup /usr/bin/python3 {remote_script} {cmd_args} > {log_file} 2>&1 & echo $!"
+            run_cmd = f"{env_vars}export PYTHONUNBUFFERED=1 && nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 & echo $!"
             
             if log_callback:
                 log_callback(f"[{datetime.utcnow().isoformat()}] Starting background automation script on {ip_address}...\n", append=True)
