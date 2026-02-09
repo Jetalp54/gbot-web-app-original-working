@@ -1018,16 +1018,14 @@ class DigitalOceanService:
             max_retries = 300 
             
             logger.info(f"Polling automation status for {email} on {ip_address}...")
+            log_cursor = 0
             
             for _ in range(max_retries):
-                 status_res = self.check_automation_status(ip_address, log_file, result_file, ssh_key_path)
+                 status_res = self.check_automation_status(ip_address, log_file, result_file, ssh_key_path, cursor=log_cursor)
                  
-                 if not status_res.get('success'):
-                     # If check fails (e.g. SSH error), count as error? Or retry?
-                     # We'll retry a few times implicitly by loop, but if it returns explicit success=False, it might be bad.
-                     # Actually check_automation_status returns success=True usually unless exception.
-                     pass
-
+                 # Store new cursor for next iteration
+                 if 'next_cursor' in status_res:
+                     log_cursor = status_res['next_cursor']
                  
                  # Access fields directly (check_automation_status returns direct dict)
                  status = status_res.get('status')
@@ -1060,9 +1058,10 @@ class DigitalOceanService:
             logger.error(f"Error in run_automation_script: {e}")
             return {'success': False, 'error': str(e)}
 
-    def check_automation_status(self, ip_address: str, log_file: str, result_file: str, ssh_key_path: str = None) -> Dict:
+    def check_automation_status(self, ip_address: str, log_file: str, result_file: str, ssh_key_path: str = None, cursor: int = 0) -> Dict:
         """
         Check status of running automation by reading logs and looking for result file.
+        Supports incremental log reading via cursor (byte offset).
         """
         try:
             # 1. Check if result file exists (completed)
@@ -1076,16 +1075,21 @@ class DigitalOceanService:
             
             is_complete = stdout.strip() == 'yes'
             
-            # 2. Read logs (cat to get full history for local file overwrite)
-            log_cmd = f"cat {log_file} || echo ''"  # Ensure it doesn't fail if file missing
-            success, stdout, stderr = self.execute_ssh_command(
-                ip_address=ip_address,
-                command=log_cmd,
-                username='root',
-                ssh_key_path=ssh_key_path
-            )
+            # 2. Get current file size (next_cursor)
+            size_cmd = f"stat -c%s {log_file} 2>/dev/null || echo '0'"
+            _, size_out, _ = self.execute_ssh_command(ip_address, size_cmd, 'root', ssh_key_path)
+            new_size = int(size_out.strip() or 0)
+
+            # 3. Read logs (Incremental if cursor > 0)
+            if cursor >= new_size:
+                logs = ""
+            else:
+                # Use tail to get only new bytes: +N starts at byte N (1-indexed)
+                # So to start after byte 'cursor', we use cursor + 1
+                log_cmd = f"tail -c +{cursor + 1} {log_file}"
+                _, logs, _ = self.execute_ssh_command(ip_address, log_cmd, 'root', ssh_key_path)
             
-            logs = stdout # cat returns content in stdout
+            # Return status, new logs, and the new cursor position
             
             if is_complete:
                 # Retrieve final result
@@ -1107,12 +1111,14 @@ class DigitalOceanService:
                 return {
                     'status': 'completed',
                     'logs': logs,
+                    'next_cursor': new_size,
                     'result': result_data
                 }
             else:
                 return {
                     'status': 'running',
-                    'logs': logs
+                    'logs': logs,
+                    'next_cursor': new_size
                 }
                 
         except Exception as e:

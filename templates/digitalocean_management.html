@@ -855,6 +855,7 @@
     }
 
     function pollDropletLog(executionId, dropletId) {
+        if (isLogPollingPaused) return;
         const cursor = logCursors[dropletId] || 0;
 
         $.ajax({
@@ -938,42 +939,43 @@
                         // Determine status badge
                         let statusBadge = '<span class="badge bg-secondary">Unknown</span>';
                         if (droplet.status === 'active') statusBadge = '<span class="badge bg-success">Active</span>';
-                        else if (droplet.status === 'new') statusBadge = '<span class="badge bg-info">Initializing</span>';
-                        else if (droplet.status === 'off') statusBadge = '<span class="badge bg-dark">Off</span>';
-                        else if (droplet.status === 'archive') statusBadge = '<span class="badge bg-warning text-dark">Archived</span>';
-                        else if (droplet.status === 'destroyed') statusBadge = '<span class="badge bg-danger">Destroyed</span>';
+                        const isNew = !activeDropletIds.has(droplet.droplet_id);
 
-                        // Row HTML
-                        const rowHtml = `
-                            <tr>
-                                <td><strong>${displayName}</strong></td>
-                                <td class="font-monospace">${droplet.ip_address || 'Pending...'}</td>
-                                <td>${statusBadge}</td>
-                                <td>${droplet.current_activity || 'Running automation...'}</td>
-                                <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-primary" onclick="switchToDropletLog('${droplet.droplet_id}', '${executionId}')">
-                                        <i class="fa fa-terminal"></i> View Logs
-                                    </button>
-                                </td>
-                            </tr>
-                        `;
-                        tableBody.append(rowHtml);
+                        // Determine status badge classes and text
+                        let status = droplet.status;
+                        let statusClasses = 'bg-secondary'; // Default unknown
 
-                        if (!activeDropletIds.has(droplet.droplet_id)) {
-                            activeDropletIds.add(droplet.droplet_id);
+                        if (status === 'active') statusClasses = 'bg-success';
+                        else if (status === 'new') statusClasses = 'bg-info';
+                        else if (status === 'off') statusClasses = 'bg-dark';
+                        else if (status === 'archive') statusClasses = 'bg-warning text-dark';
+                        else if (status === 'destroyed') statusClasses = 'bg-danger';
 
-                            // 1. Add Option to Dropdown (Existing logic)
+                        // Status-based refinements
+                        let activity = droplet.current_activity || 'Running automation...';
+                        if (status === 'destroyed') {
+                            activity = 'Finalized / Destroyed';
+                            statusClasses = 'bg-danger'; // Ensure destroyed is always danger
+                        } else if (status === 'new') {
+                            activity = 'Initializing...';
+                        } else if (status === 'off') {
+                            activity = 'Powered Off';
+                        } else if (status === 'archive') {
+                            activity = 'Archived';
+                        }
+
+
+                        if (isNew) {
+                            activeDropletIds.add(droplet.droplet_id); // Add to set for tracking
+
+                            // 1. Add Option to Dropdown
                             const isFirst = $('#dropletLogSelector option').length <= 1; // 1 because of default
-
-                            // Remove default "Waiting" if real droplets arrive
                             if ($('#dropletLogSelector option[value=""]').text().includes('Waiting')) {
                                 $('#dropletLogSelector option[value=""]').text('-- Select Droplet --');
                             }
-
                             $('#dropletLogSelector').append(new Option(`${displayName} (${droplet.ip_address})`, droplet.droplet_id));
 
-                            // 2. Create Hidden Log Pane (Existing logic)
-                            // We use .droplet-log-pane class to toggle visibility
+                            // 2. Create Hidden Log Pane
                             $('#dropletLogsContent').append(`
                                 <div class="droplet-log-pane" id="pane-${droplet.droplet_id}" style="display: none;">
                                     <div class="p-2 bg-dark text-white rounded">
@@ -986,13 +988,23 @@
                                     </div>
                                 </div>
                             `);
-
-                            // 3. Removed auto-select/auto-show logic to respect visibility preferences
-                            // User must click "View Logs" to see the monitor.
-                            if (isFirst) {
-                                $('#dropletLogSelector').val(droplet.droplet_id);
-                            }
+                            if (isFirst) $('#dropletLogSelector').val(droplet.droplet_id);
                         }
+
+                        // Always append row to table as it was emptied
+                        tableBody.append(`
+                            <tr id="row-${droplet.droplet_id}" class="droplet-row">
+                                <td><strong>${displayName}</strong></td>
+                                <td><code class="text-primary">${droplet.ip_address || 'Pending...'}</code></td>
+                                <td><span class="badge ${statusClasses}" id="status-${droplet.droplet_id}">${status.toUpperCase()}</span></td>
+                                <td id="activity-${droplet.droplet_id}">${activity}</td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="switchToDropletLog('${droplet.droplet_id}', '${executionId}')">
+                                        <i class="fa fa-terminal"></i> View Logs
+                                    </button>
+                                </td>
+                            </tr>
+                        `);
                     });
                 }
             }

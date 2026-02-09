@@ -140,8 +140,8 @@ class BulkExecutionOrchestrator:
             
             logger.info(f"[{self.execution_id}] Created {len(droplet_info)} droplets")
             
-            # Calculate parallel users per droplet
-            workers_per_droplet = max(1, parallel_users // final_droplet_count) if final_droplet_count > 0 else 1
+            # Use parallel_users as threads per droplet (as indicated in the UI)
+            workers_per_droplet = parallel_users
             logger.info(f"[{self.execution_id}] Using {workers_per_droplet} parallel workers per droplet")
             
             # 3. Execute automation on each droplet (and destroy if auto_destroy=True)
@@ -463,21 +463,17 @@ class BulkExecutionOrchestrator:
                 # Prefix logs with email
                 prefixed_logs = ""
                 # Handle both string and list inputs
-                if isinstance(logs, str):
-                    log_lines = logs.splitlines()
-                else:
-                     log_lines = logs
+                log_lines = logs.splitlines() if isinstance(logs, str) else logs
                      
                 for line in log_lines:
-                    # Avoid double prefixing if already prefixed
-                    if f"[{email}]" not in line:
-                         prefixed_logs += f"[{email}] {line}\n"
-                    else:
-                         prefixed_logs += f"{line}\n"
+                    # Avoid double prefixing
+                    prefix = f"[{email}] "
+                    prefixed_logs += (line if prefix in line else f"{prefix}{line}") + "\n"
                 
-                # Since multiple users write to the same file, we append to the communal log file.
+                # Since we are now fetching logs incrementally from the droplet, 
+                # we simply append the new chunk to the local file.
                 with open(log_file, 'a', encoding='utf-8') as f:
-                     f.write(prefixed_logs)
+                    f.write(prefixed_logs)
             except Exception as le:
                 logger.error(f"Log callback error for {email}: {le}")
 
