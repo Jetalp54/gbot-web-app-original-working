@@ -423,6 +423,9 @@ class BulkExecutionOrchestrator:
                logger.error(f"[{self.execution_id}] Failed to start bulk on {droplet['name']}: {start_res.get('error')}")
                return [{'email': u['email'], 'success': False, 'error': f"Start failed: {start_res.get('error')}"} for u in users]
                
+           # Give the remote process 3 seconds to actually register in pgrep/system
+           time.sleep(3)
+           
            log_file = start_res['log_file']
            result_file = start_res['result_file']
            
@@ -506,6 +509,16 @@ class BulkExecutionOrchestrator:
                     break
                     
                 elif status == 'error':
+                    # False Positive Protection:
+                    # If process is dead but we haven't even seen a single log line yet,
+                    # and it's within the first 30 seconds, maybe it's just slow to start?
+                    # BUT we already added a sleep(3).
+                    # Let's check if we have ANY results or logs.
+                    if (time.time() - start_time) < 30 and cursor == 0:
+                        logger.warning(f"[{self.execution_id}] Droplet {droplet['name']} report 'error' but no logs yet. Retrying...")
+                        time.sleep(5)
+                        continue
+
                     error = status_res.get('error', 'Unknown error')
                     logger.error(f"[{self.execution_id}] Bulk execution crashed on {droplet['name']}: {error}")
                     # Fill missing users with error
