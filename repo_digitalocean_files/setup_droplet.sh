@@ -55,9 +55,23 @@ rm -rf /var/lib/apt/lists/*
 silent_apt update
 silent_apt upgrade -y
 
-# 2. Install basic dependencies
+# 2. Configure SWAP (Crucial for memory stability with multiple Chromes)
 echo ""
-echo "[2/6] Installing basic dependencies..."
+echo "[2/7] Configuring 2GB Swap file..."
+if [ ! -f /swapfile ]; then
+    fallocate -l 2G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
+    echo "Swap created and enabled."
+else
+    echo "Swap already exists."
+fi
+
+# 3. Install basic dependencies
+echo ""
+echo "[3/7] Installing basic dependencies..."
 silent_apt install -y \
     wget \
     curl \
@@ -77,9 +91,9 @@ silent_apt install -y \
     libgbm1 \
     libxshmfence1
 
-# 3. Install Chrome
+# 4. Install Chrome
 echo ""
-echo "[3/6] Installing Chrome..."
+echo "[4/7] Installing Chrome..."
 wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 silent_apt install -y ./google-chrome-stable_current_amd64.deb
 rm google-chrome-stable_current_amd64.deb
@@ -88,9 +102,9 @@ rm google-chrome-stable_current_amd64.deb
 CHROME_VERSION=$(google-chrome --version | awk '{print $3}')
 echo "Chrome installed: version $CHROME_VERSION"
 
-# 4. Install ChromeDriver
+# 5. Install ChromeDriver
 echo ""
-echo "[4/6] Installing ChromeDriver..."
+echo "[5/7] Installing ChromeDriver..."
 CHROME_MAJOR_VERSION=$(echo "$CHROME_VERSION" | cut -d. -f1)
 echo "Detected Chrome version: $CHROME_VERSION"
 
@@ -130,9 +144,9 @@ chmod +x /usr/local/bin/chromedriver
 CHROMEDRIVER_VER=$(chromedriver --version | awk '{print $2}')
 echo "ChromeDriver installed: version $CHROMEDRIVER_VER"
 
-# 5. Install Python packages
+# 6. Install Python packages
 echo ""
-echo "[5/6] Installing Python packages..."
+echo "[6/7] Installing Python packages..."
 
 # Ensure pip is installed
 if ! command -v pip3 &> /dev/null; then
@@ -150,9 +164,9 @@ pip3 install --no-cache-dir \
     pyotp \
     requests
 
-# Create automation directory
+# 7. Setting up automation environment
 echo ""
-echo "[6/6] Setting up automation environment..."
+echo "[7/7] Setting up automation environment..."
 mkdir -p /opt/automation
 cd /opt/automation
 

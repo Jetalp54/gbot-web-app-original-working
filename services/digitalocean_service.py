@@ -992,6 +992,83 @@ class DigitalOceanService:
             return {'success': False, 'error': str(e)}
 
 
+
+    def run_bulk_automation(self, ip_address: str, users: List[Dict], max_workers: int, ssh_key_path: str = None, log_callback=None, twocaptcha_config: Dict = None) -> Dict:
+        """
+        Start bulk automation by uploading users.json and running the script with internal threading.
+        """
+        try:
+            # 1. Prepare users file locally
+            local_users_file = f"/tmp/users_{ip_address}_{int(time.time())}.json"
+            with open(local_users_file, 'w') as f:
+                json.dump(users, f)
+                
+            remote_users_file = "/opt/automation/users.json"
+            log_file = "/var/log/automation_bulk.log"
+            result_file = "/opt/automation/results.json"
+            
+            # 2. Upload users file
+            if log_callback:
+                log_callback(f"[{datetime.utcnow().isoformat()}] Uploading batch of {len(users)} users to {ip_address}...\n", append=True)
+                
+            self.upload_file_sftp(
+                ip_address=ip_address,
+                local_path=local_users_file,
+                remote_path=remote_users_file,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            # Clean up local file
+            if os.path.exists(local_users_file):
+                os.remove(local_users_file)
+                
+            # 3. Construct Command
+            env_vars = ""
+            if twocaptcha_config and twocaptcha_config.get('enabled') and twocaptcha_config.get('api_key'):
+                api_key = twocaptcha_config.get('api_key')
+                env_vars = f"export TWOCAPTCHA_API_KEY='{api_key}' && export TWOCAPTCHA_ENABLED='true' && "
+                
+            remote_script = "/opt/automation/do_automation.py"
+            
+            # Clean logs (optional, or append)
+            self.execute_ssh_command(
+                ip_address=ip_address,
+                # command=f"rm -f {log_file} {result_file}", # Don't delete if we want to debug, but for now clean slate is cleaner
+                command=f"rm -f {log_file} {result_file}",
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+
+            # Use absolute python path and unbuffered output
+            run_cmd = f"{env_vars}export PYTHONUNBUFFERED=1 && nohup /usr/bin/python3 -u {remote_script} --users_file {remote_users_file} --max_workers {max_workers} --output {result_file} > {log_file} 2>&1 & echo $!"
+            
+            if log_callback:
+                log_callback(f"[{datetime.utcnow().isoformat()}] Starting remote parallel execution ({max_workers} workers)...\n", append=True)
+
+            success, stdout, stderr = self.execute_ssh_command(
+                ip_address=ip_address,
+                command=run_cmd,
+                username='root',
+                ssh_key_path=ssh_key_path
+            )
+            
+            if success:
+                try:
+                    pid = stdout.strip().splitlines()[-1]
+                except (IndexError, AttributeError):
+                    pid = "unknown"
+                    
+                logger.info(f"Bulk automation started on {ip_address} with PID: {pid}")
+                return {'success': True, 'message': 'Bulk Automation started', 'pid': pid, 'log_file': log_file, 'result_file': result_file}
+            else:
+                return {'success': False, 'error': f"Failed to start bulk script: {stderr}"}
+
+        except Exception as e:
+            logger.error(f"Error starting bulk automation on {ip_address}: {e}")
+            return {'success': False, 'error': str(e)}
+
+
     def run_automation_script_async_poll(self, ip_address: str, email: str, password: str, ssh_key_path: str = None, log_callback=None, secret_key: str = None, twocaptcha_config: Dict = None) -> Dict:
         """
         Synchronous wrapper for automation script execution (for backward compatibility and bulk execution).
@@ -1078,7 +1155,7 @@ class DigitalOceanService:
             logger.error(f"Error in run_automation_script: {e}")
             return {'success': False, 'error': str(e)}
 
-    def check_automation_status(self, ip_address: str, log_file: str, result_file: str, ssh_key_path: str = None, cursor: int = 0) -> Dict:
+    def check_automation_status(self, ip_address: str, log_file: str, result_file: str, ssh_key_path: str = None, cursor: int = 0, email: str = None) -> Dict:
         """
         Check status of running automation by reading logs and looking for result file.
         Supports incremental log reading via cursor (byte offset).
@@ -1086,8 +1163,13 @@ class DigitalOceanService:
         try:
             # 2. Check if process is running
             # Use pgrep -f to match the exact command line (more robust than grep)
-            # We match 'do_automation.py' and the specific email to avoid false positives
-            is_running_cmd = f"pgrep -f 'do_automation.py.*{email}' > /dev/null && echo 'yes' || echo 'no'"
+            if email:
+                 # Single user mode
+                 is_running_cmd = f"pgrep -f 'do_automation.py.*{email}' > /dev/null && echo 'yes' || echo 'no'"
+            else:
+                 # Bulk mode (check for users_file arg)
+                 is_running_cmd = f"pgrep -f 'do_automation.py.*--users_file' > /dev/null && echo 'yes' || echo 'no'"
+                 
             _, running_out, _ = self.execute_ssh_command(ip_address, is_running_cmd, 'root', ssh_key_path)
             is_running = running_out.strip() == 'yes'
 
