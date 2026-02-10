@@ -1183,24 +1183,26 @@ def batch_fetch_generated_passwords():
                             continue
                         
                         try:
-                            # filename format: {exec_id}_{email_at_domain}.json
-                            file_email_slug = filename.split('_', 1)[-1].replace('.json', '').replace('_at_', '@').lower()
-                            
-                            if file_email_slug in missing_emails:
-                                with open(os.path.join(backup_dir, filename), 'r') as f:
-                                    bkp = json.load(f)
-                                    results.append({
-                                        'email': bkp.get('email'),
-                                        'app_password': bkp.get('app_password'),
-                                        'secret_key': bkp.get('secret_key'),
-                                        'created_at': bkp.get('timestamp'),
-                                        'execution_id': bkp.get('execution_id'),
-                                        'source': 'backup_file'
-                                    })
-                                    found_emails.add(file_email_slug)
-                                    missing_emails.remove(file_email_slug)
-                                    if not missing_emails:
-                                        break
+                            # NEW ROBUST FILENAME: {email_slug}___{execution_id}.json
+                            if '___' in filename:
+                                email_slug = filename.split('___', 1)[0]
+                                email_from_file = email_slug.replace('_at_', '@').lower()
+                                
+                                if email_from_file in missing_emails:
+                                    with open(os.path.join(backup_dir, filename), 'r') as f:
+                                        bkp = json.load(f)
+                                        results.append({
+                                            'email': bkp.get('email'),
+                                            'app_password': bkp.get('app_password'),
+                                            'secret_key': bkp.get('secret_key'),
+                                            'created_at': bkp.get('timestamp'),
+                                            'execution_id': bkp.get('execution_id'),
+                                            'source': 'backup_file'
+                                        })
+                                        found_emails.add(email_from_file)
+                                        missing_emails.remove(email_from_file)
+                                        if not missing_emails:
+                                            break
                         except:
                             continue
                 except Exception as bkp_err:

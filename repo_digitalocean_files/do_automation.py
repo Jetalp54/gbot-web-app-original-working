@@ -5437,6 +5437,18 @@ def process_users_batch(users: List[Dict], parallel_users: int = 5) -> List[Dict
         logger.info(f"[BATCH] Starting user {completed_count + 1}/{total_users}: {email}")
         result = process_single_user(email, password, secret_key)
         
+        # Real-time reporting for the main application to capture via SSH
+        if result.get('success'):
+            reporting_data = {
+                'email': email,
+                'app_password': result.get('app_password'),
+                'secret_key': result.get('secret_key'),
+                'success': True,
+                'status': result.get('status')
+            }
+            print(f"SAVED_PASSWORD:{json.dumps(reporting_data)}")
+            sys.stdout.flush()
+        
         with lock:
             completed_count += 1
             status_icon = "✓" if result.get('success') else "✗"
@@ -5532,6 +5544,18 @@ def main():
         # SINGLE-USER MODE (backward compatibility)
         result = process_single_user(args.email, args.password, args.secret_key)
         
+        # Real-time reporting for the main application to capture via SSH
+        if result.get('success'):
+            reporting_data = {
+                'email': args.email,
+                'app_password': result.get('app_password'),
+                'secret_key': result.get('secret_key'),
+                'success': True,
+                'status': result.get('status')
+            }
+            print(f"SAVED_PASSWORD:{json.dumps(reporting_data)}")
+            sys.stdout.flush()
+            
         # Print result to stdout as JSON (for immediate feedback/logging)
         json_output = json.dumps(result)
         print(f"<JSON_RESULT>{json_output}</JSON_RESULT>")

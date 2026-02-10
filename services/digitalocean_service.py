@@ -1029,7 +1029,7 @@ class DigitalOceanService:
             return {'success': False, 'error': str(e)}
 
 
-    def run_automation_script_async_poll(self, ip_address: str, email: str = None, password: str = None, ssh_key_path: str = None, log_callback=None, secret_key: str = None, twocaptcha_config: Dict = None, users: List[Dict] = None, parallel_users: int = 5) -> Dict:
+    def run_automation_script_async_poll(self, ip_address: str, email: str = None, password: str = None, ssh_key_path: str = None, log_callback=None, secret_key: str = None, twocaptcha_config: Dict = None, users: List[Dict] = None, parallel_users: int = 5, on_result=None) -> Dict:
         """
         Synchronous wrapper for automation script execution (for backward compatibility and bulk execution).
         Starts the script and polls for completion.
@@ -1037,27 +1037,10 @@ class DigitalOceanService:
         
         Args:
             log_callback: Optional function(logs: str) to receive real-time logs
+            on_result: Optional function(result: dict) to receive real-time individual results (for batch)
         """
         try:
             # 1. Start execution (Passing log_callback for setup transparency)
-            # NOTE: Synchronous run_automation_script (the other one) was updated above. 
-            # This appears to be a duplicate method definition (overloading attempt?).
-            # Python doesn't support overloading. The LAST definition wins.
-            # ERROR: Lines 633-887 define `run_automation_script` (SYNC).
-            # Lines 890-1016 define `run_automation_script` (ASYNC WRAPPER).
-            # The second definition (lines 890+) is OVERWRITING the first one.
-            # This means the code I modified in chunks 1, 2, 3 (lines 633-887) IS HIDDEN/LOST if I don't fix this.
-            
-            # FIX: I need to rename the async wrapper or merge them.
-            # But since I'm editing the file, I should probably rename the second one to avoid conflict 
-            # OR realize that the first one is the "Real" sync implementation and the second one is the "Async Poller".
-            
-            # The first one (lines 633-788) uploads and runs synchronously via SSH streaming.
-            # The second one (lines 890-956) calls start_automation_script (async) and then pools.
-            
-            # I will apply the secret_key logic here too, but I should probably rename this method to unique name if possible.
-            # However, strictly following instructions to update logic.
-            
             start_res = self.start_automation_script(ip_address, email, password, ssh_key_path, log_callback=log_callback, secret_key=secret_key, twocaptcha_config=twocaptcha_config, users=users, parallel_users=parallel_users)
             
             if not start_res.get('success'):
@@ -1106,6 +1089,21 @@ class DigitalOceanService:
                      accumulated_logs += logs
                      if log_callback:
                          log_callback(logs)
+                     
+                     # NEW: Real-time result scanning from logs
+                     if on_result:
+                         import re
+                         # Scan for SAVED_PASSWORD:{"...": "..."} lines
+                         # Using line-by-line match for safety
+                         for line in logs.splitlines():
+                             if line.startswith('SAVED_PASSWORD:'):
+                                 try:
+                                     json_str = line.split('SAVED_PASSWORD:', 1)[1]
+                                     real_time_result = json.loads(json_str)
+                                     logger.info(f"Detected real-time password report for {real_time_result.get('email')}")
+                                     on_result(real_time_result)
+                                 except Exception as e:
+                                     logger.error(f"Failed to parse real-time password report: {e}")
                  
                  if status == 'completed':
                     result = status_res.get('result') or {}
@@ -1125,7 +1123,11 @@ class DigitalOceanService:
 
                     # Batch mode returns a LIST of results
                     if isinstance(result, list):
-                        # Batch mode result
+                        # Batch mode result: Normalize success key for each entry
+                        for r in result:
+                            if 'success' not in r:
+                                r['success'] = r.get('status') == 'success'
+                        
                         success_count = sum(1 for r in result if r.get('success'))
                         total = len(result)
                         return {
