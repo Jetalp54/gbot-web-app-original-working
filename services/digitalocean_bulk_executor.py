@@ -33,15 +33,10 @@ class BulkExecutionOrchestrator:
         """
         self.config = config
         self.service = service
-        self.app = app or current_app # If app not passed, try to grab current (risky in thread if not careful)
-        # Actually, if we pass app in init, we are good.
-        # But wait, in the manager route, we initialized `orchestrator = BulkExecutionOrchestrator(config_dict, service)` 
-        # WITHOUT app.
-        
-        # We need to make sure `execute_bulk` can receive app or we set it later.
-        # Let's check where it's initialized.
-
+        self.app = app or current_app
         self.execution_id = None
+        self.droplets_created = [] # Tracker for cleanup
+
     def set_app(self, app):
         """Set Flask app instance for context"""
         self.app = app
@@ -86,6 +81,12 @@ class BulkExecutionOrchestrator:
         exec_start = datetime.utcnow()
         self.execution_id = execution_id or f"exec_{int(time.time())}"
         
+        # 0. Ensure log directory exists for this execution
+        root_path = self.app.root_path if self.app else os.getcwd()
+        log_dir = os.path.join(root_path, 'logs', 'bulk_executions', self.execution_id)
+        os.makedirs(log_dir, exist_ok=True)
+        logger.info(f"[{self.execution_id}] Created log directory: {log_dir}")
+
         # Determine efficient distribution
         # If droplet_count is 0 or None, we calculate it based on users_per_droplet
         if not droplet_count or droplet_count <= 0:
@@ -444,23 +445,45 @@ class BulkExecutionOrchestrator:
             # Idempotency set to prevent saving same user twice (real-time + final)
             saved_emails = set()
             
+            # --- LOGGING SETUP ---
+            # Create a dedicated log file for this droplet for the Monitor UI
+            root_path = self.app.root_path if self.app else os.getcwd()
+            log_dir = os.path.join(root_path, 'logs', 'bulk_executions', self.execution_id)
+            os.makedirs(log_dir, exist_ok=True)
+            droplet_log_file = os.path.join(log_dir, f"{droplet['id']}.log")
+            
+            logger.info(f"[{self.execution_id}] Setting up local log file for droplet {droplet['name']}: {droplet_log_file}")
+            
+            def droplet_log_callback(msg, append=True):
+                """Callback to write remote logs to a local file for the UI monitor"""
+                try:
+                    mode = 'a' if append else 'w'
+                    with open(droplet_log_file, mode, encoding='utf-8') as f:
+                        f.write(msg)
+                except Exception as log_err:
+                    logger.error(f"Failed to write to droplet log file: {log_err}")
+
+            # Initialize log file with a starting message
+            droplet_log_callback(f"Connecting to droplet {droplet['name']} ({ip_address})...\n", append=False)
+            # --- END LOGGING SETUP ---
+
             def on_realtime_result(res):
                 email = res.get('email')
                 if email and email not in saved_emails:
                     if res.get('success'):
-                        if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: Saving password for {email} (Real-time)...\n", append=True)
+                        if droplet_log_callback: droplet_log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: Saving password for {email} (Real-time)...\n", append=True)
                         self._save_app_password_with_backup(
                             email, 
                             res.get('app_password'), 
                             res.get('secret_key'),
-                            log_callback=log_callback
+                            log_callback=droplet_log_callback
                         )
                         saved_emails.add(email)
 
             batch_result = self.service.run_automation_script_async_poll(
                 ip_address=ip_address,
                 ssh_key_path=self.config.get('ssh_private_key_path'),
-                log_callback=log_callback,
+                log_callback=droplet_log_callback,
                 twocaptcha_config=getattr(self, 'twocaptcha_config', None),
                 users=enriched_users,
                 parallel_users=parallel_users,
