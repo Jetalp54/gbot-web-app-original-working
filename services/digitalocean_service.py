@@ -963,14 +963,14 @@ class DigitalOceanService:
                     return {'success': False, 'error': f"Failed to handle batch file: {e}"}
                 
                 result_file = f"/tmp/result_batch_{run_id}.json"
-                log_file = f"/var/log/automation_batch_{run_id}.log"
+                log_file = f"/tmp/automation_batch_{run_id}.log"
                 cmd_args = f"--users-file '{remote_batch_file}' --parallel-users {parallel_users} --output {result_file}"
                 
             elif email and password:
                 # SINGLE USER MODE
                 cleaned_email = email.replace('@', '_')
                 result_file = f"/tmp/result_{cleaned_email}.json"
-                log_file = f"/var/log/automation_{cleaned_email}.log"
+                log_file = f"/tmp/automation_{cleaned_email}.log"
                 
                 cmd_args = f"--email '{email}' --password '{password}' --output {result_file}"
                 if secret_key:
@@ -995,12 +995,12 @@ class DigitalOceanService:
                 if log_callback:
                     log_callback(f"[{datetime.utcnow().isoformat()}] Injecting 2Captcha configuration...\n", append=True)
 
-            # REVERTED: Use absolute path /usr/bin/python3 for safety in non-interactive shells
-            # Use stdbuf to force unbuffered output for the entire process tree (including subprocesses like pip)
-            # -i0: unbuffered stdin
-            # -o0: unbuffered stdout 
-            # -e0: unbuffered stderr
-            run_cmd = f"{env_vars}export PYTHONUNBUFFERED=1 && stdbuf -i0 -o0 -e0 nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 < /dev/null & echo $!"
+            # USE Bulletproof Detachment:
+            # - bash -c '... & disown' ensures the process is completely removed from the shell's job control
+            # - Redirection of all 3 streams (stdin, stdout, stderr) ensures Paramiko EOF
+            # - touch before start ensures the poller doesn't fail on missing file
+            # - Removed stdbuf to reduce friction, as python -u + Unbuffered class is sufficient
+            run_cmd = f"bash -c 'touch {log_file}; export PYTHONUNBUFFERED=1; {env_vars} nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 < /dev/null & disown; echo $!'"
             
             if log_callback:
                 log_callback(f"[{datetime.utcnow().isoformat()}] Starting background automation script on {ip_address}...\n", append=True)

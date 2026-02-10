@@ -35,6 +35,12 @@ class Unbuffered(object):
 sys.stdout = Unbuffered(sys.stdout)
 sys.stderr = Unbuffered(sys.stderr)
 
+print("\n" + "="*50)
+print(f"--- GBOT AUTOMATION SCRIPT STARTING ---")
+print(f"--- Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+print("="*50 + "\n")
+sys.stdout.flush()
+
 print("--- SCRIPT INITIALIZING ---")
 import time
 import base64
