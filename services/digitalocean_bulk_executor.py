@@ -369,29 +369,43 @@ class BulkExecutionOrchestrator:
         auto_destroy: bool
     ) -> List[Dict]:
         """Wrapper to execute on a droplet and immediately destroy it regardless of outcome"""
+        # Ensure auto_destroy is a boolean (handle potential string "true"/"false")
+        is_auto_destroy = str(auto_destroy).lower() == 'true' if isinstance(auto_destroy, str) else bool(auto_destroy)
+        
         try:
+            logger.info(f"[{self.execution_id}] EXECUTOR: Starting batch on {droplet['name']} ({droplet['ip_address']})")
             results = self._execute_on_single_droplet(droplet, users, workers_per_droplet)
         except Exception as e:
-            logger.error(f"[{self.execution_id}] Execution error in single droplet wrapper: {e}")
+            logger.error(f"[{self.execution_id}] EXECUTOR: Execution error in single droplet wrapper for {droplet['name']}: {e}")
             results = [] 
         finally:
-            logger.info(f"[{self.execution_id}] Finalizing droplet {droplet['name']}. Auto-destroy={auto_destroy}")
-            if auto_destroy:
+            logger.info(f"[{self.execution_id}] EXECUTOR: Finalizing droplet {droplet['name']}. auto_destroy={is_auto_destroy} (original: {auto_destroy})")
+            
+            if is_auto_destroy:
                 try:
-                    logger.info(f"[{self.execution_id}] IMMEDIATE DESTRUCTION: Destroying droplet {droplet['name']} ({droplet['id']})")
-                    self.service.delete_droplet(droplet['id'])
+                    logger.info(f"[{self.execution_id}] EXECUTOR: IMMEDIATE DESTRUCTION: Calling DigitalOcean to delete {droplet['name']} ({droplet['id']})")
+                    deletion_success = self.service.delete_droplet(droplet['id'])
+                    
+                    if deletion_success:
+                        logger.info(f"[{self.execution_id}] EXECUTOR: ✓ Droplet {droplet['name']} deleted successfully via API")
+                    else:
+                        logger.warning(f"[{self.execution_id}] EXECUTOR: ⚠ DigitalOcean API returned False for deletion of {droplet['name']}")
                     
                     # Update DB status if possible
                     if self.app:
                         with self.app.app_context():
+                            from database import db, DigitalOceanDroplet
                             db_droplet = DigitalOceanDroplet.query.filter_by(droplet_id=str(droplet['id'])).first()
                             if db_droplet:
                                 db_droplet.status = 'destroyed'
                                 db_droplet.destroyed_at = datetime.utcnow()
                                 db.session.commit()
-                                
+                                logger.info(f"[{self.execution_id}] EXECUTOR: Update DB status to 'destroyed' for {droplet['name']}")
+                
                 except Exception as cleanup_error:
-                    logger.error(f"[{self.execution_id}] Failed to auto-destroy droplet {droplet['name']}: {cleanup_error}")
+                    logger.error(f"[{self.execution_id}] EXECUTOR: ✗ Failed to auto-destroy droplet {droplet['name']}: {cleanup_error}")
+            else:
+                logger.info(f"[{self.execution_id}] EXECUTOR: Skipping auto-destruction (auto_destroy is False)")
         
         return results
     

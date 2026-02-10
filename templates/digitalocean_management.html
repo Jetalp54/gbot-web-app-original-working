@@ -1064,9 +1064,14 @@
                                 <td><span class="badge ${statusClasses}" id="status-${droplet.droplet_id}">${status.toUpperCase()}</span></td>
                                 <td id="activity-${droplet.droplet_id}">${activity}</td>
                                 <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-primary" onclick="switchToDropletLog('${droplet.droplet_id}', '${executionId}')">
-                                        <i class="fa fa-terminal"></i> View Logs
-                                    </button>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" onclick="switchToDropletLog('${droplet.droplet_id}', '${executionId}')" title="View Logs">
+                                            <i class="fa fa-terminal"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" onclick="manualDeleteDroplet('${droplet.droplet_id}', '${droplet.droplet_name}')" title="Destroy Droplet">
+                                            <i class="fa fa-trash"></i>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         `);
@@ -1590,6 +1595,27 @@
 
         $('#testAutomationResult').prepend(html);
     }
+    function manualDeleteDroplet(dropletId, name) {
+        if (!confirm(`Are you sure you want to destroy droplet ${name}?`)) return;
+
+        $.ajax({
+            url: `/api/do/droplets/${dropletId}`,
+            method: 'DELETE',
+            success: function (response) {
+                if (response.success) {
+                    alert('Droplet destruction requested successfully.');
+                    // Refresh monitor state
+                    if (currentExecutionId) updateMonitorTabs(currentExecutionId);
+                } else {
+                    alert('Error: ' + response.error);
+                }
+            },
+            error: function (xhr) {
+                alert('Connection error while trying to destroy droplet.');
+            }
+        });
+    }
+
     // === Setup Logs Functions Removed ===
 </script>
 

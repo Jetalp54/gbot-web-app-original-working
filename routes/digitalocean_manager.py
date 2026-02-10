@@ -851,7 +851,8 @@ def execute_automation():
         size = data.get('size', '').strip()
         parallel_users = int(data.get('parallel_users', 5))
         users_per_droplet = int(data.get('users_per_droplet', 50))
-        auto_destroy = data.get('auto_destroy', True)
+        raw_auto_destroy = data.get('auto_destroy', True)
+        auto_destroy = str(raw_auto_destroy).lower() == 'true' if isinstance(raw_auto_destroy, str) else bool(raw_auto_destroy)
         
         # Validation
         if droplet_count < 1:
@@ -1155,9 +1156,10 @@ def batch_fetch_generated_passwords():
         # We use 'in_' clause for efficiency
         db_passwords = AwsGeneratedPassword.query.filter(AwsGeneratedPassword.email.in_(clean_emails)).all()
         
+        found_emails = {p.email.lower() for p in db_passwords}
         results = []
-        found_emails = set()
         
+        # 1. Add DB results
         for p in db_passwords:
             results.append({
                 'email': p.email,
@@ -1167,9 +1169,44 @@ def batch_fetch_generated_passwords():
                 'execution_id': p.execution_id,
                 'source': 'database'
             })
-            found_emails.add(p.email)
             
-        logger.info(f"Found {len(results)} passwords matching the requested list")
+        # 2. Recovery: Check backup files for MISSING emails
+        missing_emails = [e for e in clean_emails if e not in found_emails]
+        if missing_emails:
+            logger.info(f"Searching backup files for {len(missing_emails)} missing users")
+            backup_dir = os.path.join(current_app.root_path, 'do_app_passwords_backup')
+            if os.path.exists(backup_dir):
+                try:
+                    backup_files = os.listdir(backup_dir)
+                    for filename in backup_files:
+                        if not filename.endswith('.json'):
+                            continue
+                        
+                        try:
+                            # filename format: {exec_id}_{email_at_domain}.json
+                            file_email_slug = filename.split('_', 1)[-1].replace('.json', '').replace('_at_', '@').lower()
+                            
+                            if file_email_slug in missing_emails:
+                                with open(os.path.join(backup_dir, filename), 'r') as f:
+                                    bkp = json.load(f)
+                                    results.append({
+                                        'email': bkp.get('email'),
+                                        'app_password': bkp.get('app_password'),
+                                        'secret_key': bkp.get('secret_key'),
+                                        'created_at': bkp.get('timestamp'),
+                                        'execution_id': bkp.get('execution_id'),
+                                        'source': 'backup_file'
+                                    })
+                                    found_emails.add(file_email_slug)
+                                    missing_emails.remove(file_email_slug)
+                                    if not missing_emails:
+                                        break
+                        except:
+                            continue
+                except Exception as bkp_err:
+                    logger.error(f"Backup recovery error: {bkp_err}")
+
+        logger.info(f"Found {len(results)} passwords matching the requested list ({len(results) - len(db_passwords)} from backups)")
         
         return jsonify({
             'success': True,
