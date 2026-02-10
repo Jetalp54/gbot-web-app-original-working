@@ -8,6 +8,8 @@ import json
 import logging
 import requests
 import paramiko
+import tempfile
+import random
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from io import StringIO
@@ -1149,7 +1151,7 @@ class DigitalOceanService:
                      return {'success': False, 'error': status_res.get('error', 'Unknown error during execution')}
                  
                  # Optimization: Random jitter 3-7s to prevent SSH DDoS on droplet
-                 sleep_time = random.uniform(3.0, 7.0)
+                 sleep_time = random.uniform(1.0, 3.0)
                  time.sleep(sleep_time)
             
             return {'success': False, 'error': 'Timeout waiting for automation script to complete'}
@@ -1193,18 +1195,13 @@ class DigitalOceanService:
             logger.debug(f"[POLL] {ip_address} - Cursor: {cursor}, File Size: {new_size}")
 
             # 5. Read logs (Incremental if cursor > 0)
+            # ALWAYS read logs to capture the final output even if process just finished
             if cursor >= new_size:
                 logs = ""
             else:
                 log_cmd = f"tail -c +{cursor + 1} {log_file}"
                 _, logs, _ = self.execute_ssh_command(ip_address, log_cmd, 'root', ssh_key_path)
-            
-            # Logic Table:
-            # Running | Complete | Status
-            # Yes     | Any      | running
-            # No      | Yes      | completed
-            # No      | No       | error (Crashed)
-            
+
             if is_running:
                  return {
                     'status': 'running',
@@ -1213,7 +1210,7 @@ class DigitalOceanService:
                 }
             elif is_complete:
                 # Retrieve final result
-                local_result = f"/tmp/do_result_{int(time.time())}.json"
+                local_result = os.path.join(tempfile.gettempdir(), f"do_result_{int(time.time())}_{random.randint(1000,9999)}.json")
                 downloaded = self.download_file_sftp(
                     ip_address=ip_address,
                     remote_path=result_file,
