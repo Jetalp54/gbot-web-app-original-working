@@ -1132,6 +1132,57 @@ def get_generated_passwords(execution_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@digitalocean_manager.route('/api/do/generated-passwords/batch-fetch', methods=['POST'])
+@login_required
+def batch_fetch_generated_passwords():
+    """Fetch generated passwords for a specific list of emails (Strict Filtering)"""
+    try:
+        data = request.json
+        emails = data.get('emails', [])
+        
+        if not emails:
+             return jsonify({'success': True, 'passwords': []})
+             
+        # Normalize emails (lowercase, strip)
+        clean_emails = [e.strip().lower() for e in emails if e and e.strip()]
+        
+        if not clean_emails:
+             return jsonify({'success': True, 'passwords': []})
+             
+        logger.info(f"Batch fetching passwords for {len(clean_emails)} users")
+        
+        # Query DB for these emails
+        # We use 'in_' clause for efficiency
+        db_passwords = AwsGeneratedPassword.query.filter(AwsGeneratedPassword.email.in_(clean_emails)).all()
+        
+        results = []
+        found_emails = set()
+        
+        for p in db_passwords:
+            results.append({
+                'email': p.email,
+                'app_password': p.app_password,
+                'secret_key': p.secret_key,
+                'created_at': p.created_at.isoformat() if p.created_at else None,
+                'execution_id': p.execution_id,
+                'source': 'database'
+            })
+            found_emails.add(p.email)
+            
+        logger.info(f"Found {len(results)} passwords matching the requested list")
+        
+        return jsonify({
+            'success': True,
+            'passwords': results,
+            'found_count': len(results),
+            'requested_count': len(clean_emails)
+        })
+        
+    except Exception as e:
+        logger.error(f"Batch fetch passwords error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @digitalocean_manager.route('/api/do/execution/<execution_id>/droplets', methods=['GET'])
 @login_required
 def get_execution_droplets(execution_id):

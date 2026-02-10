@@ -1,946 +1,220 @@
-2026-02-10T15:41:05.352290] Preparing remote directory on 46.101.240.228...
-[2026-02-10T15:41:06.723376] Uploading automation script to 46.101.240.228...
-[2026-02-10T15:41:08.203533] Uploading batch file (10 users)...
-[2026-02-10T15:41:09.487205] Injecting 2Captcha configuration...
-[2026-02-10T15:41:09.487439] Starting background automation script on 46.101.240.228...
+[2026-02-10T16:52:06.901205] Preparing remote directory on 46.101.137.32...
+[2026-02-10T16:52:08.001181] Uploading automation script to 46.101.137.32...
+[2026-02-10T16:52:09.299440] Uploading batch file (2 users)...
+[2026-02-10T16:52:10.518927] Injecting 2Captcha configuration...
+[2026-02-10T16:52:10.519384] Starting background automation script on 46.101.137.32...
+[2026-02-10T16:54:55.528190] connection established. Watching logs for batch_2_users...
 
 ==================================================
 --- GBOT AUTOMATION SCRIPT STARTING ---
---- Timestamp: 2026-02-10 15:41:10 ---
+--- Timestamp: 2026-02-10 16:52:11 ---
 ==================================================
 
 --- SCRIPT INITIALIZING ---
-=======================================================
-=== BATCH PROCESSING: 10 users | 5 parallel workers ===
-=======================================================
-=======================================================
-=== BATCH PROCESSING: 10 users | 5 parallel workers ===
-=======================================================
-2026-02-10 15:41:10,196 - INFO - [BATCH] Processing 10 users with 5 parallel workers
-[HEARTBEAT] 15:41:10 - Processing... (0/10 completed)
-2026-02-10 15:41:10,197 - INFO - [BATCH] Starting user 1/10: carolynthomas2283@nextgen151.zenvorahgtr.fun
-2026-02-10 15:41:10,197 - INFO - [BATCH] Starting user 1/10: brittanywhite8027@nextgen151.zenvorahgtr.fun
-2026-02-10 15:41:10,202 - INFO - [RESOURCE] Staggering browser start by 2.07s to reduce RAM spike...
-2026-02-10 15:41:10,202 - INFO - [BATCH] Starting user 1/10: yolandamontgomery7534@lauraneumann.mywire.org
-2026-02-10 15:41:10,202 - INFO - [RESOURCE] Staggering browser start by 2.12s to reduce RAM spike...
-2026-02-10 15:41:10,202 - INFO - [BATCH] Starting user 1/10: joshuasampson6066@lauraneumann.mywire.org
-2026-02-10 15:41:10,203 - INFO - [RESOURCE] Staggering browser start by 4.89s to reduce RAM spike...
-2026-02-10 15:41:10,203 - INFO - [BATCH] Starting user 1/10: sherriking1520@lauraneumann.mywire.org
-2026-02-10 15:41:10,203 - INFO - [RESOURCE] Staggering browser start by 3.48s to reduce RAM spike...
-2026-02-10 15:41:10,202 - INFO - [RESOURCE] Staggering browser start by 2.79s to reduce RAM spike...
-2026-02-10 15:41:12,283 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-2026-02-10 15:41:12,283 - INFO - [BROWSER] Checking /opt directory contents...
-2026-02-10 15:41:12,283 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-2026-02-10 15:41:12,284 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-2026-02-10 15:41:12,284 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-2026-02-10 15:41:12,284 - INFO - [PROXY] Proxy disabled or not configured
-2026-02-10 15:41:12,284 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-2026-02-10 15:41:12,284 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:41:12,326 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-2026-02-10 15:41:12,326 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:41:12,326 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-2026-02-10 15:41:12,326 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-2026-02-10 15:41:12,326 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-2026-02-10 15:41:12,326 - INFO - [PROXY] Proxy disabled or not configured
-2026-02-10 15:41:12,326 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-2026-02-10 15:41:12,326 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:41:13,002 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-2026-02-10 15:41:13,002 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:41:13,002 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-2026-02-10 15:41:13,002 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-2026-02-10 15:41:13,002 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-2026-02-10 15:41:13,002 - INFO - [PROXY] Proxy disabled or not configured
-2026-02-10 15:41:13,002 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-2026-02-10 15:41:13,002 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:41:13,686 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-2026-02-10 15:41:13,686 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:41:13,686 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-2026-02-10 15:41:13,686 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-2026-02-10 15:41:13,686 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-2026-02-10 15:41:13,686 - INFO - [PROXY] Proxy disabled or not configured
-2026-02-10 15:41:13,686 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-2026-02-10 15:41:13,686 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:41:14,310 - INFO - [BROWSER] ✓ Standard selenium driver started
-2026-02-10 15:41:14,324 - INFO - [BROWSER] ✓ Standard selenium driver started
-2026-02-10 15:41:14,843 - INFO - [BROWSER] ✓ Standard selenium driver started
-2026-02-10 15:41:15,094 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-2026-02-10 15:41:15,094 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:41:15,094 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-2026-02-10 15:41:15,094 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-2026-02-10 15:41:15,094 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-2026-02-10 15:41:15,095 - INFO - [PROXY] Proxy disabled or not configured
-2026-02-10 15:41:15,095 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-2026-02-10 15:41:15,095 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:41:15,276 - INFO - [BROWSER] ✓ Standard selenium driver started
-2026-02-10 15:41:15,367 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-2026-02-10 15:41:15,367 - INFO - [BROWSER] ✓ Browser initialization complete
-2026-02-10 15:41:15,367 - INFO - [LAMBDA] Chrome driver started for yolandamontgomery7534@lauraneumann.mywire.org
-2026-02-10 15:41:15,367 - INFO - [STEP] Login started for yolandamontgomery7534@lauraneumann.mywire.org
-2026-02-10 15:41:15,367 - INFO - [STEP] Navigating to Google login page (English)...
-2026-02-10 15:41:15,551 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-2026-02-10 15:41:15,551 - INFO - [BROWSER] ✓ Browser initialization complete
-2026-02-10 15:41:15,551 - INFO - [LAMBDA] Chrome driver started for brittanywhite8027@nextgen151.zenvorahgtr.fun
-2026-02-10 15:41:15,551 - INFO - [STEP] Login started for brittanywhite8027@nextgen151.zenvorahgtr.fun
-2026-02-10 15:41:15,551 - INFO - [STEP] Navigating to Google login page (English)...
-2026-02-10 15:41:16,037 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-2026-02-10 15:41:16,047 - INFO - [BROWSER] ✓ Browser initialization complete
-2026-02-10 15:41:16,047 - INFO - [LAMBDA] Chrome driver started for carolynthomas2283@nextgen151.zenvorahgtr.fun
-2026-02-10 15:41:16,047 - INFO - [STEP] Login started for carolynthomas2283@nextgen151.zenvorahgtr.fun
-2026-02-10 15:41:16,047 - INFO - [STEP] Navigating to Google login page (English)...
-2026-02-10 15:41:16,474 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-2026-02-10 15:41:16,474 - INFO - [BROWSER] ✓ Browser initialization complete
-2026-02-10 15:41:16,474 - INFO - [LAMBDA] Chrome driver started for sherriking1520@lauraneumann.mywire.org
-2026-02-10 15:41:16,474 - INFO - [STEP] Login started for sherriking1520@lauraneumann.mywire.org
-2026-02-10 15:41:16,474 - INFO - [STEP] Navigating to Google login page (English)...
-2026-02-10 15:41:17,295 - INFO - [BROWSER] ✓ Standard selenium driver started
-2026-02-10 15:41:18,124 - INFO - [STEP] Navigation to Google login page completed
-2026-02-10 15:41:18,676 - INFO - [STEP] Navigation to Google login page completed
-2026-02-10 15:41:18,696 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-2026-02-10 15:41:18,696 - INFO - [BROWSER] ✓ Browser initialization complete
-2026-02-10 15:41:18,711 - INFO - [LAMBDA] Chrome driver started for joshuasampson6066@lauraneumann.mywire.org
-2026-02-10 15:41:18,711 - INFO - [STEP] Login started for joshuasampson6066@lauraneumann.mywire.org
-2026-02-10 15:41:18,712 - INFO - [STEP] Navigating to Google login page (English)...
-2026-02-10 15:41:19,482 - INFO - [STEP] Navigation to Google login page completed
-2026-02-10 15:41:19,791 - INFO - [STEP] Navigation to Google login page completed
-[HEARTBEAT] 15:41:20 - Processing... (0/10 completed)
-2026-02-10 15:41:20,581 - INFO - [STEP] Navigation to Google login page completed
-2026-02-10 15:41:21,549 - INFO - [STEP] Page stabilized, proceeding with login
-2026-02-10 15:41:21,549 - INFO - [STEP] Email submission attempt 1/3
-2026-02-10 15:41:21,549 - INFO - [STEP] Locating email input field...
-2026-02-10 15:41:21,681 - INFO - [STEP] Page stabilized, proceeding with login
-2026-02-10 15:41:21,682 - INFO - [STEP] Email submission attempt 1/3
-2026-02-10 15:41:21,682 - INFO - [STEP] Locating email input field...
-2026-02-10 15:41:22,756 - INFO - [STEP] Page stabilized, proceeding with login
-2026-02-10 15:41:22,757 - INFO - [STEP] Email submission attempt 1/3
-2026-02-10 15:41:22,757 - INFO - [STEP] Locating email input field...
-2026-02-10 15:41:23,051 - INFO - [STEP] Page stabilized, proceeding with login
-2026-02-10 15:41:23,052 - INFO - [STEP] Email submission attempt 1/3
-2026-02-10 15:41:23,052 - INFO - [STEP] Locating email input field...
-2026-02-10 15:41:23,135 - INFO - [STEP] Clearing and typing email...
-2026-02-10 15:41:23,619 - INFO - [STEP] Clearing and typing email...
-2026-02-10 15:41:23,832 - INFO - [STEP] Page stabilized, proceeding with login
-2026-02-10 15:41:23,832 - INFO - [STEP] Email submission attempt 1/3
-2026-02-10 15:41:23,832 - INFO - [STEP] Locating email input field...
-2026-02-10 15:41:23,991 - INFO - [STEP] Clearing and typing email...
-2026-02-10 15:41:24,531 - INFO - [STEP] Clearing and typing email...
-2026-02-10 15:41:25,467 - INFO - [STEP] Clearing and typing email...
-[HEARTBEAT] 15:41:30 - Processing... (0/10 completed)
-2026-02-10 15:41:33,235 - INFO - [STEP] Email entered with human-like typing
-2026-02-10 15:41:33,686 - INFO - [STEP] Email entered with human-like typing
-2026-02-10 15:41:33,899 - INFO - [STEP] Locating 'Next' button...
-2026-02-10 15:41:33,977 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
-2026-02-10 15:41:33,979 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
-2026-02-10 15:41:34,341 - INFO - [STEP] Email entered with human-like typing
-2026-02-10 15:41:34,682 - INFO - [STEP] Locating 'Next' button...
-2026-02-10 15:41:34,732 - INFO - [STEP] Email entered with human-like typing
-2026-02-10 15:41:34,739 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
-2026-02-10 15:41:34,739 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
-2026-02-10 15:41:35,032 - INFO - [STEP] Locating 'Next' button...
-2026-02-10 15:41:35,146 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
-2026-02-10 15:41:35,146 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
-2026-02-10 15:41:35,494 - INFO - [STEP] Email entered with human-like typing
-2026-02-10 15:41:35,678 - INFO - [STEP] Locating 'Next' button...
-2026-02-10 15:41:35,805 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
-2026-02-10 15:41:35,805 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
-2026-02-10 15:41:36,401 - INFO - [STEP] Locating 'Next' button...
-2026-02-10 15:41:36,544 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
-2026-02-10 15:41:36,545 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
-2026-02-10 15:41:37,344 - INFO - [STEP] ✓ Transitioned to password page/challenge
-2026-02-10 15:41:37,345 - INFO - [STEP] Waiting for page transition...
-2026-02-10 15:41:38,059 - INFO - [STEP] ✓ Transitioned to password page/challenge
-2026-02-10 15:41:38,059 - INFO - [STEP] Waiting for page transition...
-2026-02-10 15:41:38,491 - INFO - [STEP] ✓ Transitioned to password page/challenge
-2026-02-10 15:41:38,491 - INFO - [STEP] Waiting for page transition...
-2026-02-10 15:41:39,160 - INFO - [STEP] ✓ Transitioned to password page/challenge
-2026-02-10 15:41:39,160 - INFO - [STEP] Waiting for page transition...
-2026-02-10 15:41:40,150 - INFO - [STEP] ✓ Transitioned to password page/challenge
-2026-02-10 15:41:40,150 - INFO - [STEP] Waiting for page transition...
-[HEARTBEAT] 15:41:40 - Processing... (0/10 completed)
-2026-02-10 15:41:40,848 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcZ2oZhxgv-n1C1k1C0bhhocZUQIx1xjPH6yJCZmO..., Title: Welcome
-2026-02-10 15:41:41,256 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcasqt8Bammb_c3xPTLBv9sv9xcN14w1t50_ojsxr..., Title: Welcome
-2026-02-10 15:41:41,433 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcZZP2gayotyBi8pLnJ02hy5pKSQBZeLpRGiHzuEN..., Title: Welcome
-2026-02-10 15:41:42,834 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcYHkiCySwgrmNPHTFagO09arYb5bCj6xkYNs5c2E..., Title: Welcome
-2026-02-10 15:41:43,361 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcbP6UGfKhlhRlimWhDGICN4PS9As_E6EpVXH1-1-..., Title: Welcome
-2026-02-10 15:41:44,263 - INFO - [STEP] Waiting 6.9s for password field to appear (after CAPTCHA solve)...
-2026-02-10 15:41:44,742 - INFO - [STEP] Waiting 6.1s for password field to appear (after CAPTCHA solve)...
-2026-02-10 15:41:44,853 - INFO - [STEP] Waiting 7.4s for password field to appear (after CAPTCHA solve)...
-2026-02-10 15:41:46,311 - INFO - [STEP] Waiting 5.7s for password field to appear (after CAPTCHA solve)...
-2026-02-10 15:41:46,826 - INFO - [STEP] Waiting 5.8s for password field to appear (after CAPTCHA solve)...
-[HEARTBEAT] 15:41:50 - Processing... (0/10 completed)
-2026-02-10 15:41:50,802 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
-2026-02-10 15:41:50,802 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
-2026-02-10 15:41:51,065 - INFO - [STEP] Found password input using By.NAME='Passwd'
-2026-02-10 15:41:51,194 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
-2026-02-10 15:41:51,195 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
-2026-02-10 15:41:51,459 - INFO - [STEP] Found password input using By.NAME='Passwd'
-2026-02-10 15:41:52,060 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
-2026-02-10 15:41:52,060 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
-2026-02-10 15:41:52,286 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
-2026-02-10 15:41:52,286 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
-2026-02-10 15:41:52,334 - INFO - [STEP] Found password input using By.NAME='Passwd'
-2026-02-10 15:41:52,547 - INFO - [STEP] Found password input using By.NAME='Passwd'
-2026-02-10 15:41:52,658 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
-2026-02-10 15:41:52,658 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
-2026-02-10 15:41:52,913 - INFO - [STEP] Found password input using By.NAME='Passwd'
-2026-02-10 15:41:55,910 - INFO - [STEP] Password entered using human-like typing simulation
-2026-02-10 15:41:55,932 - INFO - [STEP] Password entered successfully
-2026-02-10 15:41:56,248 - INFO - [STEP] Password entered using human-like typing simulation
-2026-02-10 15:41:56,265 - INFO - [STEP] Password entered successfully
-2026-02-10 15:41:56,582 - INFO - [STEP] Password submitted using Enter key
-2026-02-10 15:41:56,806 - INFO - [STEP] Password entered using human-like typing simulation
-2026-02-10 15:41:56,823 - INFO - [STEP] Password entered successfully
-2026-02-10 15:41:56,907 - INFO - [STEP] Password submitted using Enter key
-2026-02-10 15:41:57,546 - INFO - [STEP] Password submitted using Enter key
-2026-02-10 15:41:57,584 - INFO - [STEP] Password entered using human-like typing simulation
-2026-02-10 15:41:57,607 - INFO - [STEP] Password entered successfully
-2026-02-10 15:41:58,224 - INFO - [STEP] Password submitted using Enter key
-2026-02-10 15:41:58,618 - INFO - [STEP] Password entered using human-like typing simulation
-2026-02-10 15:41:58,629 - INFO - [STEP] Password entered successfully
-2026-02-10 15:41:59,271 - INFO - [STEP] Password submitted using Enter key
-[HEARTBEAT] 15:42:00 - Processing... (0/10 completed)
-2026-02-10 15:42:01,155 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcasqt8Bammb_c3xPTLBv9sv9xcN14w1t50_ojsxrXumRMGYhhQnE61O7yUF&checkConnection=youtube%3A544&checkedDomains=youtube&dsh=S-903754308%3A1770738075492436&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuC-Qd2BZ4APA6Dtxqs-2VF3_X9H1XTUt4i1Ne_Q8cuT-Ox_EwwguFdy4yDDADDyaaZMOR7qdw&pstMsg=1
-2026-02-10 15:42:01,262 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcasqt8Bammb_c3xPTLBv9sv9xcN14w1t50_ojsxrXumRMGYhhQnE61O7yUF&checkConnection=youtube%3A544&checkedDomains=youtube&dsh=S-903754308%3A1770738075492436&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuC-Qd2BZ4APA6Dtxqs-2VF3_X9H1XTUt4i1Ne_Q8cuT-Ox_EwwguFdy4yDDADDyaaZMOR7qdw&pstMsg=1
-2026-02-10 15:42:01,262 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
-2026-02-10 15:42:01,735 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZ2oZhxgv-n1C1k1C0bhhocZUQIx1xjPH6yJCZmO7ByANpY6nqE68SJaoX5&checkConnection=youtube%3A564&checkedDomains=youtube&dsh=S-1090025039%3A1770738075624561&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuAwyxt3iiP6wF1EjlOj-Zk72d5Umz3Su9v0egc3NEhIwrBcaQgfoPiGO4Me87d5JvrX7mIhww&pstMsg=1
-2026-02-10 15:42:01,824 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZ2oZhxgv-n1C1k1C0bhhocZUQIx1xjPH6yJCZmO7ByANpY6nqE68SJaoX5&checkConnection=youtube%3A564&checkedDomains=youtube&dsh=S-1090025039%3A1770738075624561&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuAwyxt3iiP6wF1EjlOj-Zk72d5Umz3Su9v0egc3NEhIwrBcaQgfoPiGO4Me87d5JvrX7mIhww&pstMsg=1
-2026-02-10 15:42:01,824 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
-2026-02-10 15:42:02,235 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcYHkiCySwgrmNPHTFagO09arYb5bCj6xkYNs5c2ErkFtu19yt__0FBYjtEn&checkConnection=youtube%3A400&checkedDomains=youtube&dsh=S-251187253%3A1770738076129539&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuA0USo9QoZO3ywI0p0GcNr-iNH2vLuERKWM-5OOSjtFcvXgTNq0H4Q0ifgymsulaxJ3Ebpa&pstMsg=1
-2026-02-10 15:42:02,343 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcYHkiCySwgrmNPHTFagO09arYb5bCj6xkYNs5c2ErkFtu19yt__0FBYjtEn&checkConnection=youtube%3A400&checkedDomains=youtube&dsh=S-251187253%3A1770738076129539&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuA0USo9QoZO3ywI0p0GcNr-iNH2vLuERKWM-5OOSjtFcvXgTNq0H4Q0ifgymsulaxJ3Ebpa&pstMsg=1
-2026-02-10 15:42:02,343 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
-2026-02-10 15:42:03,439 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcbP6UGfKhlhRlimWhDGICN4PS9As_E6EpVXH1-1-OHze3DnIxKQNlJceLos&checkConnection=youtube%3A172&checkedDomains=youtube&dsh=S-64814554%3A1770738078770033&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuD_wMwyA6RO2Oih30eqXQM5-d-PcmOOXI-aRJAJYD0AGrTcX0veyvVLKg0BRYNZIiFOBBMaaw&pstMsg=1
-2026-02-10 15:42:03,516 - INFO - [STEP] Clicked #confirm button via JavaScript
-2026-02-10 15:42:03,566 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcbP6UGfKhlhRlimWhDGICN4PS9As_E6EpVXH1-1-OHze3DnIxKQNlJceLos&checkConnection=youtube%3A172&checkedDomains=youtube&dsh=S-64814554%3A1770738078770033&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuD_wMwyA6RO2Oih30eqXQM5-d-PcmOOXI-aRJAJYD0AGrTcX0veyvVLKg0BRYNZIiFOBBMaaw&pstMsg=1
-2026-02-10 15:42:03,566 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
-2026-02-10 15:42:03,847 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZZP2gayotyBi8pLnJ02hy5pKSQBZeLpRGiHzuENrjZtkyF63AyecInpa7e&checkConnection=youtube%3A431&checkedDomains=youtube&dsh=S-702067053%3A1770738076528076&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuAZt_Rt0gWO-eR7aOseMd8DHqWdZUCBAAwHLydjPNpB9XWSbNPawVJ5RUq1mrdTIqimJUarGA&pstMsg=1
-2026-02-10 15:42:03,996 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZZP2gayotyBi8pLnJ02hy5pKSQBZeLpRGiHzuENrjZtkyF63AyecInpa7e&checkConnection=youtube%3A431&checkedDomains=youtube&dsh=S-702067053%3A1770738076528076&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuAZt_Rt0gWO-eR7aOseMd8DHqWdZUCBAAwHLydjPNpB9XWSbNPawVJ5RUq1mrdTIqimJUarGA&pstMsg=1
-2026-02-10 15:42:03,996 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
-2026-02-10 15:42:04,578 - INFO - [STEP] Clicked #confirm button via JavaScript
-2026-02-10 15:42:04,706 - INFO - [STEP] Clicked #confirm button via JavaScript
-2026-02-10 15:42:05,729 - INFO - [STEP] Clicked #confirm button via JavaScript
-2026-02-10 15:42:05,822 - INFO - [STEP] Clicked #confirm button via JavaScript
-2026-02-10 15:42:07,525 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:564%26pstMsg%3D1&tsvesd=1786290122&tsvenfd=0&pli=1
-2026-02-10 15:42:07,680 - INFO - [STEP] Login success - reached account page
-2026-02-10 15:42:08,588 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:544%26pstMsg%3D1&tsvesd=1786290122&tsvenfd=0&pli=1
-2026-02-10 15:42:08,718 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:400%26pstMsg%3D1&tsvesd=1786290123&tsvenfd=0&pli=1
-2026-02-10 15:42:08,758 - INFO - [STEP] Login success - reached account page
-2026-02-10 15:42:08,886 - INFO - [STEP] Login success - reached account page
-2026-02-10 15:42:09,737 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:172%26pstMsg%3D1&tsvesd=1786290124&tsvenfd=0&pli=1
-2026-02-10 15:42:09,831 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:431%26pstMsg%3D1&tsvesd=1786290124&tsvenfd=0&pli=1
-2026-02-10 15:42:09,938 - INFO - [STEP] Login success - reached account page
-2026-02-10 15:42:09,990 - INFO - [STEP] Login success - reached account page
-2026-02-10 15:42:10,193 - INFO - [STEP] Setting up Authenticator for brittanywhite8027@nextgen151.zenvorahgtr.fun
-2026-02-10 15:42:10,193 - INFO - [STEP] Navigating to Authenticator setup page...
-[HEARTBEAT] 15:42:10 - Processing... (0/10 completed)
-2026-02-10 15:42:10,446 - INFO - [STEP] Setting up Authenticator for carolynthomas2283@nextgen151.zenvorahgtr.fun
-2026-02-10 15:42:10,446 - INFO - [STEP] Navigating to Authenticator setup page...
-2026-02-10 15:42:10,974 - INFO - [STEP] Setting up Authenticator for yolandamontgomery7534@lauraneumann.mywire.org
-2026-02-10 15:42:10,974 - INFO - [STEP] Navigating to Authenticator setup page...
-2026-02-10 15:42:11,617 - INFO - [STEP] Setting up Authenticator for joshuasampson6066@lauraneumann.mywire.org
-2026-02-10 15:42:11,617 - INFO - [STEP] Navigating to Authenticator setup page...
-2026-02-10 15:42:12,117 - INFO - [STEP] Setting up Authenticator for sherriking1520@lauraneumann.mywire.org
-2026-02-10 15:42:12,117 - INFO - [STEP] Navigating to Authenticator setup page...
-2026-02-10 15:42:16,818 - INFO - [STEP] Looking for 'Set up authenticator' button...
-2026-02-10 15:42:16,947 - INFO - [STEP] Looking for 'Set up authenticator' button...
-2026-02-10 15:42:17,814 - INFO - [STEP] Looking for 'Set up authenticator' button...
-2026-02-10 15:42:17,943 - INFO - [STEP] Looking for 'Set up authenticator' button...
-2026-02-10 15:42:18,228 - INFO - [STEP] Looking for 'Set up authenticator' button...
-2026-02-10 15:42:19,977 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
-2026-02-10 15:42:20,133 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
-[HEARTBEAT] 15:42:20 - Processing... (0/10 completed)
-2026-02-10 15:42:20,977 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
-2026-02-10 15:42:21,097 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
-2026-02-10 15:42:21,441 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
-2026-02-10 15:42:21,978 - INFO - [STEP] Looking for 'Can't scan it?' link...
-2026-02-10 15:42:22,135 - INFO - [STEP] Looking for 'Can't scan it?' link...
-2026-02-10 15:42:22,979 - INFO - [STEP] Looking for 'Can't scan it?' link...
-2026-02-10 15:42:23,098 - INFO - [STEP] Looking for 'Can't scan it?' link...
-2026-02-10 15:42:23,442 - INFO - [STEP] Looking for 'Can't scan it?' link...
-2026-02-10 15:42:24,055 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
-2026-02-10 15:42:24,087 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
-2026-02-10 15:42:24,219 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
-2026-02-10 15:42:24,246 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
-2026-02-10 15:42:25,073 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
-2026-02-10 15:42:25,088 - INFO - [STEP] Extracting secret key...
-2026-02-10 15:42:25,120 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
-2026-02-10 15:42:25,179 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
-2026-02-10 15:42:25,208 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
-2026-02-10 15:42:25,247 - INFO - [STEP] Extracting secret key...
-2026-02-10 15:42:25,515 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
-2026-02-10 15:42:25,554 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
-2026-02-10 15:42:26,121 - INFO - [STEP] Extracting secret key...
-2026-02-10 15:42:26,122 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
-2026-02-10 15:42:26,153 - INFO - [STEP] Extracted secret key using div[12]: WPEP****OEOB
-2026-02-10 15:42:26,154 - INFO - [STEP] Secret key successfully extracted: WPEP****OEOB
-2026-02-10 15:42:26,154 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
-2026-02-10 15:42:26,209 - INFO - [STEP] Extracting secret key...
-2026-02-10 15:42:26,275 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
-2026-02-10 15:42:26,315 - INFO - [STEP] Extracted secret key using div[12]: 62T7****WXPL
-2026-02-10 15:42:26,315 - INFO - [STEP] Secret key successfully extracted: 62T7****WXPL
-2026-02-10 15:42:26,315 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
-2026-02-10 15:42:26,555 - INFO - [STEP] Extracting secret key...
-2026-02-10 15:42:27,150 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
-2026-02-10 15:42:27,176 - INFO - [STEP] Extracted secret key using div[12]: 3PRW****FX24
-2026-02-10 15:42:27,176 - INFO - [STEP] Secret key successfully extracted: 3PRW****FX24
-2026-02-10 15:42:27,176 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
-2026-02-10 15:42:27,235 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
-2026-02-10 15:42:27,263 - INFO - [STEP] Extracted secret key using div[12]: H2CU****Q3ON
-2026-02-10 15:42:27,263 - INFO - [STEP] Secret key successfully extracted: H2CU****Q3ON
-2026-02-10 15:42:27,263 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
-2026-02-10 15:42:27,583 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
-2026-02-10 15:42:27,609 - INFO - [STEP] Extracted secret key using div[12]: RKXX****4PMY
-2026-02-10 15:42:27,609 - INFO - [STEP] Secret key successfully extracted: RKXX****4PMY
-2026-02-10 15:42:27,609 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
-[HEARTBEAT] 15:42:30 - Processing... (0/10 completed)
-2026-02-10 15:42:32,384 - INFO - [STEP] Clicked 'Next' button using div[12]
-2026-02-10 15:42:32,519 - INFO - [STEP] Clicked 'Next' button using div[12]
-2026-02-10 15:42:33,386 - INFO - [STEP] Clicked 'Next' button using div[12]
-2026-02-10 15:42:33,483 - INFO - [STEP] Clicked 'Next' button using div[12]
-2026-02-10 15:42:33,836 - INFO - [STEP] Clicked 'Next' button using div[12]
-2026-02-10 15:42:34,386 - WARNING - [SFTP] Credentials not configured. Skipping upload.
-2026-02-10 15:42:34,386 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
-2026-02-10 15:42:34,386 - INFO - [STEP] Verifying Authenticator setup for carolynthomas2283@nextgen151.zenvorahgtr.fun
-2026-02-10 15:42:34,391 - INFO - [STEP] Generated TOTP code for verification: 844060
-2026-02-10 15:42:34,522 - WARNING - [SFTP] Credentials not configured. Skipping upload.
-2026-02-10 15:42:34,522 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
-2026-02-10 15:42:34,522 - INFO - [STEP] Verifying Authenticator setup for brittanywhite8027@nextgen151.zenvorahgtr.fun
-2026-02-10 15:42:34,522 - INFO - [STEP] Generated TOTP code for verification: 783516
-2026-02-10 15:42:35,388 - WARNING - [SFTP] Credentials not configured. Skipping upload.
-2026-02-10 15:42:35,388 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
-2026-02-10 15:42:35,389 - INFO - [STEP] Verifying Authenticator setup for yolandamontgomery7534@lauraneumann.mywire.org
-2026-02-10 15:42:35,389 - INFO - [STEP] Generated TOTP code for verification: 962176
-2026-02-10 15:42:35,486 - WARNING - [SFTP] Credentials not configured. Skipping upload.
-2026-02-10 15:42:35,486 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
-2026-02-10 15:42:35,486 - INFO - [STEP] Verifying Authenticator setup for joshuasampson6066@lauraneumann.mywire.org
-2026-02-10 15:42:35,486 - INFO - [STEP] Generated TOTP code for verification: 467489
-2026-02-10 15:42:35,838 - WARNING - [SFTP] Credentials not configured. Skipping upload.
-2026-02-10 15:42:35,838 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
-2026-02-10 15:42:35,838 - INFO - [STEP] Verifying Authenticator setup for sherriking1520@lauraneumann.mywire.org
-2026-02-10 15:42:35,838 - INFO - [STEP] Generated TOTP code for verification: 341292
-[HEARTBEAT] 15:42:40 - Processing... (0/10 completed)
-2026-02-10 15:42:41,619 - INFO - [STEP] Found OTP input using div[12]
-2026-02-10 15:42:41,731 - INFO - [STEP] Found OTP input using div[12]
-2026-02-10 15:42:42,262 - INFO - [STEP] Entered TOTP code
-2026-02-10 15:42:42,342 - INFO - [STEP] Entered TOTP code
-2026-02-10 15:42:42,608 - INFO - [STEP] Found OTP input using div[12]
-2026-02-10 15:42:42,756 - INFO - [STEP] Found OTP input using div[12]
-2026-02-10 15:42:43,076 - INFO - [STEP] Found OTP input using div[12]
-2026-02-10 15:42:43,294 - INFO - [STEP] Entered TOTP code
-2026-02-10 15:42:43,384 - INFO - [STEP] Entered TOTP code
-2026-02-10 15:42:43,715 - INFO - [STEP] Entered TOTP code
-2026-02-10 15:42:46,383 - INFO - [STEP] Clicked Verify button using div[12]
-2026-02-10 15:42:46,474 - INFO - [STEP] Clicked Verify button using div[12]
-2026-02-10 15:42:47,397 - INFO - [STEP] Clicked Verify button using div[12]
-2026-02-10 15:42:47,493 - INFO - [STEP] Clicked Verify button using div[12]
-2026-02-10 15:42:47,863 - INFO - [STEP] Clicked Verify button using div[12]
-2026-02-10 15:42:49,386 - INFO - [STEP] Authenticator verified successfully
-2026-02-10 15:42:49,386 - INFO - [STEP] Navigating to 2-Step Verification page for carolynthomas2283@nextgen151.zenvorahgtr.fun...
-2026-02-10 15:42:49,477 - INFO - [STEP] Authenticator verified successfully
-2026-02-10 15:42:49,477 - INFO - [STEP] Navigating to 2-Step Verification page for brittanywhite8027@nextgen151.zenvorahgtr.fun...
-[HEARTBEAT] 15:42:50 - Processing... (0/10 completed)
-2026-02-10 15:42:50,400 - INFO - [STEP] Authenticator verified successfully
-2026-02-10 15:42:50,400 - INFO - [STEP] Navigating to 2-Step Verification page for yolandamontgomery7534@lauraneumann.mywire.org...
-2026-02-10 15:42:50,496 - INFO - [STEP] Authenticator verified successfully
-2026-02-10 15:42:50,496 - INFO - [STEP] Navigating to 2-Step Verification page for joshuasampson6066@lauraneumann.mywire.org...
-2026-02-10 15:42:50,866 - INFO - [STEP] Authenticator verified successfully
-2026-02-10 15:42:50,866 - INFO - [STEP] Navigating to 2-Step Verification page for sherriking1520@lauraneumann.mywire.org...
-[HEARTBEAT] 15:43:00 - Processing... (0/10 completed)
-2026-02-10 15:43:06,007 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:43:08,670 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:43:08,742 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:43:08,743 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:43:08,747 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
-[HEARTBEAT] 15:43:10 - Processing... (0/10 completed)
-2026-02-10 15:43:11,149 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:43:13,812 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:43:13,893 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:43:13,909 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:43:13,911 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:43:16,292 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:43:18,950 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:43:19,030 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:43:19,064 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:43:19,067 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-[HEARTBEAT] 15:43:20 - Processing... (0/10 completed)
-2026-02-10 15:43:21,451 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:43:21,539 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
-2026-02-10 15:43:24,092 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:43:24,206 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
-2026-02-10 15:43:24,214 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:43:24,244 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:43:24,245 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:43:24,388 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
-2026-02-10 15:43:24,428 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
-2026-02-10 15:43:24,435 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
-2026-02-10 15:43:28,809 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
-2026-02-10 15:43:28,809 - INFO - [STEP] 2-Step Verification enabled successfully for brittanywhite8027@nextgen151.zenvorahgtr.fun
-2026-02-10 15:43:28,809 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
-[HEARTBEAT] 15:43:30 - Processing... (0/10 completed)
-2026-02-10 15:43:31,444 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
-2026-02-10 15:43:31,444 - INFO - [STEP] 2-Step Verification enabled successfully for sherriking1520@lauraneumann.mywire.org
-2026-02-10 15:43:31,444 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
-2026-02-10 15:43:31,662 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
-2026-02-10 15:43:31,663 - INFO - [STEP] 2-Step Verification enabled successfully for carolynthomas2283@nextgen151.zenvorahgtr.fun
-2026-02-10 15:43:31,663 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
-2026-02-10 15:43:31,682 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
-2026-02-10 15:43:31,682 - INFO - [STEP] 2-Step Verification enabled successfully for yolandamontgomery7534@lauraneumann.mywire.org
-2026-02-10 15:43:31,682 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
-2026-02-10 15:43:31,708 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
-2026-02-10 15:43:31,708 - INFO - [STEP] 2-Step Verification enabled successfully for joshuasampson6066@lauraneumann.mywire.org
-2026-02-10 15:43:31,708 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
-2026-02-10 15:43:33,814 - INFO - [STEP] Generating App Password for brittanywhite8027@nextgen151.zenvorahgtr.fun
-2026-02-10 15:43:33,815 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
-2026-02-10 15:43:36,449 - INFO - [STEP] Generating App Password for sherriking1520@lauraneumann.mywire.org
-2026-02-10 15:43:36,449 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
-2026-02-10 15:43:36,668 - INFO - [STEP] Generating App Password for carolynthomas2283@nextgen151.zenvorahgtr.fun
-2026-02-10 15:43:36,668 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
-2026-02-10 15:43:36,686 - INFO - [STEP] Generating App Password for yolandamontgomery7534@lauraneumann.mywire.org
-2026-02-10 15:43:36,686 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
-2026-02-10 15:43:36,714 - INFO - [STEP] Generating App Password for joshuasampson6066@lauraneumann.mywire.org
-2026-02-10 15:43:36,714 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
-[HEARTBEAT] 15:43:40 - Processing... (0/10 completed)
-2026-02-10 15:43:42,277 - INFO - [STEP] App passwords page loaded
-2026-02-10 15:43:42,863 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
-2026-02-10 15:43:42,863 - INFO - [STEP] Generated app name: App-1770738222
-2026-02-10 15:43:43,183 - INFO - [STEP] Entered app name using regular method
-2026-02-10 15:43:44,187 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
-2026-02-10 15:43:44,358 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
-2026-02-10 15:43:46,201 - INFO - [STEP] App passwords page loaded
-2026-02-10 15:43:46,360 - INFO - [STEP] Waiting for app password dialog to appear...
-2026-02-10 15:43:46,374 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
-2026-02-10 15:43:46,374 - INFO - [STEP] Attempting to extract password from span elements...
-2026-02-10 15:43:46,448 - INFO - [STEP] App passwords page loaded
-2026-02-10 15:43:46,660 - INFO - [STEP] App passwords page loaded
-2026-02-10 15:43:46,839 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
-2026-02-10 15:43:46,840 - INFO - [STEP] Generated app name: App-1770738226
-2026-02-10 15:43:46,864 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
-2026-02-10 15:43:46,864 - INFO - [STEP] App Password Generated Successfully: jpes...gvyo
-2026-02-10 15:43:46,867 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
-2026-02-10 15:43:46,867 - INFO - [STORAGE] ✓ Password saved successfully for brittanywhite8027@nextgen151.zenvorahgtr.fun
-2026-02-10 15:43:46,870 - INFO - [LAMBDA] All steps completed successfully for brittanywhite8027@nextgen151.zenvorahgtr.fun in 156.67 seconds
-2026-02-10 15:43:46,987 - INFO - [LAMBDA] Chrome driver closed for brittanywhite8027@nextgen151.zenvorahgtr.fun
-[1/10] ✓ brittanywhite8027@nextgen151.zenvorahgtr.fun - success
-2026-02-10 15:43:46,991 - INFO - [BATCH] Starting user 2/10: caseyparsons2909@lauraneumann.mywire.org
-2026-02-10 15:43:46,991 - INFO - [RESOURCE] Staggering browser start by 1.62s to reduce RAM spike...
-2026-02-10 15:43:47,145 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
-2026-02-10 15:43:47,146 - INFO - [STEP] Generated app name: App-1770738227
-2026-02-10 15:43:47,173 - INFO - [STEP] Entered app name using regular method
-2026-02-10 15:43:47,186 - INFO - [STEP] App passwords page loaded
-2026-02-10 15:43:47,336 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
-2026-02-10 15:43:47,336 - INFO - [STEP] Generated app name: App-1770738227
-2026-02-10 15:43:47,427 - INFO - [STEP] Entered app name using regular method
-2026-02-10 15:43:47,517 - INFO - [STEP] Entered app name using regular method
-2026-02-10 15:43:47,811 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
-2026-02-10 15:43:47,811 - INFO - [STEP] Generated app name: App-1770738227
-2026-02-10 15:43:48,024 - INFO - [STEP] Entered app name using regular method
-2026-02-10 15:43:48,174 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
-2026-02-10 15:43:48,263 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
-2026-02-10 15:43:48,429 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
-2026-02-10 15:43:48,518 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
-2026-02-10 15:43:48,555 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
-2026-02-10 15:43:48,610 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-2026-02-10 15:43:48,610 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:43:48,610 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-2026-02-10 15:43:48,618 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-2026-02-10 15:43:48,626 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-2026-02-10 15:43:48,626 - INFO - [PROXY] Proxy disabled or not configured
-2026-02-10 15:43:48,626 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-2026-02-10 15:43:48,626 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:43:48,687 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
-2026-02-10 15:43:49,026 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
-2026-02-10 15:43:49,202 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
-2026-02-10 15:43:50,038 - INFO - [BROWSER] ✓ Standard selenium driver started
-2026-02-10 15:43:50,265 - INFO - [STEP] Waiting for app password dialog to appear...
-2026-02-10 15:43:50,280 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
-2026-02-10 15:43:50,280 - INFO - [STEP] Attempting to extract password from span elements...
-[HEARTBEAT] 15:43:50 - Processing... (1/10 completed)
-2026-02-10 15:43:50,557 - INFO - [STEP] Waiting for app password dialog to appear...
-2026-02-10 15:43:50,573 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
-2026-02-10 15:43:50,573 - INFO - [STEP] Attempting to extract password from span elements...
-2026-02-10 15:43:50,690 - INFO - [STEP] Waiting for app password dialog to appear...
-2026-02-10 15:43:50,716 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
-2026-02-10 15:43:50,716 - INFO - [STEP] Attempting to extract password from span elements...
-2026-02-10 15:43:50,783 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
-2026-02-10 15:43:50,783 - INFO - [STEP] App Password Generated Successfully: feac...nexx
-2026-02-10 15:43:50,784 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
-2026-02-10 15:43:50,784 - INFO - [STORAGE] ✓ Password saved successfully for carolynthomas2283@nextgen151.zenvorahgtr.fun
-2026-02-10 15:43:50,787 - INFO - [LAMBDA] All steps completed successfully for carolynthomas2283@nextgen151.zenvorahgtr.fun in 160.59 seconds
-2026-02-10 15:43:51,144 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-2026-02-10 15:43:51,145 - INFO - [BROWSER] ✓ Browser initialization complete
-2026-02-10 15:43:51,146 - INFO - [LAMBDA] Chrome driver started for caseyparsons2909@lauraneumann.mywire.org
-2026-02-10 15:43:51,146 - INFO - [STEP] Login started for caseyparsons2909@lauraneumann.mywire.org
-2026-02-10 15:43:51,146 - INFO - [STEP] Navigating to Google login page (English)...
-2026-02-10 15:43:51,171 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
-2026-02-10 15:43:51,171 - INFO - [STEP] App Password Generated Successfully: xyxr...hmsk
-2026-02-10 15:43:51,171 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
-2026-02-10 15:43:51,171 - INFO - [STORAGE] ✓ Password saved successfully for sherriking1520@lauraneumann.mywire.org
-2026-02-10 15:43:51,171 - INFO - [LAMBDA] All steps completed successfully for sherriking1520@lauraneumann.mywire.org in 160.97 seconds
-2026-02-10 15:43:51,204 - INFO - [STEP] Waiting for app password dialog to appear...
-2026-02-10 15:43:51,234 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
-2026-02-10 15:43:51,234 - INFO - [STEP] Attempting to extract password from span elements...
-2026-02-10 15:43:51,378 - INFO - [LAMBDA] Chrome driver closed for sherriking1520@lauraneumann.mywire.org
-[2/10] ✓ sherriking1520@lauraneumann.mywire.org - success
-2026-02-10 15:43:51,379 - INFO - [BATCH] Starting user 3/10: jaimekennedy1015@lauraneumann.mywire.org
-2026-02-10 15:43:51,379 - INFO - [RESOURCE] Staggering browser start by 3.32s to reduce RAM spike...
-2026-02-10 15:43:51,409 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
-2026-02-10 15:43:51,409 - INFO - [STEP] App Password Generated Successfully: pypw...nxbh
-2026-02-10 15:43:51,409 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
-2026-02-10 15:43:51,409 - INFO - [STORAGE] ✓ Password saved successfully for yolandamontgomery7534@lauraneumann.mywire.org
-2026-02-10 15:43:51,409 - INFO - [LAMBDA] All steps completed successfully for yolandamontgomery7534@lauraneumann.mywire.org in 161.21 seconds
-2026-02-10 15:43:51,520 - INFO - [LAMBDA] Chrome driver closed for yolandamontgomery7534@lauraneumann.mywire.org
-[3/10] ✓ yolandamontgomery7534@lauraneumann.mywire.org - success
-2026-02-10 15:43:51,521 - INFO - [BATCH] Starting user 4/10: ronaldwhitney1562@lauraneumann.mywire.org
-2026-02-10 15:43:51,521 - INFO - [RESOURCE] Staggering browser start by 3.33s to reduce RAM spike...
-2026-02-10 15:43:51,822 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
-2026-02-10 15:43:51,822 - INFO - [STEP] App Password Generated Successfully: kjid...xnae
-2026-02-10 15:43:51,822 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
-2026-02-10 15:43:51,822 - INFO - [STORAGE] ✓ Password saved successfully for joshuasampson6066@lauraneumann.mywire.org
-2026-02-10 15:43:51,823 - INFO - [LAMBDA] All steps completed successfully for joshuasampson6066@lauraneumann.mywire.org in 161.62 seconds
-2026-02-10 15:43:51,931 - INFO - [LAMBDA] Chrome driver closed for carolynthomas2283@nextgen151.zenvorahgtr.fun
-[4/10] ✓ carolynthomas2283@nextgen151.zenvorahgtr.fun - success
-2026-02-10 15:43:51,933 - INFO - [BATCH] Starting user 5/10: richardsantiago9807@lauraneumann.mywire.org
-2026-02-10 15:43:51,934 - INFO - [RESOURCE] Staggering browser start by 4.02s to reduce RAM spike...
-2026-02-10 15:43:52,013 - INFO - [LAMBDA] Chrome driver closed for joshuasampson6066@lauraneumann.mywire.org
-[5/10] ✓ joshuasampson6066@lauraneumann.mywire.org - success
-2026-02-10 15:43:52,015 - INFO - [BATCH] Starting user 6/10: nicolejones4767@lauraneumann.mywire.org
-2026-02-10 15:43:52,015 - INFO - [RESOURCE] Staggering browser start by 2.71s to reduce RAM spike...
-2026-02-10 15:43:52,616 - INFO - [STEP] Navigation to Google login page completed
-2026-02-10 15:43:54,706 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-2026-02-10 15:43:54,707 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:43:54,707 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-2026-02-10 15:43:54,707 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-2026-02-10 15:43:54,707 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-2026-02-10 15:43:54,707 - INFO - [PROXY] Proxy disabled or not configured
-2026-02-10 15:43:54,707 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-2026-02-10 15:43:54,707 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:43:54,729 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-2026-02-10 15:43:54,729 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:43:54,729 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-2026-02-10 15:43:54,730 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-2026-02-10 15:43:54,730 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-2026-02-10 15:43:54,730 - INFO - [PROXY] Proxy disabled or not configured
-2026-02-10 15:43:54,730 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-2026-02-10 15:43:54,730 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:43:54,854 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-2026-02-10 15:43:54,854 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:43:54,854 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-2026-02-10 15:43:54,854 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-2026-02-10 15:43:54,854 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-2026-02-10 15:43:54,854 - INFO - [PROXY] Proxy disabled or not configured
-2026-02-10 15:43:54,854 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-2026-02-10 15:43:54,854 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:43:55,695 - INFO - [BROWSER] ✓ Standard selenium driver started
-2026-02-10 15:43:55,958 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
-2026-02-10 15:43:55,958 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:43:55,958 - INFO - [BROWSER] Contents of /opt: ['google', 'digitalocean', 'automation']
-2026-02-10 15:43:55,958 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
-2026-02-10 15:43:55,958 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
-2026-02-10 15:43:55,958 - INFO - [PROXY] Proxy disabled or not configured
-2026-02-10 15:43:55,958 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
-2026-02-10 15:43:55,958 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
-2026-02-10 15:43:56,032 - INFO - [STEP] Page stabilized, proceeding with login
-2026-02-10 15:43:56,032 - INFO - [STEP] Email submission attempt 1/3
-2026-02-10 15:43:56,032 - INFO - [STEP] Locating email input field...
-2026-02-10 15:43:56,185 - INFO - [BROWSER] ✓ Standard selenium driver started
-2026-02-10 15:43:56,193 - INFO - [BROWSER] ✓ Standard selenium driver started
-2026-02-10 15:43:56,816 - INFO - [BROWSER] ✓ Standard selenium driver started
-2026-02-10 15:43:56,830 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-2026-02-10 15:43:56,830 - INFO - [BROWSER] ✓ Browser initialization complete
-2026-02-10 15:43:56,830 - INFO - [LAMBDA] Chrome driver started for jaimekennedy1015@lauraneumann.mywire.org
-2026-02-10 15:43:56,830 - INFO - [STEP] Login started for jaimekennedy1015@lauraneumann.mywire.org
-2026-02-10 15:43:56,830 - INFO - [STEP] Navigating to Google login page (English)...
-2026-02-10 15:43:57,269 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-2026-02-10 15:43:57,269 - INFO - [BROWSER] ✓ Browser initialization complete
-2026-02-10 15:43:57,269 - INFO - [LAMBDA] Chrome driver started for ronaldwhitney1562@lauraneumann.mywire.org
-2026-02-10 15:43:57,269 - INFO - [STEP] Login started for ronaldwhitney1562@lauraneumann.mywire.org
-2026-02-10 15:43:57,269 - INFO - [STEP] Navigating to Google login page (English)...
-2026-02-10 15:43:57,270 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-2026-02-10 15:43:57,270 - INFO - [BROWSER] ✓ Browser initialization complete
-2026-02-10 15:43:57,270 - INFO - [LAMBDA] Chrome driver started for nicolejones4767@lauraneumann.mywire.org
-2026-02-10 15:43:57,270 - INFO - [STEP] Login started for nicolejones4767@lauraneumann.mywire.org
-2026-02-10 15:43:57,270 - INFO - [STEP] Navigating to Google login page (English)...
-2026-02-10 15:43:57,800 - INFO - [STEP] Clearing and typing email...
-2026-02-10 15:43:58,157 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
-2026-02-10 15:43:58,157 - INFO - [BROWSER] ✓ Browser initialization complete
-2026-02-10 15:43:58,157 - INFO - [LAMBDA] Chrome driver started for richardsantiago9807@lauraneumann.mywire.org
-2026-02-10 15:43:58,157 - INFO - [STEP] Login started for richardsantiago9807@lauraneumann.mywire.org
-2026-02-10 15:43:58,157 - INFO - [STEP] Navigating to Google login page (English)...
-2026-02-10 15:43:59,152 - INFO - [STEP] Navigation to Google login page completed
-[HEARTBEAT] 15:44:00 - Processing... (5/10 completed)
-2026-02-10 15:44:00,932 - INFO - [STEP] Navigation to Google login page completed
-2026-02-10 15:44:01,512 - INFO - [STEP] Navigation to Google login page completed
-2026-02-10 15:44:01,923 - INFO - [STEP] Page stabilized, proceeding with login
-2026-02-10 15:44:01,923 - INFO - [STEP] Email submission attempt 1/3
-2026-02-10 15:44:01,923 - INFO - [STEP] Locating email input field...
-2026-02-10 15:44:02,546 - INFO - [STEP] Navigation to Google login page completed
-2026-02-10 15:44:03,855 - INFO - [STEP] Page stabilized, proceeding with login
-2026-02-10 15:44:03,855 - INFO - [STEP] Email submission attempt 1/3
-2026-02-10 15:44:03,855 - INFO - [STEP] Locating email input field...
-2026-02-10 15:44:04,108 - INFO - [STEP] Clearing and typing email...
-2026-02-10 15:44:04,162 - INFO - [STEP] Page stabilized, proceeding with login
-2026-02-10 15:44:04,162 - INFO - [STEP] Email submission attempt 1/3
-2026-02-10 15:44:04,162 - INFO - [STEP] Locating email input field...
-2026-02-10 15:44:05,265 - INFO - [STEP] Clearing and typing email...
-2026-02-10 15:44:05,819 - INFO - [STEP] Clearing and typing email...
-2026-02-10 15:44:05,995 - INFO - [STEP] Page stabilized, proceeding with login
-2026-02-10 15:44:05,995 - INFO - [STEP] Email submission attempt 1/3
-2026-02-10 15:44:05,995 - INFO - [STEP] Locating email input field...
-2026-02-10 15:44:07,209 - INFO - [STEP] Email entered with human-like typing
-2026-02-10 15:44:07,567 - INFO - [STEP] Clearing and typing email...
-2026-02-10 15:44:07,963 - INFO - [STEP] Locating 'Next' button...
-2026-02-10 15:44:08,190 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
-2026-02-10 15:44:08,191 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
-[HEARTBEAT] 15:44:10 - Processing... (5/10 completed)
-2026-02-10 15:44:11,570 - INFO - [STEP] ✓ Transitioned to password page/challenge
-2026-02-10 15:44:11,570 - INFO - [STEP] Waiting for page transition...
-2026-02-10 15:44:14,270 - INFO - [STEP] Email entered with human-like typing
-2026-02-10 15:44:14,362 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcZl1FnJt-LVFjG9yNDf7wQPzlrFR8cCEfn5uiS9u..., Title: Welcome
-2026-02-10 15:44:15,105 - INFO - [STEP] Locating 'Next' button...
-2026-02-10 15:44:15,227 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
-2026-02-10 15:44:15,227 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
-2026-02-10 15:44:15,494 - INFO - [STEP] Email entered with human-like typing
-2026-02-10 15:44:16,256 - INFO - [STEP] Email entered with human-like typing
-2026-02-10 15:44:16,366 - INFO - [STEP] Locating 'Next' button...
-2026-02-10 15:44:16,489 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
-2026-02-10 15:44:16,489 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
-2026-02-10 15:44:16,934 - INFO - [STEP] Locating 'Next' button...
-2026-02-10 15:44:17,000 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
-2026-02-10 15:44:17,000 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
-2026-02-10 15:44:17,995 - INFO - [STEP] Waiting 5.2s for password field to appear (after CAPTCHA solve)...
-2026-02-10 15:44:18,015 - INFO - [STEP] Email entered with human-like typing
-2026-02-10 15:44:18,606 - INFO - [STEP] ✓ Transitioned to password page/challenge
-2026-02-10 15:44:18,606 - INFO - [STEP] Waiting for page transition...
-2026-02-10 15:44:18,681 - INFO - [STEP] Locating 'Next' button...
-2026-02-10 15:44:18,755 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
-2026-02-10 15:44:18,755 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
-2026-02-10 15:44:19,928 - INFO - [STEP] ✓ Transitioned to password page/challenge
-2026-02-10 15:44:19,928 - INFO - [STEP] Waiting for page transition...
-[HEARTBEAT] 15:44:20 - Processing... (5/10 completed)
-2026-02-10 15:44:20,371 - INFO - [STEP] ✓ Transitioned to password page/challenge
-2026-02-10 15:44:20,371 - INFO - [STEP] Waiting for page transition...
-2026-02-10 15:44:22,133 - INFO - [STEP] ✓ Transitioned to password page/challenge
-2026-02-10 15:44:22,133 - INFO - [STEP] Waiting for page transition...
-2026-02-10 15:44:22,749 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcYf1MqBcxOzrLE1gr9P0NeDtV700sNwrkaq-Rr83..., Title: Welcome
-2026-02-10 15:44:23,192 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
-2026-02-10 15:44:23,192 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
-2026-02-10 15:44:23,391 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcbHT-8wneIdGkIT2iNUXXXpVlOtRgkEus09j3COE..., Title: Welcome
-2026-02-10 15:44:23,545 - INFO - [STEP] Found password input using By.NAME='Passwd'
-2026-02-10 15:44:23,924 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcaBY2pndw1_XeFnV84PT7kHkSoEixYZQIDsmzlOA..., Title: Welcome
-2026-02-10 15:44:25,459 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcaZdvVsit3nofEC__ywrUtwnCWPFX0IXPIhgiS5_..., Title: Welcome
-2026-02-10 15:44:26,292 - INFO - [STEP] Waiting 7.9s for password field to appear (after CAPTCHA solve)...
-2026-02-10 15:44:26,934 - INFO - [STEP] Waiting 5.0s for password field to appear (after CAPTCHA solve)...
-2026-02-10 15:44:27,412 - INFO - [STEP] Waiting 8.0s for password field to appear (after CAPTCHA solve)...
-2026-02-10 15:44:28,930 - INFO - [STEP] Password entered using human-like typing simulation
-2026-02-10 15:44:28,944 - INFO - [STEP] Password entered successfully
-2026-02-10 15:44:28,979 - INFO - [STEP] Waiting 6.5s for password field to appear (after CAPTCHA solve)...
-2026-02-10 15:44:29,572 - INFO - [STEP] Password submitted using Enter key
-[HEARTBEAT] 15:44:30 - Processing... (5/10 completed)
-2026-02-10 15:44:31,967 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
-2026-02-10 15:44:31,967 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
-2026-02-10 15:44:32,280 - INFO - [STEP] Found password input using By.NAME='Passwd'
-2026-02-10 15:44:34,166 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
-2026-02-10 15:44:34,166 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
-2026-02-10 15:44:34,420 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZl1FnJt-LVFjG9yNDf7wQPzlrFR8cCEfn5uiS9ucQDzsxvWjo3a5OP23sN&checkConnection=youtube%3A133&checkedDomains=youtube&dsh=S119549381%3A1770738231196987&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuBtMR3nGaAtc_uP2OHOFNd3wM5TYlBR5NTLf2CGqpIVufCP5DFZAHwK8dXeC0obya9Vpk94&pstMsg=1
-2026-02-10 15:44:34,462 - INFO - [STEP] Found password input using By.NAME='Passwd'
-2026-02-10 15:44:34,527 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZl1FnJt-LVFjG9yNDf7wQPzlrFR8cCEfn5uiS9ucQDzsxvWjo3a5OP23sN&checkConnection=youtube%3A133&checkedDomains=youtube&dsh=S119549381%3A1770738231196987&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuBtMR3nGaAtc_uP2OHOFNd3wM5TYlBR5NTLf2CGqpIVufCP5DFZAHwK8dXeC0obya9Vpk94&pstMsg=1
-2026-02-10 15:44:34,528 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
-2026-02-10 15:44:35,419 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
-2026-02-10 15:44:35,419 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
-2026-02-10 15:44:35,536 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
-2026-02-10 15:44:35,536 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
-2026-02-10 15:44:35,857 - INFO - [STEP] Found password input using By.NAME='Passwd'
-2026-02-10 15:44:35,975 - INFO - [STEP] Found password input using By.NAME='Passwd'
-2026-02-10 15:44:36,925 - INFO - [STEP] Clicked #confirm button via JavaScript
-2026-02-10 15:44:37,518 - INFO - [STEP] Password entered using human-like typing simulation
-2026-02-10 15:44:37,531 - INFO - [STEP] Password entered successfully
-2026-02-10 15:44:38,090 - INFO - [STEP] Password submitted using Enter key
-2026-02-10 15:44:39,533 - INFO - [STEP] Password entered using human-like typing simulation
-2026-02-10 15:44:39,553 - INFO - [STEP] Password entered successfully
-2026-02-10 15:44:40,016 - INFO - [STEP] Password submitted using Enter key
-[HEARTBEAT] 15:44:40 - Processing... (5/10 completed)
-2026-02-10 15:44:40,938 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:133%26pstMsg%3D1&tsvesd=1786290275&tsvenfd=0&pli=1
-2026-02-10 15:44:41,312 - INFO - [STEP] Login success - reached account page
-2026-02-10 15:44:42,133 - INFO - [STEP] Password entered using human-like typing simulation
-2026-02-10 15:44:42,147 - INFO - [STEP] Password entered successfully
-2026-02-10 15:44:42,203 - INFO - [STEP] Password entered using human-like typing simulation
-2026-02-10 15:44:42,217 - INFO - [STEP] Password entered successfully
-2026-02-10 15:44:42,692 - INFO - [STEP] Password submitted using Enter key
-2026-02-10 15:44:42,774 - INFO - [STEP] Password submitted using Enter key
-2026-02-10 15:44:42,816 - INFO - [STEP] Setting up Authenticator for caseyparsons2909@lauraneumann.mywire.org
-2026-02-10 15:44:42,816 - INFO - [STEP] Navigating to Authenticator setup page...
-2026-02-10 15:44:43,248 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcbHT-8wneIdGkIT2iNUXXXpVlOtRgkEus09j3COErYTbbwKUatCl_DvlaiR&checkConnection=youtube%3A725&checkedDomains=youtube&dsh=S1480063781%3A1770738237323640&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuB2tDJ_esi72hb6ktfuSE1J0rBywNRiNn0ZzsatbH_Q2aFod3tsmwDejXs-_bmJkV4gOOQK3g&pstMsg=1
-2026-02-10 15:44:43,375 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcbHT-8wneIdGkIT2iNUXXXpVlOtRgkEus09j3COErYTbbwKUatCl_DvlaiR&checkConnection=youtube%3A725&checkedDomains=youtube&dsh=S1480063781%3A1770738237323640&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuB2tDJ_esi72hb6ktfuSE1J0rBywNRiNn0ZzsatbH_Q2aFod3tsmwDejXs-_bmJkV4gOOQK3g&pstMsg=1
-2026-02-10 15:44:43,375 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
-2026-02-10 15:44:45,041 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcYf1MqBcxOzrLE1gr9P0NeDtV700sNwrkaq-Rr839HENygY_lS4rjEKMJk2&checkConnection=youtube%3A499&checkedDomains=youtube&dsh=S453274941%3A1770738236893876&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuCvV0sWbDPfIqLq8w9e7JfTVNuCkZ1tWNXK3K8ihxWuF7-BaQQLndkTIWq-CezqWmgEtdf8vA&pstMsg=1
-2026-02-10 15:44:45,210 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcYf1MqBcxOzrLE1gr9P0NeDtV700sNwrkaq-Rr839HENygY_lS4rjEKMJk2&checkConnection=youtube%3A499&checkedDomains=youtube&dsh=S453274941%3A1770738236893876&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuCvV0sWbDPfIqLq8w9e7JfTVNuCkZ1tWNXK3K8ihxWuF7-BaQQLndkTIWq-CezqWmgEtdf8vA&pstMsg=1
-2026-02-10 15:44:45,210 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
-2026-02-10 15:44:45,403 - INFO - [STEP] Clicked #confirm button via JavaScript
-2026-02-10 15:44:46,970 - INFO - [STEP] Clicked #confirm button via JavaScript
-2026-02-10 15:44:47,705 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcaZdvVsit3nofEC__ywrUtwnCWPFX0IXPIhgiS5_MD-KHUhvl4zf3ToDmNa&checkConnection=youtube%3A615&checkedDomains=youtube&dsh=S-972376516%3A1770738238235746&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuDbxxLE-Zq4FF_KUBhCorhJV94PIgEz9f4bKlpfBxqT56p_3pqxtMHhuLaVnK4oNxXMyVdymg&pstMsg=1
-2026-02-10 15:44:47,797 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcaZdvVsit3nofEC__ywrUtwnCWPFX0IXPIhgiS5_MD-KHUhvl4zf3ToDmNa&checkConnection=youtube%3A615&checkedDomains=youtube&dsh=S-972376516%3A1770738238235746&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuDbxxLE-Zq4FF_KUBhCorhJV94PIgEz9f4bKlpfBxqT56p_3pqxtMHhuLaVnK4oNxXMyVdymg&pstMsg=1
-2026-02-10 15:44:47,797 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
-2026-02-10 15:44:47,985 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcaBY2pndw1_XeFnV84PT7kHkSoEixYZQIDsmzlOAVLa1CQrp34ScZy90-KW&checkConnection=youtube%3A640&checkedDomains=youtube&dsh=S-1374438815%3A1770738237347305&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuB-OHyFi3KsuKAsKia4pZ65BAmxpzMQ6QNWsqB3Ft0g7tgg3jqDZwIbl0iDda62NreUeY8PAg&pstMsg=1
-2026-02-10 15:44:48,078 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcaBY2pndw1_XeFnV84PT7kHkSoEixYZQIDsmzlOAVLa1CQrp34ScZy90-KW&checkConnection=youtube%3A640&checkedDomains=youtube&dsh=S-1374438815%3A1770738237347305&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuB-OHyFi3KsuKAsKia4pZ65BAmxpzMQ6QNWsqB3Ft0g7tgg3jqDZwIbl0iDda62NreUeY8PAg&pstMsg=1
-2026-02-10 15:44:48,079 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
-2026-02-10 15:44:49,413 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:725%26pstMsg%3D1&tsvesd=1786290284&tsvenfd=0&pli=1
-2026-02-10 15:44:49,676 - INFO - [STEP] Looking for 'Set up authenticator' button...
-2026-02-10 15:44:49,775 - INFO - [STEP] Login success - reached account page
-2026-02-10 15:44:50,003 - INFO - [STEP] Clicked #confirm button via JavaScript
-2026-02-10 15:44:50,217 - INFO - [STEP] Clicked #confirm button via JavaScript
-[HEARTBEAT] 15:44:50 - Processing... (5/10 completed)
-2026-02-10 15:44:50,981 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:499%26pstMsg%3D1&tsvesd=1786290286&tsvenfd=0&pli=1
-2026-02-10 15:44:51,165 - INFO - [STEP] Login success - reached account page
-2026-02-10 15:44:52,130 - INFO - [STEP] Setting up Authenticator for nicolejones4767@lauraneumann.mywire.org
-2026-02-10 15:44:52,131 - INFO - [STEP] Navigating to Authenticator setup page...
-2026-02-10 15:44:52,873 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
-2026-02-10 15:44:53,459 - INFO - [STEP] Setting up Authenticator for jaimekennedy1015@lauraneumann.mywire.org
-2026-02-10 15:44:53,459 - INFO - [STEP] Navigating to Authenticator setup page...
-2026-02-10 15:44:54,013 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:615%26pstMsg%3D1&tsvesd=1786290288&tsvenfd=0&pli=1
-2026-02-10 15:44:54,225 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:640%26pstMsg%3D1&tsvesd=1786290288&tsvenfd=0&pli=1
-2026-02-10 15:44:54,287 - INFO - [STEP] Login success - reached account page
-2026-02-10 15:44:54,465 - INFO - [STEP] Login success - reached account page
-2026-02-10 15:44:54,875 - INFO - [STEP] Looking for 'Can't scan it?' link...
-2026-02-10 15:44:55,549 - INFO - [STEP] Setting up Authenticator for richardsantiago9807@lauraneumann.mywire.org
-2026-02-10 15:44:55,549 - INFO - [STEP] Navigating to Authenticator setup page...
-2026-02-10 15:44:55,920 - INFO - [STEP] Setting up Authenticator for ronaldwhitney1562@lauraneumann.mywire.org
-2026-02-10 15:44:55,920 - INFO - [STEP] Navigating to Authenticator setup page...
-2026-02-10 15:44:56,990 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
-2026-02-10 15:44:57,079 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
-2026-02-10 15:44:58,080 - INFO - [STEP] Extracting secret key...
-2026-02-10 15:44:58,650 - INFO - [STEP] Looking for 'Set up authenticator' button...
-2026-02-10 15:44:59,114 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
-2026-02-10 15:44:59,150 - INFO - [STEP] Extracted secret key using div[12]: DPK7****PC7P
-2026-02-10 15:44:59,150 - INFO - [STEP] Secret key successfully extracted: DPK7****PC7P
-2026-02-10 15:44:59,150 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
-2026-02-10 15:45:00,114 - INFO - [STEP] Looking for 'Set up authenticator' button...
-[HEARTBEAT] 15:45:00 - Processing... (5/10 completed)
-2026-02-10 15:45:01,774 - INFO - [STEP] Looking for 'Set up authenticator' button...
-2026-02-10 15:45:01,882 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
-2026-02-10 15:45:02,462 - INFO - [STEP] Looking for 'Set up authenticator' button...
-2026-02-10 15:45:03,451 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
-2026-02-10 15:45:03,884 - INFO - [STEP] Looking for 'Can't scan it?' link...
-2026-02-10 15:45:05,199 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
-2026-02-10 15:45:05,454 - INFO - [STEP] Looking for 'Can't scan it?' link...
-2026-02-10 15:45:05,605 - INFO - [STEP] Clicked 'Next' button using div[12]
-2026-02-10 15:45:05,764 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
-2026-02-10 15:45:06,092 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
-2026-02-10 15:45:06,221 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
-2026-02-10 15:45:07,201 - INFO - [STEP] Looking for 'Can't scan it?' link...
-2026-02-10 15:45:07,222 - INFO - [STEP] Extracting secret key...
-2026-02-10 15:45:07,594 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
-2026-02-10 15:45:07,606 - WARNING - [SFTP] Credentials not configured. Skipping upload.
-2026-02-10 15:45:07,606 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
-2026-02-10 15:45:07,606 - INFO - [STEP] Verifying Authenticator setup for caseyparsons2909@lauraneumann.mywire.org
-2026-02-10 15:45:07,609 - INFO - [STEP] Generated TOTP code for verification: 290099
-2026-02-10 15:45:07,648 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
-2026-02-10 15:45:07,766 - INFO - [STEP] Looking for 'Can't scan it?' link...
-2026-02-10 15:45:08,255 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
-2026-02-10 15:45:08,285 - INFO - [STEP] Extracted secret key using div[12]: CHTX****H5HL
-2026-02-10 15:45:08,285 - INFO - [STEP] Secret key successfully extracted: CHTX****H5HL
-2026-02-10 15:45:08,285 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
-2026-02-10 15:45:08,650 - INFO - [STEP] Extracting secret key...
-2026-02-10 15:45:09,303 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
-2026-02-10 15:45:09,335 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
-2026-02-10 15:45:09,690 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
-2026-02-10 15:45:09,719 - INFO - [STEP] Extracted secret key using div[12]: 7F5B****FRGX
-2026-02-10 15:45:09,719 - INFO - [STEP] Secret key successfully extracted: 7F5B****FRGX
-2026-02-10 15:45:09,719 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
-2026-02-10 15:45:09,882 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
-2026-02-10 15:45:09,918 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
-2026-02-10 15:45:10,336 - INFO - [STEP] Extracting secret key...
-[HEARTBEAT] 15:45:10 - Processing... (5/10 completed)
-2026-02-10 15:45:10,919 - INFO - [STEP] Extracting secret key...
-2026-02-10 15:45:11,371 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
-2026-02-10 15:45:11,402 - INFO - [STEP] Extracted secret key using div[12]: 7POG****F7ID
-2026-02-10 15:45:11,402 - INFO - [STEP] Secret key successfully extracted: 7POG****F7ID
-2026-02-10 15:45:11,402 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
-2026-02-10 15:45:11,952 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
-2026-02-10 15:45:11,979 - INFO - [STEP] Extracted secret key using div[12]: EVMA****BDOZ
-2026-02-10 15:45:11,979 - INFO - [STEP] Secret key successfully extracted: EVMA****BDOZ
-2026-02-10 15:45:11,980 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
-2026-02-10 15:45:14,561 - INFO - [STEP] Clicked 'Next' button using div[12]
-2026-02-10 15:45:14,919 - INFO - [STEP] Found OTP input using div[12]
-2026-02-10 15:45:15,622 - INFO - [STEP] Entered TOTP code
-2026-02-10 15:45:15,974 - INFO - [STEP] Clicked 'Next' button using div[12]
-2026-02-10 15:45:16,562 - WARNING - [SFTP] Credentials not configured. Skipping upload.
-2026-02-10 15:45:16,562 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
-2026-02-10 15:45:16,562 - INFO - [STEP] Verifying Authenticator setup for nicolejones4767@lauraneumann.mywire.org
-2026-02-10 15:45:16,562 - INFO - [STEP] Generated TOTP code for verification: 500453
-2026-02-10 15:45:17,651 - INFO - [STEP] Clicked 'Next' button using div[12]
-2026-02-10 15:45:17,977 - WARNING - [SFTP] Credentials not configured. Skipping upload.
-2026-02-10 15:45:17,977 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
-2026-02-10 15:45:17,977 - INFO - [STEP] Verifying Authenticator setup for jaimekennedy1015@lauraneumann.mywire.org
-2026-02-10 15:45:17,977 - INFO - [STEP] Generated TOTP code for verification: 558637
-2026-02-10 15:45:18,228 - INFO - [STEP] Clicked 'Next' button using div[12]
-2026-02-10 15:45:19,653 - WARNING - [SFTP] Credentials not configured. Skipping upload.
-2026-02-10 15:45:19,653 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
-2026-02-10 15:45:19,653 - INFO - [STEP] Verifying Authenticator setup for richardsantiago9807@lauraneumann.mywire.org
-2026-02-10 15:45:19,653 - INFO - [STEP] Generated TOTP code for verification: 101101
-2026-02-10 15:45:19,740 - INFO - [STEP] Clicked Verify button using div[12]
-2026-02-10 15:45:20,231 - WARNING - [SFTP] Credentials not configured. Skipping upload.
-2026-02-10 15:45:20,231 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
-2026-02-10 15:45:20,231 - INFO - [STEP] Verifying Authenticator setup for ronaldwhitney1562@lauraneumann.mywire.org
-2026-02-10 15:45:20,231 - INFO - [STEP] Generated TOTP code for verification: 443352
-[HEARTBEAT] 15:45:20 - Processing... (5/10 completed)
-2026-02-10 15:45:22,743 - INFO - [STEP] Authenticator verified successfully
-2026-02-10 15:45:22,743 - INFO - [STEP] Navigating to 2-Step Verification page for caseyparsons2909@lauraneumann.mywire.org...
-2026-02-10 15:45:23,859 - INFO - [STEP] Found OTP input using div[12]
-2026-02-10 15:45:24,559 - INFO - [STEP] Entered TOTP code
-2026-02-10 15:45:25,274 - INFO - [STEP] Found OTP input using div[12]
-2026-02-10 15:45:25,957 - INFO - [STEP] Entered TOTP code
-2026-02-10 15:45:26,924 - INFO - [STEP] Found OTP input using div[12]
-2026-02-10 15:45:27,547 - INFO - [STEP] Found OTP input using div[12]
-2026-02-10 15:45:27,637 - INFO - [STEP] Entered TOTP code
-2026-02-10 15:45:28,266 - INFO - [STEP] Entered TOTP code
-2026-02-10 15:45:28,679 - INFO - [STEP] Clicked Verify button using div[12]
-2026-02-10 15:45:30,072 - INFO - [STEP] Clicked Verify button using div[12]
-[HEARTBEAT] 15:45:30 - Processing... (5/10 completed)
-2026-02-10 15:45:31,690 - INFO - [STEP] Authenticator verified successfully
-2026-02-10 15:45:31,690 - INFO - [STEP] Navigating to 2-Step Verification page for nicolejones4767@lauraneumann.mywire.org...
-2026-02-10 15:45:31,771 - INFO - [STEP] Clicked Verify button using div[12]
-2026-02-10 15:45:32,409 - INFO - [STEP] Clicked Verify button using div[12]
-2026-02-10 15:45:33,075 - INFO - [STEP] Authenticator verified successfully
-2026-02-10 15:45:33,075 - INFO - [STEP] Navigating to 2-Step Verification page for jaimekennedy1015@lauraneumann.mywire.org...
-2026-02-10 15:45:34,773 - INFO - [STEP] Authenticator verified successfully
-2026-02-10 15:45:34,774 - INFO - [STEP] Navigating to 2-Step Verification page for richardsantiago9807@lauraneumann.mywire.org...
-2026-02-10 15:45:35,410 - INFO - [STEP] Authenticator verified successfully
-2026-02-10 15:45:35,410 - INFO - [STEP] Navigating to 2-Step Verification page for ronaldwhitney1562@lauraneumann.mywire.org...
-2026-02-10 15:45:35,892 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
-[HEARTBEAT] 15:45:40 - Processing... (5/10 completed)
-2026-02-10 15:45:41,054 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:45:46,180 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:45:46,266 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:45:46,406 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:45:48,507 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:45:48,861 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
-[HEARTBEAT] 15:45:50 - Processing... (5/10 completed)
-2026-02-10 15:45:51,328 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:45:51,398 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:45:51,439 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
-2026-02-10 15:45:51,529 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:45:53,634 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:45:54,018 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
-2026-02-10 15:45:56,531 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:45:56,658 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:45:58,676 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
-2026-02-10 15:45:58,677 - INFO - [STEP] 2-Step Verification enabled successfully for caseyparsons2909@lauraneumann.mywire.org
-2026-02-10 15:45:58,677 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
-2026-02-10 15:45:58,757 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:45:59,163 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-[HEARTBEAT] 15:46:00 - Processing... (5/10 completed)
-2026-02-10 15:46:01,659 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:46:01,750 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
-2026-02-10 15:46:01,781 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:46:01,912 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
-2026-02-10 15:46:03,682 - INFO - [STEP] Generating App Password for caseyparsons2909@lauraneumann.mywire.org
-2026-02-10 15:46:03,682 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
-2026-02-10 15:46:03,911 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:46:04,019 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
-2026-02-10 15:46:04,310 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
-2026-02-10 15:46:04,463 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
-2026-02-10 15:46:09,041 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
-2026-02-10 15:46:09,041 - INFO - [STEP] 2-Step Verification enabled successfully for nicolejones4767@lauraneumann.mywire.org
-2026-02-10 15:46:09,041 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
-2026-02-10 15:46:09,195 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
-2026-02-10 15:46:09,196 - INFO - [STEP] 2-Step Verification enabled successfully for jaimekennedy1015@lauraneumann.mywire.org
-2026-02-10 15:46:09,196 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
-[HEARTBEAT] 15:46:10 - Processing... (5/10 completed)
-2026-02-10 15:46:11,280 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
-2026-02-10 15:46:11,280 - INFO - [STEP] 2-Step Verification enabled successfully for richardsantiago9807@lauraneumann.mywire.org
-2026-02-10 15:46:11,280 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
-2026-02-10 15:46:11,706 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
-2026-02-10 15:46:11,706 - INFO - [STEP] 2-Step Verification enabled successfully for ronaldwhitney1562@lauraneumann.mywire.org
-2026-02-10 15:46:11,706 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
-2026-02-10 15:46:11,805 - INFO - [STEP] App passwords page loaded
-2026-02-10 15:46:12,384 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
-2026-02-10 15:46:12,384 - INFO - [STEP] Generated app name: App-1770738372
-2026-02-10 15:46:12,529 - INFO - [STEP] Entered app name using regular method
-2026-02-10 15:46:13,530 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
-2026-02-10 15:46:13,658 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
-2026-02-10 15:46:14,046 - INFO - [STEP] Generating App Password for nicolejones4767@lauraneumann.mywire.org
-2026-02-10 15:46:14,046 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
-2026-02-10 15:46:14,198 - INFO - [STEP] Generating App Password for jaimekennedy1015@lauraneumann.mywire.org
-2026-02-10 15:46:14,198 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
-2026-02-10 15:46:15,660 - INFO - [STEP] Waiting for app password dialog to appear...
-2026-02-10 15:46:15,673 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
-2026-02-10 15:46:15,673 - INFO - [STEP] Attempting to extract password from span elements...
-2026-02-10 15:46:16,093 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
-2026-02-10 15:46:16,093 - INFO - [STEP] App Password Generated Successfully: pylh...dctk
-2026-02-10 15:46:16,094 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
-2026-02-10 15:46:16,094 - INFO - [STORAGE] ✓ Password saved successfully for caseyparsons2909@lauraneumann.mywire.org
-2026-02-10 15:46:16,094 - INFO - [LAMBDA] All steps completed successfully for caseyparsons2909@lauraneumann.mywire.org in 149.1 seconds
-2026-02-10 15:46:16,198 - INFO - [LAMBDA] Chrome driver closed for caseyparsons2909@lauraneumann.mywire.org
-[6/10] ✓ caseyparsons2909@lauraneumann.mywire.org - success
-2026-02-10 15:46:16,285 - INFO - [STEP] Generating App Password for richardsantiago9807@lauraneumann.mywire.org
-2026-02-10 15:46:16,286 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
-2026-02-10 15:46:16,707 - INFO - [STEP] Generating App Password for ronaldwhitney1562@lauraneumann.mywire.org
-2026-02-10 15:46:16,707 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
-[HEARTBEAT] 15:46:20 - Processing... (6/10 completed)
-2026-02-10 15:46:21,482 - INFO - [STEP] App passwords page loaded
-2026-02-10 15:46:22,162 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
-2026-02-10 15:46:22,163 - INFO - [STEP] Generated app name: App-1770738382
-2026-02-10 15:46:22,198 - INFO - [STEP] App passwords page loaded
-2026-02-10 15:46:22,481 - INFO - [STEP] Entered app name using regular method
-2026-02-10 15:46:22,760 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
-2026-02-10 15:46:22,760 - INFO - [STEP] Generated app name: App-1770738382
-2026-02-10 15:46:22,938 - INFO - [STEP] Entered app name using regular method
-2026-02-10 15:46:23,482 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
-2026-02-10 15:46:23,582 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
-2026-02-10 15:46:23,939 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
-2026-02-10 15:46:24,034 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
-2026-02-10 15:46:24,606 - INFO - [STEP] App passwords page loaded
-2026-02-10 15:46:25,194 - INFO - [STEP] App passwords page loaded
-2026-02-10 15:46:25,263 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
-2026-02-10 15:46:25,263 - INFO - [STEP] Generated app name: App-1770738385
-2026-02-10 15:46:25,427 - INFO - [STEP] Entered app name using regular method
-2026-02-10 15:46:25,585 - INFO - [STEP] Waiting for app password dialog to appear...
-2026-02-10 15:46:25,601 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
-2026-02-10 15:46:25,601 - INFO - [STEP] Attempting to extract password from span elements...
-2026-02-10 15:46:25,777 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
-2026-02-10 15:46:25,777 - INFO - [STEP] Generated app name: App-1770738385
-2026-02-10 15:46:26,028 - INFO - [STEP] Entered app name using regular method
-2026-02-10 15:46:26,036 - INFO - [STEP] Waiting for app password dialog to appear...
-2026-02-10 15:46:26,054 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
-2026-02-10 15:46:26,054 - INFO - [STEP] Attempting to extract password from span elements...
-2026-02-10 15:46:26,127 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
-2026-02-10 15:46:26,127 - INFO - [STEP] App Password Generated Successfully: slix...vaud
-2026-02-10 15:46:26,127 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
-2026-02-10 15:46:26,127 - INFO - [STORAGE] ✓ Password saved successfully for nicolejones4767@lauraneumann.mywire.org
-2026-02-10 15:46:26,127 - INFO - [LAMBDA] All steps completed successfully for nicolejones4767@lauraneumann.mywire.org in 154.11 seconds
-2026-02-10 15:46:26,241 - INFO - [LAMBDA] Chrome driver closed for nicolejones4767@lauraneumann.mywire.org
-[7/10] ✓ nicolejones4767@lauraneumann.mywire.org - success
-2026-02-10 15:46:26,428 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
-2026-02-10 15:46:26,591 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
-2026-02-10 15:46:26,651 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
-2026-02-10 15:46:26,651 - INFO - [STEP] App Password Generated Successfully: zfiu...mjrw
-2026-02-10 15:46:26,652 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
-2026-02-10 15:46:26,652 - INFO - [STORAGE] ✓ Password saved successfully for jaimekennedy1015@lauraneumann.mywire.org
-2026-02-10 15:46:26,652 - INFO - [LAMBDA] All steps completed successfully for jaimekennedy1015@lauraneumann.mywire.org in 155.27 seconds
-2026-02-10 15:46:27,033 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
-2026-02-10 15:46:27,121 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
-2026-02-10 15:46:27,756 - INFO - [LAMBDA] Chrome driver closed for jaimekennedy1015@lauraneumann.mywire.org
-[8/10] ✓ jaimekennedy1015@lauraneumann.mywire.org - success
-2026-02-10 15:46:28,594 - INFO - [STEP] Waiting for app password dialog to appear...
-2026-02-10 15:46:28,608 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
-2026-02-10 15:46:28,608 - INFO - [STEP] Attempting to extract password from span elements...
-2026-02-10 15:46:28,910 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
-2026-02-10 15:46:28,910 - INFO - [STEP] App Password Generated Successfully: dbka...jcvr
-2026-02-10 15:46:28,910 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
-2026-02-10 15:46:28,910 - INFO - [STORAGE] ✓ Password saved successfully for richardsantiago9807@lauraneumann.mywire.org
-2026-02-10 15:46:28,910 - INFO - [LAMBDA] All steps completed successfully for richardsantiago9807@lauraneumann.mywire.org in 156.98 seconds
-2026-02-10 15:46:29,012 - INFO - [LAMBDA] Chrome driver closed for richardsantiago9807@lauraneumann.mywire.org
-[9/10] ✓ richardsantiago9807@lauraneumann.mywire.org - success
-2026-02-10 15:46:29,122 - INFO - [STEP] Waiting for app password dialog to appear...
-2026-02-10 15:46:29,136 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
-2026-02-10 15:46:29,136 - INFO - [STEP] Attempting to extract password from span elements...
-2026-02-10 15:46:29,415 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
-2026-02-10 15:46:29,415 - INFO - [STEP] App Password Generated Successfully: nwsg...cghq
-2026-02-10 15:46:29,415 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
-2026-02-10 15:46:29,416 - INFO - [STORAGE] ✓ Password saved successfully for ronaldwhitney1562@lauraneumann.mywire.org
-2026-02-10 15:46:29,416 - INFO - [LAMBDA] All steps completed successfully for ronaldwhitney1562@lauraneumann.mywire.org in 157.89 seconds
-2026-02-10 15:46:29,537 - INFO - [LAMBDA] Chrome driver closed for ronaldwhitney1562@lauraneumann.mywire.org
-[10/10] ✓ ronaldwhitney1562@lauraneumann.mywire.org - success
-=======================================================
-=== BATCH COMPLETE: 10 succeeded | 0 failed ===
-=======================================================
-2026-02-10 15:46:29,538 - INFO - [BATCH] Completed: 10 succeeded, 0 failed
-<JSON_RESULTS>[{"email": "brittanywhite8027@nextgen151.zenvorahgtr.fun", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "jpesigtnziovgvyo", "secret_key": null, "timings": {"driver_init": 3.27, "login": 52.13, "authenticator_setup": 26.84, "sftp_upload": 0.0, "verify_authenticator": 14.96, "enable_2sv": 39.33, "app_password": 13.05, "save_credential": 0.0, "total": 156.67}}, {"email": "sherriking1520@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "xyxrtyfzjysqhmsk", "secret_key": null, "timings": {"driver_init": 2.79, "login": 53.52, "authenticator_setup": 25.85, "sftp_upload": 0.0, "verify_authenticator": 15.03, "enable_2sv": 40.58, "app_password": 14.72, "save_credential": 0.0, "total": 160.97}}, {"email": "yolandamontgomery7534@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "pypwgyylnnojnxbh", "secret_key": null, "timings": {"driver_init": 3.04, "login": 53.39, "authenticator_setup": 26.63, "sftp_upload": 0.0, "verify_authenticator": 15.01, "enable_2sv": 41.28, "app_password": 14.72, "save_credential": 0.0, "total": 161.21}}, {"email": "carolynthomas2283@nextgen151.zenvorahgtr.fun", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "feacslftglqynexx", "secret_key": null, "timings": {"driver_init": 3.05, "login": 52.84, "authenticator_setup": 25.5, "sftp_upload": 0.0, "verify_authenticator": 15.0, "enable_2sv": 42.28, "app_password": 14.12, "save_credential": 0.0, "total": 160.59}}, {"email": "joshuasampson6066@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "kjidmlokhuggxnae", "secret_key": null, "timings": {"driver_init": 3.6, "login": 51.23, "authenticator_setup": 25.55, "sftp_upload": 0.0, "verify_authenticator": 15.01, "enable_2sv": 41.21, "app_password": 15.11, "save_credential": 0.0, "total": 161.62}}, {"email": "caseyparsons2909@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "pylhsluxfckgdctk", "secret_key": null, "timings": {"driver_init": 2.54, "login": 50.17, "authenticator_setup": 26.29, "sftp_upload": 0.0, "verify_authenticator": 15.14, "enable_2sv": 35.93, "app_password": 12.41, "save_credential": 0.0, "total": 149.1}}, {"email": "nicolejones4767@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "slixhojtmtttvaud", "secret_key": null, "timings": {"driver_init": 2.54, "login": 52.51, "authenticator_setup": 26.79, "sftp_upload": 0.0, "verify_authenticator": 15.13, "enable_2sv": 37.35, "app_password": 12.08, "save_credential": 0.0, "total": 154.11}}, {"email": "jaimekennedy1015@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "zfiuhytiidjmmjrw", "secret_key": null, "timings": {"driver_init": 2.12, "login": 54.34, "authenticator_setup": 26.81, "sftp_upload": 0.0, "verify_authenticator": 15.1, "enable_2sv": 36.12, "app_password": 12.45, "save_credential": 0.0, "total": 155.27}}, {"email": "richardsantiago9807@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "dbkafzbxudlgjcvr", "secret_key": null, "timings": {"driver_init": 2.2, "login": 56.13, "authenticator_setup": 25.37, "sftp_upload": 0.0, "verify_authenticator": 15.12, "enable_2sv": 36.51, "app_password": 12.62, "save_credential": 0.0, "total": 156.98}}, {"email": "ronaldwhitney1562@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "nwsghrrcrkepcghq", "secret_key": null, "timings": {"driver_init": 2.42, "login": 57.2, "authenticator_setup": 25.77, "sftp_upload": 0.0, "verify_authenticator": 15.18, "enable_2sv": 36.3, "app_password": 12.71, "save_credential": 0.0, "total": 157.89}}]</JSON_RESULTS>
+======================================================
+=== BATCH PROCESSING: 2 users | 5 parallel workers ===
+======================================================
+======================================================
+=== BATCH PROCESSING: 2 users | 5 parallel workers ===
+======================================================
+2026-02-10 16:52:11,438 - INFO - [BATCH] Processing 2 users with 5 parallel workers
+[HEARTBEAT] 16:52:11 - Processing... (0/2 completed)2026-02-10 16:52:11,439 - INFO - [BATCH] Starting user 1/2: julianwilson5885@lauraneumann.mywire.org
+
+2026-02-10 16:52:11,440 - INFO - [RESOURCE] Staggering browser start by 4.29s to reduce RAM spike...
+2026-02-10 16:52:11,439 - INFO - [BATCH] Starting user 1/2: kevinklein3472@lauraneumann.mywire.org
+2026-02-10 16:52:11,440 - INFO - [RESOURCE] Staggering browser start by 2.5s to reduce RAM spike...
+2026-02-10 16:52:13,952 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-10 16:52:13,953 - INFO - [BROWSER] Checking /opt directory contents...
+2026-02-10 16:52:13,954 - INFO - [BROWSER] Contents of /opt: ['google', 'automation']
+2026-02-10 16:52:13,955 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-10 16:52:13,955 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-10 16:52:13,956 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-10 16:52:13,956 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-10 16:52:13,956 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-10 16:52:15,730 - INFO - [ANTI-DETECT] selenium-stealth library loaded successfully
+2026-02-10 16:52:15,731 - INFO - [BROWSER] Using cached paths - Chrome: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-10 16:52:15,733 - INFO - [BROWSER] Contents of /opt: ['google', 'automation']
+2026-02-10 16:52:15,734 - INFO - [BROWSER] Found Chrome binary at: /usr/bin/google-chrome
+2026-02-10 16:52:15,735 - INFO - [BROWSER] Found ChromeDriver at: /usr/local/bin/chromedriver
+2026-02-10 16:52:15,735 - INFO - [PROXY] Proxy disabled or not configured
+2026-02-10 16:52:15,736 - INFO - [BROWSER] Starting Standard Selenium (Headless)...
+2026-02-10 16:52:15,737 - INFO - [BROWSER] Binary: /usr/bin/google-chrome, Driver: /usr/local/bin/chromedriver
+2026-02-10 16:52:16,021 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-10 16:52:17,326 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-10 16:52:17,340 - INFO - [BROWSER] ✓ Standard selenium driver started
+2026-02-10 16:52:17,342 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-10 16:52:17,349 - INFO - [LAMBDA] Chrome driver started for kevinklein3472@lauraneumann.mywire.org
+2026-02-10 16:52:17,349 - INFO - [STEP] Login started for kevinklein3472@lauraneumann.mywire.org
+2026-02-10 16:52:17,349 - INFO - [STEP] Navigating to Google login page (English)...
+2026-02-10 16:52:18,832 - INFO - [ANTI-DETECT] ✓ selenium-stealth applied
+2026-02-10 16:52:18,849 - INFO - [BROWSER] ✓ Browser initialization complete
+2026-02-10 16:52:18,850 - INFO - [LAMBDA] Chrome driver started for julianwilson5885@lauraneumann.mywire.org
+2026-02-10 16:52:18,863 - INFO - [STEP] Login started for julianwilson5885@lauraneumann.mywire.org
+2026-02-10 16:52:18,872 - INFO - [STEP] Navigating to Google login page (English)...
+[HEARTBEAT] 16:52:21 - Processing... (0/2 completed)
+2026-02-10 16:52:23,229 - INFO - [STEP] Navigation to Google login page completed
+2026-02-10 16:52:25,404 - INFO - [STEP] Navigation to Google login page completed
+2026-02-10 16:52:26,073 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-10 16:52:26,073 - INFO - [STEP] Email submission attempt 1/3
+2026-02-10 16:52:26,074 - INFO - [STEP] Locating email input field...
+2026-02-10 16:52:28,016 - INFO - [STEP] Clearing and typing email...
+2026-02-10 16:52:28,354 - INFO - [STEP] Page stabilized, proceeding with login
+2026-02-10 16:52:28,359 - INFO - [STEP] Email submission attempt 1/3
+2026-02-10 16:52:28,360 - INFO - [STEP] Locating email input field...
+2026-02-10 16:52:30,264 - INFO - [STEP] Clearing and typing email...
+[HEARTBEAT] 16:52:31 - Processing... (0/2 completed)
+2026-02-10 16:52:40,215 - INFO - [STEP] Email entered with human-like typing
+2026-02-10 16:52:40,937 - INFO - [STEP] Locating 'Next' button...
+2026-02-10 16:52:40,979 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-10 16:52:40,980 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+[HEARTBEAT] 16:52:41 - Processing... (0/2 completed)
+2026-02-10 16:52:41,863 - INFO - [STEP] Email entered with human-like typing
+2026-02-10 16:52:42,858 - INFO - [STEP] Locating 'Next' button...
+2026-02-10 16:52:42,925 - INFO - [STEP] Found Next button with xpath: //div[@id='identifierNext']//button
+2026-02-10 16:52:42,926 - INFO - [STEP] Clicking 'Next' button (Attempt 1)...
+2026-02-10 16:52:44,203 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-10 16:52:44,207 - INFO - [STEP] Waiting for page transition...
+2026-02-10 16:52:46,226 - INFO - [STEP] ✓ Transitioned to password page/challenge
+2026-02-10 16:52:46,228 - INFO - [STEP] Waiting for page transition...
+2026-02-10 16:52:48,328 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAcZembVIgGL54MkRJOY03jhKHF4YJIoSyC9h4igVh..., Title: Welcome
+2026-02-10 16:52:50,361 - INFO - [STEP] After email submission - URL: https://accounts.google.com/v3/signin/challenge/pwd?TL=APgKAca5AgkfBEIRZh3ShCFv0xNwvZ5zaxDMjlvkGPUPy..., Title: Welcome
+[HEARTBEAT] 16:52:51 - Processing... (0/2 completed)
+2026-02-10 16:52:51,730 - INFO - [STEP] Waiting 5.9s for password field to appear (after CAPTCHA solve)...
+2026-02-10 16:52:53,898 - INFO - [STEP] Waiting 7.4s for password field to appear (after CAPTCHA solve)...
+2026-02-10 16:52:57,630 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-10 16:52:57,631 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+2026-02-10 16:52:57,956 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-10 16:53:01,276 - INFO - [STEP] ✓ Page redirected to password challenge page after CAPTCHA!
+2026-02-10 16:53:01,285 - INFO - [STEP] Trying to find password input using By.NAME='Passwd' (primary method)
+[HEARTBEAT] 16:53:01 - Processing... (0/2 completed)
+2026-02-10 16:53:01,657 - INFO - [STEP] Found password input using By.NAME='Passwd'
+2026-02-10 16:53:02,916 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-10 16:53:02,929 - INFO - [STEP] Password entered successfully
+2026-02-10 16:53:03,352 - INFO - [STEP] Password submitted using Enter key
+2026-02-10 16:53:07,215 - INFO - [STEP] Password entered using human-like typing simulation
+2026-02-10 16:53:07,229 - INFO - [STEP] Password entered successfully
+2026-02-10 16:53:07,667 - INFO - [STEP] Password submitted using Enter key
+2026-02-10 16:53:08,265 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZembVIgGL54MkRJOY03jhKHF4YJIoSyC9h4igVhMWB-6k0fOS70XWygJfm&checkConnection=youtube%3A929&checkedDomains=youtube&dsh=S-653561545%3A1770742337431913&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuBXoD9_k5gblO5Gbgo3W23fMHbic1k3SOYHfAmAmZ5BbI0hmh4KovR7m6q4Hj_QP6VslGUDmA&pstMsg=1
+2026-02-10 16:53:08,392 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAcZembVIgGL54MkRJOY03jhKHF4YJIoSyC9h4igVhMWB-6k0fOS70XWygJfm&checkConnection=youtube%3A929&checkedDomains=youtube&dsh=S-653561545%3A1770742337431913&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuBXoD9_k5gblO5Gbgo3W23fMHbic1k3SOYHfAmAmZ5BbI0hmh4KovR7m6q4Hj_QP6VslGUDmA&pstMsg=1
+2026-02-10 16:53:08,393 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-10 16:53:10,428 - INFO - [STEP] Clicked #confirm button via JavaScript
+[HEARTBEAT] 16:53:11 - Processing... (0/2 completed)
+2026-02-10 16:53:13,041 - INFO - [STEP] Post-login check 1/30: URL = https://accounts.google.com/speedbump/gaplustos?TL=APgKAca5AgkfBEIRZh3ShCFv0xNwvZ5zaxDMjlvkGPUPy2AzCcefiR1ksmrKIIti&checkConnection=youtube%3A1016&checkedDomains=youtube&dsh=S-1374438815%3A1770742339026155&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuAK4Oxsz_ojErUe2H1Ju4wCBNbEXug9QrDHN8PWXgPiqKWHOjtpbUYEQrRw6WgjVlncwTSd&pstMsg=1
+2026-02-10 16:53:13,112 - INFO - [STEP] Speedbump page detected (1/20): https://accounts.google.com/speedbump/gaplustos?TL=APgKAca5AgkfBEIRZh3ShCFv0xNwvZ5zaxDMjlvkGPUPy2AzCcefiR1ksmrKIIti&checkConnection=youtube%3A1016&checkedDomains=youtube&dsh=S-1374438815%3A1770742339026155&flowEntry=ServiceLogin&flowName=GlifWebSignIn&hl=en&ifkv=AXbMIuAK4Oxsz_ojErUe2H1Ju4wCBNbEXug9QrDHN8PWXgPiqKWHOjtpbUYEQrRw6WgjVlncwTSd&pstMsg=1
+2026-02-10 16:53:13,113 - INFO - [STEP] Google+ TOS speedbump detected, clicking confirm with JavaScript...
+2026-02-10 16:53:14,439 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:929%26pstMsg%3D1&tsvesd=1786294389&tsvenfd=0&pli=1
+2026-02-10 16:53:14,778 - INFO - [STEP] Login success - reached account page
+2026-02-10 16:53:15,323 - INFO - [STEP] Clicked #confirm button via JavaScript
+2026-02-10 16:53:16,873 - INFO - [STEP] Setting up Authenticator for kevinklein3472@lauraneumann.mywire.org
+2026-02-10 16:53:16,874 - INFO - [STEP] Navigating to Authenticator setup page...
+2026-02-10 16:53:19,334 - INFO - [STEP] Post-login check 2/30: URL = https://myaccount.google.com/interstitials/twosvrequired?hl=en&continue=https://accounts.google.com/ServiceLogin?continue%3Dhttps://accounts.google.com/ManageAccount?nc%253D1%26hl%3Den%26authuser%3D0%26passive%3Dtrue%26sarp%3D1%26aodrpl%3D1%26checkedDomains%3Dyoutube%26checkConnection%3Dyoutube:1016%26pstMsg%3D1&tsvesd=1786294393&tsvenfd=0&pli=1
+2026-02-10 16:53:19,532 - INFO - [STEP] Login success - reached account page
+2026-02-10 16:53:21,360 - INFO - [STEP] Setting up Authenticator for julianwilson5885@lauraneumann.mywire.org
+2026-02-10 16:53:21,361 - INFO - [STEP] Navigating to Authenticator setup page...
+[HEARTBEAT] 16:53:21 - Processing... (0/2 completed)
+2026-02-10 16:53:23,049 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-10 16:53:26,315 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+2026-02-10 16:53:28,298 - INFO - [STEP] Looking for 'Set up authenticator' button...
+2026-02-10 16:53:28,318 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-10 16:53:30,422 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-10 16:53:30,459 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-10 16:53:31,461 - INFO - [STEP] Extracting secret key...
+2026-02-10 16:53:31,495 - INFO - [STEP] Clicked 'Set up authenticator' button using: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div/div[3]/div[2]/div/div/div/button
+[HEARTBEAT] 16:53:31 - Processing... (0/2 completed)
+2026-02-10 16:53:32,527 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-10 16:53:32,555 - INFO - [STEP] Extracted secret key using div[12]: DEQ6****SEPY
+2026-02-10 16:53:32,557 - INFO - [STEP] Secret key successfully extracted: DEQ6****SEPY
+2026-02-10 16:53:32,558 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-10 16:53:33,498 - INFO - [STEP] Looking for 'Can't scan it?' link...
+2026-02-10 16:53:35,577 - INFO - [STEP] Found 'Can't scan it?' button at div[12]
+2026-02-10 16:53:35,639 - INFO - [STEP] Clicked 'Can't scan it?' link using div[12]
+2026-02-10 16:53:36,642 - INFO - [STEP] Extracting secret key...
+2026-02-10 16:53:37,669 - ERROR - [SELENIUM] Timeout waiting for XPath: /html/body/div[11]/div/div[2]/span/div/div/ol/li[2]/div/strong
+2026-02-10 16:53:37,699 - INFO - [STEP] Extracted secret key using div[12]: XEEH****FKEC
+2026-02-10 16:53:37,702 - INFO - [STEP] Secret key successfully extracted: XEEH****FKEC
+2026-02-10 16:53:37,702 - INFO - [STEP] Clicking 'Next' button to proceed to verification...
+2026-02-10 16:53:38,812 - INFO - [STEP] Clicked 'Next' button using div[12]
+2026-02-10 16:53:40,825 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-10 16:53:40,826 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-10 16:53:40,827 - INFO - [STEP] Verifying Authenticator setup for kevinklein3472@lauraneumann.mywire.org
+2026-02-10 16:53:40,828 - INFO - [STEP] Generated TOTP code for verification: 336556
+[HEARTBEAT] 16:53:41 - Processing... (0/2 completed)
+2026-02-10 16:53:43,941 - INFO - [STEP] Clicked 'Next' button using div[12]
+2026-02-10 16:53:45,945 - WARNING - [SFTP] Credentials not configured. Skipping upload.
+2026-02-10 16:53:45,946 - WARNING - [SFTP] Could not upload secret to SFTP, continuing anyway...
+2026-02-10 16:53:45,947 - INFO - [STEP] Verifying Authenticator setup for julianwilson5885@lauraneumann.mywire.org
+2026-02-10 16:53:45,948 - INFO - [STEP] Generated TOTP code for verification: 536671
+2026-02-10 16:53:48,102 - INFO - [STEP] Found OTP input using div[12]
+2026-02-10 16:53:48,734 - INFO - [STEP] Entered TOTP code
+[HEARTBEAT] 16:53:51 - Processing... (0/2 completed)
+2026-02-10 16:53:52,862 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-10 16:53:53,224 - INFO - [STEP] Found OTP input using div[12]
+2026-02-10 16:53:54,091 - INFO - [STEP] Entered TOTP code
+2026-02-10 16:53:55,870 - INFO - [STEP] Authenticator verified successfully
+2026-02-10 16:53:55,871 - INFO - [STEP] Navigating to 2-Step Verification page for kevinklein3472@lauraneumann.mywire.org...
+2026-02-10 16:53:58,264 - INFO - [STEP] Clicked Verify button using div[12]
+2026-02-10 16:54:01,266 - INFO - [STEP] Authenticator verified successfully
+2026-02-10 16:54:01,267 - INFO - [STEP] Navigating to 2-Step Verification page for julianwilson5885@lauraneumann.mywire.org...
+[HEARTBEAT] 16:54:01 - Processing... (0/2 completed)
+2026-02-10 16:54:09,582 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+[HEARTBEAT] 16:54:11 - Processing... (0/2 completed)
+2026-02-10 16:54:14,460 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-10 16:54:14,697 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-10 16:54:19,593 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button
+2026-02-10 16:54:19,810 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+[HEARTBEAT] 16:54:21 - Processing... (0/2 completed)
+2026-02-10 16:54:24,719 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[2]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-10 16:54:25,015 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-10 16:54:25,089 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+2026-02-10 16:54:29,846 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[2]/div[4]/div/button/span[6]
+2026-02-10 16:54:29,966 - INFO - [STEP] Clicked on 'Turn On 2-Step Verification' using xpath: //button[contains(., 'Turn on')]
+[HEARTBEAT] 16:54:31 - Processing... (0/2 completed)
+2026-02-10 16:54:32,330 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-10 16:54:32,331 - INFO - [STEP] 2-Step Verification enabled successfully for kevinklein3472@lauraneumann.mywire.org
+2026-02-10 16:54:32,332 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-10 16:54:37,160 - ERROR - [SELENIUM] Timeout waiting for clickable XPath: //button//span[contains(text(), "Skip")]
+2026-02-10 16:54:37,161 - INFO - [STEP] 2-Step Verification enabled successfully for julianwilson5885@lauraneumann.mywire.org
+2026-02-10 16:54:37,162 - INFO - [STEP] Waiting for app password authorization (may take up to 30 seconds)...
+2026-02-10 16:54:37,335 - INFO - [STEP] Generating App Password for kevinklein3472@lauraneumann.mywire.org
+2026-02-10 16:54:37,336 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+[HEARTBEAT] 16:54:41 - Processing... (0/2 completed)
+2026-02-10 16:54:42,168 - INFO - [STEP] Generating App Password for julianwilson5885@lauraneumann.mywire.org
+2026-02-10 16:54:42,169 - INFO - [STEP] Waiting for app password page to be ready (may take up to 30 seconds after enabling 2SV)...
+2026-02-10 16:54:46,004 - INFO - [STEP] App passwords page loaded
+2026-02-10 16:54:46,550 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-10 16:54:46,551 - INFO - [STEP] Generated app name: App-1770742486
+2026-02-10 16:54:46,730 - INFO - [STEP] Entered app name using regular method
+2026-02-10 16:54:47,732 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-10 16:54:48,119 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-10 16:54:50,122 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-10 16:54:50,137 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-10 16:54:50,139 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-10 16:54:50,519 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
+2026-02-10 16:54:50,519 - INFO - [STEP] App Password Generated Successfully: ayko...nkqn
+2026-02-10 16:54:50,521 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-10 16:54:50,521 - INFO - [STORAGE] ✓ Password saved successfully for kevinklein3472@lauraneumann.mywire.org
+2026-02-10 16:54:50,522 - INFO - [LAMBDA] All steps completed successfully for kevinklein3472@lauraneumann.mywire.org in 159.08 seconds
+2026-02-10 16:54:50,671 - INFO - [LAMBDA] Chrome driver closed for kevinklein3472@lauraneumann.mywire.org
+[1/2] ✓ kevinklein3472@lauraneumann.mywire.org - success
+2026-02-10 16:54:50,935 - INFO - [STEP] App passwords page loaded
+2026-02-10 16:54:51,479 - INFO - [STEP] Found app name input field: /html/body/c-wiz/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[1]/div/div/div[1]/span[3]/input
+2026-02-10 16:54:51,480 - INFO - [STEP] Generated app name: App-1770742491
+[HEARTBEAT] 16:54:51 - Processing... (1/2 completed)
+2026-02-10 16:54:51,645 - INFO - [STEP] Entered app name using regular method
+2026-02-10 16:54:52,646 - INFO - [STEP] Attempting to click Generate button (Attempt 1)...
+2026-02-10 16:54:52,867 - INFO - [STEP] Clicked Generate button: /html/body/c-wiz[1]/div/div[2]/div[3]/c-wiz/div/div[4]/div/div[3]/div/div[2]/div/div/div/button
+2026-02-10 16:54:54,868 - INFO - [STEP] Waiting for app password dialog to appear...
+2026-02-10 16:54:54,888 - INFO - [STEP] App password dialog detected: //div[@aria-modal='true']
+2026-02-10 16:54:54,890 - INFO - [STEP] Attempting to extract password from span elements...
+2026-02-10 16:54:55,323 - INFO - [STEP] Successfully extracted password from spans: //div[@dir='ltr']//span
+2026-02-10 16:54:55,323 - INFO - [STEP] App Password Generated Successfully: qukr...vtae
+2026-02-10 16:54:55,324 - INFO - [STORAGE] Credentials saved to /opt/automation/credentials.jsonl
+2026-02-10 16:54:55,324 - INFO - [STORAGE] ✓ Password saved successfully for julianwilson5885@lauraneumann.mywire.org
+2026-02-10 16:54:55,325 - INFO - [LAMBDA] All steps completed successfully for julianwilson5885@lauraneumann.mywire.org in 163.89 seconds
+2026-02-10 16:54:55,453 - INFO - [LAMBDA] Chrome driver closed for julianwilson5885@lauraneumann.mywire.org
+[2/2] ✓ julianwilson5885@lauraneumann.mywire.org - success
+======================================================
+=== BATCH COMPLETE: 2 succeeded | 0 failed ===
+======================================================
+2026-02-10 16:54:55,461 - INFO - [BATCH] Completed: 2 succeeded, 0 failed
+<JSON_RESULTS>[{"email": "kevinklein3472@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "aykocndcsfoankqn", "secret_key": null, "timings": {"driver_init": 3.4, "login": 57.44, "authenticator_setup": 26.04, "sftp_upload": 0.0, "verify_authenticator": 15.04, "enable_2sv": 36.46, "app_password": 13.19, "save_credential": 0.0, "total": 159.08}}, {"email": "julianwilson5885@lauraneumann.mywire.org", "success": true, "status": "success", "step_completed": "completed", "error_step": null, "error_message": null, "app_password": "qukrrpneljpovtae", "secret_key": null, "timings": {"driver_init": 3.12, "login": 60.67, "authenticator_setup": 26.41, "sftp_upload": 0.0, "verify_authenticator": 15.32, "enable_2sv": 35.89, "app_password": 13.16, "save_credential": 0.0, "total": 163.89}}]</JSON_RESULTS>
