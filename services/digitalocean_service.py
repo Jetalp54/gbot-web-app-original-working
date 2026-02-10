@@ -486,8 +486,8 @@ class DigitalOceanService:
             else:
                 return False, "", "No SSH key or password provided"
             
-            # Execute command (get_pty=False to avoid blocking on background processes)
-            stdin, stdout, stderr = ssh.exec_command(command, get_pty=False)
+            # Execute command
+            stdin, stdout, stderr = ssh.exec_command(command)
             
             stdout_text = stdout.read().decode('utf-8')
             stderr_text = stderr.read().decode('utf-8')
@@ -997,12 +997,13 @@ class DigitalOceanService:
                 if log_callback:
                     log_callback(f"[{datetime.utcnow().isoformat()}] Injecting 2Captcha configuration...\n", append=True)
 
-            # Since get_pty=False, no PTY to detach from. Just use nohup with proper redirections.
-            # Echo $! to capture the PID of the background process.
-            run_cmd = f"bash -c 'touch {log_file}; export DEBIAN_FRONTEND=noninteractive; export PYTHONUNBUFFERED=1; {env_vars} nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 < /dev/null & echo $!'"
+            # USE Bulletproof Detachment:
+            # Use setsid to force detachment from the PTY allocated by paramiko due to get_pty=True
+            # This ensures execute_ssh_command returns immediately while the background process continues
+            run_cmd = f"setsid bash -c 'touch {log_file}; export DEBIAN_FRONTEND=noninteractive; export PYTHONUNBUFFERED=1; {env_vars} nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 < /dev/null &'"
             
             if log_callback:
-                log_callback(f"[{datetime.utcnow().isoformat()}] Launching background automation script on {ip_address}...\n", append=True)
+                log_callback(f"[{datetime.utcnow().isoformat()}] Starting background automation script on {ip_address}...\n", append=True)
 
             success, stdout, stderr = self.execute_ssh_command(
                 ip_address=ip_address,
@@ -1012,26 +1013,11 @@ class DigitalOceanService:
             )
             
             if success:
-                # Extract PID from stdout (echo $!)
+                # Robust PID extraction: take the last line, strip whitespace
                 try:
-                    pid = stdout.strip()
+                    pid = stdout.strip().splitlines()[-1]
                 except (IndexError, AttributeError):
                     pid = "unknown"
-                
-                # Brief pause to let script initialize
-                time.sleep(1)
-                
-                # Verify log file was created (indicates script is running)
-                check_cmd = f"[ -f {log_file} ] && echo 'exists' || echo 'missing'"
-                _, check_output, _ = self.execute_ssh_command(ip_address, check_cmd, 'root', ssh_key_path)
-                
-                if 'missing' in check_output:
-                    logger.warning(f"Log file {log_file} not created yet on {ip_address}.")
-                    if log_callback:
-                        log_callback(f"[{datetime.utcnow().isoformat()}] ⚠ Warning: Log file not detected (PID: {pid})\n", append=True)
-                else:
-                    if log_callback:
-                        log_callback(f"[{datetime.utcnow().isoformat()}] ✓ Script launched (PID: {pid}). Streaming logs in real-time...\n", append=True)
                     
                 logger.info(f"Automation script started on {ip_address} with PID: {pid}")
                 return {'success': True, 'message': 'Automation started', 'pid': pid, 'log_file': log_file, 'result_file': result_file}
