@@ -283,12 +283,13 @@ class DigitalOceanService:
             droplet_id: Droplet ID
             
         Returns:
-            True if successful, False otherwise
+            True if successful (deleted or already gone), False otherwise
         """
         try:
             logger.info(f"Deleting droplet: {droplet_id}")
             response = requests.delete(f"{self.BASE_URL}/droplets/{droplet_id}", headers=self.headers)
-            return response.status_code == 204
+            # 204 means successful deletion, 404 means already deleted
+            return response.status_code in (204, 404)
         except Exception as e:
             logger.error(f"Error deleting droplet {droplet_id}: {e}")
             return False

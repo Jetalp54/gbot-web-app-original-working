@@ -81,61 +81,65 @@ class BulkExecutionOrchestrator:
         exec_start = datetime.utcnow()
         self.execution_id = execution_id or f"exec_{int(time.time())}"
         
-        # 0. Ensure log directory exists for this execution
+    def _log_to_droplet(self, droplet_id: str, message: str, append: bool = True):
+        """Helper to write logs to a specific droplet's monitor file"""
+        try:
+            root_path = self.app.root_path if self.app else os.getcwd()
+            log_dir = os.path.join(root_path, 'logs', 'bulk_executions', self.execution_id)
+            os.makedirs(log_dir, exist_ok=True)
+            log_file = os.path.join(log_dir, f"{droplet_id}.log")
+            
+            mode = 'a' if append else 'w'
+            with open(log_file, mode, encoding='utf-8') as f:
+                f.write(message)
+        except Exception as e:
+            logger.error(f"Failed to write to monitor log {droplet_id}: {e}")
+
+    def execute_bulk(
+        self,
+        users: List[Dict],
+        droplet_count: Optional[int] = None,
+        snapshot_id: str = None,
+        region: str = None,
+        size: str = None,
+        auto_destroy: bool = True,
+        parallel_users: int = 5,
+        users_per_droplet: int = 50,
+        execution_id: str = None
+    ) -> Dict:
+        """
+        Execute bulk automation across multiple droplets.
+        """
+        exec_start = datetime.utcnow()
+        self.execution_id = execution_id or f"exec_{int(time.time())}"
+        
+        # 0. Ensure log directory exists
         root_path = self.app.root_path if self.app else os.getcwd()
         log_dir = os.path.join(root_path, 'logs', 'bulk_executions', self.execution_id)
         os.makedirs(log_dir, exist_ok=True)
-        logger.info(f"[{self.execution_id}] Created log directory: {log_dir}")
 
-        # Determine efficient distribution
-        # If droplet_count is 0 or None, we calculate it based on users_per_droplet
-        if not droplet_count or droplet_count <= 0:
-            if users_per_droplet and users_per_droplet > 0:
-                calculated_count = (len(users) + users_per_droplet - 1) // users_per_droplet
-                logger.info(f"[{self.execution_id}] Auto-calculated droplet count: {calculated_count} (Users: {len(users)}, Per Droplet: {users_per_droplet})")
-                droplet_count = calculated_count
-            else:
-                droplet_count = 1
-                logger.info(f"[{self.execution_id}] Defaulting to 1 droplet (No users_per_droplet specified)")
-        
-        logger.info(f"[{self.execution_id}] Starting bulk execution: {len(users)} users, {droplet_count} droplets, {parallel_users} total parallel")
-        
         try:
             # 1. Distribute users
-            user_batches = DigitalOceanService.distribute_users(
-                users, 
-                droplet_count=droplet_count, 
-                max_users_per_droplet=users_per_droplet
-            )
-            final_droplet_count = len(user_batches)
-            logger.info(f"[{self.execution_id}] Distributed {len(users)} users into {final_droplet_count} batches")
-            
-            # 1.5 Fetch 2Captcha Config from DB
-            self.twocaptcha_config = {'enabled': False, 'api_key': None}
-            if self.app:
-                try:
-                    with self.app.app_context():
-                        from database import TwoCaptchaConfig
-                        config = TwoCaptchaConfig.query.first()
-                        if config:
-                            self.twocaptcha_config = {
-                                'enabled': config.enabled,
-                                'api_key': config.api_key
-                            }
-                            logger.info(f"[{self.execution_id}] 2Captcha Config: Enabled={config.enabled}")
-                except Exception as cap_e:
-                    logger.warning(f"[{self.execution_id}] Failed to fetch 2Captcha config: {cap_e}")
+            # If droplet_count is 0 or None, calculate it
+            if not droplet_count or droplet_count <= 0:
+                user_batches = self.service.distribute_users(users, max_users_per_droplet=users_per_droplet)
+                droplet_count = len(user_batches)
+            else:
+                user_batches = self.service.distribute_users(users, droplet_count=droplet_count)
+                droplet_count = len(user_batches)
+
+            logger.info(f"[{self.execution_id}] Distributing {len(users)} users across {droplet_count} droplets")
             
             # 2. Create droplets
             droplet_info, creation_errors = self._create_droplets_parallel(
-                count=final_droplet_count,
+                count=droplet_count,
                 snapshot_id=snapshot_id,
                 region=region,
                 size=size
             )
             
             if not droplet_info:
-                error_msg = f"Failed to create droplets: {'; '.join(creation_errors)}" if creation_errors else 'Failed to create droplets (Unknown error)'
+                error_msg = f"Failed to create droplets: {'; '.join(creation_errors[:3])}" if creation_errors else 'Failed to create droplets (Unknown error)'
                 return {
                     'success': False,
                     'error': error_msg,
@@ -144,15 +148,12 @@ class BulkExecutionOrchestrator:
             
             logger.info(f"[{self.execution_id}] Created {len(droplet_info)} droplets")
             
+            # 3. Execute automation
             # Use parallel_users as threads per droplet (as indicated in the UI)
-            workers_per_droplet = parallel_users
-            logger.info(f"[{self.execution_id}] Using {workers_per_droplet} parallel workers per droplet")
-            
-            # 3. Execute automation on each droplet (and destroy if auto_destroy=True)
             results = self._execute_on_droplets_parallel(
                 droplet_info, 
                 user_batches, 
-                workers_per_droplet,
+                parallel_users,
                 auto_destroy=auto_destroy
             )
             
@@ -161,7 +162,6 @@ class BulkExecutionOrchestrator:
             execution_time = (exec_end - exec_start).total_seconds()
             
             success_count = sum(1 for r in results if r.get('success'))
-            fail_count = len(results) - success_count
             
             return {
                 'success': True,
@@ -169,7 +169,7 @@ class BulkExecutionOrchestrator:
                 'total_users': len(users),
                 'droplets_used': len(droplet_info),
                 'success_count': success_count,
-                'fail_count': fail_count,
+                'fail_count': len(results) - success_count,
                 'execution_time_seconds': execution_time,
                 'results': results
             }
@@ -178,17 +178,17 @@ class BulkExecutionOrchestrator:
             import traceback
             logger.error(f"[{self.execution_id}] Bulk execution CRASHED: {e}")
             logger.error(traceback.format_exc())
-            
-            # Clean up any created droplets (safety net)
-            if self.droplets_created and auto_destroy:
-                logger.warning(f"[{self.execution_id}] Triggering safety cleanup of {len(self.droplets_created)} droplets due to crash.")
-                self._destroy_droplets_parallel(self.droplets_created)
-            
             return {
                 'success': False,
                 'error': f"Crash: {str(e)}",
                 'execution_id': self.execution_id
             }
+        finally:
+            # FINAL SAFETY SWEEP: If auto_destroy is enabled, ensure ALL tracked droplets are gone
+            is_auto_destroy = str(auto_destroy).lower() == 'true' if isinstance(auto_destroy, str) else bool(auto_destroy)
+            if is_auto_destroy and self.droplets_created:
+                logger.info(f"[{self.execution_id}] Running final safety cleanup of {len(self.droplets_created)} droplets...")
+                self._destroy_droplets_parallel(self.droplets_created)
     
     def _create_droplets_parallel(
         self,
@@ -290,15 +290,26 @@ class BulkExecutionOrchestrator:
         
         droplet_id = result['id']
         
+        # --- INITIALIZATION LOGS FOR MONITOR ---
+        self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] CREATION: Initializing droplet {name} in {region}...\n", append=False)
+        self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] CREATION: Waiting for DigitalOcean to allocate IP...\n")
+        # --- END INITIALIZATION LOGS ---
+
         # Wait for active status and IP
         ip_address = self.service.wait_for_droplet_active(droplet_id, timeout=300)
         
         if not ip_address:
+            msg = f"[{datetime.utcnow().isoformat()}] CREATION ERROR: Timeout waiting for IP address.\n"
+            self._log_to_droplet(droplet_id, msg)
             logger.error(f"[{self.execution_id}] Droplet {droplet_id} did not become active")
             raise Exception(f"Droplet {droplet_id} timed out waiting for IP address after activation")
         
+        self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] CREATION: IP Allocated: {ip_address}. Waiting 30s for boot...\n")
+
         # Wait additional time for SSH to be ready
         time.sleep(30)
+        
+        self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] CREATION: Boot complete. Ready for orchestration.\n")
         
         # Save droplet to database
         if self.app:
@@ -374,16 +385,17 @@ class BulkExecutionOrchestrator:
         """Wrapper to execute on a droplet and immediately destroy it regardless of outcome"""
         # Ensure auto_destroy is a boolean (handle potential string "true"/"false")
         is_auto_destroy = str(auto_destroy).lower() == 'true' if isinstance(auto_destroy, str) else bool(auto_destroy)
+        droplet_id = str(droplet['id'])
         
         try:
             logger.info(f"[{self.execution_id}] EXECUTOR: Starting batch on {droplet['name']} ({droplet['ip_address']})")
-            if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: Starting automation on {droplet['name']}... \n", append=True)
+            self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] EXECUTOR: Starting automation on {droplet['name']}... \n")
             
-            results = self._execute_on_single_droplet(droplet, users, workers_per_droplet, log_callback=log_callback)
+            results = self._execute_on_single_droplet(droplet, users, workers_per_droplet)
             
         except Exception as e:
             logger.error(f"[{self.execution_id}] EXECUTOR: Execution error in single droplet wrapper for {droplet['name']}: {e}")
-            if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR ERROR: {str(e)}\n")
+            self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] EXECUTOR ERROR: {str(e)}\n")
             results = [] 
         finally:
             logger.info(f"[{self.execution_id}] EXECUTOR: Finalizing droplet {droplet['name']}. auto_destroy={is_auto_destroy}")
@@ -392,24 +404,24 @@ class BulkExecutionOrchestrator:
                 try:
                     msg = f"[{datetime.utcnow().isoformat()}] EXECUTOR: Triggering AUTO-DESTRUCTION for {droplet['name']}...\n"
                     logger.info(f"[{self.execution_id}] " + msg.strip())
-                    if log_callback: log_callback(msg, append=True)
+                    self._log_to_droplet(droplet_id, msg)
                     
                     deletion_success = self.service.delete_droplet(droplet['id'])
                     
                     if deletion_success:
                         succ_msg = f"[{datetime.utcnow().isoformat()}] EXECUTOR: ✓ Droplet deleted successfully.\n"
                         logger.info(f"[{self.execution_id}] " + succ_msg.strip())
-                        if log_callback: log_callback(succ_msg, append=True)
+                        self._log_to_droplet(droplet_id, succ_msg)
                     else:
-                        fail_msg = f"[{datetime.utcnow().isoformat()}] EXECUTOR: ⚠ API Deletion call returned False.\n"
+                        fail_msg = f"[{datetime.utcnow().isoformat()}] EXECUTOR: ⚠ API Deletion call failed.\n"
                         logger.warning(f"[{self.execution_id}] " + fail_msg.strip())
-                        if log_callback: log_callback(fail_msg, append=True)
+                        self._log_to_droplet(droplet_id, fail_msg)
                     
                     # Update DB status
                     if self.app:
                         with self.app.app_context():
                             from database import db, DigitalOceanDroplet
-                            db_droplet = DigitalOceanDroplet.query.filter_by(droplet_id=str(droplet['id'])).first()
+                            db_droplet = DigitalOceanDroplet.query.filter_by(droplet_id=droplet_id).first()
                             if db_droplet:
                                 db_droplet.status = 'destroyed'
                                 db_droplet.destroyed_at = datetime.utcnow()
@@ -417,61 +429,41 @@ class BulkExecutionOrchestrator:
                 
                 except Exception as cleanup_error:
                     logger.error(f"[{self.execution_id}] EXECUTOR: ✗ Failed to auto-destroy {droplet['name']}: {cleanup_error}")
-                    if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR CLEANUP ERROR: {str(cleanup_error)}\n", append=True)
+                    self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] EXECUTOR CLEANUP ERROR: {str(cleanup_error)}\n")
             else:
                 logger.info(f"[{self.execution_id}] EXECUTOR: Skipping auto-destruction (auto_destroy is False)")
-                if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: Preservation mode. Droplet {droplet['name']} will NOT be destroyed.\n", append=True)
+                self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] EXECUTOR: Preservation mode. Droplet {droplet['name']} will NOT be destroyed.\n")
         
         return results
-    
+
     def _execute_on_single_droplet(
         self,
         droplet: Dict,
         users: List[Dict],
-        parallel_users: int = 5,
-        log_callback=None
+        parallel_users: int = 5
     ) -> List[Dict]:
-        """Execute automation for a batch of users on a single droplet using batch processing"""
+        """Execute automation for a batch of users on a single droplet"""
         results = []
         ip_address = droplet['ip_address']
+        droplet_id = str(droplet['id'])
         
-        # 1. Prepare users ... (already handled context)
+        # 1. Prepare users
         enriched_users = [u.copy() for u in users]
-        # (Secret key enrichment logic omitted for brevity, but I will keep it in the implementation)
-        # Actually I need to keep the code I have. I will just add log_callback support.
 
         # 3. Execute Batch
         try:
             # Idempotency set to prevent saving same user twice (real-time + final)
             saved_emails = set()
             
-            # --- LOGGING SETUP ---
-            # Create a dedicated log file for this droplet for the Monitor UI
-            root_path = self.app.root_path if self.app else os.getcwd()
-            log_dir = os.path.join(root_path, 'logs', 'bulk_executions', self.execution_id)
-            os.makedirs(log_dir, exist_ok=True)
-            droplet_log_file = os.path.join(log_dir, f"{droplet['id']}.log")
-            
-            logger.info(f"[{self.execution_id}] Setting up local log file for droplet {droplet['name']}: {droplet_log_file}")
-            
-            def droplet_log_callback(msg, append=True):
-                """Callback to write remote logs to a local file for the UI monitor"""
-                try:
-                    mode = 'a' if append else 'w'
-                    with open(droplet_log_file, mode, encoding='utf-8') as f:
-                        f.write(msg)
-                except Exception as log_err:
-                    logger.error(f"Failed to write to droplet log file: {log_err}")
-
-            # Initialize log file with a starting message
-            droplet_log_callback(f"Connecting to droplet {droplet['name']} ({ip_address})...\n", append=False)
-            # --- END LOGGING SETUP ---
+            def droplet_log_callback(msg):
+                """Pass through to the centralized log helper"""
+                self._log_to_droplet(droplet_id, msg)
 
             def on_realtime_result(res):
                 email = res.get('email')
                 if email and email not in saved_emails:
                     if res.get('success'):
-                        if droplet_log_callback: droplet_log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: Saving password for {email} (Real-time)...\n", append=True)
+                        droplet_log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: Saving password for {email} (Real-time)...\n")
                         self._save_app_password_with_backup(
                             email, 
                             res.get('app_password'), 
@@ -499,25 +491,22 @@ class BulkExecutionOrchestrator:
                 
                 for res in user_results:
                     email = res.get('email')
-                    
-                    # Save successful ones (if not already saved in real-time)
                     is_success = res.get('success') or res.get('status') == 'success'
+                    
                     if is_success and email not in saved_emails:
-                         if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: Saving password for {email} (Final summary)...\n", append=True)
+                         droplet_log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: Saving password for {email} (Final summary)...\n")
                          self._save_app_password_with_backup(
                              email, 
                              res.get('app_password'), 
                              res.get('secret_key'),
-                             log_callback=log_callback
+                             log_callback=droplet_log_callback
                          )
                          saved_emails.add(email)
                     
                     # Standardize result format
-                    res['droplet_id'] = droplet['id']
-                    res['success'] = is_success # Ensure uniform key
+                    res['droplet_id'] = droplet_id
+                    res['success'] = is_success
                     results.append(res)
-            else:
-                ...
                     
         except Exception as e:
             logger.error(f"[{self.execution_id}] Batch execution exception on {droplet['name']}: {e}")
@@ -526,7 +515,7 @@ class BulkExecutionOrchestrator:
                     'success': False, 
                     'email': user['email'], 
                     'error': str(e), 
-                    'droplet_id': droplet['id']
+                    'droplet_id': droplet_id
                 })
 
         return results
