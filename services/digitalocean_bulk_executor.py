@@ -472,6 +472,8 @@ class BulkExecutionOrchestrator:
             )
             
             # 4. Process Results
+            logger.info(f"[{self.execution_id}] Raw batch result from {droplet['name']}: {json.dumps(batch_result, default=str)}")
+            
             if batch_result.get('results'):
                 user_results = batch_result['results']
                 logger.info(f"[{self.execution_id}] Batch on {droplet['name']} returned {len(user_results)} results")
@@ -575,6 +577,7 @@ class BulkExecutionOrchestrator:
                     existing = AwsGeneratedPassword.query.filter_by(email=email).first()
                     if existing:
                         existing.app_password = app_password
+                        existing.execution_id = self.execution_id
                         # Only update secret key if new one provided
                         if secret_key:
                             existing.secret_key = secret_key
@@ -583,6 +586,7 @@ class BulkExecutionOrchestrator:
                         new_password.email = email
                         new_password.app_password = app_password
                         new_password.secret_key = secret_key
+                        new_password.execution_id = self.execution_id
                         db.session.add(new_password)
                     
                     # Immediate commit (don't batch)

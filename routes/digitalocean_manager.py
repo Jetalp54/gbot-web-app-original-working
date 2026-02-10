@@ -1052,12 +1052,18 @@ def get_generated_passwords(execution_id):
         is_all = (execution_id.lower() == 'all')
         
         # 1. Try Backup Files (Primary Source for this execution)
-        backup_dir = os.path.join(os.getcwd(), 'do_app_passwords_backup')
+        backup_dir = os.path.join(current_app.root_path, 'do_app_passwords_backup')
+        
+        logger.info(f"Checking for passwords in: {backup_dir} (Execution ID: {execution_id})")
         
         if os.path.exists(backup_dir):
+            files = os.listdir(backup_dir)
+            logger.info(f"Found {len(files)} files in backup dir")
+            
             # Find all backup files matching this execution OR all if requested
-            for filename in os.listdir(backup_dir):
+            for filename in files:
                 if filename.endswith('.json'):
+                    # Match exact execution ID or "all"
                     if is_all or filename.startswith(f"{execution_id}_"):
                         try:
                             filepath = os.path.join(backup_dir, filename)
@@ -1082,24 +1088,33 @@ def get_generated_passwords(execution_id):
         if is_all or not passwords:
             logger.info(f"Fetching passwords from DB for execution_id={execution_id}")
             try:
-                # If specific ID, we can't easily filter unless we added execution_id to the model (which we did in migration but maybe not populated for old ones)
-                # But for 'all', we just get everything.
+                # Filter by execution_id if provided (and not 'all')
                 if is_all:
                     db_passwords = AwsGeneratedPassword.query.all()
+                else:
+                    # NEW: Try to filter by execution_id (requires migration)
+                    try:
+                        db_passwords = AwsGeneratedPassword.query.filter_by(execution_id=execution_id).all()
+                    except Exception:
+                        # Fallback for old schema: Get all and filter in python (inefficient but safe)
+                        # or just return empty if we strictly need execution_id match
+                        db.session.rollback()
+                        logger.warning("execution_id column might be missing, skipping DB filter by ID")
+                        db_passwords = [] 
                     
-                    # Deduplicate based on email
-                    existing_emails = set(p['email'] for p in passwords)
-                    
-                    for db_p in db_passwords:
-                        if db_p.email not in existing_emails:
-                            passwords.append({
-                                'email': db_p.email,
-                                'app_password': db_p.app_password,
-                                'secret_key': db_p.secret_key,
-                                'created_at': db_p.created_at.isoformat() if db_p.created_at else None,
-                                'source': 'database'
-                            })
-                            existing_emails.add(db_p.email)
+                # Deduplicate based on email
+                existing_emails = set(p['email'] for p in passwords)
+                
+                for db_p in db_passwords:
+                    if db_p.email not in existing_emails:
+                        passwords.append({
+                            'email': db_p.email,
+                            'app_password': db_p.app_password,
+                            'secret_key': db_p.secret_key,
+                            'created_at': db_p.created_at.isoformat() if db_p.created_at else None,
+                            'source': 'database'
+                        })
+                        existing_emails.add(db_p.email)
             except Exception as db_e:
                 logger.error(f"Error fetching from DB: {db_e}")
         
