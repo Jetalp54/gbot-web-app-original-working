@@ -347,6 +347,31 @@ with app.app_context():
         except:
             pass
 
+    # Auto-migration: Add execution_id to aws_generated_password if it doesn't exist
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('aws_generated_password')]
+        
+        if 'execution_id' not in columns:
+            logging.info("Adding missing 'execution_id' column to aws_generated_password table...")
+            with db.engine.connect() as conn:
+                if 'postgresql' in str(db.engine.url):
+                    conn.execute(text('ALTER TABLE "aws_generated_password" ADD COLUMN execution_id VARCHAR(100)'))
+                    conn.execute(text('CREATE INDEX idx_execution_id ON aws_generated_password(execution_id)'))
+                else:
+                    conn.execute(text("ALTER TABLE aws_generated_password ADD COLUMN execution_id VARCHAR(100)"))
+                    # SQLite index creation
+                    conn.execute(text("CREATE INDEX idx_execution_id ON aws_generated_password(execution_id)"))
+                conn.commit()
+            logging.info("✅ Successfully added 'execution_id' column!")
+    except Exception as e:
+        logging.warning(f"Could not auto-migrate aws_generated_password column: {e}")
+        try:
+            db.session.rollback()
+        except:
+            pass
+
     if not User.query.filter_by(username='admin').first():
         admin_user = User(username='admin', password=generate_password_hash('A9B3nX#Q8k$mZ6vw', method='pbkdf2:sha256'), role='admin')
         db.session.add(admin_user)
