@@ -185,7 +185,14 @@ class BulkExecutionOrchestrator:
             }
         finally:
             # FINAL SAFETY SWEEP: If auto_destroy is enabled, ensure ALL tracked droplets are gone
-            is_auto_destroy = str(auto_destroy).lower() == 'true' if isinstance(auto_destroy, str) else bool(auto_destroy)
+            is_auto_destroy = bool(auto_destroy)
+            if isinstance(auto_destroy, str):
+                is_auto_destroy = auto_destroy.lower() == 'true'
+            
+            # Fallback to config if not explicitly False
+            if auto_destroy is None:
+                is_auto_destroy = self.config.get('auto_destroy_droplets', True)
+
             if is_auto_destroy and self.droplets_created:
                 logger.info(f"[{self.execution_id}] Running final safety cleanup of {len(self.droplets_created)} droplets...")
                 self._destroy_droplets_parallel(self.droplets_created)
@@ -383,8 +390,15 @@ class BulkExecutionOrchestrator:
         log_callback=None
     ) -> List[Dict]:
         """Wrapper to execute on a droplet and immediately destroy it regardless of outcome"""
-        # Ensure auto_destroy is a boolean (handle potential string "true"/"false")
-        is_auto_destroy = str(auto_destroy).lower() == 'true' if isinstance(auto_destroy, str) else bool(auto_destroy)
+        # Improved boolean conversion: treat everything truthy or string "true" as True
+        is_auto_destroy = bool(auto_destroy)
+        if isinstance(auto_destroy, str):
+            is_auto_destroy = auto_destroy.lower() == 'true'
+        
+        # Fallback to config if not explicitly False
+        if auto_destroy is None:
+            is_auto_destroy = self.config.get('auto_destroy_droplets', True)
+
         droplet_id = str(droplet['id'])
         
         try:

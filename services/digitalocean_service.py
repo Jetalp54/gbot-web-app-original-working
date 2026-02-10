@@ -1203,13 +1203,7 @@ class DigitalOceanService:
                 log_cmd = f"tail -c +{cursor + 1} {log_file}"
                 _, logs, _ = self.execute_ssh_command(ip_address, log_cmd, 'root', ssh_key_path)
 
-            if is_running:
-                 return {
-                    'status': 'running',
-                    'logs': logs,
-                    'next_cursor': new_size
-                }
-            elif is_complete:
+            if is_complete:
                 # Retrieve final result
                 local_result = os.path.join(tempfile.gettempdir(), f"do_result_{int(time.time())}_{random.randint(1000,9999)}.json")
                 downloaded = self.download_file_sftp(
@@ -1249,6 +1243,12 @@ class DigitalOceanService:
                     'logs': logs,
                     'next_cursor': new_size,
                     'result': result_data
+                }
+            elif is_running:
+                 return {
+                    'status': 'running',
+                    'logs': logs,
+                    'next_cursor': new_size
                 }
             else:
                 # Process is dead AND no result file -> CRASHED
