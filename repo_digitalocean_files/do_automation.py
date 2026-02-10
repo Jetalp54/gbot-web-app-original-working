@@ -41,6 +41,7 @@ print(f"--- GBOT AUTOMATION SCRIPT STARTING ---")
 print(f"--- Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
 print("="*50 + "\n")
 sys.stdout.flush()
+time.sleep(0.1) # Brief pause to ensure filesystem sync
 
 print("--- SCRIPT INITIALIZING ---")
 import time

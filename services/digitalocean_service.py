@@ -1000,7 +1000,7 @@ class DigitalOceanService:
             # - Redirection of all 3 streams (stdin, stdout, stderr) ensures Paramiko EOF
             # - touch before start ensures the poller doesn't fail on missing file
             # - Removed stdbuf to reduce friction, as python -u + Unbuffered class is sufficient
-            run_cmd = f"bash -c 'touch {log_file}; export PYTHONUNBUFFERED=1; {env_vars} nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 < /dev/null & disown; echo $!'"
+            run_cmd = f"bash -c 'touch {log_file}; export DEBIAN_FRONTEND=noninteractive; export PYTHONUNBUFFERED=1; {env_vars} nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 < /dev/null & disown; echo $!'"
             
             if log_callback:
                 log_callback(f"[{datetime.utcnow().isoformat()}] Starting background automation script on {ip_address}...\n", append=True)
@@ -1084,6 +1084,9 @@ class DigitalOceanService:
                  log_identifier = email
             
             logger.info(f"Polling automation status for {log_identifier} on {ip_address}...")
+            if log_callback:
+                log_callback(f"[{datetime.utcnow().isoformat()}] connection established. Watching logs for {log_identifier}...\n", append=True)
+
             log_cursor = 0
             accumulated_logs = ""  # Maintain full session logs for robust parsing fallback
             
@@ -1185,6 +1188,9 @@ class DigitalOceanService:
             size_cmd = f"stat -c%s {log_file} 2>/dev/null || echo '0'"
             _, size_out, _ = self.execute_ssh_command(ip_address, size_cmd, 'root', ssh_key_path)
             new_size = int(size_out.strip() or 0)
+
+            # Debug log for polling logic
+            logger.debug(f"[POLL] {ip_address} - Cursor: {cursor}, File Size: {new_size}")
 
             # 5. Read logs (Incremental if cursor > 0)
             if cursor >= new_size:
