@@ -996,8 +996,11 @@ class DigitalOceanService:
                     log_callback(f"[{datetime.utcnow().isoformat()}] Injecting 2Captcha configuration...\n", append=True)
 
             # REVERTED: Use absolute path /usr/bin/python3 for safety in non-interactive shells
-            # Added < /dev/null to ensure nohup detaches from stdin, preventing SSH hang
-            run_cmd = f"{env_vars}export PYTHONUNBUFFERED=1 && nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 < /dev/null & echo $!"
+            # Use stdbuf to force unbuffered output for the entire process tree (including subprocesses like pip)
+            # -i0: unbuffered stdin
+            # -o0: unbuffered stdout 
+            # -e0: unbuffered stderr
+            run_cmd = f"{env_vars}export PYTHONUNBUFFERED=1 && stdbuf -i0 -o0 -e0 nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 < /dev/null & echo $!"
             
             if log_callback:
                 log_callback(f"[{datetime.utcnow().isoformat()}] Starting background automation script on {ip_address}...\n", append=True)
@@ -1200,10 +1203,28 @@ class DigitalOceanService:
                 
                 result_data = {}
                 if downloaded and os.path.exists(local_result):
-                    with open(local_result, 'r') as f:
-                        result_data = json.load(f)
-                    os.remove(local_result)
+                    try:
+                        with open(local_result, 'r') as f:
+                            result_data = json.load(f)
+                    except Exception as e:
+                        logger.error(f"Failed to parse result file from {ip_address}: {e}")
+                    finally:
+                        if os.path.exists(local_result):
+                            os.remove(local_result)
                 
+                # Fallback: If result file failed, try to parse from logs
+                if not result_data:
+                    logger.warning(f"Result file empty/missing for {ip_address}, attempting fallback parse from logs...")
+                    import re
+                    # Look for <JSON_RESULTS>...</JSON_RESULTS>
+                    match = re.search(r'<JSON_RESULTS>(.*?)</JSON_RESULTS>', logs, re.DOTALL)
+                    if match:
+                        try:
+                            result_data = json.loads(match.group(1))
+                            logger.info(f"Successfully recovered results from logs for {ip_address}")
+                        except Exception as e:
+                            logger.error(f"Failed to recover results from logs: {e}")
+
                 return {
                     'status': 'completed',
                     'logs': logs,
