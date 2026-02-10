@@ -443,7 +443,9 @@ class BulkExecutionOrchestrator:
         # 2. Define Log Callback
         def log_callback(logs, append=False):
              try:
-                 log_dir = os.path.join('logs', 'bulk_executions', self.execution_id)
+                 # Use absolute path for reliability
+                 root_path = self.app.root_path if self.app else os.getcwd()
+                 log_dir = os.path.join(root_path, 'logs', 'bulk_executions', self.execution_id)
                  os.makedirs(log_dir, exist_ok=True)
                  log_file = os.path.join(log_dir, f"{droplet['id']}.log")
                  
@@ -453,6 +455,7 @@ class BulkExecutionOrchestrator:
                          f.write(logs)
                      elif isinstance(logs, list):
                          f.write("\n".join(logs) + "\n")
+                     f.flush() # Ensure immediate write
              except Exception as le:
                  logger.error(f"Log callback error: {le}")
 
@@ -528,7 +531,8 @@ class BulkExecutionOrchestrator:
         backup_success = False
         try:
             # Use ABSOLUTE path relative to CWD (app root)
-            backup_dir = os.path.join(os.getcwd(), 'do_app_passwords_backup')
+            root_path = self.app.root_path if self.app else os.getcwd()
+            backup_dir = os.path.join(root_path, 'do_app_passwords_backup')
             os.makedirs(backup_dir, exist_ok=True)
             
             # Create backup file with timestamp

@@ -220,8 +220,8 @@
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Users (Email:Password format, one per line)</label>
                             <textarea class="form-control font-monospace" id="bulkUsers" rows="5"
-                                placeholder="user1@domain.com:password1&#10;user2@domain.com:password2"
-                                required></textarea>
+                                placeholder="user1@domain.com:password1&#10;user2@domain.com:password2" required
+                                oninput="calculateDroplets()"></textarea>
                             <small class="text-muted">Format: email:password (one per line)</small>
                         </div>
                         <div class="col-md-6">
@@ -241,7 +241,8 @@
                                 <div class="col-4 mb-3">
                                     <label class="form-label">Users per Droplet</label>
                                     <input type="number" class="form-control" id="usersPerDroplet" min="1" max="100"
-                                        value="50" required>
+                                        value="50" required onchange="calculateDroplets()"
+                                        oninput="calculateDroplets()">
                                     <small class="text-muted">Max users/droplet</small>
                                 </div>
                                 <div class="col-12 mb-3">
@@ -371,6 +372,9 @@
                 <button type="button" class="btn btn-success" onclick="loadGeneratedPasswords()">
                     <i class="fa fa-refresh"></i> Load Generated Passwords
                 </button>
+                <button type="button" class="btn btn-outline-dark ms-2" onclick="downloadPasswords()">
+                    <i class="fa fa-download"></i> Download Backup (TXT)
+                </button>
 
                 <div id="passwordsMessages" class="mt-3"></div>
 
@@ -449,7 +453,41 @@
         $('#snapshotId').on('input', function () {
             currentMinDisk = 0;
         });
+
+        // Trigger calculation initially
+        calculateDroplets();
     });
+
+    // === Auto-Calculate Droplets ===
+    function calculateDroplets() {
+        const usersText = $('#bulkUsers').val();
+        if (!usersText) return;
+
+        // Count non-empty lines
+        const lineCount = usersText.split('\n').filter(line => line.trim().length > 0).length;
+        const perDroplet = parseInt($('#usersPerDroplet').val()) || 50;
+
+        if (lineCount > 0 && perDroplet > 0) {
+            const recommended = Math.ceil(lineCount / perDroplet);
+            $('#dropletCount').val(recommended);
+
+            // Show feedback
+            const existingFeedback = $('#dropletCalcFeedback');
+            const msg = `<small id="dropletCalcFeedback" class="text-success d-block mt-1"><i class="fa fa-calculator"></i> Auto-set to ${recommended} droplets for ${lineCount} users</small>`;
+
+            if (existingFeedback.length) {
+                existingFeedback.replaceWith(msg);
+            } else {
+                $('#dropletCount').after(msg);
+            }
+        }
+    }
+
+    // === Download Passwords ===
+    function downloadPasswords() {
+        const executionId = currentExecutionId || 'all';
+        window.location.href = `/api/do/generated-passwords/download/${executionId}`;
+    }
 
     // === Load Regions and Sizes ===
     function loadRegionsAndSizes() {

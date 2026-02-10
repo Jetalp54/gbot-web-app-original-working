@@ -1149,7 +1149,8 @@ def get_bulk_droplet_logs(execution_id, droplet_id):
         cursor = request.args.get('cursor', 0, type=int)
         
         # Logs are stored in logs/bulk_executions/<execution_id>/<droplet_id>.log
-        log_dir = os.path.join('logs', 'bulk_executions', execution_id)
+        # Use absolute path to ensure we find it regardless of CWD
+        log_dir = os.path.join(current_app.root_path, 'logs', 'bulk_executions', execution_id)
         log_file = os.path.join(log_dir, f"{droplet_id}.log")
         
         if not os.path.exists(log_file):
@@ -1181,4 +1182,72 @@ def get_bulk_droplet_logs(execution_id, droplet_id):
         })
     except Exception as e:
         logger.error(f"Error fetching logs for droplet {droplet_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@digitalocean_manager.route('/api/do/generated-passwords/download/<execution_id>', methods=['GET'])
+@login_required
+def download_generated_passwords(execution_id):
+    """Download generated passwords as a TXT file"""
+    try:
+        from flask import Response
+        
+        # reuse get_generated_passwords logic or call it
+        # simpler to just fetch again to ensure we get the latest
+        passwords = []
+        is_all = (execution_id.lower() == 'all')
+        
+        # 1. Try Backup Files
+        backup_dir = os.path.join(current_app.root_path, 'do_app_passwords_backup')
+        
+        if os.path.exists(backup_dir):
+            for filename in os.listdir(backup_dir):
+                if filename.endswith('.json'):
+                    if is_all or filename.startswith(f"{execution_id}_"):
+                        try:
+                            filepath = os.path.join(backup_dir, filename)
+                            with open(filepath, 'r') as f:
+                                data = json.load(f)
+                            
+                            passwords.append({
+                                'email': data.get('email'),
+                                'app_password': data.get('app_password')
+                            })
+                        except Exception:
+                            continue
+
+        # 2. Database Fallback (if specific ID and no files, or 'all')
+        if not passwords or is_all:
+             try:
+                if is_all:
+                    db_passwords = AwsGeneratedPassword.query.all()
+                    existing = set(p['email'] for p in passwords)
+                    for dp in db_passwords:
+                        if dp.email not in existing:
+                            passwords.append({'email': dp.email, 'app_password': dp.app_password})
+                            existing.add(dp.email)
+                elif not passwords: 
+                     # Should filter by execution ID if possible, but we don't have it in DB model easily queryable
+                     # So we might just check if we can match users from the execution?
+                     # For now, just rely on files for specific execution, or DB for 'all'
+                     pass
+             except Exception:
+                 pass
+        
+        passwords.sort(key=lambda x: x['email'])
+        
+        # Generate TXT content
+        content = ""
+        for p in passwords:
+            if p.get('app_password'):
+                 content += f"{p['email']}:{p['app_password']}\n"
+        
+        return Response(
+            content,
+            mimetype="text/plain",
+            headers={"Content-disposition": f"attachment; filename=app_passwords_{execution_id}.txt"}
+        )
+
+    except Exception as e:
+        logger.error(f"Download error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
