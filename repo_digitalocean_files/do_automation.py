@@ -13,6 +13,7 @@ Event must contain: {"email": "...", "password": "..."}
 import os
 import re
 import json
+import time
 
 # =====================================================================
 # GBOT AUTOMATION SCRIPT V2.1 (STANDARD SELENIUM + STEALTH)
@@ -44,6 +45,7 @@ sys.stdout.flush()
 print("--- SCRIPT INITIALIZING ---")
 import time
 import base64
+
 import random
 import string
 import logging
