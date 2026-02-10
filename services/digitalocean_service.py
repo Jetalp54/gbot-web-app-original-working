@@ -998,11 +998,9 @@ class DigitalOceanService:
                     log_callback(f"[{datetime.utcnow().isoformat()}] Injecting 2Captcha configuration...\n", append=True)
 
             # USE Bulletproof Detachment:
-            # - bash -c '... & disown' ensures the process is completely removed from the shell's job control
-            # - Redirection of all 3 streams (stdin, stdout, stderr) ensures Paramiko EOF
-            # - touch before start ensures the poller doesn't fail on missing file
-            # - Removed stdbuf to reduce friction, as python -u + Unbuffered class is sufficient
-            run_cmd = f"bash -c 'touch {log_file}; export DEBIAN_FRONTEND=noninteractive; export PYTHONUNBUFFERED=1; {env_vars} nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 < /dev/null & disown; echo $!'"
+            # Use setsid to force detachment from the PTY allocated by paramiko due to get_pty=True
+            # This ensures execute_ssh_command returns immediately while the background process continues
+            run_cmd = f"setsid bash -c 'touch {log_file}; export DEBIAN_FRONTEND=noninteractive; export PYTHONUNBUFFERED=1; {env_vars} nohup /usr/bin/python3 -u {remote_script} {cmd_args} > {log_file} 2>&1 < /dev/null &'"
             
             if log_callback:
                 log_callback(f"[{datetime.utcnow().isoformat()}] Starting background automation script on {ip_address}...\n", append=True)
