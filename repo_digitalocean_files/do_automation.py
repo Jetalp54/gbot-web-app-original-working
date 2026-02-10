@@ -55,40 +55,58 @@ from typing import List, Dict, Any, Optional
 import sys
 import argparse
 
-# Self-healing: Install missing dependencies automatically
+# Self-healing: Install missing dependencies automatically with real-time output
 def install_package(package):
     max_retries = 20
     for attempt in range(max_retries):
         try:
+            # Use Popen to stream output in real-time
+            print(f"--- Attempting to install {package} (Attempt {attempt+1}/{max_retries}) ---")
+            sys.stdout.flush()
+            
             # Try python -m pip first
+            cmd = [sys.executable, "-m", "pip", "install", package]
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            
+            for line in process.stdout:
+                print(line, end='')
+                sys.stdout.flush()
+                
+            process.wait()
+            if process.returncode == 0:
+                return # Success
+                
+            print(f"python -m pip failed with return code {process.returncode}. Trying pip3 command directly...")
+            sys.stdout.flush()
+            
+            # Fallback to direct pip3 command
+            cmd = ["pip3", "install", package]
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            for line in process.stdout:
+                print(line, end='')
+                sys.stdout.flush()
+            process.wait()
+            if process.returncode == 0:
+                return # Success
+
+            print(f"pip3 failed. Trying apt-get install python3-pip...")
+            sys.stdout.flush()
+            
+            # Last resort: try to install pip itself
+            subprocess.check_call(["apt-get", "update"])
+            subprocess.check_call(["apt-get", "install", "-y", "python3-pip"])
+            
+            # Retry pip install after apt-get
             subprocess.check_call([sys.executable, "-m", "pip", "install", package])
             return # Success
+            
         except Exception as e:
-            print(f"python -m pip failed: {e}. Trying pip3 command directly...")
-            try:
-                # Fallback to direct pip3 command
-                subprocess.check_call(["pip3", "install", package])
-                return # Success
-            except Exception:
-                print(f"pip3 failed. Trying apt-get install python3-pip (Attempt {attempt+1}/{max_retries})...")
-                try:
-                    # Check for lock first/handle lock error
-                    # Last resort: try to install pip itself
-                    # We accept failure here to retry loop if locked
-                    subprocess.check_call(["apt-get", "update"])
-                    subprocess.check_call(["apt-get", "install", "-y", "python3-pip"])
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-                    return # Success
-                except subprocess.CalledProcessError as e3:
-                    # Check if it's a lock error
-                    err_msg = str(e3) # confusing since check_call doesn't return output, but let's assume valid fail
-                    print(f"apt-get failed. Waiting for lock release... ({attempt+1}/{max_retries})")
-                    time.sleep(15) # Wait 15 seconds for lock to release
-                except Exception as e4:
-                     print(f"Unexpected error: {e4}. Retrying...")
-                     time.sleep(10)
+            print(f"Installation attempt error: {e}")
+            sys.stdout.flush()
+            time.sleep(10)
     
     print(f"CRITICAL: Failed to install {package} after {max_retries} attempts.")
+    sys.stdout.flush()
 
 try:
     import pyotp
@@ -123,11 +141,17 @@ from selenium.webdriver.common.action_chains import ActionChains
 
 # Logging configuration (Output flushing handled at top of file)
 
+# Custom handler to force flush after every log record
+class FlushHandler(logging.StreamHandler):
+    def emit(self, record):
+        super().emit(record)
+        self.flush()
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout)
+        FlushHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)

@@ -1085,6 +1085,7 @@ class DigitalOceanService:
             
             logger.info(f"Polling automation status for {log_identifier} on {ip_address}...")
             log_cursor = 0
+            accumulated_logs = ""  # Maintain full session logs for robust parsing fallback
             
             for _ in range(max_retries):
                  status_res = self.check_automation_status(ip_address, log_file, result_file, ssh_key_path, cursor=log_cursor, process_pattern=process_pattern)
@@ -1097,18 +1098,28 @@ class DigitalOceanService:
                  status = status_res.get('status')
                  
                  # Callback with logs
-                 if log_callback:
-                     logs = status_res.get('logs', '')
-                     if logs:
-                         # logger.info(f"Calling log_callback with {len(logs)} bytes")
+                 logs = status_res.get('logs', '')
+                 if logs:
+                     accumulated_logs += logs
+                     if log_callback:
                          log_callback(logs)
-                     else:
-                         # Log if no logs found
-                         pass
                  
                  if status == 'completed':
                     result = status_res.get('result') or {}
                     
+                    # Robust Fallback: If result data is missing from file, parse from accumulated logs
+                    if not result:
+                        logger.warning(f"Result file for {ip_address} was empty, attempting fallback parse from ALL accumulated logs...")
+                        import re
+                        # Look for <JSON_RESULTS>...</JSON_RESULTS> in the ENTIRE log history
+                        match = re.search(r'<JSON_RESULTS>(.*?)</JSON_RESULTS>', accumulated_logs, re.DOTALL)
+                        if match:
+                            try:
+                                result = json.loads(match.group(1))
+                                logger.info(f"Successfully recovered results from accumulated log buffer for {ip_address}")
+                            except Exception as e:
+                                logger.error(f"Failed to parse recovered results from logs: {e}")
+
                     # Batch mode returns a LIST of results
                     if isinstance(result, list):
                         # Batch mode result
@@ -1123,6 +1134,10 @@ class DigitalOceanService:
                     else:
                         # Single user mode
                         # Normalize success status across API changes
+                        if not result:
+                            # Final desperation: if still no result, return error
+                            return {'success': False, 'error': 'Automation completed but no result found in file or logs'}
+                            
                         if 'success' not in result:
                             result['success'] = result.get('status') == 'success'
                         return result
