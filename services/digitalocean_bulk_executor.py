@@ -311,10 +311,20 @@ class BulkExecutionOrchestrator:
             logger.error(f"[{self.execution_id}] Droplet {droplet_id} did not become active")
             raise Exception(f"Droplet {droplet_id} timed out waiting for IP address after activation")
         
-        self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] CREATION: IP Allocated: {ip_address}. Waiting 30s for boot...\n")
+        # Wait for SSH to be ready with a robust handshake
+        ssh_ready = self.service.wait_for_ssh(
+            ip_address=ip_address,
+            username='root',
+            timeout=300,
+            ssh_key_path=self.config.get('ssh_private_key_path'),
+            log_callback=lambda msg, append=True: self._log_to_droplet(droplet_id, msg, append=append)
+        )
 
-        # Wait additional time for SSH to be ready
-        time.sleep(30)
+        if not ssh_ready:
+            msg = f"[{datetime.utcnow().isoformat()}] CREATION ERROR: SSH did not become ready after 5 minutes.\n"
+            self._log_to_droplet(droplet_id, msg)
+            logger.error(f"[{self.execution_id}] Droplet {droplet_id} failed SSH handshake")
+            raise Exception("Droplet failed SSH readiness check")
         
         self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] CREATION: Boot complete. Ready for orchestration.\n")
         
