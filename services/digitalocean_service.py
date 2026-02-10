@@ -10,6 +10,7 @@ import requests
 import paramiko
 import tempfile
 import random
+import uuid
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from io import StringIO
@@ -931,7 +932,8 @@ class DigitalOceanService:
 
             # 2. Prepare execution
             cmd_args = ""
-            run_id = int(time.time())
+            # NEW: Unique run_id to prevent collision in parallel thread file uploads
+            run_id = f"{int(time.time())}_{uuid.uuid4().hex[:6]}"
             
             if users:
                 # BATCH MODE
