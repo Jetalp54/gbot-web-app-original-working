@@ -455,9 +455,9 @@ class BulkExecutionOrchestrator:
             # Idempotency set to prevent saving same user twice (real-time + final)
             saved_emails = set()
             
-            def droplet_log_callback(msg):
+            def droplet_log_callback(msg, append=True):
                 """Pass through to the centralized log helper"""
-                self._log_to_droplet(droplet_id, msg)
+                self._log_to_droplet(droplet_id, msg, append=append)
 
             def on_realtime_result(res):
                 email = res.get('email')
@@ -481,6 +481,12 @@ class BulkExecutionOrchestrator:
                 parallel_users=parallel_users,
                 on_result=on_realtime_result
             )
+            
+            # Check for failure in service level
+            if not batch_result.get('success'):
+                error_msg = batch_result.get('error', 'Unknown service error')
+                logger.error(f"[{self.execution_id}] Automation service failed on {droplet['name']}: {error_msg}")
+                self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] SERVICE ERROR: {error_msg}\n")
             
             # 4. Process Results (Final Summary)
             logger.info(f"[{self.execution_id}] Raw batch result from {droplet['name']}: {json.dumps(batch_result, default=str)}")
@@ -510,6 +516,7 @@ class BulkExecutionOrchestrator:
                     
         except Exception as e:
             logger.error(f"[{self.execution_id}] Batch execution exception on {droplet['name']}: {e}")
+            self._log_to_droplet(droplet_id, f"[{datetime.utcnow().isoformat()}] BATCH EXCEPTION: {str(e)}\n")
             for user in users:
                 results.append({
                     'success': False, 
