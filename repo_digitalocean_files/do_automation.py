@@ -17,6 +17,24 @@ import json
 # =====================================================================
 # GBOT AUTOMATION SCRIPT V2.1 (STANDARD SELENIUM + STEALTH)
 # =====================================================================
+import sys
+
+# Configure logging with unbuffered stream handler
+class Unbuffered(object):
+   def __init__(self, stream):
+       self.stream = stream
+   def write(self, data):
+       self.stream.write(data)
+       self.stream.flush()
+   def writelines(self, datas):
+       self.stream.writelines(datas)
+       self.stream.flush()
+   def __getattr__(self, attr):
+       return getattr(self.stream, attr)
+
+sys.stdout = Unbuffered(sys.stdout)
+sys.stderr = Unbuffered(sys.stderr)
+
 print("--- SCRIPT INITIALIZING ---")
 import time
 import base64
@@ -103,7 +121,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.common.action_chains import ActionChains
 
-# Configure logging
+# Logging configuration (Output flushing handled at top of file)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
