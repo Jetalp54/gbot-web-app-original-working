@@ -701,13 +701,19 @@
                                     <i class="fas fa-envelope"></i> Account Email
                                 </th>
                                 <th style="width: 150px;">
-                                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                                        <span><i class="fas fa-hashtag"></i> Users</span>
-                                        <button onclick="applyFirstUserCountToAll()" class="btn-github"
-                                            style="padding: 2px 6px; font-size: 11px;"
-                                            title="Apply first row's count to all">
-                                            <i class="fas fa-sync-alt"></i>
-                                        </button>
+                                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                                        <div
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span><i class="fas fa-hashtag"></i> Users</span>
+                                            <button onclick="applyFirstUserCountToAll()" class="btn-github"
+                                                style="padding: 2px 6px; font-size: 11px;"
+                                                title="Apply first row's count to all">
+                                                <i class="fas fa-sync-alt"></i>
+                                            </button>
+                                        </div>
+                                        <input type="number" class="form-control-github"
+                                            style="width: 100%; height: 26px; padding: 2px 8px; font-size: 12px; margin: 0;"
+                                            placeholder="Set All" oninput="updateAllUserCounts(this.value)">
                                     </div>
                                 </th>
                                 <th style="min-width: 200px;">
@@ -6373,6 +6379,18 @@
             });
 
             showActivityLog(`Applied user count (${targetValue}) to all ${rows.length} accounts.`);
+        }
+
+        function updateAllUserCounts(value) {
+            if (!value) return;
+            const tbody = document.getElementById('bulk-accounts-tbody');
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(row => {
+                const input = row.querySelector('input[data-field="users"]');
+                if (input) {
+                    input.value = value;
+                }
+            });
         }
 
         function populateAllDomains() {
