@@ -532,17 +532,30 @@
             return;
         }
 
-        const lines = fetchedPasswordsCache.map(pwd => {
-            return `${pwd.email},${pwd.app_password},smtp.gmail.com,587`;
+        // Add header as requested
+        let lines = ['Email,App Password,smtp.gmail.com,587'];
+
+        fetchedPasswordsCache.forEach(pwd => {
+            if (pwd.email && pwd.app_password) {
+                lines.push(`${pwd.email},${pwd.app_password},smtp.gmail.com,587`);
+            }
         });
 
         const textToCopy = lines.join('\n');
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            showMessage('passwordsMessages', `📋 Copied ${lines.length} SMTP settings to clipboard!`, 'success');
-        }).catch(err => {
-            console.error('Clipboard error:', err);
+
+        // Use a simpler copy approach to ensure compatibility
+        const textArea = document.createElement("textarea");
+        textArea.value = textToCopy;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showMessage('passwordsMessages', `📋 Copied ${lines.length - 1} SMTP settings with header to clipboard!`, 'success');
+        } catch (err) {
+            console.error('Fallback copy error:', err);
             showMessage('passwordsMessages', '❌ Failed to copy to clipboard.', 'danger');
-        });
+        }
+        document.body.removeChild(textArea);
     }
 
     // === Load Regions and Sizes ===
