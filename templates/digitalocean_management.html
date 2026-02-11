@@ -375,6 +375,9 @@
                 <button type="button" class="btn btn-outline-dark ms-2" onclick="downloadPasswords()">
                     <i class="fa fa-download"></i> Download Backup (TXT)
                 </button>
+                <button type="button" class="btn btn-primary ms-2" onclick="copySMTPS()">
+                    <i class="fa fa-copy"></i> Copy-SMTPS
+                </button>
 
                 <div id="passwordsMessages" class="mt-3"></div>
 
@@ -392,6 +395,7 @@
     // === Global Variables ===
     let currentExecutionId = null;  // Track current bulk execution
     let currentMinDisk = 0;         // Track min disk required by selected snapshot
+    let fetchedPasswordsCache = []; // Cache for Copy-SMTPS feature
 
     // === Page Initialization ===
     $(document).ready(function () {
@@ -439,6 +443,7 @@
                     } else {
                         const count = passwords.length;
                         const requested = response.requested_count;
+                        fetchedPasswordsCache = passwords; // Cache for Copy-SMTPS
                         showMessage('passwordsMessages', `✅ Found ${count} passwords (out of ${requested} requested).`, 'success');
                         renderPasswords(passwords);
                     }
@@ -518,6 +523,26 @@
     function downloadPasswords() {
         const executionId = currentExecutionId || 'all';
         window.location.href = `/api/do/generated-passwords/download/${executionId}`;
+    }
+
+    // === Copy SMTPS ===
+    function copySMTPS() {
+        if (!fetchedPasswordsCache || fetchedPasswordsCache.length === 0) {
+            showMessage('passwordsMessages', '⚠️ No passwords loaded. Fetch them first!', 'warning');
+            return;
+        }
+
+        const lines = fetchedPasswordsCache.map(pwd => {
+            return `${pwd.email},${pwd.app_password},smtp.gmail.com,587`;
+        });
+
+        const textToCopy = lines.join('\n');
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            showMessage('passwordsMessages', `📋 Copied ${lines.length} SMTP settings to clipboard!`, 'success');
+        }).catch(err => {
+            console.error('Clipboard error:', err);
+            showMessage('passwordsMessages', '❌ Failed to copy to clipboard.', 'danger');
+        });
     }
 
     // === Load Regions and Sizes ===
