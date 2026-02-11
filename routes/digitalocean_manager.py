@@ -1044,6 +1044,30 @@ def get_execution_status(execution_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@digitalocean_manager.route('/api/do/monitor/active-droplets', methods=['GET'])
+@login_required
+def get_active_monitor_droplets():
+    """Fetch all active droplets for the persistent monitor"""
+    try:
+        # Get droplets that aren't destroyed
+        droplets = DigitalOceanDroplet.query.filter(DigitalOceanDroplet.status != 'destroyed').order_by(DigitalOceanDroplet.created_at.desc()).all()
+        
+        return jsonify({
+            'success': True,
+            'droplets': [{
+                'droplet_id': d.droplet_id,
+                'droplet_name': d.droplet_name,
+                'ip_address': d.ip_address,
+                'status': d.status,
+                'execution_id': d.execution_task_id,
+                'created_at': d.created_at.isoformat() if d.created_at else None
+            } for d in droplets]
+        })
+    except Exception as e:
+        logger.error(f"Get active monitor droplets error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @digitalocean_manager.route('/api/do/generated-passwords/<execution_id>', methods=['GET'])
 @login_required
 def get_generated_passwords(execution_id):

@@ -403,6 +403,7 @@
         loadSnapshots();
         loadDroplets();
         loadBulkDefaults();
+        autoRestoreMonitor();
     });
 
     // Fetch App Passwords (Strict Batch Mode)
@@ -859,8 +860,9 @@
             // 1. Dropdown Change
             $('#dropletLogSelector').on('change', function () {
                 const dropletId = $(this).val();
+                const executionId = $(this).find('option:selected').attr('data-execution-id');
                 if (dropletId) {
-                    switchToDropletLog(dropletId);
+                    switchToDropletLog(dropletId, executionId);
                 }
             });
 
@@ -1008,112 +1010,125 @@
         });
     }
 
+    function renderMonitorDroplets(droplets, executionId) {
+        if (!droplets || droplets.length === 0) return;
+
+        $('#noDropletsMessage').hide();
+        $('#activeDropletsSection').show(); // Show the new section
+
+        const tableBody = $('#activeDropletsTable tbody');
+        tableBody.empty();
+
+        droplets.forEach(function (droplet) {
+            const displayName = droplet.droplet_name.replace('bulk-exec-', '');
+
+            // Handle different property names between routes
+            const droplet_id = droplet.droplet_id || droplet.id;
+            const execId = executionId || droplet.execution_id;
+
+            // Determine status badge classes and text
+            let status = droplet.status;
+            let statusClasses = 'bg-secondary';
+
+            if (status === 'active') statusClasses = 'bg-success';
+            else if (status === 'new') statusClasses = 'bg-info';
+            else if (status === 'off') statusClasses = 'bg-dark';
+            else if (status === 'archive') statusClasses = 'bg-warning text-dark';
+            else if (status === 'destroyed') statusClasses = 'bg-danger';
+
+            let activity = droplet.current_activity || 'Running automation...';
+            if (status === 'destroyed') {
+                activity = 'Finalized / Destroyed';
+            } else if (status === 'new') {
+                activity = 'Initializing...';
+            } else if (status === 'off') {
+                activity = 'Powered Off';
+            } else if (status === 'archive') {
+                activity = 'Archived';
+            }
+
+            const isNew = !activeDropletIds.has(droplet_id);
+            if (isNew) {
+                activeDropletIds.add(droplet_id);
+
+                if ($('#dropletLogSelector option[value=""]').text().includes('Waiting')) {
+                    $('#dropletLogSelector option[value=""]').text('-- Select Droplet --');
+                }
+                const option = new Option(`${displayName} (${droplet.ip_address})`, droplet_id);
+                $(option).attr('data-execution-id', execId);
+                $('#dropletLogSelector').append(option);
+
+                $('#dropletLogsContent').append(`
+                    <div class="droplet-log-pane" id="pane-${droplet_id}" style="display: none;">
+                        <div class="p-2 bg-dark text-white rounded">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <small class="text-muted">IP: ${droplet.ip_address || 'Pending...'}</small>
+                                <span class="badge bg-secondary" id="status-${droplet_id}">Connecting...</span>
+                            </div>
+                            <pre id="logs-${droplet_id}" class="m-0 p-2 border border-secondary" 
+                                 style="height: 450px; overflow-y: auto; font-family: monospace; font-size: 0.75rem; color: #00ff00; background-color: #000;"></pre>
+                        </div>
+                    </div>
+                `);
+
+                if ($('#dropletLogSelector option').length === 2) {
+                    $('#dropletLogSelector').val(droplet_id);
+                }
+            }
+
+            tableBody.append(`
+                <tr id="row-${droplet_id}" class="droplet-row">
+                    <td><strong>${displayName}</strong></td>
+                    <td><code class="text-primary">${droplet.ip_address || 'Pending...'}</code></td>
+                    <td><span class="badge ${statusClasses}" id="status-${droplet_id}">${status.toUpperCase()}</span></td>
+                    <td id="activity-${droplet_id}">${activity}</td>
+                    <td class="text-end">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="switchToDropletLog('${droplet_id}', '${execId}')" title="View Logs">
+                                <i class="fa fa-terminal"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="manualDeleteDroplet('${droplet_id}', '${droplet.droplet_name}')" title="Destroy Droplet">
+                                <i class="fa fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `);
+        });
+    }
+
     function updateMonitorTabs(executionId) {
         $.ajax({
             url: `/api/do/execution/${executionId}/status`,
             method: 'GET',
             success: function (response) {
-                if (!response.success) {
-                    return;
-                }
+                if (!response.success) return;
 
-                // Update Status Header
                 if (response.completed) {
                     clearInterval(monitorInterval);
-                    if (response.status === 'failed') {
-                        $('#monitorStatusBadge').text('FAILED').addClass('bg-danger');
-                        // Show error message logic...
-                    } else {
-                        $('#monitorStatusBadge').text('COMPLETED').addClass('bg-success');
-                    }
+                    $('#monitorStatusBadge').text(response.status.toUpperCase()).addClass(response.status === 'failed' ? 'bg-danger' : 'bg-success');
                 }
 
-                // Process Droplets
-                if (response.droplets && response.droplets.length > 0) {
-                    $('#noDropletsMessage').hide();
-                    $('#activeDropletsSection').show(); // Show the new section
+                renderMonitorDroplets(response.droplets, executionId);
+            }
+        });
+    }
 
-                    // Update Active Droplets Table
-                    const tableBody = $('#activeDropletsTable tbody');
-                    tableBody.empty();
+    // === Global Monitor Restoration ===
+    function autoRestoreMonitor() {
+        // Ensure UI stays initialized
+        ensureMonitorControls();
 
-                    response.droplets.forEach(function (droplet) {
-                        const displayName = droplet.droplet_name.replace('bulk-exec-', '');
-                        // Determine status badge
-                        let statusBadge = '<span class="badge bg-secondary">Unknown</span>';
-                        if (droplet.status === 'active') statusBadge = '<span class="badge bg-success">Active</span>';
-                        const isNew = !activeDropletIds.has(droplet.droplet_id);
+        $.ajax({
+            url: '/api/do/monitor/active-droplets',
+            method: 'GET',
+            success: function (response) {
+                if (response.success && response.droplets && response.droplets.length > 0) {
+                    console.log("Restoring monitor with", response.droplets.length, "droplets");
+                    renderMonitorDroplets(response.droplets);
 
-                        // Determine status badge classes and text
-                        let status = droplet.status;
-                        let statusClasses = 'bg-secondary'; // Default unknown
-
-                        if (status === 'active') statusClasses = 'bg-success';
-                        else if (status === 'new') statusClasses = 'bg-info';
-                        else if (status === 'off') statusClasses = 'bg-dark';
-                        else if (status === 'archive') statusClasses = 'bg-warning text-dark';
-                        else if (status === 'destroyed') statusClasses = 'bg-danger';
-
-                        // Status-based refinements
-                        let activity = droplet.current_activity || 'Running automation...';
-                        if (status === 'destroyed') {
-                            activity = 'Finalized / Destroyed';
-                            statusClasses = 'bg-danger'; // Ensure destroyed is always danger
-                        } else if (status === 'new') {
-                            activity = 'Initializing...';
-                        } else if (status === 'off') {
-                            activity = 'Powered Off';
-                        } else if (status === 'archive') {
-                            activity = 'Archived';
-                        }
-
-
-                        if (isNew) {
-                            activeDropletIds.add(droplet.droplet_id); // Add to set for tracking
-
-                            // 1. Add Option to Dropdown
-                            const isFirst = $('#dropletLogSelector option').length <= 1; // 1 because of default
-                            if ($('#dropletLogSelector option[value=""]').text().includes('Waiting')) {
-                                $('#dropletLogSelector option[value=""]').text('-- Select Droplet --');
-                            }
-                            $('#dropletLogSelector').append(new Option(`${displayName} (${droplet.ip_address})`, droplet.droplet_id));
-
-                            // 2. Create Hidden Log Pane
-                            $('#dropletLogsContent').append(`
-                                <div class="droplet-log-pane" id="pane-${droplet.droplet_id}" style="display: none;">
-                                    <div class="p-2 bg-dark text-white rounded">
-                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <small class="text-muted">IP: ${droplet.ip_address || 'Pending...'}</small>
-                                            <span class="badge bg-secondary" id="status-${droplet.droplet_id}">Connecting...</span>
-                                        </div>
-                                        <pre id="logs-${droplet.droplet_id}" class="m-0 p-2 border border-secondary" 
-                                             style="height: 450px; overflow-y: auto; font-family: monospace; font-size: 0.75rem; color: #00ff00; background-color: #000;"></pre>
-                                    </div>
-                                </div>
-                            `);
-                            if (isFirst) $('#dropletLogSelector').val(droplet.droplet_id);
-                        }
-
-                        // Always append row to table as it was emptied
-                        tableBody.append(`
-                            <tr id="row-${droplet.droplet_id}" class="droplet-row">
-                                <td><strong>${displayName}</strong></td>
-                                <td><code class="text-primary">${droplet.ip_address || 'Pending...'}</code></td>
-                                <td><span class="badge ${statusClasses}" id="status-${droplet.droplet_id}">${status.toUpperCase()}</span></td>
-                                <td id="activity-${droplet.droplet_id}">${activity}</td>
-                                <td class="text-end">
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-primary" onclick="switchToDropletLog('${droplet.droplet_id}', '${executionId}')" title="View Logs">
-                                            <i class="fa fa-terminal"></i>
-                                        </button>
-                                        <button class="btn btn-outline-danger" onclick="manualDeleteDroplet('${droplet.droplet_id}', '${droplet.droplet_name}')" title="Destroy Droplet">
-                                            <i class="fa fa-trash"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        `);
-                    });
+                    // Update header to indicate global view
+                    $('#monitorStatusBadge').text('GLOBAL VIEW').addClass('bg-primary');
                 }
             }
         });
@@ -1124,8 +1139,8 @@
         if (currentExecutionId) {
             monitorExecution(currentExecutionId);
         } else {
-            // Try to find execution ID from URL or page state if needed, or just warn
-            showMessage('bulkExecutionMessages', 'No active execution to refresh', 'warning');
+            // Restore from global if no specific execution is tracked
+            autoRestoreMonitor();
         }
     }
 
