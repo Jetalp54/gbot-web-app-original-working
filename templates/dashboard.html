@@ -701,7 +701,14 @@
                                     <i class="fas fa-envelope"></i> Account Email
                                 </th>
                                 <th style="width: 150px;">
-                                    <i class="fas fa-hashtag"></i> Users
+                                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                                        <span><i class="fas fa-hashtag"></i> Users</span>
+                                        <button onclick="applyFirstUserCountToAll()" class="btn-github"
+                                            style="padding: 2px 6px; font-size: 11px;"
+                                            title="Apply first row's count to all">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </button>
+                                    </div>
                                 </th>
                                 <th style="min-width: 200px;">
                                     <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -6338,6 +6345,34 @@
 
         function closeBulkAccountModal() {
             document.getElementById('bulk-account-modal').style.display = 'none';
+        }
+
+        function applyFirstUserCountToAll() {
+            const tbody = document.getElementById('bulk-accounts-tbody');
+            const rows = tbody.querySelectorAll('tr');
+
+            if (rows.length === 0) {
+                alert('No accounts in the list to update.');
+                return;
+            }
+
+            // Get value from the first row
+            const firstRow = rows[0];
+            const firstInput = firstRow.querySelector('input[data-field="users"]');
+            if (!firstInput) return;
+
+            const targetValue = firstInput.value;
+
+            // Apply to all other rows
+            rows.forEach((row, index) => {
+                if (index === 0) return; // Skip first row
+                const input = row.querySelector('input[data-field="users"]');
+                if (input) {
+                    input.value = targetValue;
+                }
+            });
+
+            showActivityLog(`Applied user count (${targetValue}) to all ${rows.length} accounts.`);
         }
 
         function populateAllDomains() {
