@@ -884,20 +884,12 @@ def execute_automation():
         
         # Initialize service and orchestrator
         from services.digitalocean_bulk_executor import BulkExecutionOrchestrator
-        from routes.aws_manager import get_twocaptcha_config
-        
-        twocaptcha_config = get_twocaptcha_config()
         service = DigitalOceanService(config.api_token)
         orchestrator = BulkExecutionOrchestrator(
             config=clean_config, 
             service=service,
             app=current_app._get_current_object()
         )
-        
-        # Inject 2Captcha config if available
-        if twocaptcha_config:
-            orchestrator.twocaptcha_config = twocaptcha_config
-            logger.info(f"[DO_EXECUTE] Injected 2Captcha config: enabled={twocaptcha_config.get('enabled')}")
         
         # Create execution ID and DB record immediately
         import time
