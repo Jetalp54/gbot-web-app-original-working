@@ -1047,21 +1047,42 @@ def get_execution_status(execution_id):
 @digitalocean_manager.route('/api/do/monitor/active-droplets', methods=['GET'])
 @login_required
 def get_active_monitor_droplets():
-    """Fetch all active droplets for the persistent monitor"""
+    """Fetch all active droplets for the persistent monitor (Synced with API)"""
     try:
-        # Get droplets that aren't destroyed
-        droplets = DigitalOceanDroplet.query.filter(DigitalOceanDroplet.status != 'destroyed').order_by(DigitalOceanDroplet.created_at.desc()).all()
+        config = DigitalOceanConfig.query.first()
+        if not config or not config.api_token:
+             return jsonify({'success': False, 'error': 'DigitalOcean not configured'}), 400
+
+        # 1. Fetch live droplets from API
+        service = DigitalOceanService(config.api_token)
+        api_droplets = service.list_droplets()
+        api_droplet_ids = {str(d['id']) for d in api_droplets}
         
+        # 2. Get droplets from DB that aren't marked as destroyed
+        db_droplets = DigitalOceanDroplet.query.filter(DigitalOceanDroplet.status != 'destroyed').all()
+        
+        # 3. Filter DB droplets: Only keep those that still exist in the DO account
+        results = []
+        for d in db_droplets:
+            if d.droplet_id in api_droplet_ids:
+                # Find the matching API droplet to get current IP/status if needed
+                api_match = next((ad for ad in api_droplets if str(ad['id']) == d.droplet_id), None)
+                
+                results.append({
+                    'droplet_id': d.droplet_id,
+                    'droplet_name': d.droplet_name,
+                    'ip_address': api_match.get('ip_address') if api_match else d.ip_address,
+                    'status': api_match.get('status') if api_match else d.status,
+                    'execution_id': d.execution_task_id,
+                    'created_at': d.created_at.isoformat() if d.created_at else None
+                })
+        
+        # Sort by creation date descending
+        results.sort(key=lambda x: x['created_at'] or '', reverse=True)
+
         return jsonify({
             'success': True,
-            'droplets': [{
-                'droplet_id': d.droplet_id,
-                'droplet_name': d.droplet_name,
-                'ip_address': d.ip_address,
-                'status': d.status,
-                'execution_id': d.execution_task_id,
-                'created_at': d.created_at.isoformat() if d.created_at else None
-            } for d in droplets]
+            'droplets': results
         })
     except Exception as e:
         logger.error(f"Get active monitor droplets error: {e}")
