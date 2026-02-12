@@ -3,390 +3,603 @@
 {% block title %}DigitalOcean Management{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
-    <div class="row">
-        <div class="col-12">
-            <h1 class="h3 mb-4">
-                <i class="fab fa-digital-ocean text-primary"></i>
-                DigitalOcean Management
+<style>
+    :root {
+        --do-blue: #008bcf;
+        --do-dark: #00699a;
+        --do-light: #e6f7ff;
+        --glass-bg: rgba(255, 255, 255, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.2);
+        --card-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        --radius-premium: 16px;
+    }
+
+    /* Professional Dashboard Header */
+    .dashboard-header {
+        background: linear-gradient(135deg, var(--do-blue) 0%, var(--do-dark) 100%);
+        border-radius: var(--radius-premium);
+        padding: 2.5rem;
+        margin-bottom: 2rem;
+        color: white;
+        box-shadow: var(--card-shadow);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .dashboard-header::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 300px;
+        height: 600px;
+        background: rgba(255, 255, 255, 0.05);
+        transform: rotate(45deg);
+        pointer-events: none;
+    }
+
+    /* Premium Custom Tabs */
+    .modern-tabs .nav-link {
+        border: none;
+        padding: 1rem 2rem;
+        color: #64748b;
+        font-weight: 500;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 12px 12px 0 0;
+        margin-right: 0.5rem;
+    }
+
+    .modern-tabs .nav-link.active {
+        background: white !important;
+        color: var(--do-blue) !important;
+        box-shadow: 0 -4px 12px rgba(0, 139, 207, 0.08);
+        border-bottom: 3px solid var(--do-blue) !important;
+    }
+
+    .modern-tabs .nav-link:hover:not(.active) {
+        background: rgba(0, 139, 207, 0.05);
+        color: var(--do-blue);
+    }
+
+    /* Glassmorphism Cards */
+    .premium-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-premium);
+        box-shadow: var(--card-shadow);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        overflow: hidden;
+    }
+
+    .premium-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.15);
+    }
+
+    .premium-card .card-header {
+        background: transparent !important;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 1.5rem;
+        font-weight: 600;
+    }
+
+    /* Better Tables */
+    .elegant-table {
+        border-collapse: separate;
+        border-spacing: 0 0.5rem;
+    }
+
+    .elegant-table tr {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        transition: all 0.2s ease;
+    }
+
+    .elegant-table tr:hover {
+        background: #f8fafc;
+        transform: scale(1.002);
+    }
+
+    .elegant-table td {
+        border: none;
+        padding: 1.25rem 1rem;
+        vertical-align: middle;
+    }
+
+    /* Glowing Terminal */
+    .terminal-window {
+        background: #0d1117;
+        border-radius: 12px;
+        border: 1px solid #30363d;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    }
+
+    .terminal-header {
+        background: #161b22;
+        padding: 10px 15px;
+        border-bottom: 1px solid #30363d;
+        display: flex;
+        align-items: center;
+    }
+
+    .terminal-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+    }
+
+    .dot-red {
+        background: #ff5f56;
+    }
+
+    .dot-yellow {
+        background: #ffbd2e;
+    }
+
+    .dot-green {
+        background: #27c93f;
+    }
+
+    /* Micro-animations */
+    .fade-in-up {
+        animation: fadeInUp 0.5s ease-out forwards;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Dark Mode Compatibility Fixes */
+    [data-color-mode="dark"] .premium-card {
+        background: rgba(22, 27, 34, 0.8) !important;
+        border-color: #30363d !important;
+    }
+
+    [data-color-mode="dark"] .modern-tabs .nav-link.active {
+        background: #161b22 !important;
+        color: #58a6ff !important;
+        border-bottom-color: #58a6ff !important;
+    }
+
+    [data-color-mode="dark"] .elegant-table tr {
+        background: #161b22;
+    }
+
+    [data-color-mode="dark"] .elegant-table tr:hover {
+        background: #1c2128;
+    }
+</style>
+
+<div class="container-fluid mt-4 fade-in-up">
+    <!-- Header Section -->
+    <div class="dashboard-header d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="display-6 mb-1 fw-bold">
+                <i class="fab fa-digital-ocean me-2"></i>
+                DigitalOcean Operations
             </h1>
+            <p class="mb-0 opacity-75">Professional Droplet Management & Automation Suite</p>
+        </div>
+        <div class="header-stats d-none d-md-flex gap-4">
+            <div class="text-end">
+                <small class="d-block opacity-75">Auto-Destroy</small>
+                <span class="badge bg-light text-dark px-3 py-2" id="headerAutoDestroyBadge">Active</span>
+            </div>
         </div>
     </div>
 
-    <!-- Initial Droplet Setup Section -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-header bg-success text-white">
+    <!-- Main Navigation Tabs -->
+    <ul class="nav nav-tabs modern-tabs mb-4 px-3" id="mainDashboardTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="setup-tab" data-bs-toggle="tab" data-bs-target="#setup" type="button"
+                role="tab">
+                <i class="fa fa-wrench me-2"></i> Deployment Setup
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="automation-tab" data-bs-toggle="tab" data-bs-target="#automation" type="button"
+                role="tab">
+                <i class="fa fa-rocket me-2"></i> Bulk Execution
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="passwords-tab" data-bs-toggle="tab" data-bs-target="#passwords" type="button"
+                role="tab" onclick="fetchAppPasswords()">
+                <i class="fa fa-key me-2"></i> App Passwords
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="mainDashboardContent">
+        <!-- TAB 1: SETUP -->
+        <div class="tab-pane fade show active" id="setup" role="tabpanel">
+            <div class="row">
+                <!-- Initial Droplet Setup Section -->
+                <div class="col-lg-12 mb-4">
+                    <div class="card premium-card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fa fa-rocket"></i> Initial Droplet Setup
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-3">
+                                <i class="fa fa-info-circle"></i>
+                                Create your first droplet with your automation script installed, then snapshot it for
+                                bulk
+                                execution.
+                                <br><small>Configure API credentials in <a href="/settings">Settings</a> first.</small>
+                            </p>
+
+                            <form id="createDropletForm">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Droplet Name</label>
+                                        <input type="text" class="form-control" id="dropletName"
+                                            placeholder="automation-master-01" required>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Region</label>
+                                        <select class="form-select" id="region" required>
+                                            <option value="">Loading...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Size</label>
+                                        <select class="form-select" id="size" required>
+                                            <option value="">Loading...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Authentication Method</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="authMethod" id="authSSH" value="ssh" checked
+                                    onchange="toggleAuthMethod()">
+                                <label class="btn btn-outline-primary" for="authSSH">
+                                    <i class="fab fa-ssh"></i> SSH Key
+                                </label>
+
+                                <input type="radio" class="btn-check" name="authMethod" id="authPassword"
+                                    value="password" onchange="toggleAuthMethod()">
+                                <label class="btn btn-outline-primary" for="authPassword">
+                                    <i class="fa fa-key"></i> Root Password
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" id="sshKeySection">
+                        <div class="col-12 mb-3">
+                            <div class="alert alert-info">
+                                <i class="fa fa-info-circle"></i> Using configured SSH Key from Settings.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" id="passwordSection" style="display: none;">
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Root Password</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="rootPassword"
+                                    placeholder="e.g. Batata010..++" value="Batata010..++">
+                                <button class="btn btn-outline-secondary" type="button"
+                                    onclick="copyToClipboard($('#rootPassword').val())">
+                                    <i class="fa fa-copy"></i>
+                                </button>
+                            </div>
+                            <small class="text-danger">
+                                <i class="fa fa-exclamation-triangle"></i>
+                                Must be complex: Uppercase, lowercase, number, and special character.
+                            </small>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fa fa-plus"></i> Create Initial Droplet
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="loadRegionsAndSizes()">
+                            <i class="fa fa-sync"></i> Reload Regions/Sizes
+                        </button>
+                    </div>
+                    </form>
+
+                    <div id="createDropletMessages" class="mt-3"></div>
+
+                    <!-- Instant Live Logs Container -->
+                    <div id="creationLogContainer" class="mt-3" style="display: none;">
+                        <div class="card bg-dark text-white">
+                            <div
+                                class="card-header bg-secondary d-flex justify-content-between align-items-center py-2">
+                                <h6 class="mb-0"><i class="fa fa-terminal"></i> Live Setup Logs (<span
+                                        id="creationLogIp">...</span>)</h6>
+                                <span class="badge bg-success" id="creationLogStatus">Initializing...</span>
+                            </div>
+                            <div class="card-body p-0">
+                                <pre id="creationLogContent" class="m-0 p-3"
+                                    style="height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; color: #00ff00; background-color: #000;"></pre>
+                            </div>
+                            <div class="card-footer py-1 text-muted small">
+                                <i class="fa fa-sync fa-spin"></i> Polling for updates...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Snapshot Creation Section -->
+                    <div id="snapshotSection" class="mt-4 pt-4 border-top" style="display: none;">
+                        <h6 class="mb-3">
+                            <i class="fa fa-camera"></i> Create Automation Snapshot
+                        </h6>
+                        <p class="text-muted mb-3">
+                            Once your droplet is configured with the automation script, create a snapshot for bulk
+                            execution.
+                        </p>
+                        <form id="createSnapshotForm">
+                            <div class="row">
+                                <div class="col-md-8 mb-3">
+                                    <label class="form-label">Snapshot Name</label>
+                                    <input type="text" class="form-control" id="snapshotName"
+                                        placeholder="automation-snapshot-v1" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Droplet to Snapshot</label>
+                                    <select class="form-select" id="dropletToSnapshot" required>
+                                        <option value="">Select a droplet</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fa fa-camera"></i> Create Snapshot
+                            </button>
+                        </form>
+                        <div id="createSnapshotMessages" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Droplets and Snapshots Row -->
+    <div class="row">
+        <!-- Droplets Section -->
+        <div class="col-lg-6 mb-4">
+            <div class="card premium-card h-100">
+                <div class="card-header bg-info text-white">
                     <h5 class="mb-0">
-                        <i class="fa fa-rocket"></i> Initial Droplet Setup
+                        <i class="fa fa-server"></i> Active Droplets
                     </h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted mb-3">
-                        <i class="fa fa-info-circle"></i>
-                        Create your first droplet with your automation script installed, then snapshot it for bulk
-                        execution.
-                        <br><small>Configure API credentials in <a href="/settings">Settings</a> first.</small>
-                    </p>
-
-                    <form id="createDropletForm">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Droplet Name</label>
-                                <input type="text" class="form-control" id="dropletName"
-                                    placeholder="automation-master-01" required>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label">Region</label>
-                                <select class="form-select" id="region" required>
-                                    <option value="">Loading...</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label">Size</label>
-                                <select class="form-select" id="size" required>
-                                    <option value="">Loading...</option>
-                                </select>
-                            </div>
-                        </div>
+                    <button class="btn btn-sm btn-primary mb-3" onclick="loadDroplets()">
+                        <i class="fa fa-sync"></i> Refresh List
+                    </button>
+                    <div id="dropletsList" class="table-responsive">
+                        <p class="text-muted">Click refresh to load droplets</p>
+                    </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Snapshots Section -->
+        <div class="col-lg-6 mb-4">
+            <div class="card premium-card h-100">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fa fa-camera"></i> Snapshots
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-primary mb-3" onclick="loadSnapshots()">
+                        <i class="fa fa-sync"></i> Refresh List
+                    </button>
+                    <div id="snapshotsList" class="table-responsive">
+                        <p class="text-muted">Click refresh to load snapshots</p>
+                    </div>
+                </div> <!-- Snapshots Section col-lg-6 end -->
+            </div> <!-- Row for Droplets and Snapshots end -->
+        </div> <!-- Setup TAB end -->
+
+        <!-- TAB 2: AUTOMATION -->
+        <div class="tab-pane fade" id="automation" role="tabpanel">
             <div class="row">
-                <div class="col-12 mb-3">
-                    <label class="form-label">Authentication Method</label>
-                    <div class="btn-group w-100" role="group">
-                        <input type="radio" class="btn-check" name="authMethod" id="authSSH" value="ssh" checked
-                            onchange="toggleAuthMethod()">
-                        <label class="btn btn-outline-primary" for="authSSH">
-                            <i class="fab fa-ssh"></i> SSH Key
-                        </label>
-
-                        <input type="radio" class="btn-check" name="authMethod" id="authPassword" value="password"
-                            onchange="toggleAuthMethod()">
-                        <label class="btn btn-outline-primary" for="authPassword">
-                            <i class="fa fa-key"></i> Root Password
-                        </label>
-                    </div>
-                </div>
-            </div>
-            <div class="row" id="sshKeySection">
-                <div class="col-12 mb-3">
-                    <div class="alert alert-info">
-                        <i class="fa fa-info-circle"></i> Using configured SSH Key from Settings.
-                    </div>
-                </div>
-            </div>
-            <div class="row" id="passwordSection" style="display: none;">
-                <div class="col-12 mb-3">
-                    <label class="form-label">Root Password</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="rootPassword" placeholder="e.g. Batata010..++"
-                            value="Batata010..++">
-                        <button class="btn btn-outline-secondary" type="button"
-                            onclick="copyToClipboard($('#rootPassword').val())">
-                            <i class="fa fa-copy"></i>
-                        </button>
-                    </div>
-                    <small class="text-danger">
-                        <i class="fa fa-exclamation-triangle"></i>
-                        Must be complex: Uppercase, lowercase, number, and special character.
-                    </small>
-                </div>
-            </div>
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-success">
-                    <i class="fa fa-plus"></i> Create Initial Droplet
-                </button>
-                <button type="button" class="btn btn-secondary" onclick="loadRegionsAndSizes()">
-                    <i class="fa fa-sync"></i> Reload Regions/Sizes
-                </button>
-            </div>
-            </form>
-
-            <div id="createDropletMessages" class="mt-3"></div>
-
-            <!-- Instant Live Logs Container -->
-            <div id="creationLogContainer" class="mt-3" style="display: none;">
-                <div class="card bg-dark text-white">
-                    <div class="card-header bg-secondary d-flex justify-content-between align-items-center py-2">
-                        <h6 class="mb-0"><i class="fa fa-terminal"></i> Live Setup Logs (<span
-                                id="creationLogIp">...</span>)</h6>
-                        <span class="badge bg-success" id="creationLogStatus">Initializing...</span>
-                    </div>
-                    <div class="card-body p-0">
-                        <pre id="creationLogContent" class="m-0 p-3"
-                            style="height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; color: #00ff00; background-color: #000;"></pre>
-                    </div>
-                    <div class="card-footer py-1 text-muted small">
-                        <i class="fa fa-sync fa-spin"></i> Polling for updates...
-                    </div>
-                </div>
-            </div>
-
-            <!-- Snapshot Creation Section -->
-            <div id="snapshotSection" class="mt-4 pt-4 border-top" style="display: none;">
-                <h6 class="mb-3">
-                    <i class="fa fa-camera"></i> Create Automation Snapshot
-                </h6>
-                <p class="text-muted mb-3">
-                    Once your droplet is configured with the automation script, create a snapshot for bulk
-                    execution.
-                </p>
-                <form id="createSnapshotForm">
-                    <div class="row">
-                        <div class="col-md-8 mb-3">
-                            <label class="form-label">Snapshot Name</label>
-                            <input type="text" class="form-control" id="snapshotName"
-                                placeholder="automation-snapshot-v1" required>
+                <!-- Bulk Automation Execution Section -->
+                <div class="col-12 mb-4">
+                    <div class="card premium-card border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fa fa-rocket"></i> Bulk Automation Execution
+                            </h5>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Droplet to Snapshot</label>
-                            <select class="form-select" id="dropletToSnapshot" required>
-                                <option value="">Select a droplet</option>
-                            </select>
+                        <div class="card-body">
+                            <p class="text-muted mb-3">
+                                <i class="fa fa-info-circle"></i>
+                                Distribute users across multiple droplets for parallel app password automation.
+                                <br><small>Requires a configured snapshot ID from Settings.</small>
+                            </p>
+
+                            <form id="bulkExecutionForm">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Users (Email:Password format, one per line)</label>
+                                        <textarea class="form-control font-monospace" id="bulkUsers" rows="5"
+                                            placeholder="user1@domain.com:password1&#10;user2@domain.com:password2"
+                                            required oninput="calculateDroplets()"></textarea>
+                                        <small class="text-muted">Format: email:password (one per line)</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="row">
+                                            <div class="col-4 mb-3">
+                                                <label class="form-label">Droplets</label>
+                                                <input type="number" class="form-control" id="dropletCount" min="1"
+                                                    max="50" value="5" required>
+                                                <small class="text-muted">Total droplets</small>
+                                            </div>
+                                            <div class="col-4 mb-3">
+                                                <label class="form-label">Parallel Users</label>
+                                                <input type="number" class="form-control" id="parallelUsers" min="1"
+                                                    max="50" value="5" required>
+                                                <small class="text-muted">Threads per droplet</small>
+                                            </div>
+                                            <div class="col-4 mb-3">
+                                                <label class="form-label">Users per Droplet</label>
+                                                <input type="number" class="form-control" id="usersPerDroplet" min="1"
+                                                    max="100" value="50" required onchange="calculateDroplets()"
+                                                    oninput="calculateDroplets()">
+                                                <small class="text-muted">Max users/droplet</small>
+                                            </div>
+                                            <div class="col-12 mb-3">
+                                                <label class="form-label">Snapshot ID (from snapshots above)</label>
+                                                <input type="text" class="form-control" id="snapshotId"
+                                                    placeholder="123456789" required>
+                                            </div>
+                                            <div class="col-6 mb-3">
+                                                <label class="form-label">Region</label>
+                                                <select class="form-select" id="bulkRegion">
+                                                    <option value="">Use default</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-6 mb-3">
+                                                <label class="form-label">Size</label>
+                                                <select class="form-select" id="bulkSize">
+                                                    <option value="">Use default</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <input type="checkbox" class="form-check-input" id="autoDestroy" checked>
+                                    <label class="form-check-label" for="autoDestroy">
+                                        Auto-destroy droplets after execution
+                                    </label>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fa fa-play"></i> Start Bulk Execution
+                                </button>
+                            </form>
+
+                            <div id="bulkExecutionMessages" class="mt-3"></div>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-warning">
-                        <i class="fa fa-camera"></i> Create Snapshot
-                    </button>
-                </form>
-                <div id="createSnapshotMessages" class="mt-3"></div>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
-
-<!-- Droplets and Snapshots Row -->
-<div class="row">
-    <!-- Droplets Section -->
-    <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">
-                    <i class="fa fa-server"></i> Active Droplets
-                </h5>
-            </div>
-            <div class="card-body">
-                <button class="btn btn-sm btn-primary mb-3" onclick="loadDroplets()">
-                    <i class="fa fa-sync"></i> Refresh List
-                </button>
-                <div id="dropletsList" class="table-responsive">
-                    <p class="text-muted">Click refresh to load droplets</p>
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Snapshots Section -->
-    <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-warning text-dark">
-                <h5 class="mb-0">
-                    <i class="fa fa-camera"></i> Snapshots
-                </h5>
-            </div>
-            <div class="card-body">
-                <button class="btn btn-sm btn-primary mb-3" onclick="loadSnapshots()">
-                    <i class="fa fa-sync"></i> Refresh List
-                </button>
-                <div id="snapshotsList" class="table-responsive">
-                    <p class="text-muted">Click refresh to load snapshots</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Bulk Automation Execution Section -->
-<div class="row">
-    <div class="col-12">
-        <div class="card shadow-sm border-primary">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">
-                    <i class="fa fa-rocket"></i> Bulk Automation Execution
-                </h5>
-            </div>
-            <div class="card-body">
-                <p class="text-muted mb-3">
-                    <i class="fa fa-info-circle"></i>
-                    Distribute users across multiple droplets for parallel app password automation.
-                    <br><small>Requires a configured snapshot ID from Settings.</small>
-                </p>
-
-                <form id="bulkExecutionForm">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Users (Email:Password format, one per line)</label>
-                            <textarea class="form-control font-monospace" id="bulkUsers" rows="5"
-                                placeholder="user1@domain.com:password1&#10;user2@domain.com:password2" required
-                                oninput="calculateDroplets()"></textarea>
-                            <small class="text-muted">Format: email:password (one per line)</small>
+                <!-- Active Droplets Status Section -->
+                <div id="activeDropletsSection" class="col-12 mb-4" style="display: none;">
+                    <div class="card premium-card border-danger shadow-sm">
+                        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fa fa-heartbeat"></i> Active Droplets Monitor
+                            </h5>
+                            <button class="btn btn-sm btn-light text-danger" onclick="refreshActiveDroplets()">
+                                <i class="fa fa-sync-alt"></i> Refresh
+                            </button>
                         </div>
-                        <div class="col-md-6">
-                            <div class="row">
-                                <div class="col-4 mb-3">
-                                    <label class="form-label">Droplets</label>
-                                    <input type="number" class="form-control" id="dropletCount" min="1" max="50"
-                                        value="5" required>
-                                    <small class="text-muted">Total droplets</small>
-                                </div>
-                                <div class="col-4 mb-3">
-                                    <label class="form-label">Parallel Users</label>
-                                    <input type="number" class="form-control" id="parallelUsers" min="1" max="50"
-                                        value="5" required>
-                                    <small class="text-muted">Threads per droplet</small>
-                                </div>
-                                <div class="col-4 mb-3">
-                                    <label class="form-label">Users per Droplet</label>
-                                    <input type="number" class="form-control" id="usersPerDroplet" min="1" max="100"
-                                        value="50" required onchange="calculateDroplets()"
-                                        oninput="calculateDroplets()">
-                                    <small class="text-muted">Max users/droplet</small>
-                                </div>
-                                <div class="col-12 mb-3">
-                                    <label class="form-label">Snapshot ID (from snapshots above)</label>
-                                    <input type="text" class="form-control" id="snapshotId" placeholder="123456789"
-                                        required>
-                                </div>
-                                <div class="col-6 mb-3">
-                                    <label class="form-label">Region</label>
-                                    <select class="form-select" id="bulkRegion">
-                                        <option value="">Use default</option>
-                                    </select>
-                                </div>
-                                <div class="col-6 mb-3">
-                                    <label class="form-label">Size</label>
-                                    <select class="form-select" id="bulkSize">
-                                        <option value="">Use default</option>
-                                    </select>
-                                </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0 elegant-table" id="activeDropletsTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Droplet Name</th>
+                                            <th>IP Address</th>
+                                            <th>Status</th>
+                                            <th>Current Activity</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Active droplets injected here -->
+                                        <tr>
+                                            <td colspan="5" class="text-center py-3">Waiting for execution...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="form-check mb-3">
-                        <input type="checkbox" class="form-check-input" id="autoDestroy" checked>
-                        <label class="form-check-label" for="autoDestroy">
-                            Auto-destroy droplets after execution
-                        </label>
+                <!-- Real-Time Execution Monitor -->
+                <div id="executionMonitor" class="col-12 mb-4" style="display: none;">
+                    <div class="card premium-card border-0">
+                        <div class="card-header d-flex justify-content-between align-items-center bg-dark text-white">
+                            <h6 class="mb-0 text-white"><i class="fa fa-desktop"></i> Real-Time Monitor</h6>
+                            <span class="badge bg-info" id="monitorStatus">Initializing...</span>
+                        </div>
+                        <div class="card-body bg-light">
+                            <ul class="nav nav-pills mb-3" id="dropletTabs" role="tablist">
+                                <!-- Tabs injected here -->
+                                <li class="nav-item">
+                                    <a class="nav-link active" href="#">Loading...</a>
+                                </li>
+                            </ul>
+                            <div class="tab-content" id="dropletLogsContent">
+                                <!-- Log panes injected here -->
+                                <div class="text-center p-5 text-muted">
+                                    <i class="fa fa-circle-o-notch fa-spin fa-2x"></i><br>
+                                    Waiting for droplets to be created...
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white py-2 text-end">
+                            <small class="text-muted">Execution ID: <span id="executionId"></span></small>
+                        </div>
                     </div>
+                </div>
+            </div> <!-- Automation tab panes row end -->
+        </div> <!-- Automation TAB end -->
 
-                    <button type="submit" class="btn btn-primary btn-lg">
-                        <i class="fa fa-play"></i> Start Bulk Execution
-                    </button>
-                </form>
+        <!-- TAB 3: PASSWORDS -->
+        <div class="tab-pane fade" id="passwords" role="tabpanel">
+            <div class="row">
+                <div class="col-12 mb-4">
+                    <div class="card premium-card border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fa fa-key"></i> Generated App Passwords
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-4">
+                                <i class="fa fa-info-circle"></i>
+                                View app passwords generated from bulk automation executions.
+                            </p>
 
-                <div id="bulkExecutionMessages" class="mt-3"></div>
-            </div>
-        </div>
-    </div>
-</div>
+                            <div class="d-flex gap-2 mb-3">
+                                <button type="button" class="btn btn-success" onclick="fetchAppPasswords()">
+                                    <i class="fa fa-refresh"></i> Fetch App-Passwords
+                                </button>
+                                <button type="button" class="btn btn-outline-dark" onclick="downloadPasswords()">
+                                    <i class="fa fa-download"></i> Download Backup (TXT)
+                                </button>
+                                <button type="button" class="btn btn-primary" onclick="copySMTPS()">
+                                    <i class="fa fa-copy"></i> Copy-SMTPS
+                                </button>
+                            </div>
 
-<!-- Active Droplets Status Section (Red Line) -->
-<div id="activeDropletsSection" class="row mt-4" style="display: none;">
-    <div class="col-12">
-        <div class="card border-danger shadow-sm">
-            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="fa fa-heartbeat"></i> Active Droplets Monitor
-                </h5>
-                <button class="btn btn-sm btn-light text-danger" onclick="refreshActiveDroplets()">
-                    <i class="fa fa-sync-alt"></i> Refresh
-                </button>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped mb-0" id="activeDropletsTable">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Droplet Name</th>
-                                <th>IP Address</th>
-                                <th>Status</th>
-                                <th>Current Activity</th>
-                                <th class="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Active droplets injected here -->
-                            <tr>
-                                <td colspan="5" class="text-center py-3">Waiting for execution...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                            <div id="passwordsMessages" class="mt-3"></div>
+                            <div id="passwordsList" class="mt-3"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
-
-
-<!-- Real-Time Execution Monitor -->
-<div id="executionMonitor" class="mt-4" style="display: none;">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h6 class="mb-0"><i class="fa fa-desktop"></i> Real-Time Monitor</h6>
-        <span class="badge bg-info" id="monitorStatus">Initializing...</span>
-    </div>
-
-    <div class="card bg-light border-0">
-        <div class="card-header border-0 pb-0">
-            <ul class="nav nav-tabs card-header-tabs" id="dropletTabs" role="tablist">
-                <!-- Tabs injected here -->
-                <li class="nav-item">
-                    <a class="nav-link active" href="#">Loading...</a>
-                </li>
-            </ul>
-        </div>
-        <div class="card-body bg-white border border-top-0 rounded-bottom">
-            <div class="tab-content" id="dropletLogsContent">
-                <!-- Log panes injected here -->
-                <div class="text-center p-5 text-muted">
-                    <i class="fa fa-circle-o-notch fa-spin fa-2x"></i><br>
-                    Waiting for droplets to be created...
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="mt-2 text-end">
-        <small class="text-muted">Execution ID: <span id="executionId"></span></small>
-    </div>
-</div>
-
-<!-- View Generated App Passwords Section -->
-<div class="row">
-    <div class="col-12">
-        <div class="card shadow-sm border-success">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0">
-                    <i class="fa fa-key"></i> Generated App Passwords
-                </h5>
-            </div>
-            <div class="card-body">
-                <p class="text-muted mb-3">
-                    <i class="fa fa-info-circle"></i>
-                    View app passwords generated from bulk automation executions.
-                </p>
-
-                <button type="button" class="btn btn-success" onclick="fetchAppPasswords()">
-                    <i class="fa fa-refresh"></i> Fetch App-Passwords
-                </button>
-                <button type="button" class="btn btn-outline-dark ms-2" onclick="downloadPasswords()">
-                    <i class="fa fa-download"></i> Download Backup (TXT)
-                </button>
-                <button type="button" class="btn btn-primary ms-2" onclick="copySMTPS()">
-                    <i class="fa fa-copy"></i> Copy-SMTPS
-                </button>
-
-                <div id="passwordsMessages" class="mt-3"></div>
-
-                <div id="passwordsList" class="mt-3"></div>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
+        </div> <!-- Passwords TAB end -->
+    </div> <!-- All Tabs content end -->
+</div> <!-- container-fluid end -->
 
 <!-- Test Automation Modal -->
 <!-- ... (omitted for brevity, assume unchanged until script) ... -->
@@ -1225,10 +1438,15 @@
                         if (response.status === 'completed') {
                             showMessage('bulkExecutionMessages', `✅ Execution Completed Successfully! (Success: ${response.success_count}, Failed: ${response.failure_count})`, 'success');
 
+                            // Switch to Passwords Tab
+                            $('#passwords-tab').tab('show');
+
                             // Auto-scroll to password section
-                            $('html, body').animate({
-                                scrollTop: $('#passwordsList').offset().top - 100
-                            }, 500);
+                            setTimeout(() => {
+                                $('html, body').animate({
+                                    scrollTop: $('#passwordsList').offset().top - 150
+                                }, 500);
+                            }, 150);
 
                         } else {
                             // Failed
@@ -1284,7 +1502,7 @@
             return;
         }
 
-        let html = '<table class="table table-sm"><thead><tr>' +
+        let html = '<div class="table-responsive"><table class="table table-hover mb-0 elegant-table"><thead><tr>' +
             '<th>Name</th><th>IP</th><th>Region</th><th>Size</th><th>Status</th><th>Actions</th>' +
             '</tr></thead><tbody>';
 
@@ -1362,7 +1580,7 @@
             return;
         }
 
-        let html = '<table class="table table-sm text-center"><thead><tr>' +
+        let html = '<div class="table-responsive"><table class="table table-hover mb-0 elegant-table text-center"><thead><tr>' +
             '<th class="text-start">Name</th><th>ID</th><th>Min Disk</th><th>Size (GB)</th><th>Regions</th><th>Actions</th>' +
             '</tr></thead><tbody>';
 
@@ -1403,10 +1621,15 @@
         currentMinDisk = minDisk;
         filterBulkRegions(id); // Filter regions immediately
 
+        // Switch to Automation Tab
+        $('#automation-tab').tab('show');
+
         // Auto-scroll to bulk section
-        $('html, body').animate({
-            scrollTop: $('#bulkExecutionForm').offset().top - 100
-        }, 500);
+        setTimeout(() => {
+            $('html, body').animate({
+                scrollTop: $('#bulkExecutionForm').offset().top - 100
+            }, 500);
+        }, 150);
 
         // Brief highlight effect on the input
         $('#snapshotId').css('background-color', '#fff3cd').animate({
@@ -1545,9 +1768,9 @@
 
     // Render Passwords Table
     function renderPasswords(passwords) {
-        let html = '<div class="table-responsive mt-3"><table class="table table-sm table-striped">';
-        html += '<thead class="table-dark"><tr>';
-        html += '<th>#</th><th>Email</th><th>App Password</th><th>Created</th><th>Actions</th>';
+        let html = '<div class="table-responsive mt-3"><table class="table table-hover mb-0 elegant-table">';
+        html += '<thead class="table-light"><tr>';
+        html += '<th>#</th><th>Email</th><th>App Password</th><th>Created</th><th class="text-end">Actions</th>';
         html += '</tr></thead><tbody>';
 
         passwords.forEach(function (pwd, index) {
