@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}DigitalOcean Management{% endblock %}
 
@@ -227,7 +227,7 @@
         <div class="tab-pane fade show active" id="setup" role="tabpanel">
             <div class="row">
                 <!-- Initial Droplet Setup Section -->
-                <div class="col-12 mb-4">
+                <div class="col-lg-12 mb-4">
                     <div class="card premium-card">
                         <div class="card-header bg-success text-white">
                             <h5 class="mb-0">
@@ -238,7 +238,8 @@
                             <p class="text-muted mb-3">
                                 <i class="fa fa-info-circle"></i>
                                 Create your first droplet with your automation script installed, then snapshot it for
-                                bulk execution.
+                                bulk
+                                execution.
                                 <br><small>Configure API credentials in <a href="/settings">Settings</a> first.</small>
                             </p>
 
@@ -262,209 +263,221 @@
                                         </select>
                                     </div>
                                 </div>
-
-                                <div class="row">
-                                    <div class="col-12 mb-3">
-                                        <label class="form-label">Authentication Method</label>
-                                        <div class="btn-group w-100" role="group">
-                                            <input type="radio" class="btn-check" name="authMethod" id="authSSH"
-                                                value="ssh" checked onchange="toggleAuthMethod()">
-                                            <label class="btn btn-outline-primary" for="authSSH">
-                                                <i class="fab fa-ssh"></i> SSH Key
-                                            </label>
-
-                                            <input type="radio" class="btn-check" name="authMethod" id="authPassword"
-                                                value="password" onchange="toggleAuthMethod()">
-                                            <label class="btn btn-outline-primary" for="authPassword">
-                                                <i class="fa fa-key"></i> Root Password
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row" id="sshKeySection">
-                                    <div class="col-12 mb-3">
-                                        <div class="alert alert-info">
-                                            <i class="fa fa-info-circle"></i> Using configured SSH Key from Settings.
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row" id="passwordSection" style="display: none;">
-                                    <div class="col-12 mb-3">
-                                        <label class="form-label">Root Password</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" id="rootPassword"
-                                                placeholder="e.g. Batata010..++" value="Batata010..++">
-                                            <button class="btn btn-outline-secondary" type="button"
-                                                onclick="copyToClipboard($('#rootPassword').val())">
-                                                <i class="fa fa-copy"></i>
-                                            </button>
-                                        </div>
-                                        <small class="text-danger">
-                                            <i class="fa fa-exclamation-triangle"></i>
-                                            Must be complex: Uppercase, lowercase, number, and special character.
-                                        </small>
-                                    </div>
-                                </div>
-
-                                <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-success">
-                                        <i class="fa fa-plus"></i> Create Initial Droplet
-                                    </button>
-                                    <button type="button" class="btn btn-secondary" onclick="loadRegionsAndSizes()">
-                                        <i class="fa fa-sync"></i> Reload Regions/Sizes
-                                    </button>
-                                </div>
-                            </form>
-
-                            <div id="createDropletMessages" class="mt-3"></div>
-
-                            <!-- Instant Live Logs Container -->
-                            <div id="creationLogContainer" class="mt-3" style="display: none;">
-                                <div class="card bg-dark text-white shadow-lg">
-                                    <div
-                                        class="card-header bg-secondary d-flex justify-content-between align-items-center py-2">
-                                        <h6 class="mb-0"><i class="fa fa-terminal text-info"></i> Live Setup Logs
-                                            (<span id="creationLogIp">...</span>)</h6>
-                                        <span class="badge bg-success" id="creationLogStatus">Initializing...</span>
-                                    </div>
-                                    <div class="card-body p-0">
-                                        <pre id="creationLogContent" class="m-0 p-3"
-                                            style="height: 300px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; color: #00ff00; background-color: #000;"></pre>
-                                    </div>
-                                    <div class="card-footer py-1 text-muted small bg-dark">
-                                        <i class="fa fa-sync fa-spin"></i> Polling for updates...
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Snapshot Creation Section -->
-                            <div id="snapshotSection" class="mt-4 pt-4 border-top" style="display: none;">
-                                <h6 class="mb-3">
-                                    <i class="fa fa-camera"></i> Create Automation Snapshot
-                                </h6>
-                                <p class="text-muted mb-3">
-                                    Once your droplet is configured with the automation script, create a snapshot for
-                                    bulk execution.
-                                </p>
-                                <form id="createSnapshotForm">
-                                    <div class="row">
-                                        <div class="col-md-8 mb-3">
-                                            <label class="form-label">Snapshot Name</label>
-                                            <input type="text" class="form-control" id="snapshotName"
-                                                placeholder="automation-snapshot-v1" required>
-                                        </div>
-                                        <div class="col-md-4 mb-3">
-                                            <label class="form-label">Droplet to Snapshot</label>
-                                            <select class="form-select" id="dropletToSnapshot" required>
-                                                <option value="">Select a droplet</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <button type="submit" class="btn btn-warning">
-                                        <i class="fa fa-camera"></i> Create Snapshot
-                                    </button>
-                                </form>
-                                <div id="createSnapshotMessages" class="mt-3"></div>
-                            </div>
-                        </div> <!-- card-body end -->
-                    </div> <!-- premium-card end -->
-                </div> <!-- col-12 end -->
-            </div> <!-- row end -->
-
-            <div class="row">
-                <!-- Droplets Section -->
-                <div class="col-lg-6 mb-4">
-                    <div class="card premium-card h-100">
-                        <div class="card-header bg-info text-white">
-                            <h5 class="mb-0">
-                                <i class="fa fa-server"></i> Active Droplets
-                            </h5>
                         </div>
-                        <div class="card-body">
-                            <button class="btn btn-sm btn-primary mb-3" onclick="loadDroplets()">
-                                <i class="fa fa-sync"></i> Refresh List
-                            </button>
-                            <div id="dropletsList" class="table-responsive">
-                                <p class="text-muted">Click refresh to load droplets</p>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Authentication Method</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="authMethod" id="authSSH" value="ssh" checked
+                                    onchange="toggleAuthMethod()">
+                                <label class="btn btn-outline-primary" for="authSSH">
+                                    <i class="fab fa-ssh"></i> SSH Key
+                                </label>
+
+                                <input type="radio" class="btn-check" name="authMethod" id="authPassword"
+                                    value="password" onchange="toggleAuthMethod()">
+                                <label class="btn btn-outline-primary" for="authPassword">
+                                    <i class="fa fa-key"></i> Root Password
+                                </label>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Snapshots Section -->
-                <div class="col-lg-6 mb-4">
-                    <div class="card premium-card h-100">
-                        <div class="card-header bg-warning text-dark">
-                            <h5 class="mb-0">
-                                <i class="fa fa-camera"></i> Snapshots
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <button class="btn btn-sm btn-primary mb-3" onclick="loadSnapshots()">
-                                <i class="fa fa-sync"></i> Refresh List
-                            </button>
-                            <div id="snapshotsList" class="table-responsive">
-                                <p class="text-muted">Click refresh to load snapshots</p>
+                    <div class="row" id="sshKeySection">
+                        <div class="col-12 mb-3">
+                            <div class="alert alert-info">
+                                <i class="fa fa-info-circle"></i> Using configured SSH Key from Settings.
                             </div>
                         </div>
                     </div>
+                    <div class="row" id="passwordSection" style="display: none;">
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Root Password</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="rootPassword"
+                                    placeholder="e.g. Batata010..++" value="Batata010..++">
+                                <button class="btn btn-outline-secondary" type="button"
+                                    onclick="copyToClipboard($('#rootPassword').val())">
+                                    <i class="fa fa-copy"></i>
+                                </button>
+                            </div>
+                            <small class="text-danger">
+                                <i class="fa fa-exclamation-triangle"></i>
+                                Must be complex: Uppercase, lowercase, number, and special character.
+                            </small>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fa fa-plus"></i> Create Initial Droplet
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="loadRegionsAndSizes()">
+                            <i class="fa fa-sync"></i> Reload Regions/Sizes
+                        </button>
+                    </div>
+                    </form>
+
+                    <div id="createDropletMessages" class="mt-3"></div>
+
+                    <!-- Instant Live Logs Container -->
+                    <div id="creationLogContainer" class="mt-3" style="display: none;">
+                        <div class="card bg-dark text-white">
+                            <div
+                                class="card-header bg-secondary d-flex justify-content-between align-items-center py-2">
+                                <h6 class="mb-0"><i class="fa fa-terminal"></i> Live Setup Logs (<span
+                                        id="creationLogIp">...</span>)</h6>
+                                <span class="badge bg-success" id="creationLogStatus">Initializing...</span>
+                            </div>
+                            <div class="card-body p-0">
+                                <pre id="creationLogContent" class="m-0 p-3"
+                                    style="height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; color: #00ff00; background-color: #000;"></pre>
+                            </div>
+                            <div class="card-footer py-1 text-muted small">
+                                <i class="fa fa-sync fa-spin"></i> Polling for updates...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Snapshot Creation Section -->
+                    <div id="snapshotSection" class="mt-4 pt-4 border-top" style="display: none;">
+                        <h6 class="mb-3">
+                            <i class="fa fa-camera"></i> Create Automation Snapshot
+                        </h6>
+                        <p class="text-muted mb-3">
+                            Once your droplet is configured with the automation script, create a snapshot for bulk
+                            execution.
+                        </p>
+                        <form id="createSnapshotForm">
+                            <div class="row">
+                                <div class="col-md-8 mb-3">
+                                    <label class="form-label">Snapshot Name</label>
+                                    <input type="text" class="form-control" id="snapshotName"
+                                        placeholder="automation-snapshot-v1" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Droplet to Snapshot</label>
+                                    <select class="form-select" id="dropletToSnapshot" required>
+                                        <option value="">Select a droplet</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fa fa-camera"></i> Create Snapshot
+                            </button>
+                        </form>
+                        <div id="createSnapshotMessages" class="mt-3"></div>
+                    </div>
                 </div>
-            </div> <!-- row end -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Droplets and Snapshots Row -->
+    <div class="row">
+        <!-- Droplets Section -->
+        <div class="col-lg-6 mb-4">
+            <div class="card premium-card h-100">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fa fa-server"></i> Active Droplets
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-primary mb-3" onclick="loadDroplets()">
+                        <i class="fa fa-sync"></i> Refresh List
+                    </button>
+                    <div id="dropletsList" class="table-responsive">
+                        <p class="text-muted">Click refresh to load droplets</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Snapshots Section -->
+        <div class="col-lg-6 mb-4">
+            <div class="card premium-card h-100">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fa fa-camera"></i> Snapshots
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-primary mb-3" onclick="loadSnapshots()">
+                        <i class="fa fa-sync"></i> Refresh List
+                    </button>
+                    <div id="snapshotsList" class="table-responsive">
+                        <p class="text-muted">Click refresh to load snapshots</p>
+                    </div>
+                </div> <!-- Snapshots Section col-lg-6 end -->
+            </div> <!-- Row for Droplets and Snapshots end -->
         </div> <!-- Setup TAB end -->
 
         <!-- TAB 2: AUTOMATION -->
         <div class="tab-pane fade" id="automation" role="tabpanel">
             <div class="row">
-                <!-- Bulk Automation Execution Section - Width 7 -->
-                <div class="col-lg-7 mb-4">
-                    <div class="card premium-card border-primary h-100">
+                <!-- Bulk Automation Execution Section -->
+                <div class="col-12 mb-4">
+                    <div class="card premium-card border-primary">
                         <div class="card-header bg-primary text-white">
                             <h5 class="mb-0">
                                 <i class="fa fa-rocket"></i> Bulk Automation Execution
                             </h5>
                         </div>
                         <div class="card-body">
+                            <p class="text-muted mb-3">
+                                <i class="fa fa-info-circle"></i>
+                                Distribute users across multiple droplets for parallel app password automation.
+                                <br><small>Requires a configured snapshot ID from Settings.</small>
+                            </p>
+
                             <form id="bulkExecutionForm">
                                 <div class="row">
-                                    <div class="col-12 mb-3">
+                                    <div class="col-md-6 mb-3">
                                         <label class="form-label">Users (Email:Password format, one per line)</label>
                                         <textarea class="form-control font-monospace" id="bulkUsers" rows="5"
                                             placeholder="user1@domain.com:password1&#10;user2@domain.com:password2"
                                             required oninput="calculateDroplets()"></textarea>
+                                        <small class="text-muted">Format: email:password (one per line)</small>
                                     </div>
-                                    <div class="col-md-4 mb-3">
-                                        <label class="form-label">Droplets</label>
-                                        <input type="number" class="form-control" id="dropletCount" min="1" max="50"
-                                            value="5" required>
-                                    </div>
-                                    <div class="col-md-4 mb-3">
-                                        <label class="form-label">Parallel Users</label>
-                                        <input type="number" class="form-control" id="parallelUsers" min="1" max="50"
-                                            value="5" required>
-                                    </div>
-                                    <div class="col-md-4 mb-3">
-                                        <label class="form-label">Users / Droplet</label>
-                                        <input type="number" class="form-control" id="usersPerDroplet" min="1" max="100"
-                                            value="50" required onchange="calculateDroplets()">
-                                    </div>
-                                    <div class="col-md-12 mb-3">
-                                        <label class="form-label">Snapshot ID</label>
-                                        <input type="text" class="form-control" id="snapshotId" placeholder="123456789"
-                                            required>
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Region</label>
-                                        <select class="form-select" id="bulkRegion">
-                                            <option value="">Use default</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Size</label>
-                                        <select class="form-select" id="bulkSize">
-                                            <option value="">Use default</option>
-                                        </select>
+                                    <div class="col-md-6">
+                                        <div class="row">
+                                            <div class="col-4 mb-3">
+                                                <label class="form-label">Droplets</label>
+                                                <input type="number" class="form-control" id="dropletCount" min="1"
+                                                    max="50" value="5" required>
+                                                <small class="text-muted">Total droplets</small>
+                                            </div>
+                                            <div class="col-4 mb-3">
+                                                <label class="form-label">Parallel Users</label>
+                                                <input type="number" class="form-control" id="parallelUsers" min="1"
+                                                    max="50" value="5" required>
+                                                <small class="text-muted">Threads per droplet</small>
+                                            </div>
+                                            <div class="col-4 mb-3">
+                                                <label class="form-label">Users per Droplet</label>
+                                                <input type="number" class="form-control" id="usersPerDroplet" min="1"
+                                                    max="100" value="50" required onchange="calculateDroplets()"
+                                                    oninput="calculateDroplets()">
+                                                <small class="text-muted">Max users/droplet</small>
+                                            </div>
+                                            <div class="col-12 mb-3">
+                                                <label class="form-label">Snapshot ID (from snapshots above)</label>
+                                                <input type="text" class="form-control" id="snapshotId"
+                                                    placeholder="123456789" required>
+                                            </div>
+                                            <div class="col-6 mb-3">
+                                                <label class="form-label">Region</label>
+                                                <select class="form-select" id="bulkRegion">
+                                                    <option value="">Use default</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-6 mb-3">
+                                                <label class="form-label">Size</label>
+                                                <select class="form-select" id="bulkSize">
+                                                    <option value="">Use default</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -475,77 +488,79 @@
                                     </label>
                                 </div>
 
-                                <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <button type="submit" class="btn btn-primary btn-lg">
                                     <i class="fa fa-play"></i> Start Bulk Execution
                                 </button>
                             </form>
+
                             <div id="bulkExecutionMessages" class="mt-3"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Active Droplets Status Section - Width 5 -->
-                <div class="col-lg-5 mb-4">
-                    <div id="activeDropletsSection" style="display: none;" class="h-100">
-                        <div class="card premium-card border-danger shadow-sm h-100">
-                            <div
-                                class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0">
-                                    <i class="fa fa-heartbeat"></i> Status Monitor
-                                </h5>
-                                <button class="btn btn-sm btn-light text-danger" onclick="refreshActiveDroplets()">
-                                    <i class="fa fa-sync-alt"></i>
-                                </button>
-                            </div>
-                            <div class="card-body p-0">
-                                <div class="table-responsive">
-                                    <table class="table table-hover mb-0 elegant-table" id="activeDropletsTable">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>Droplet</th>
-                                                <th>Status</th>
-                                                <th class="text-end">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                <td colspan="3" class="text-center py-3">Waiting...</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
+                <!-- Active Droplets Status Section -->
+                <div id="activeDropletsSection" class="col-12 mb-4" style="display: none;">
+                    <div class="card premium-card border-danger shadow-sm">
+                        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fa fa-heartbeat"></i> Active Droplets Monitor
+                            </h5>
+                            <button class="btn btn-sm btn-light text-danger" onclick="refreshActiveDroplets()">
+                                <i class="fa fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0 elegant-table" id="activeDropletsTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Droplet Name</th>
+                                            <th>IP Address</th>
+                                            <th>Status</th>
+                                            <th>Current Activity</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Active droplets injected here -->
+                                        <tr>
+                                            <td colspan="5" class="text-center py-3">Waiting for execution...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div> <!-- End side-by-side row -->
 
-            <div class="row">
-                <!-- Real-Time Execution Monitor - Full Width -->
-                <div class="col-12 mb-4">
-                    <div id="executionMonitor" style="display: none;">
-                        <div class="card premium-card border-0">
-                            <div
-                                class="card-header d-flex justify-content-between align-items-center bg-dark text-white">
-                                <h6 class="mb-0 text-white"><i class="fa fa-desktop"></i> Real-Time Monitor Terminal
-                                </h6>
-                                <span class="badge bg-info" id="monitorStatus">Initializing...</span>
-                            </div>
-                            <div class="card-body bg-light">
-                                <ul class="nav nav-pills mb-3" id="dropletTabs" role="tablist">
-                                    <!-- Tabs injected here -->
-                                </ul>
-                                <div class="tab-content" id="dropletLogsContent">
-                                    <!-- Log panes injected here -->
+                <!-- Real-Time Execution Monitor -->
+                <div id="executionMonitor" class="col-12 mb-4" style="display: none;">
+                    <div class="card premium-card border-0">
+                        <div class="card-header d-flex justify-content-between align-items-center bg-dark text-white">
+                            <h6 class="mb-0 text-white"><i class="fa fa-desktop"></i> Real-Time Monitor</h6>
+                            <span class="badge bg-info" id="monitorStatus">Initializing...</span>
+                        </div>
+                        <div class="card-body bg-light">
+                            <ul class="nav nav-pills mb-3" id="dropletTabs" role="tablist">
+                                <!-- Tabs injected here -->
+                                <li class="nav-item">
+                                    <a class="nav-link active" href="#">Loading...</a>
+                                </li>
+                            </ul>
+                            <div class="tab-content" id="dropletLogsContent">
+                                <!-- Log panes injected here -->
+                                <div class="text-center p-5 text-muted">
+                                    <i class="fa fa-circle-o-notch fa-spin fa-2x"></i><br>
+                                    Waiting for droplets to be created...
                                 </div>
                             </div>
-                            <div class="card-footer bg-white py-2 text-end">
-                                <small class="text-muted">Execution ID: <span id="executionId"></span></small>
-                            </div>
+                        </div>
+                        <div class="card-footer bg-white py-2 text-end">
+                            <small class="text-muted">Execution ID: <span id="executionId"></span></small>
                         </div>
                     </div>
                 </div>
-            </div>
+            </div> <!-- Automation tab panes row end -->
         </div> <!-- Automation TAB end -->
 
         <!-- TAB 3: PASSWORDS -->
@@ -617,12 +632,12 @@
         const usersText = $('#bulkUsers').val() ? $('#bulkUsers').val().trim() : '';
 
         if (!usersText) {
-            showMessage('passwordsMessages', '⚠️ Please enter users in the "Bulk Automation Execution" box to fetch their passwords.', 'warning');
+            showMessage('passwordsMessages', 'ΓÜá∩╕Å Please enter users in the "Bulk Automation Execution" box to fetch their passwords.', 'warning');
             $('#passwordsList').html('');
             return;
         }
 
-        showMessage('passwordsMessages', '⏳ Fetching passwords for listed users...', 'info');
+        showMessage('passwordsMessages', 'ΓÅ│ Fetching passwords for listed users...', 'info');
 
         // Parse emails
         const emails = usersText.split('\n')
@@ -630,7 +645,7 @@
             .filter(email => email.length > 0);
 
         if (emails.length === 0) {
-            showMessage('passwordsMessages', '⚠️ No valid emails found in the input box.', 'warning');
+            showMessage('passwordsMessages', 'ΓÜá∩╕Å No valid emails found in the input box.', 'warning');
             return;
         }
 
@@ -644,22 +659,22 @@
                     const passwords = response.passwords;
 
                     if (passwords.length === 0) {
-                        showMessage('passwordsMessages', '📭 No app passwords found for the requested users.', 'warning');
+                        showMessage('passwordsMessages', '≡ƒô¡ No app passwords found for the requested users.', 'warning');
                         $('#passwordsList').html('');
                     } else {
                         const count = passwords.length;
                         const requested = response.requested_count;
                         fetchedPasswordsCache = passwords; // Cache for Copy-SMTPS
-                        showMessage('passwordsMessages', `✅ Found ${count} passwords (out of ${requested} requested).`, 'success');
+                        showMessage('passwordsMessages', `Γ£à Found ${count} passwords (out of ${requested} requested).`, 'success');
                         renderPasswords(passwords);
                     }
                 } else {
-                    showMessage('passwordsMessages', `❌ ${response.error}`, 'danger');
+                    showMessage('passwordsMessages', `Γ¥î ${response.error}`, 'danger');
                 }
             },
             error: function (xhr) {
                 const error = xhr.responseJSON?.error || 'Failed to fetch passwords';
-                showMessage('passwordsMessages', `❌ Error: ${error}`, 'danger');
+                showMessage('passwordsMessages', `Γ¥î Error: ${error}`, 'danger');
             }
         });
     }
@@ -734,7 +749,7 @@
     // === Copy SMTPS ===
     function copySMTPS() {
         if (!fetchedPasswordsCache || fetchedPasswordsCache.length === 0) {
-            showMessage('passwordsMessages', '⚠️ No passwords loaded. Fetch them first!', 'warning');
+            showMessage('passwordsMessages', 'ΓÜá∩╕Å No passwords loaded. Fetch them first!', 'warning');
             return;
         }
 
@@ -756,10 +771,10 @@
         textArea.select();
         try {
             document.execCommand('copy');
-            showMessage('passwordsMessages', `📋 Copied ${lines.length - 1} SMTP settings with header to clipboard!`, 'success');
+            showMessage('passwordsMessages', `≡ƒôï Copied ${lines.length - 1} SMTP settings with header to clipboard!`, 'success');
         } catch (err) {
             console.error('Fallback copy error:', err);
-            showMessage('passwordsMessages', '❌ Failed to copy to clipboard.', 'danger');
+            showMessage('passwordsMessages', 'Γ¥î Failed to copy to clipboard.', 'danger');
         }
         document.body.removeChild(textArea);
     }
@@ -869,7 +884,7 @@
             data: JSON.stringify(droplet),
             success: function (response) {
                 if (response.success) {
-                    showMessage('createDropletMessages', `✅ Droplet created successfully! IP: ${response.ip_address}`, 'success');
+                    showMessage('createDropletMessages', `Γ£à Droplet created successfully! IP: ${response.ip_address}`, 'success');
 
                     // Start Instant Live Logs
                     startCreationLogPolling(response.droplet_id, response.ip_address);
@@ -884,12 +899,12 @@
                     $(`input[name="authMethod"][value="${currentAuth}"]`).prop('checked', true);
                     toggleAuthMethod();
                 } else {
-                    showMessage('createDropletMessages', `❌ Failed to create droplet: ${response.error}`, 'danger');
+                    showMessage('createDropletMessages', `Γ¥î Failed to create droplet: ${response.error}`, 'danger');
                 }
             },
             error: function (xhr) {
                 const error = xhr.responseJSON?.error || 'Failed to create droplet';
-                showMessage('createDropletMessages', `❌ Error: ${error}`, 'danger');
+                showMessage('createDropletMessages', `Γ¥î Error: ${error}`, 'danger');
             }
         });
     });
@@ -908,7 +923,7 @@
             return;
         }
 
-        showMessage('createSnapshotMessages', '⏳ Requesting snapshot creation... This runs in the background.', 'info');
+        showMessage('createSnapshotMessages', 'ΓÅ│ Requesting snapshot creation... This runs in the background.', 'info');
 
         $.ajax({
             url: `/api/do/droplets/${snapshot.droplet_id}/snapshot`,
@@ -917,18 +932,18 @@
             data: JSON.stringify({ name: snapshot.name }),
             success: function (response) {
                 if (response.success) {
-                    showMessage('createSnapshotMessages', `✅ Snapshot started! ID: ${response.snapshot_id || 'Pending'} (Check list below in a few mins)`, 'success');
+                    showMessage('createSnapshotMessages', `Γ£à Snapshot started! ID: ${response.snapshot_id || 'Pending'} (Check list below in a few mins)`, 'success');
                     // Refresh snapshots list
                     loadSnapshots();
                     // Reset form
                     $('#createSnapshotForm')[0].reset();
                 } else {
-                    showMessage('createSnapshotMessages', `❌ Failed to start snapshot: ${response.error}`, 'danger');
+                    showMessage('createSnapshotMessages', `Γ¥î Failed to start snapshot: ${response.error}`, 'danger');
                 }
             },
             error: function (xhr) {
                 const error = xhr.responseJSON?.error || 'Failed to create snapshot';
-                showMessage('createSnapshotMessages', `❌ Error: ${error}`, 'danger');
+                showMessage('createSnapshotMessages', `Γ¥î Error: ${error}`, 'danger');
             }
         });
     });
@@ -983,7 +998,7 @@
 
         // If snapshot was selected via UI, we know its min disk
         if (currentMinDisk > 0 && selectedDisk > 0 && selectedDisk < currentMinDisk) {
-            const confirmMsg = `⚠️ WARNING: The selected snapshot requires at least ${currentMinDisk}GB of disk, but the selected size only provides ${selectedDisk}GB.\n\n` +
+            const confirmMsg = `ΓÜá∩╕Å WARNING: The selected snapshot requires at least ${currentMinDisk}GB of disk, but the selected size only provides ${selectedDisk}GB.\n\n` +
                 `This execution will likely FAIL with a "smaller disk" error.\n\n` +
                 `Do you want to proceed anyway?`;
 
@@ -992,7 +1007,7 @@
             }
         }
 
-        showMessage('bulkExecutionMessages', '⏳ Starting bulk execution...', 'info');
+        showMessage('bulkExecutionMessages', 'ΓÅ│ Starting bulk execution...', 'info');
 
         $.ajax({
             url: '/api/do/execute',
@@ -1005,7 +1020,7 @@
                     currentExecutionId = response.execution_id;
 
 
-                    showMessage('bulkExecutionMessages', `✅ Bulk execution started! Execution ID: ${response.execution_id}`, 'success');
+                    showMessage('bulkExecutionMessages', `Γ£à Bulk execution started! Execution ID: ${response.execution_id}`, 'success');
 
                     // Switch to Monitor View
                     // $('#executionMonitor').hide(); // Stay hidden initially
@@ -1017,12 +1032,12 @@
                     // Form is NOT reset so user keeps their settings
 
                 } else {
-                    showMessage('bulkExecutionMessages', `❌ Failed to start execution: ${response.error}`, 'danger');
+                    showMessage('bulkExecutionMessages', `Γ¥î Failed to start execution: ${response.error}`, 'danger');
                 }
             },
             error: function (xhr) {
                 const error = xhr.responseJSON?.error || 'Failed to start execution';
-                showMessage('bulkExecutionMessages', `❌ Error: ${error}`, 'danger');
+                showMessage('bulkExecutionMessages', `Γ¥î Error: ${error}`, 'danger');
             }
         });
     });
@@ -1421,7 +1436,7 @@
                         loadDroplets();
 
                         if (response.status === 'completed') {
-                            showMessage('bulkExecutionMessages', `✅ Execution Completed Successfully! (Success: ${response.success_count}, Failed: ${response.failure_count})`, 'success');
+                            showMessage('bulkExecutionMessages', `Γ£à Execution Completed Successfully! (Success: ${response.success_count}, Failed: ${response.failure_count})`, 'success');
 
                             // Switch to Passwords Tab
                             $('#passwords-tab').tab('show');
@@ -1435,7 +1450,7 @@
 
                         } else {
                             // Failed
-                            showMessage('bulkExecutionMessages', `❌ Execution Failed: ${response.error_message}`, 'danger');
+                            showMessage('bulkExecutionMessages', `Γ¥î Execution Failed: ${response.error_message}`, 'danger');
                         }
                     }
                 }
@@ -1698,9 +1713,9 @@
         const executionId = currentExecutionId || 'all';
 
         if (!currentExecutionId) {
-            showMessage('passwordsMessages', 'ℹ️ No active execution in this session. Loading ALL recent generated passwords...', 'info');
+            showMessage('passwordsMessages', 'Γä╣∩╕Å No active execution in this session. Loading ALL recent generated passwords...', 'info');
         } else {
-            showMessage('passwordsMessages', `⏳ Loading passwords from execution: ${currentExecutionId}...`, 'info');
+            showMessage('passwordsMessages', `ΓÅ│ Loading passwords from execution: ${currentExecutionId}...`, 'info');
         }
 
         $.ajax({
@@ -1725,28 +1740,28 @@
 
                     if (passwords.length === 0) {
                         const msg = inputUsersText
-                            ? '📭 No recent passwords found matching the input users.'
-                            : '📭 No app passwords found.';
+                            ? '≡ƒô¡ No recent passwords found matching the input users.'
+                            : '≡ƒô¡ No app passwords found.';
                         showMessage('passwordsMessages', msg, 'warning');
                         $('#passwordsList').html('');
                     } else {
                         const count = passwords.length;
                         const msg = inputUsersText
-                            ? `✅ Loaded ${count} matching passwords`
+                            ? `Γ£à Loaded ${count} matching passwords`
                             : (currentExecutionId
-                                ? `✅ Loaded ${count} passwords from execution ${currentExecutionId}`
-                                : `✅ Loaded ${count} passwords from database/backups`);
+                                ? `Γ£à Loaded ${count} passwords from execution ${currentExecutionId}`
+                                : `Γ£à Loaded ${count} passwords from database/backups`);
 
                         showMessage('passwordsMessages', msg, 'success');
                         renderPasswords(passwords);
                     }
                 } else {
-                    showMessage('passwordsMessages', `❌ ${response.error}`, 'danger');
+                    showMessage('passwordsMessages', `Γ¥î ${response.error}`, 'danger');
                 }
             },
             error: function (xhr) {
                 const error = xhr.responseJSON?.error || 'Failed to load passwords';
-                showMessage('passwordsMessages', `❌ Error: ${error}`, 'danger');
+                showMessage('passwordsMessages', `Γ¥î Error: ${error}`, 'danger');
             }
         });
     }
@@ -1826,12 +1841,12 @@
                     const resultFile = response.result_file;
                     pollAutomationStatus(dropletId, logFile, resultFile);
                 } else {
-                    $('#testAutomationResult').html(`<div class="alert alert-danger"><strong>❌ Start Failed:</strong> ${response.error || 'Unknown error'}</div>`);
+                    $('#testAutomationResult').html(`<div class="alert alert-danger"><strong>Γ¥î Start Failed:</strong> ${response.error || 'Unknown error'}</div>`);
                 }
             },
             error: function (xhr) {
                 const error = xhr.responseJSON?.error || 'Failed to start test';
-                $('#testAutomationResult').html(`<div class="alert alert-danger"><strong>❌ Error:</strong> ${error}</div>`);
+                $('#testAutomationResult').html(`<div class="alert alert-danger"><strong>Γ¥î Error:</strong> ${error}</div>`);
             }
         });
     }
@@ -1861,7 +1876,7 @@
                             displayFinalResult(data.result);
                         } else if (data.status === 'error') {
                             clearInterval(pollInterval);
-                            $('#testAutomationResult').prepend(`<div class="alert alert-danger"><strong>❌ Polling Error:</strong> ${data.error}</div>`);
+                            $('#testAutomationResult').prepend(`<div class="alert alert-danger"><strong>Γ¥î Polling Error:</strong> ${data.error}</div>`);
                         }
                     }
                 },
@@ -1879,13 +1894,13 @@
         // Check for explicit success in JSON result
         if (result.status === 'success') {
             html += `<div class="alert alert-success">
-            <strong>✅ Test Passed!</strong><br>
+            <strong>Γ£à Test Passed!</strong><br>
             App Password: <code>${result.app_password || 'N/A'}</code>
         </div>`;
         } else {
             const errorMsg = result.error_message || result.error || 'Test Failed';
             html += `<div class="alert alert-danger">
-            <strong>❌ Test Failed:</strong> ${errorMsg}
+            <strong>Γ¥î Test Failed:</strong> ${errorMsg}
         </div>`;
         }
 
