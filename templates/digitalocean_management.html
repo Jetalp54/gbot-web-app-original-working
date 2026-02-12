@@ -994,6 +994,9 @@
 
         showMessage('bulkExecutionMessages', '⏳ Starting bulk execution...', 'info');
 
+        // Disable submit button to prevent double-clicks
+        $(this).find('button[type="submit"]').prop('disabled', true);
+
         $.ajax({
             url: '/api/do/execute',
             method: 'POST',
