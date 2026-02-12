@@ -396,6 +396,8 @@
     let currentExecutionId = null;  // Track current bulk execution
     let currentMinDisk = 0;         // Track min disk required by selected snapshot
     let fetchedPasswordsCache = []; // Cache for Copy-SMTPS feature
+    let globalSnapshots = [];      // Track all snapshots for filtering
+    let globalRegions = [];        // Track all regions for filtering
 
     // === Page Initialization ===
     $(document).ready(function () {
@@ -404,6 +406,11 @@
         loadDroplets();
         loadBulkDefaults();
         autoRestoreMonitor();
+
+        // Listen for manual snapshot ID changes
+        $('#snapshotId').on('input change', function () {
+            filterBulkRegions($(this).val());
+        });
     });
 
     // Fetch App Passwords (Strict Batch Mode)
@@ -572,6 +579,8 @@
                     // Populate bulk execution form - Regions
                     const bulkRegionSelect = $('#bulkRegion');
                     bulkRegionSelect.html('<option value="">Use default</option>');
+
+                    globalRegions = response.regions;
 
                     response.regions.forEach(function (region) {
                         regionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
@@ -1333,6 +1342,7 @@
             method: 'GET',
             success: function (response) {
                 if (response.success) {
+                    globalSnapshots = response.snapshots;
                     renderSnapshots(response.snapshots);
                 } else {
                     showMessage('snapshotsList', response.error || 'Failed to load snapshots', 'danger');
@@ -1391,6 +1401,7 @@
     function selectSnapshot(id, minDisk) {
         $('#snapshotId').val(id);
         currentMinDisk = minDisk;
+        filterBulkRegions(id); // Filter regions immediately
 
         // Auto-scroll to bulk section
         $('html, body').animate({
@@ -1398,10 +1409,56 @@
         }, 500);
 
         // Brief highlight effect on the input
-        $('#snapshotId').css('background-color', '#fff3cd');
-        setTimeout(() => {
-            $('#snapshotId').css('background-color', '');
+        $('#snapshotId').css('background-color', '#fff3cd').animate({
+            backgroundColor: '#fff'
         }, 1000);
+    }
+
+    // Filter Bulk Execution regions based on snapshot availability
+    function filterBulkRegions(snapshotId) {
+        const bulkRegionSelect = $('#bulkRegion');
+        const currentValue = bulkRegionSelect.val();
+
+        // Reset to full list if no snapshot selected
+        if (!snapshotId) {
+            bulkRegionSelect.html('<option value="">Use default</option>');
+            globalRegions.forEach(function (region) {
+                bulkRegionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
+            });
+            bulkRegionSelect.val(currentValue);
+            return;
+        }
+
+        // Find the snapshot object
+        const snapshot = globalSnapshots.find(s => s.id === snapshotId || String(s.id) === String(snapshotId));
+
+        if (!snapshot) {
+            // Even if not found in list, we don't clear (user might have typed a valid ID manually)
+            return;
+        }
+
+        const supportedRegions = snapshot.regions || [];
+        console.log("Filtering regions for snapshot:", snapshotId, "Supported:", supportedRegions);
+
+        // Populate filtered list
+        bulkRegionSelect.html('<option value="">Use default (auto-select)</option>');
+
+        globalRegions.forEach(function (region) {
+            if (supportedRegions.includes(region.slug)) {
+                bulkRegionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
+            }
+        });
+
+        // Try to restore value if it still exists in the filtered list
+        if (supportedRegions.includes(currentValue)) {
+            bulkRegionSelect.val(currentValue);
+        } else {
+            bulkRegionSelect.val("");
+            // If only one region available, auto-select it
+            if (supportedRegions.length === 1) {
+                bulkRegionSelect.val(supportedRegions[0]);
+            }
+        }
     }
 
     // Delete Snapshot
