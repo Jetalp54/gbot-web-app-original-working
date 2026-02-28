@@ -424,7 +424,7 @@ class WebGoogleAPI:
             return {"success": False, "error": str(e)}
 
     def create_random_users(self, num_users, domain, password=None):
-        """Create multiple random users with fully populated profiles (name, phone, address, org info)"""
+        """Create random users with complete profiles matching Google Workspace CSV columns."""
         if not self.service:
             raise Exception("Not authenticated or session expired.")
 
@@ -434,169 +434,223 @@ class WebGoogleAPI:
 
         fake = Faker('en_US')
 
-        # Use provided password or generate a random one
         if not password:
             password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
 
-        results = []
+        results        = []
         successful_count = 0
-        used_emails   = set()   # guarantee unique emails in this batch
-        used_phones   = set()   # guarantee unique phone numbers
-        used_recovery = set()   # guarantee unique recovery emails
+        used_emails    = set()
+        used_phones    = set()
+        used_recovery  = set()
+        used_secondary = set()
 
-        free_domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'protonmail.com']
+        FREE_DOMAINS = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'protonmail.com']
+        DEPARTMENTS  = ["Engineering", "Marketing", "Sales", "Operations",
+                        "Finance", "HR", "Product", "Customer Success", "Legal", "IT"]
+        EMP_TYPES    = ["Full-time", "Part-time", "Contractor", "Intern", "Vendor"]
 
-        def unique_phone():
-            """Generate a unique US phone number."""
-            for _ in range(30):
-                phone = fake.numerify('+1##########')
-                if phone not in used_phones:
-                    used_phones.add(phone)
-                    return phone
-            fallback = f"+1{random.randint(2000000000, 9999999999)}"
-            used_phones.add(fallback)
+        def _phone(area_min=200):
+            """Return a unique E.164 US phone number."""
+            for _ in range(40):
+                area = random.randint(area_min, 999)
+                num  = random.randint(2000000, 9999999)
+                p    = f"+1{area}{num}"
+                if p not in used_phones:
+                    used_phones.add(p)
+                    return p
+            p = f"+1{random.randint(2000000000, 9999999999)}"
+            used_phones.add(p)
+            return p
+
+        def _email(first, last, for_domain, idx):
+            """Return a unique email on a given domain."""
+            for _ in range(20):
+                candidate = f"{first.lower()}.{last.lower()}{random.randint(10, 9999)}@{for_domain}"
+                if candidate not in used_secondary:
+                    used_secondary.add(candidate)
+                    return candidate
+            fallback = f"user{idx}{random.randint(1000,9999)}@{for_domain}"
+            used_secondary.add(fallback)
             return fallback
 
-        def unique_recovery(first, last, idx):
-            """Generate a unique recovery email on a free provider."""
+        def _recovery(first, last, idx):
+            """Return a unique recovery email on a free provider."""
             for _ in range(20):
-                rec = f"{first.lower()}.{last.lower()}{random.randint(100, 9999)}@{random.choice(free_domains)}"
+                rec = (f"{first.lower()}.{last.lower()}"
+                       f"{random.randint(10,9999)}@{random.choice(FREE_DOMAINS)}")
                 if rec not in used_recovery:
                     used_recovery.add(rec)
                     return rec
-            fallback = f"recovery{idx}{random.randint(10000, 99999)}@gmail.com"
+            fallback = f"recovery{idx}{random.randint(10000,99999)}@gmail.com"
             used_recovery.add(fallback)
             return fallback
 
+        def _addr():
+            """Return a dict with valid Google Admin SDK address sub-fields (no 'formatted')."""
+            return {
+                "streetAddress": fake.street_address(),
+                "locality":      fake.city(),
+                "region":        fake.state_abbr(),
+                "postalCode":    fake.zipcode(),
+                "countryCode":   "US"   # ISO 3166-1 alpha-2
+            }
+
         for i in range(num_users):
-            # --- Unique name + email ---
+            # ── Primary email (unique) ────────────────────────────────────────
             first_name = fake.first_name()
             last_name  = fake.last_name()
-
             email = None
             for _ in range(15):
-                candidate = f"{first_name.lower()}{last_name.lower()}{random.randint(1000, 9999)}@{domain}"
-                if candidate not in used_emails:
-                    email = candidate
-                    used_emails.add(email)
+                c = f"{first_name.lower()}{last_name.lower()}{random.randint(1000,9999)}@{domain}"
+                if c not in used_emails:
+                    email = c
+                    used_emails.add(c)
                     break
             if not email:
-                email = f"user{i}{random.randint(100, 999)}@{domain}"
+                email = f"user{i}{random.randint(100,999)}@{domain}"
                 used_emails.add(email)
 
-            # --- Address ---
-            street   = fake.street_address()
-            city     = fake.city()
-            state    = fake.state_abbr()
-            zip_code = fake.zipcode()
+            # ── Contact info ──────────────────────────────────────────────────
+            recovery_phone        = _phone()              # Recovery Phone (E.164)
+            work_phone            = _phone()              # Work Phone
+            home_phone            = _phone()              # Home Phone
+            mobile_phone          = _phone()              # Mobile Phone
+            recovery_email        = _recovery(first_name, last_name, i)
+            work_secondary_email  = _email(first_name, last_name, random.choice(FREE_DOMAINS), i)
+            home_secondary_email  = _email(first_name, last_name, random.choice(FREE_DOMAINS), i*100)
 
-            # --- Phone & recovery email (unique) ---
-            phone          = unique_phone()
-            recovery_email = unique_recovery(first_name, last_name, i)
+            # ── Work & home addresses ─────────────────────────────────────────
+            work_addr = {**_addr(), "type": "work"}
+            home_addr = {**_addr(), "type": "home"}
 
-            # --- Org / job info ---
-            job_title  = fake.job()[:60]  # cap length for API
-            department = random.choice([
-                "Engineering", "Marketing", "Sales", "Operations",
-                "Finance", "HR", "Product", "Customer Success", "Legal", "IT"
-            ])
+            # ── Org / job info ────────────────────────────────────────────────
+            job_title   = fake.job()[:80]
+            department  = random.choice(DEPARTMENTS)
+            emp_type    = random.choice(EMP_TYPES)
+            cost_center = fake.bothify(text='CC-####').upper()
             employee_id = fake.bothify(text='EMP-####??').upper()
+            building_id = fake.bothify(text='BLD-##').upper()
+            floor_name  = f"Floor {random.randint(1, 30)}"
+            floor_sec   = random.choice(["A", "B", "C", "D", "North", "South", "East", "West"])
+            manager_email = _email("manager", fake.last_name(), random.choice(FREE_DOMAINS), i+50000)
 
-            # --- Full Google API user body ---
+            # ── Google Admin SDK user body ────────────────────────────────────
+            # Field names match exactly to Google Workspace CSV upload columns.
             user_body = {
-                "primaryEmail": email,
+                # ─ Required ─
+                "primaryEmail":              email,
                 "name": {
-                    "givenName":  first_name,
-                    "familyName": last_name
+                    "givenName":  first_name,    # First Name [Required]
+                    "familyName": last_name      # Last Name  [Required]
                 },
-                "password":                  password,
-                "changePasswordAtNextLogin": False,
-                "orgUnitPath":               "/",
-                "suspended":                 False,
+                "password":                  password,               # Password [Required]
+                "changePasswordAtNextLogin": False,                  # Change Password at Next Sign-In
+                "orgUnitPath":               "/",                    # Org Unit Path [Required]
+                "suspended":                 False,                  # New Status → Active
 
-                # Recovery contacts
-                "recoveryEmail": recovery_email,
-                "recoveryPhone": phone,
+                # ─ Recovery ─
+                "recoveryEmail": recovery_email,                     # Recovery Email
+                "recoveryPhone": recovery_phone,                     # Recovery Phone (E.164)
 
-                # Phone numbers
+                # ─ Phone numbers ─
                 "phones": [
-                    {"value": phone, "type": "work", "primary": True}
+                    {"value": work_phone,   "type": "work",   "primary": True},   # Work Phone
+                    {"value": home_phone,   "type": "home"},                       # Home Phone
+                    {"value": mobile_phone, "type": "mobile"}                      # Mobile Phone
                 ],
 
-                # Address
+                # ─ Addresses ─
                 "addresses": [
-                    {
-                        "streetAddress": street,
-                        "locality":      city,
-                        "region":        state,
-                        "postalCode":    zip_code,
-                        "country":       "US",
-                        "type":          "work",
-                        "formatted":     f"{street}, {city}, {state} {zip_code}, US"
-                    }
+                    work_addr,   # Work Address
+                    home_addr    # Home Address
                 ],
 
-                # Organisation / job
+                # ─ Secondary emails ─
+                "emails": [
+                    {"address": work_secondary_email, "type": "work"},   # Work Secondary Email
+                    {"address": home_secondary_email, "type": "home"}    # Home Secondary Email
+                ],
+
+                # ─ Organisation / job ─
+                # Covers: Employee Title, Employee Type, Department, Cost Center
                 "organizations": [
                     {
-                        "title":      job_title,
-                        "department": department,
-                        "primary":    True,
-                        "type":       "work"
+                        "title":       job_title,    # Employee Title
+                        "department":  department,   # Department
+                        "costCenter":  cost_center,  # Cost Center
+                        "primary":     True,
+                        "type":        "work"
                     }
                 ],
 
-                # Employee ID
+                # ─ Employee ID ─
                 "externalIds": [
-                    {"value": employee_id, "type": "organization"}
+                    {"value": employee_id, "type": "organization"}   # Employee ID
+                ],
+
+                # ─ Manager ─
+                "relations": [
+                    {"value": manager_email, "type": "manager"}      # Manager Email
+                ],
+
+                # ─ Location (Building / Floor) ─
+                "locations": [
+                    {
+                        "buildingId":   building_id,   # Building ID
+                        "floorName":    floor_name,    # Floor Name
+                        "floorSection": floor_sec,     # Floor Section
+                        "type":         "desk"
+                    }
                 ]
             }
 
             try:
                 self.service.users().insert(body=user_body).execute()
 
-                # Post-creation safety check: unsuspend if Google still marks user suspended
+                # Post-creation safety: unsuspend if Google still marks user suspended
                 try:
-                    user_check = self.service.users().get(userKey=email, projection='full').execute()
-                    if user_check.get('suspended'):
-                        logging.warning(f"User {email} created suspended — unsuspending immediately.")
+                    chk = self.service.users().get(userKey=email, projection='full').execute()
+                    if chk.get('suspended'):
+                        logging.warning(f"User {email} created suspended — unsuspending.")
                         self.service.users().update(userKey=email, body={'suspended': False}).execute()
-                except HttpError as e_check:
-                    if e_check.resp.status == 404:
+                except HttpError as ec:
+                    if ec.resp.status == 404:
                         try:
                             import time; time.sleep(3)
                             self.service.users().update(userKey=email, body={'suspended': False}).execute()
                         except Exception:
                             pass
                     else:
-                        logging.error(f"Post-creation check failed for {email}: {e_check}")
-                except Exception as e_inner:
-                    logging.error(f"Post-creation check error for {email}: {e_inner}")
+                        logging.error(f"Post-creation check failed for {email}: {ec}")
+                except Exception as ei:
+                    logging.error(f"Post-creation check error for {email}: {ei}")
 
                 successful_count += 1
                 results.append({
                     'email':      email,
                     'first_name': first_name,
                     'last_name':  last_name,
-                    'phone':      phone,
-                    'address':    f"{street}, {city}, {state} {zip_code}",
+                    'phone':      work_phone,
+                    'address':    f"{work_addr['streetAddress']}, {work_addr['locality']}, {work_addr['region']} {work_addr['postalCode']}",
                     'result':     {'success': True, 'message': 'User created successfully'}
                 })
 
             except HttpError as e:
-                error_msg  = str(e)
-                error_type = 'unknown'
-                if 'limitExceeded' in error_msg or 'Domain user limit' in error_msg:
-                    error_type = 'domain_limit'
-                elif 'duplicate' in error_msg.lower() or 'already exists' in error_msg.lower():
-                    error_type = 'duplicate_user'
+                err_msg  = str(e)
+                err_type = 'unknown'
+                if 'limitExceeded' in err_msg or 'Domain user limit' in err_msg:
+                    err_type = 'domain_limit'
+                elif 'duplicate' in err_msg.lower() or 'already exists' in err_msg.lower():
+                    err_type = 'duplicate_user'
+                logging.error(f"Failed to create user {email}: {err_msg}")
                 results.append({
                     'email':      email,
                     'first_name': first_name,
                     'last_name':  last_name,
-                    'result':     {'success': False, 'error': error_msg, 'error_type': error_type}
+                    'result':     {'success': False, 'error': err_msg, 'error_type': err_type}
                 })
             except Exception as e:
+                logging.error(f"Unexpected error creating user {email}: {e}")
                 results.append({
                     'email':      email,
                     'first_name': first_name,
