@@ -558,8 +558,15 @@ class WebGoogleAPI:
                         logging.warning(f"Admin User {email} was created in suspended state. Attempting to unsuspend.")
                         self.service.users().update(userKey=email, body={'suspended': False}).execute()
                         logging.info(f"Admin User unsuspended immediately after creation: {email}")
+                except HttpError as e_get:
+                    if e_get.resp.status == 404:
+                        logging.warning(f"User {email} created but not immediately retrievable (404). Assuming active state.")
+                    else:
+                        logging.error(f"Error retrieving/unsuspending user {email}: {e_get}")
                 except Exception as e_inner:
                     logging.error(f"Unexpected error during post-creation check for {email}: {e_inner}")
+                
+
                 
                 # For now, we'll create the user as a basic admin
                 # Role-specific assignments require additional setup in Google Admin Console
