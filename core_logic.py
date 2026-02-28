@@ -175,6 +175,7 @@ class WebGoogleAPI:
         if not self.service:
             raise Exception("Not authenticated or session expired.")
         
+        # user_body matches Bot_V13.py exactly: suspended=False, orgUnitPath, changePasswordAtNextLogin
         user_body = {
             "primaryEmail": email,
             "name": {
@@ -183,27 +184,34 @@ class WebGoogleAPI:
             },
             "password": password,
             "changePasswordAtNextLogin": False,
-            "suspended": False  # Explicitly create user as ACTIVE
+            "orgUnitPath": "/",
+            "suspended": False  # Explicitly create user as ACTIVE (critical!)
         }
         
         try:
             user = self.service.users().insert(body=user_body).execute()
             
-            # Post-creation safety check: Google sometimes creates users in suspended state.
-            # Unsuspend immediately if needed (matches Bot_V13.py behaviour).
-            import time
-            time.sleep(2)  # Brief delay for propagation
+            # Post-creation safety check (from Bot_V13.py): Google sometimes creates users
+            # in suspended state even when suspended=False is set. Immediately unsuspend if needed.
+            # NOTE: No sleep here — gunicorn workers can't use blocking sleeps safely.
             try:
                 user_check = self.service.users().get(userKey=email, projection='full').execute()
                 if user_check.get('suspended'):
-                    logging.warning(f"User {email} was created in suspended state. Unsuspending now.")
+                    logging.warning(f"User {email} created in suspended state. Unsuspending immediately.")
                     self.service.users().update(userKey=email, body={'suspended': False}).execute()
                     logging.info(f"User {email} successfully unsuspended after creation.")
                 else:
                     logging.info(f"User {email} created in active state.")
             except HttpError as e_check:
                 if e_check.resp.status == 404:
-                    logging.warning(f"User {email} not yet retrievable (404) after creation — assuming active.")
+                    # User not yet propagated — try to unsuspend anyway after a moment
+                    logging.warning(f"User {email} not yet retrievable (404) — attempting unsuspend anyway.")
+                    try:
+                        import time; time.sleep(3)
+                        self.service.users().update(userKey=email, body={'suspended': False}).execute()
+                        logging.info(f"User {email} unsuspended after propagation delay.")
+                    except Exception:
+                        pass
                 else:
                     logging.error(f"Post-creation check/unsuspend failed for {email}: {e_check}")
             except Exception as e_inner:
@@ -534,7 +542,7 @@ class WebGoogleAPI:
                     email = f"{base_email}{counter}@{domain}"
                     counter += 1
                 
-                # Create user with admin privileges
+                # Create user with admin privileges (matches Bot_V13.py user_body structure)
                 user_body = {
                     'name': {
                         'givenName': first_name,
@@ -544,26 +552,30 @@ class WebGoogleAPI:
                     'password': password,
                     'changePasswordAtNextLogin': False,
                     'orgUnitPath': '/',
-                    'isAdmin': True,  # Set as admin user
+                    'isAdmin': True,
                     'isDelegatedAdmin': False,
-                    'suspended': False  # Explicitly create as ACTIVE
+                    'suspended': False  # Explicitly create as ACTIVE (critical!)
                 }
                 
                 # Create the user
                 created_user = self.service.users().insert(body=user_body).execute()
                 
-                # Post-creation safety check: unsuspend if Google created user suspended
-                import time as _time
-                _time.sleep(2)
+                # Post-creation safety check (from Bot_V13.py): immediately unsuspend if needed
                 try:
                     user_check = self.service.users().get(userKey=email, projection='full').execute()
                     if user_check.get('suspended'):
-                        logging.warning(f"Admin user {email} created suspended. Unsuspending now.")
+                        logging.warning(f"Admin user {email} created suspended. Unsuspending immediately.")
                         self.service.users().update(userKey=email, body={'suspended': False}).execute()
                         logging.info(f"Admin user {email} successfully unsuspended after creation.")
                 except HttpError as e_check:
-                    if e_check.resp.status != 404:
-                        logging.error(f"Post-creation check/unsuspend failed for admin user {email}: {e_check}")
+                    if e_check.resp.status == 404:
+                        try:
+                            import time; time.sleep(3)
+                            self.service.users().update(userKey=email, body={'suspended': False}).execute()
+                        except Exception:
+                            pass
+                    else:
+                        logging.error(f"Post-creation unsuspend failed for admin user {email}: {e_check}")
                 except Exception as e_inner:
                     logging.error(f"Post-creation check error for admin user {email}: {e_inner}")
                 

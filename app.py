@@ -2335,15 +2335,8 @@ def api_create_random_admin_users():
 @app.route('/api/create-random-users', methods=['POST'])
 @login_required
 def api_create_random_users():
-    # Set timeout for this endpoint (15 minutes)
-    import signal
-    
-    def timeout_handler(signum, frame):
-        raise TimeoutError("Request timed out after 30 minutes")
-    
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(1800)  # 30 minutes timeout
-    
+    # NOTE: signal.SIGALRM removed — it only works in the main thread and causes HTTP 500
+    # in gunicorn worker threads. The route has no hard timeout (handled by gunicorn config).
     try:
         data = request.get_json()
         num_users = data.get('num_users')
@@ -2382,7 +2375,6 @@ def api_create_random_users():
             return jsonify({'success': False, 'error': 'Domain contains invalid characters'})
 
         result = google_api.create_random_users(num_users, domain, password)
-        signal.alarm(0)  # Cancel timeout
         
         if result.get('success') and result.get('successful_count', 0) > 0:
             try:
