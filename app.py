@@ -2655,6 +2655,17 @@ def api_bulk_create_account_users():
                                         
                                         local_service.users().insert(body=user_body).execute()
                                         
+                                        # Short delay to allow propagation, then check/unsuspend if needed
+                                        import time
+                                        time.sleep(2)
+                                        try:
+                                            user_check = local_service.users().get(userKey=user_data['email'], projection='full').execute()
+                                            if user_check.get('suspended'):
+                                                app.logger.warning(f"User {user_data['email']} was created in suspended state. Attempting to unsuspend.")
+                                                local_service.users().update(userKey=user_data['email'], body={'suspended': False}).execute()
+                                        except Exception as e_inner:
+                                            app.logger.error(f"Unexpected error during post-creation check for {user_data['email']}: {e_inner}")
+
                                         user_data['success'] = True
                                         return user_data
                                         
@@ -2686,6 +2697,17 @@ def api_bulk_create_account_users():
                                         
                                         service.users().insert(body=user_body).execute()
                                         
+                                        # Short delay to allow propagation, then check/unsuspend if needed
+                                        import time
+                                        time.sleep(2)
+                                        try:
+                                            user_check = service.users().get(userKey=user_data['email'], projection='full').execute()
+                                            if user_check.get('suspended'):
+                                                app.logger.warning(f"User {user_data['email']} was created in suspended state. Attempting to unsuspend.")
+                                                service.users().update(userKey=user_data['email'], body={'suspended': False}).execute()
+                                        except Exception as e_inner:
+                                            app.logger.error(f"Unexpected error during post-creation check for {user_data['email']}: {e_inner}")
+
                                         user_data['success'] = True
                                         account_result['users'].append(user_data)
                                     except Exception as user_err:

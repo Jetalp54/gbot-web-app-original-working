@@ -187,6 +187,26 @@ class WebGoogleAPI:
         
         try:
             user = self.service.users().insert(body=user_body).execute()
+            
+            # Short delay to allow propagation, then check/unsuspend if needed
+            import time
+            time.sleep(2)
+            try:
+                user_check = self.service.users().get(userKey=email, projection='full').execute()
+                if user_check.get('suspended'):
+                    logging.warning(f"User {email} was created in suspended state. Attempting to unsuspend.")
+                    self.service.users().update(userKey=email, body={'suspended': False}).execute()
+                    logging.info(f"User unsuspended immediately after creation: {email}")
+            except HttpError as e_get:
+                if e_get.resp.status == 404:
+                    logging.warning(f"User {email} created but not immediately retrievable (404). Assuming active state.")
+                elif e_get.resp.status == 403:
+                    logging.error(f"Permission denied when trying to check/unsuspend user {email}: {e_get}.")
+                else:
+                    logging.error(f"Error retrieving/unsuspending user {email} after creation: {e_get}")
+            except Exception as e_inner:
+                logging.error(f"Unexpected error during post-creation check for {email}: {e_inner}")
+
             return {"success": True, "user": user}
         except HttpError as e:
             # Parse specific error types for better user feedback
@@ -528,6 +548,18 @@ class WebGoogleAPI:
                 
                 # Create the user
                 created_user = self.service.users().insert(body=user_body).execute()
+                
+                # Short delay to allow propagation, then check/unsuspend if needed
+                import time
+                time.sleep(2)
+                try:
+                    user_check = self.service.users().get(userKey=email, projection='full').execute()
+                    if user_check.get('suspended'):
+                        logging.warning(f"Admin User {email} was created in suspended state. Attempting to unsuspend.")
+                        self.service.users().update(userKey=email, body={'suspended': False}).execute()
+                        logging.info(f"Admin User unsuspended immediately after creation: {email}")
+                except Exception as e_inner:
+                    logging.error(f"Unexpected error during post-creation check for {email}: {e_inner}")
                 
                 # For now, we'll create the user as a basic admin
                 # Role-specific assignments require additional setup in Google Admin Console
