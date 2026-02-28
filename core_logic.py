@@ -424,7 +424,7 @@ class WebGoogleAPI:
             return {"success": False, "error": str(e)}
 
     def create_random_users(self, num_users, domain, password=None):
-        """Create random users with complete profiles matching Google Workspace CSV columns."""
+        """Create random users — profile fields limited to what the standard Admin SDK scope supports."""
         if not self.service:
             raise Exception("Not authenticated or session expired.")
 
@@ -437,22 +437,18 @@ class WebGoogleAPI:
         if not password:
             password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
 
-        results        = []
+        results          = []
         successful_count = 0
-        used_emails    = set()
-        used_phones    = set()
-        used_recovery  = set()
-        used_secondary = set()
+        used_emails      = set()
+        used_phones      = set()
 
-        FREE_DOMAINS = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'protonmail.com']
-        DEPARTMENTS  = ["Engineering", "Marketing", "Sales", "Operations",
-                        "Finance", "HR", "Product", "Customer Success", "Legal", "IT"]
-        EMP_TYPES    = ["Full-time", "Part-time", "Contractor", "Intern", "Vendor"]
+        DEPARTMENTS = ["Engineering", "Marketing", "Sales", "Operations",
+                       "Finance", "HR", "Product", "Customer Success", "Legal", "IT"]
 
-        def _phone(area_min=200):
+        def _phone():
             """Return a unique E.164 US phone number."""
             for _ in range(40):
-                area = random.randint(area_min, 999)
+                area = random.randint(200, 999)
                 num  = random.randint(2000000, 9999999)
                 p    = f"+1{area}{num}"
                 if p not in used_phones:
@@ -462,144 +458,88 @@ class WebGoogleAPI:
             used_phones.add(p)
             return p
 
-        def _email(first, last, for_domain, idx):
-            """Return a unique email on a given domain."""
-            for _ in range(20):
-                candidate = f"{first.lower()}.{last.lower()}{random.randint(10, 9999)}@{for_domain}"
-                if candidate not in used_secondary:
-                    used_secondary.add(candidate)
-                    return candidate
-            fallback = f"user{idx}{random.randint(1000,9999)}@{for_domain}"
-            used_secondary.add(fallback)
-            return fallback
-
-        def _recovery(first, last, idx):
-            """Return a unique recovery email on a free provider."""
-            for _ in range(20):
-                rec = (f"{first.lower()}.{last.lower()}"
-                       f"{random.randint(10,9999)}@{random.choice(FREE_DOMAINS)}")
-                if rec not in used_recovery:
-                    used_recovery.add(rec)
-                    return rec
-            fallback = f"recovery{idx}{random.randint(10000,99999)}@gmail.com"
-            used_recovery.add(fallback)
-            return fallback
-
-        def _addr():
-            """Return a dict with valid Google Admin SDK address sub-fields (no 'formatted')."""
-            return {
-                "streetAddress": fake.street_address(),
-                "locality":      fake.city(),
-                "region":        fake.state_abbr(),
-                "postalCode":    fake.zipcode(),
-                "countryCode":   "US"   # ISO 3166-1 alpha-2
-            }
-
         for i in range(num_users):
-            # ── Primary email (unique) ────────────────────────────────────────
+            # ── Unique name + email ───────────────────────────────────────────
             first_name = fake.first_name()
             last_name  = fake.last_name()
             email = None
             for _ in range(15):
-                c = f"{first_name.lower()}{last_name.lower()}{random.randint(1000,9999)}@{domain}"
+                c = f"{first_name.lower()}{last_name.lower()}{random.randint(1000, 9999)}@{domain}"
                 if c not in used_emails:
                     email = c
                     used_emails.add(c)
                     break
             if not email:
-                email = f"user{i}{random.randint(100,999)}@{domain}"
+                email = f"user{i}{random.randint(100, 999)}@{domain}"
                 used_emails.add(email)
 
-            # ── Contact info ──────────────────────────────────────────────────
-            recovery_phone        = _phone()              # Recovery Phone (E.164)
-            work_phone            = _phone()              # Work Phone
-            home_phone            = _phone()              # Home Phone
-            mobile_phone          = _phone()              # Mobile Phone
-            recovery_email        = _recovery(first_name, last_name, i)
-            work_secondary_email  = _email(first_name, last_name, random.choice(FREE_DOMAINS), i)
-            home_secondary_email  = _email(first_name, last_name, random.choice(FREE_DOMAINS), i*100)
+            # ── Profile info (Faker-generated, all unique) ────────────────────
+            work_phone   = _phone()
+            home_phone   = _phone()
+            mobile_phone = _phone()
 
-            # ── Work & home addresses ─────────────────────────────────────────
-            work_addr = {**_addr(), "type": "work"}
-            home_addr = {**_addr(), "type": "home"}
+            street   = fake.street_address()
+            city     = fake.city()
+            state    = fake.state_abbr()
+            zipcode  = fake.zipcode()
 
-            # ── Org / job info ────────────────────────────────────────────────
-            job_title   = fake.job()[:80]
-            department  = random.choice(DEPARTMENTS)
-            emp_type    = random.choice(EMP_TYPES)
-            cost_center = fake.bothify(text='CC-####').upper()
-            employee_id = fake.bothify(text='EMP-####??').upper()
-            building_id = fake.bothify(text='BLD-##').upper()
-            floor_name  = f"Floor {random.randint(1, 30)}"
-            floor_sec   = random.choice(["A", "B", "C", "D", "North", "South", "East", "West"])
-            manager_email = _email("manager", fake.last_name(), random.choice(FREE_DOMAINS), i+50000)
+            home_street  = fake.street_address()
+            home_city    = fake.city()
+            home_state   = fake.state_abbr()
+            home_zipcode = fake.zipcode()
 
-            # ── Google Admin SDK user body ────────────────────────────────────
-            # Field names match exactly to Google Workspace CSV upload columns.
+            job_title  = fake.job()[:80]
+            department = random.choice(DEPARTMENTS)
+
+            # ── User body — ONLY fields supported by standard Admin SDK scope ─
+            # Matches Bot_V13.py baseline exactly, plus safe profile extensions.
+            # Fields that require extra scopes (recoveryEmail, recoveryPhone,
+            # relations, locations, externalIds, emails) are intentionally omitted.
             user_body = {
-                # ─ Required ─
                 "primaryEmail":              email,
                 "name": {
-                    "givenName":  first_name,    # First Name [Required]
-                    "familyName": last_name      # Last Name  [Required]
+                    "givenName":  first_name,
+                    "familyName": last_name
                 },
-                "password":                  password,               # Password [Required]
-                "changePasswordAtNextLogin": False,                  # Change Password at Next Sign-In
-                "orgUnitPath":               "/",                    # Org Unit Path [Required]
-                "suspended":                 False,                  # New Status → Active
+                "password":                  password,
+                "changePasswordAtNextLogin": False,
+                "orgUnitPath":               "/",
+                "suspended":                 False,
 
-                # ─ Recovery ─
-                "recoveryEmail": recovery_email,                     # Recovery Email
-                "recoveryPhone": recovery_phone,                     # Recovery Phone (E.164)
-
-                # ─ Phone numbers ─
+                # Phone numbers (work, home, mobile)
                 "phones": [
-                    {"value": work_phone,   "type": "work",   "primary": True},   # Work Phone
-                    {"value": home_phone,   "type": "home"},                       # Home Phone
-                    {"value": mobile_phone, "type": "mobile"}                      # Mobile Phone
+                    {"value": work_phone,   "type": "work",   "primary": True},
+                    {"value": home_phone,   "type": "home"},
+                    {"value": mobile_phone, "type": "mobile"}
                 ],
 
-                # ─ Addresses ─
+                # Addresses (work + home)
                 "addresses": [
-                    work_addr,   # Work Address
-                    home_addr    # Home Address
-                ],
-
-                # ─ Secondary emails ─
-                "emails": [
-                    {"address": work_secondary_email, "type": "work"},   # Work Secondary Email
-                    {"address": home_secondary_email, "type": "home"}    # Home Secondary Email
-                ],
-
-                # ─ Organisation / job ─
-                # Covers: Employee Title, Employee Type, Department, Cost Center
-                "organizations": [
                     {
-                        "title":       job_title,    # Employee Title
-                        "department":  department,   # Department
-                        "costCenter":  cost_center,  # Cost Center
-                        "primary":     True,
-                        "type":        "work"
+                        "streetAddress": street,
+                        "locality":      city,
+                        "region":        state,
+                        "postalCode":    zipcode,
+                        "countryCode":   "US",
+                        "type":          "work"
+                    },
+                    {
+                        "streetAddress": home_street,
+                        "locality":      home_city,
+                        "region":        home_state,
+                        "postalCode":    home_zipcode,
+                        "countryCode":   "US",
+                        "type":          "home"
                     }
                 ],
 
-                # ─ Employee ID ─
-                "externalIds": [
-                    {"value": employee_id, "type": "organization"}   # Employee ID
-                ],
-
-                # ─ Manager ─
-                "relations": [
-                    {"value": manager_email, "type": "manager"}      # Manager Email
-                ],
-
-                # ─ Location (Building / Floor) ─
-                "locations": [
+                # Job / organisation info
+                "organizations": [
                     {
-                        "buildingId":   building_id,   # Building ID
-                        "floorName":    floor_name,    # Floor Name
-                        "floorSection": floor_sec,     # Floor Section
-                        "type":         "desk"
+                        "title":      job_title,
+                        "department": department,
+                        "primary":    True,
+                        "type":       "work"
                     }
                 ]
             }
@@ -631,7 +571,7 @@ class WebGoogleAPI:
                     'first_name': first_name,
                     'last_name':  last_name,
                     'phone':      work_phone,
-                    'address':    f"{work_addr['streetAddress']}, {work_addr['locality']}, {work_addr['region']} {work_addr['postalCode']}",
+                    'address':    f"{street}, {city}, {state} {zipcode}",
                     'result':     {'success': True, 'message': 'User created successfully'}
                 })
 
@@ -669,6 +609,7 @@ class WebGoogleAPI:
 
 
     def create_random_admin_users(self, num_users, domain, password=None, admin_role='SUPER_ADMIN'):
+
         """Create multiple random admin users with specified admin roles"""
         if not self.service:
             raise Exception("Not authenticated or session expired.")
