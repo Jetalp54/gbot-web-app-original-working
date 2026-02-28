@@ -424,74 +424,195 @@ class WebGoogleAPI:
             return {"success": False, "error": str(e)}
 
     def create_random_users(self, num_users, domain, password=None):
-        """Create multiple random users with generated names and specified password"""
+        """Create multiple random users with fully populated profiles (name, phone, address, org info)"""
         if not self.service:
             raise Exception("Not authenticated or session expired.")
-        
+
         import random
         import string
-        
+        from faker import Faker
+
+        fake = Faker('en_US')
+
         # Use provided password or generate a random one
         if not password:
             password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
-        
-        # Common first and last names for random generation
-        first_names = [
-            "James", "John", "Robert", "Michael", "William", "David", "Richard", "Charles", "Joseph", "Thomas",
-            "Christopher", "Daniel", "Paul", "Mark", "Donald", "George", "Kenneth", "Steven", "Edward", "Brian",
-            "Ronald", "Anthony", "Kevin", "Jason", "Matthew", "Gary", "Timothy", "Jose", "Larry", "Jeffrey",
-            "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica", "Sarah", "Karen",
-            "Nancy", "Lisa", "Betty", "Helen", "Sandra", "Donna", "Carol", "Ruth", "Sharon", "Michelle",
-            "Laura", "Sarah", "Kimberly", "Deborah", "Dorothy", "Lisa", "Nancy", "Karen", "Betty", "Helen"
-        ]
-        
-        last_names = [
-            "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
-            "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
-            "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson",
-            "Walker", "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores",
-            "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell", "Carter", "Roberts"
-        ]
-        
+
         results = []
         successful_count = 0
-        
+        used_emails   = set()   # guarantee unique emails in this batch
+        used_phones   = set()   # guarantee unique phone numbers
+        used_recovery = set()   # guarantee unique recovery emails
+
+        free_domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'protonmail.com']
+
+        def unique_phone():
+            """Generate a unique US phone number."""
+            for _ in range(30):
+                phone = fake.numerify('+1##########')
+                if phone not in used_phones:
+                    used_phones.add(phone)
+                    return phone
+            fallback = f"+1{random.randint(2000000000, 9999999999)}"
+            used_phones.add(fallback)
+            return fallback
+
+        def unique_recovery(first, last, idx):
+            """Generate a unique recovery email on a free provider."""
+            for _ in range(20):
+                rec = f"{first.lower()}.{last.lower()}{random.randint(100, 9999)}@{random.choice(free_domains)}"
+                if rec not in used_recovery:
+                    used_recovery.add(rec)
+                    return rec
+            fallback = f"recovery{idx}{random.randint(10000, 99999)}@gmail.com"
+            used_recovery.add(fallback)
+            return fallback
+
         for i in range(num_users):
-            # Generate random names
-            first_name = random.choice(first_names)
-            last_name = random.choice(last_names)
-            
-            # Create email with random number to avoid duplicates
-            random_num = random.randint(1000, 9999)
-            email = f"{first_name.lower()}{last_name.lower()}{random_num}@{domain}"
-            
-            # Create the user
-            result = self.create_gsuite_user(first_name, last_name, email, password)
-            
-            if result['success']:
+            # --- Unique name + email ---
+            first_name = fake.first_name()
+            last_name  = fake.last_name()
+
+            email = None
+            for _ in range(15):
+                candidate = f"{first_name.lower()}{last_name.lower()}{random.randint(1000, 9999)}@{domain}"
+                if candidate not in used_emails:
+                    email = candidate
+                    used_emails.add(email)
+                    break
+            if not email:
+                email = f"user{i}{random.randint(100, 999)}@{domain}"
+                used_emails.add(email)
+
+            # --- Address ---
+            street   = fake.street_address()
+            city     = fake.city()
+            state    = fake.state_abbr()
+            zip_code = fake.zipcode()
+
+            # --- Phone & recovery email (unique) ---
+            phone          = unique_phone()
+            recovery_email = unique_recovery(first_name, last_name, i)
+
+            # --- Org / job info ---
+            job_title  = fake.job()[:60]  # cap length for API
+            department = random.choice([
+                "Engineering", "Marketing", "Sales", "Operations",
+                "Finance", "HR", "Product", "Customer Success", "Legal", "IT"
+            ])
+            employee_id = fake.bothify(text='EMP-####??').upper()
+
+            # --- Full Google API user body ---
+            user_body = {
+                "primaryEmail": email,
+                "name": {
+                    "givenName":  first_name,
+                    "familyName": last_name
+                },
+                "password":                  password,
+                "changePasswordAtNextLogin": False,
+                "orgUnitPath":               "/",
+                "suspended":                 False,
+
+                # Recovery contacts
+                "recoveryEmail": recovery_email,
+                "recoveryPhone": phone,
+
+                # Phone numbers
+                "phones": [
+                    {"value": phone, "type": "work", "primary": True}
+                ],
+
+                # Address
+                "addresses": [
+                    {
+                        "streetAddress": street,
+                        "locality":      city,
+                        "region":        state,
+                        "postalCode":    zip_code,
+                        "country":       "US",
+                        "type":          "work",
+                        "formatted":     f"{street}, {city}, {state} {zip_code}, US"
+                    }
+                ],
+
+                # Organisation / job
+                "organizations": [
+                    {
+                        "title":      job_title,
+                        "department": department,
+                        "primary":    True,
+                        "type":       "work"
+                    }
+                ],
+
+                # Employee ID
+                "externalIds": [
+                    {"value": employee_id, "type": "organization"}
+                ]
+            }
+
+            try:
+                self.service.users().insert(body=user_body).execute()
+
+                # Post-creation safety check: unsuspend if Google still marks user suspended
+                try:
+                    user_check = self.service.users().get(userKey=email, projection='full').execute()
+                    if user_check.get('suspended'):
+                        logging.warning(f"User {email} created suspended — unsuspending immediately.")
+                        self.service.users().update(userKey=email, body={'suspended': False}).execute()
+                except HttpError as e_check:
+                    if e_check.resp.status == 404:
+                        try:
+                            import time; time.sleep(3)
+                            self.service.users().update(userKey=email, body={'suspended': False}).execute()
+                        except Exception:
+                            pass
+                    else:
+                        logging.error(f"Post-creation check failed for {email}: {e_check}")
+                except Exception as e_inner:
+                    logging.error(f"Post-creation check error for {email}: {e_inner}")
+
                 successful_count += 1
                 results.append({
-                    'email': email,
+                    'email':      email,
                     'first_name': first_name,
-                    'last_name': last_name,
-                    'result': {'success': True, 'message': 'User created successfully'}
+                    'last_name':  last_name,
+                    'phone':      phone,
+                    'address':    f"{street}, {city}, {state} {zip_code}",
+                    'result':     {'success': True, 'message': 'User created successfully'}
                 })
-            else:
+
+            except HttpError as e:
+                error_msg  = str(e)
+                error_type = 'unknown'
+                if 'limitExceeded' in error_msg or 'Domain user limit' in error_msg:
+                    error_type = 'domain_limit'
+                elif 'duplicate' in error_msg.lower() or 'already exists' in error_msg.lower():
+                    error_type = 'duplicate_user'
                 results.append({
-                    'email': email,
+                    'email':      email,
                     'first_name': first_name,
-                    'last_name': last_name,
-                    'result': result
+                    'last_name':  last_name,
+                    'result':     {'success': False, 'error': error_msg, 'error_type': error_type}
                 })
-        
+            except Exception as e:
+                results.append({
+                    'email':      email,
+                    'first_name': first_name,
+                    'last_name':  last_name,
+                    'result':     {'success': False, 'error': str(e), 'error_type': 'unknown'}
+                })
+
         return {
-            'success': True,
-            'password': password,
-            'total_requested': num_users,
+            'success':          True,
+            'password':         password,
+            'total_requested':  num_users,
             'successful_count': successful_count,
-            'failed_count': num_users - successful_count,
-            'results': results
+            'failed_count':     num_users - successful_count,
+            'results':          results
         }
+
 
     def create_random_admin_users(self, num_users, domain, password=None, admin_role='SUPER_ADMIN'):
         """Create multiple random admin users with specified admin roles"""
