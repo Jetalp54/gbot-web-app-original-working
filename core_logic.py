@@ -182,11 +182,33 @@ class WebGoogleAPI:
                 "familyName": last_name
             },
             "password": password,
-            "changePasswordAtNextLogin": False
+            "changePasswordAtNextLogin": False,
+            "suspended": False  # Explicitly create user as ACTIVE
         }
         
         try:
             user = self.service.users().insert(body=user_body).execute()
+            
+            # Post-creation safety check: Google sometimes creates users in suspended state.
+            # Unsuspend immediately if needed (matches Bot_V13.py behaviour).
+            import time
+            time.sleep(2)  # Brief delay for propagation
+            try:
+                user_check = self.service.users().get(userKey=email, projection='full').execute()
+                if user_check.get('suspended'):
+                    logging.warning(f"User {email} was created in suspended state. Unsuspending now.")
+                    self.service.users().update(userKey=email, body={'suspended': False}).execute()
+                    logging.info(f"User {email} successfully unsuspended after creation.")
+                else:
+                    logging.info(f"User {email} created in active state.")
+            except HttpError as e_check:
+                if e_check.resp.status == 404:
+                    logging.warning(f"User {email} not yet retrievable (404) after creation — assuming active.")
+                else:
+                    logging.error(f"Post-creation check/unsuspend failed for {email}: {e_check}")
+            except Exception as e_inner:
+                logging.error(f"Unexpected error during post-creation check for {email}: {e_inner}")
+            
             return {"success": True, "user": user}
         except HttpError as e:
             # Parse specific error types for better user feedback
@@ -523,11 +545,27 @@ class WebGoogleAPI:
                     'changePasswordAtNextLogin': False,
                     'orgUnitPath': '/',
                     'isAdmin': True,  # Set as admin user
-                    'isDelegatedAdmin': False
+                    'isDelegatedAdmin': False,
+                    'suspended': False  # Explicitly create as ACTIVE
                 }
                 
                 # Create the user
                 created_user = self.service.users().insert(body=user_body).execute()
+                
+                # Post-creation safety check: unsuspend if Google created user suspended
+                import time as _time
+                _time.sleep(2)
+                try:
+                    user_check = self.service.users().get(userKey=email, projection='full').execute()
+                    if user_check.get('suspended'):
+                        logging.warning(f"Admin user {email} created suspended. Unsuspending now.")
+                        self.service.users().update(userKey=email, body={'suspended': False}).execute()
+                        logging.info(f"Admin user {email} successfully unsuspended after creation.")
+                except HttpError as e_check:
+                    if e_check.resp.status != 404:
+                        logging.error(f"Post-creation check/unsuspend failed for admin user {email}: {e_check}")
+                except Exception as e_inner:
+                    logging.error(f"Post-creation check error for admin user {email}: {e_inner}")
                 
                 # For now, we'll create the user as a basic admin
                 # Role-specific assignments require additional setup in Google Admin Console
