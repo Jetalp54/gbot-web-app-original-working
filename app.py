@@ -12,7 +12,6 @@ import smtplib
 import tempfile
 import time
 import sqlite3
-from googleapiclient.errors import HttpError
 import traceback
 from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -2522,6 +2521,8 @@ def api_bulk_create_account_users():
                                     return {'account': account_name, 'authenticated': False, 'error': str(sa_err)}
                             
                             # Fallback to GoogleAccount (legacy OAuth)
+                            # Need to import these functions or ensure they are globally available
+                            from . import authenticate_without_session, get_service_without_session
                             if not authenticate_without_session(account_name):
                                 return {'account': account_name, 'authenticated': False, 'error': 'Auth failed'}
                             
@@ -2654,22 +2655,6 @@ def api_bulk_create_account_users():
                                         
                                         local_service.users().insert(body=user_body).execute()
                                         
-                                        # Short delay to allow propagation, then check/unsuspend if needed
-                                        import time
-                                        time.sleep(2)
-                                        try:
-                                            user_check = local_service.users().get(userKey=user_data['email'], projection='full').execute()
-                                            if user_check.get('suspended'):
-                                                app.logger.warning(f"User {user_data['email']} was created in suspended state. Attempting to unsuspend.")
-                                                local_service.users().update(userKey=user_data['email'], body={'suspended': False}).execute()
-                                        except HttpError as e_get:
-                                            if e_get.resp.status == 404:
-                                                app.logger.warning(f"User {user_data['email']} created but not immediately retrievable (404). Assuming active state.")
-                                            else:
-                                                app.logger.error(f"Error retrieving/unsuspending user {user_data['email']}: {e_get}")
-                                        except Exception as e_inner:
-                                            app.logger.error(f"Unexpected error during post-creation check for {user_data['email']}: {e_inner}")
-
                                         user_data['success'] = True
                                         return user_data
                                         
@@ -2701,22 +2686,6 @@ def api_bulk_create_account_users():
                                         
                                         service.users().insert(body=user_body).execute()
                                         
-                                        # Short delay to allow propagation, then check/unsuspend if needed
-                                        import time
-                                        time.sleep(2)
-                                        try:
-                                            user_check = service.users().get(userKey=user_data['email'], projection='full').execute()
-                                            if user_check.get('suspended'):
-                                                app.logger.warning(f"User {user_data['email']} was created in suspended state. Attempting to unsuspend.")
-                                                service.users().update(userKey=user_data['email'], body={'suspended': False}).execute()
-                                        except HttpError as e_get:
-                                            if e_get.resp.status == 404:
-                                                app.logger.warning(f"User {user_data['email']} created but not immediately retrievable (404). Assuming active state.")
-                                            else:
-                                                app.logger.error(f"Error retrieving/unsuspending user {user_data['email']}: {e_get}")
-                                        except Exception as e_inner:
-                                            app.logger.error(f"Unexpected error during post-creation check for {user_data['email']}: {e_inner}")
-
                                         user_data['success'] = True
                                         account_result['users'].append(user_data)
                                     except Exception as user_err:
