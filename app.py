@@ -8577,7 +8577,7 @@ def mega_upgrade():
                                 original_session_account = session.get('current_account_name')
                                 session['current_account_name'] = authenticated_account_name or db_account_name
                             try:
-                                # ── Step 3a: Ensure target domain exists; add if missing ──────────────
+                                # ── Step 3a: Ensure target domain exists and is verified ──────
                                 import time as _time
                                 app.logger.info(f"🔍 Checking if target domain '{target_domain}' exists in account {acct}")
                                 domain_info_result = google_api.get_domain_info()
@@ -8595,51 +8595,80 @@ def mega_upgrade():
                                 if target_domain_lower in existing_domain_names:
                                     app.logger.info(f"✅ Target domain '{target_domain}' already exists — skipping add")
                                 else:
-                                    app.logger.info(f"➕ Target domain '{target_domain}' NOT found — adding it now...")
-                                    add_result = google_api.add_domain_alias(target_domain)
-
-                                    if not add_result.get('success'):
-                                        err_msg = add_result.get('error', 'Unknown error')
-                                        # Domain might already exist under a different API path — treat 409 as success
-                                        if '409' in str(err_msg) or 'already exists' in str(err_msg).lower():
-                                            app.logger.info(f"⚠️ Domain add returned 409 (already exists) — treating as success")
-                                        else:
-                                            app.logger.error(f"❌ Failed to add domain '{target_domain}': {err_msg}")
-                                            with results_lock:
-                                                failed_accounts += 1
-                                                failed_details.append({
-                                                    'account': acct,
-                                                    'step': 'addDomain',
-                                                    'target_domain': target_domain,
-                                                    'error': f"Failed to add target domain: {err_msg}"
-                                                })
-                                            return
-                                    else:
-                                        app.logger.info(f"✅ Domain '{target_domain}' added successfully")
-
-                                    # Poll up to 30s for the domain to appear in the list
-                                    propagation_wait = 5    # seconds between polls
-                                    max_polls = 6           # 6 × 5 = 30 seconds max
-                                    domain_ready = False
-                                    for poll_attempt in range(max_polls):
-                                        _time.sleep(propagation_wait)
-                                        recheck = google_api.get_domain_info()
-                                        if recheck.get('success'):
-                                            rechk_names = [
-                                                d.get('domainName', '').lower()
-                                                for d in recheck.get('domains', [])
-                                            ]
-                                            if target_domain_lower in rechk_names:
-                                                app.logger.info(f"✅ Domain '{target_domain}' confirmed in account after {(poll_attempt+1)*propagation_wait}s")
-                                                domain_ready = True
-                                                break
+                                    app.logger.info(f"➕ Target domain '{target_domain}' NOT found — starting Verification Flow...")
+                                    
+                                    # Need ServiceAccount to use SimpleDomainService
+                                    from database import ServiceAccount
+                                    sa = ServiceAccount.query.filter_by(name=db_account_name).first() or \
+                                         ServiceAccount.query.filter_by(admin_email=db_account_name).first()
+                                    
+                                    if not sa:
+                                        app.logger.error(f"❌ Cannot verify domain: ServiceAccount not found for {db_account_name}")
+                                        with results_lock:
+                                            failed_accounts += 1
+                                            failed_details.append({
+                                                'account': acct,
+                                                'step': 'addDomain',
+                                                'target_domain': target_domain,
+                                                'error': f"Cannot verify domain: ServiceAccount missing in DB for {db_account_name}"
+                                            })
+                                        return
+                                    
+                                    # Run the full SimpleDomainService process
+                                    from services.simple_domain_service import SimpleDomainService
+                                    svc = SimpleDomainService(
+                                        service_account_json=sa.json_content,
+                                        admin_email=sa.admin_email
+                                    )
+                                    
+                                    app.logger.info(f"Calling SimpleDomainService.full_process for {target_domain}...")
+                                    result = svc.full_process(target_domain)
+                                    
+                                    if not result['add_success'] and 'already exists' not in str(result['add_message']).lower():
+                                        app.logger.error(f"❌ Failed to add domain to Workspace: {result['add_message']}")
+                                        with results_lock:
+                                            failed_accounts += 1
+                                            failed_details.append({
+                                                'account': acct,
+                                                'step': 'addDomain',
+                                                'target_domain': target_domain,
+                                                'error': f"Failed to add domain to Workspace: {result['add_message']}"
+                                            })
+                                        return
+                                        
+                                    if result.get('token'):
+                                        try:
+                                            app.logger.info(f"Creating Namecheap DNS TXT record for {target_domain}...")
+                                            from services.namecheap_dns_service import NamecheapDNSService
+                                            dns_svc = NamecheapDNSService()
+                                            
+                                            # Create TXT record with 1 minute TTL
+                                            dns_svc.upsert_txt_record(
+                                                domain=result['apex_domain'], 
+                                                host=result['txt_host'], 
+                                                txt_value=result['token'], 
+                                                ttl=60
+                                            )
+                                            app.logger.info("✅ DNS TXT created successfully on Namecheap")
+                                            
+                                            # Wait briefly for DNS propagation
+                                            app.logger.info("⏳ Waiting 15 seconds for DNS propagation...")
+                                            _time.sleep(15)
+                                            
+                                            # Verify Domain
+                                            app.logger.info(f"Verifying domain {target_domain} in Workspace...")
+                                            verified, msg = svc.verify_domain(target_domain)
+                                            
+                                            if not verified:
+                                                app.logger.warning(f"⚠️ Verification warning: {msg} — proceeding anyway")
                                             else:
-                                                app.logger.info(f"⏳ Waiting for domain propagation... attempt {poll_attempt+1}/{max_polls}")
-                                        else:
-                                            app.logger.warning(f"⚠️ Domain recheck failed: {recheck.get('error')}")
-
-                                    if not domain_ready:
-                                        app.logger.warning(f"⚠️ Domain '{target_domain}' not yet confirmed after 30s — proceeding anyway (may still work)")
+                                                app.logger.info("✅ Domain verified successfully!")
+                                                
+                                        except Exception as e:
+                                            app.logger.error(f"⚠️ DNS/Verify step failed: {e}")
+                                            app.logger.warning("Proceeding anyway as the domain might still work or will verify later.")
+                                    else:
+                                        app.logger.warning("⚠️ No verification token received, skipping DNS verification step.")
 
                                 # ── Step 3b: Get all users ────────────────────────────────────────────
                                 # Get all users
