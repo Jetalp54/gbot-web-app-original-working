@@ -9665,36 +9665,52 @@
 
         function startMegaUpgrade() {
             console.log('Starting mega upgrade...');
-            const accountInput = document.getElementById('mega-single-account');
+            const accountInput = document.getElementById('mega-accounts-list');
 
-            let accounts = [];
-            if (accountInput) {
-                const accountText = (accountInput.value || '').trim();
-                if (!accountText) {
-                    alert('Please enter at least one account email address');
-                    return;
-                }
-
-                // Parse accounts (one per line)
-                accounts = accountText
-                    .split('\n')
-                    .map(line => line.trim())
-                    .filter(line => line && line.includes('@'));
-            }
-
-            if (accounts.length === 0) {
-                alert('Please provide at least one valid account (one per line).');
+            if (!accountInput || !accountInput.value.trim()) {
+                alert('Please enter at least one entry in the format:\naccount@domain,target-domain');
                 return;
             }
 
-            // Get selected features
+            // Parse lines: "account@source,target-domain"
+            const accountEntries = [];
+            const lines = accountInput.value.trim().split('\n');
+            const parseErrors = [];
+
+            lines.forEach((line, idx) => {
+                line = line.trim();
+                if (!line) return;
+                const commaIdx = line.indexOf(',');
+                if (commaIdx === -1 || !line.includes('@')) {
+                    parseErrors.push(`Line ${idx + 1}: "${line}" — must be account@domain,target-domain`);
+                    return;
+                }
+                const email = line.substring(0, commaIdx).trim();
+                const targetDomain = line.substring(commaIdx + 1).trim();
+                if (!email.includes('@') || !targetDomain || !targetDomain.includes('.')) {
+                    parseErrors.push(`Line ${idx + 1}: invalid email or target domain`);
+                    return;
+                }
+                accountEntries.push({ email, target_domain: targetDomain });
+            });
+
+            if (parseErrors.length > 0) {
+                alert('Input errors:\n' + parseErrors.join('\n'));
+                return;
+            }
+
+            if (accountEntries.length === 0) {
+                alert('Please provide at least one valid entry (one per line).');
+                return;
+            }
+
+            // Features: authenticate is always needed; changeSubdomain replaced by explicit domain
             const features = {
-                authenticate: document.getElementById('feature-authenticate').checked,
-                changeSubdomain: document.getElementById('feature-change-subdomain').checked
+                authenticate: true,
+                changeDomain: true  // always on for this workflow
             };
 
-            console.log('Selected features:', features);
-            console.log('Accounts to process:', accounts);
+            console.log('Account entries to process:', accountEntries);
 
             // Show progress section
             document.getElementById('megaUpgradeProgress').style.display = 'block';
@@ -9705,8 +9721,9 @@
             window.lastLoggedCount = 0;
 
             // Start mega upgrade process
-            runMegaUpgradeWorkflow(accounts, features);
+            runMegaUpgradeWorkflow(accountEntries, features);
         }
+
 
         function stopMegaUpgrade() {
             // Stop the process (implementation depends on backend)
@@ -9858,18 +9875,19 @@
                 });
         }
         function runMegaUpgradeWorkflow(accounts, features) {
-            logBulkDomain('🚀 Starting Mega Upgrade Workflow...');
-            logBulkDomain(`📊 Processing ${accounts.length} accounts with selected features`);
-            logBulkDomain(`🔧 Features: ${Object.keys(features).filter(k => features[k]).join(', ')}`);
+            // accounts is now an array of {email, target_domain} objects
+            logBulkDomain('🚀 Starting Mega Upgrade Workflow — Domain Change Mode');
+            logBulkDomain(`📊 Processing ${accounts.length} account(s)`);
             logBulkDomain('─'.repeat(50));
 
-            // Show detailed processing for each account
-            accounts.forEach((account, index) => {
-                logBulkDomain(`📧 Account ${index + 1}: ${account}`);
+            // Show each account + target domain
+            accounts.forEach((entry, index) => {
+                const label = (typeof entry === 'object') ? `${entry.email} → ${entry.target_domain}` : entry;
+                logBulkDomain(`📧 Account ${index + 1}: ${label}`);
             });
             logBulkDomain('─'.repeat(50));
 
-            // Initialize progress with account counting
+            // Initialize progress
             updateMegaProgress(0, 'Initializing...', {
                 current: 0,
                 total: accounts.length,
@@ -9877,30 +9895,27 @@
                 status: 'processing'
             });
 
-            logBulkDomain('⏳ Starting automated processing...');
-            logBulkDomain('⏰ Note: Processing multiple accounts may take 30-120 minutes depending on user count');
-            logBulkDomain('🕐 Timeout set to 2 HOURS to allow for long subdomain change processes');
+            logBulkDomain('⏳ Starting domain change process...');
+            logBulkDomain('⏰ Note: Processing may take 30–120 minutes depending on user count');
+            logBulkDomain('🕐 Timeout set to 2 HOURS');
 
-            // Start progress polling immediately
-            let progressPolling = null;
-
-            // Simulate progress updates during processing
             let progressSimulation = null;
             let currentAccountIndex = 0;
 
             const simulateProgress = () => {
                 if (currentAccountIndex < accounts.length) {
-                    const percentage = Math.round(((currentAccountIndex + 1) / accounts.length) * 85); // Leave 15% for completion
-                    updateMegaProgress(percentage, `Processing account ${currentAccountIndex + 1}/${accounts.length}: ${accounts[currentAccountIndex]}`, {
+                    const entry = accounts[currentAccountIndex];
+                    const label = (typeof entry === 'object') ? `${entry.email} → ${entry.target_domain}` : entry;
+                    const percentage = Math.round(((currentAccountIndex + 1) / accounts.length) * 85);
+                    updateMegaProgress(percentage, `Changing domain for account ${currentAccountIndex + 1}/${accounts.length}: ${label}`, {
                         current: currentAccountIndex + 1,
                         total: accounts.length,
-                        account: accounts[currentAccountIndex],
+                        account: label,
                         status: 'processing'
                     });
                     currentAccountIndex++;
                 } else {
-                    // If we've gone through all accounts but request is still pending, show waiting message
-                    updateMegaProgress(90, `Waiting for server response... (${accounts.length}/${accounts.length} accounts processed) - Timeout: 2 hours`, {
+                    updateMegaProgress(90, `Waiting for server response... (${accounts.length}/${accounts.length} processed) - Timeout: 2 hours`, {
                         current: accounts.length,
                         total: accounts.length,
                         account: 'Waiting for server...',
@@ -9909,31 +9924,28 @@
                 }
             };
 
-            // Start progress simulation every 3 seconds
             progressSimulation = setInterval(simulateProgress, 3000);
 
-            // Add a special message after 10 minutes to reassure user
             setTimeout(() => {
                 logBulkDomain('─'.repeat(50));
-                logBulkDomain('⏰ Process is taking longer than expected - this is NORMAL for subdomain changes');
-                logBulkDomain('🔄 The backend is still working - please be patient');
-                logBulkDomain('🕐 Timeout is set to 2 HOURS to allow for completion');
+                logBulkDomain('⏰ Process is taking longer than expected — this is NORMAL for large user bases');
+                logBulkDomain('🔄 The backend is still working — please be patient');
                 logBulkDomain('─'.repeat(50));
-            }, 10 * 60 * 1000); // After 10 minutes
+            }, 10 * 60 * 1000);
 
-            // Start the mega upgrade process with MUCH longer timeout for subdomain changes
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 120 * 60 * 1000); // 2 HOURS timeout for subdomain changes
+            const timeoutId = setTimeout(() => controller.abort(), 120 * 60 * 1000); // 2 hours
 
             fetch('/api/mega-upgrade', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    accounts: accounts,
+                    accounts: accounts,   // [{email, target_domain}, ...]
                     features: features
                 }),
                 signal: controller.signal
             })
+
                 .then(response => {
                     clearTimeout(timeoutId); // Clear the timeout since we got a response
                     clearInterval(progressSimulation); // Stop progress simulation
@@ -11715,59 +11727,28 @@
     <div id="megaUpgradeModal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 1200px; width: 95%;">
             <div class="modal-header">
-                <h2><i class="fas fa-rocket"></i> Mega Upgrade: Single Account Workflow</h2>
+                <h2><i class="fas fa-rocket"></i> Mega Upgrade: Change Users Domain</h2>
                 <span class="close" onclick="closeMegaUpgradeModal()">&times;</span>
             </div>
 
             <div class="modal-body">
-                <!-- Feature Selection -->
-                <div style="margin-bottom: 24px;">
-                    <h3 style="margin-bottom: 16px; color: #24292f;">
-                        <i class="fas fa-cogs"></i> Select Features to Apply
-                    </h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
-                        <label class="checkbox-container">
-                            <input type="checkbox" id="feature-authenticate" checked>
-                            <span class="checkmark"></span>
-                            <i class="fas fa-key"></i> Authenticate Accounts
-                        </label>
-                        <label class="checkbox-container">
-                            <input type="checkbox" id="feature-change-subdomain" checked>
-                            <span class="checkmark"></span>
-                            <i class="fas fa-exchange-alt"></i> Auto Change Subdomain
-                        </label>
-                    </div>
-                </div>
 
                 <!-- Account Input -->
                 <div style="margin-bottom: 24px;">
                     <h3 style="margin-bottom: 16px; color: #24292f;">
-                        <i class="fas fa-users"></i> Account Processing
+                        <i class="fas fa-users"></i> Account &amp; Target Domain
                     </h3>
                     <div class="form-group-github">
-                        <label for="mega-single-account" class="form-label-github">
-                            <i class="fas fa-envelope"></i> Account Emails (one per line)
+                        <label for="mega-accounts-list" class="form-label-github">
+                            <i class="fas fa-envelope"></i> Entries (one per line)
                         </label>
-                        <textarea id="mega-single-account" class="form-control-github" rows="6"
-                            placeholder="support@domain1.com\ninfo@domain2.com\nadmin@domain3.com"
+                        <textarea id="mega-accounts-list" class="form-control-github" rows="8"
+                            placeholder="support@bright-train.travona.fun,acumenstudies.business&#10;info@other-source.com,target-domain.org"
                             style="font-family: monospace; font-size: 13px; resize: vertical;"></textarea>
                         <small style="color: #656d76; font-size: 12px;">
-                            Enter one or multiple account emails (one per line). The system will process them in
-                            parallel
-                            with up to 6 concurrent workers.
-                        </small>
-                    </div>
-
-                    <div class="form-group-github">
-                        <label for="mega-subdomain-prefix" class="form-label-github">
-                            <i class="fas fa-globe"></i> Subdomain Prefix (Optional)
-                        </label>
-                        <input type="text" id="mega-subdomain-prefix" class="form-control-github"
-                            placeholder="5fgckso88gxtvm5a (leave empty for random)"
-                            style="font-family: monospace; font-size: 13px;">
-                        <small style="color: #656d76; font-size: 12px;">
-                            Enter a custom subdomain prefix or leave empty for random generation. Format:
-                            prefix.domain.com
+                            Format: <code>account@source-domain,target-domain</code> — one per line.<br>
+                            The app will authenticate to each account and move <strong>all non-admin users</strong>
+                            to the specified target domain.
                         </small>
                     </div>
                 </div>
@@ -11794,11 +11775,7 @@
                 <!-- Action Buttons -->
                 <div style="display: flex; gap: 12px; justify-content: center;">
                     <button onclick="startMegaUpgrade()" class="btn-github btn-github-primary" id="megaStartBtn">
-                        <i class="fas fa-play"></i> Run Mega Upgrade
-                    </button>
-                    <button onclick="debugMegaUpgrade()" class="btn-github"
-                        style="background-color: #6f42c1; border-color: #6f42c1; color: white;">
-                        <i class="fas fa-bug"></i> Debug Mega Upgrade
+                        <i class="fas fa-play"></i> Run Domain Change
                     </button>
                     <button onclick="stopMegaUpgrade()" class="btn-github"
                         style="background-color: #d73a49; border-color: #d73a49; color: white;" id="megaStopBtn"

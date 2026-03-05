@@ -8433,14 +8433,27 @@ def mega_upgrade():
         signal.alarm(1800)
         
         data = request.get_json()
-        accounts = data.get('accounts', [])
+        raw_accounts = data.get('accounts', [])
         features = data.get('features', {})
-        
-        app.logger.info(f"🚀 Starting Mega Upgrade for {len(accounts)} accounts with 30-minute timeout")
-        app.logger.info(f"📋 Accounts to process: {accounts}")
-        app.logger.info(f"🔧 Features enabled: {features}")
-        
-        # Initialize progress tracking with detailed account counting
+
+        # Normalize accounts: accept both {email, target_domain} dicts and plain strings
+        accounts = []
+        for entry in raw_accounts:
+            if isinstance(entry, dict):
+                email = (entry.get('email') or '').strip()
+                target_domain = (entry.get('target_domain') or '').strip()
+            else:
+                # Plain string: "email@domain,target-domain" or just "email@domain"
+                parts = str(entry).split(',', 1)
+                email = parts[0].strip()
+                target_domain = parts[1].strip() if len(parts) > 1 else ''
+            if email:
+                accounts.append({'email': email, 'target_domain': target_domain})
+
+        app.logger.info(f"🚀 Starting Mega Upgrade (Domain Change) for {len(accounts)} accounts")
+        app.logger.info(f"📋 Accounts to process: {[(a['email'], a['target_domain']) for a in accounts]}")
+
+        # Initialize progress tracking
         import time
         progress_data = {
             'status': 'running',
@@ -8454,22 +8467,17 @@ def mega_upgrade():
             'account_details': [],
             'progress_message': f'Processing account 0/{len(accounts)}: Initializing...'
         }
-        
+
         if not accounts:
             return jsonify({'success': False, 'error': 'No accounts provided'})
-        
-        # No limit on accounts - support unlimited concurrent machines
-        # if len(accounts) > 500:
-        #     return jsonify({'success': False, 'error': 'Maximum 500 accounts allowed per batch for performance'})
-        
-        app.logger.info(f"Starting MEGA UPGRADE using EXISTING functions for {len(accounts)} accounts with features: {features}")
-        
+
+        app.logger.info(f"Starting MEGA UPGRADE (domain change mode) for {len(accounts)} accounts")
+
         successful_accounts = 0
         failed_accounts = 0
         final_results = []
         failed_details = []
         smtp_results = []
-        # Map base domain (everything after first dot) -> next subdomain chosen by server
         next_domain_map = {}
 
         # Concurrency primitives
@@ -8477,7 +8485,9 @@ def mega_upgrade():
         session_lock = threading.Lock()
 
         # Worker function to process a single account
-        def process_account(account_email: str, index: int):
+        def process_account(account_entry: dict, index: int):
+            account_email = account_entry['email']
+            target_domain = account_entry.get('target_domain', '')
             nonlocal successful_accounts, failed_accounts
             
             # Update progress with account counting
@@ -8591,28 +8601,24 @@ def mega_upgrade():
                                     })
                                 return
 
-                        # Step 3: Change subdomain
+                        # Step 3: Change users' domain to the specified target_domain
                         domain_users = []
                         next_domain = None
-                        if features.get('changeSubdomain'):
+                        if True:  # always run domain change (explicit target_domain workflow)
+                            if not target_domain:
+                                with results_lock:
+                                    failed_accounts += 1
+                                    failed_details.append({
+                                        'account': acct,
+                                        'step': 'changeDomain',
+                                        'error': 'No target domain specified for this account'
+                                    })
+                                return
+
                             with session_lock:
                                 original_session_account = session.get('current_account_name')
-                                # Use the account name that successfully authenticated
                                 session['current_account_name'] = authenticated_account_name or db_account_name
                             try:
-                                result = google_api.get_domain_info()
-                                if not result['success']:
-                                    with results_lock:
-                                        failed_accounts += 1
-                                        failed_details.append({
-                                            'account': acct,
-                                            'step': 'changeSubdomain',
-                                            'error': f"Failed to get domain info: {result['error']}"
-                                        })
-                                    return
-
-                                domains = result['domains']
-
                                 # Get all users
                                 all_users = []
                                 page_token = None
@@ -8632,7 +8638,7 @@ def mega_upgrade():
                                         app.logger.error(f"Error getting users: {e}")
                                         break
 
-                                # Partition users
+                                # Keep only non-admin regular users
                                 all_regular_users = []
                                 for user in all_users:
                                     email = user.get('primaryEmail', '')
@@ -8644,60 +8650,23 @@ def mega_upgrade():
                                         failed_accounts += 1
                                         failed_details.append({
                                             'account': acct,
-                                            'step': 'changeSubdomain',
-                                            'error': 'No regular users found in Google Workspace'
+                                            'step': 'changeDomain',
+                                            'error': 'No regular (non-admin) users found in this Google Workspace'
                                         })
                                     return
 
-                                # Domain usage counts
-                                domain_user_counts = {}
-                                for user in all_users:
-                                    email = user.get('primaryEmail', '')
-                                    if '@' in email:
-                                        d = email.split('@')[1]
-                                        domain_user_counts[d] = domain_user_counts.get(d, 0) + 1
-
-                                available_domains = []
-                                domain_records = {r.domain_name: r for r in UsedDomain.query.all()}
-                                for d in domains:
-                                    dname = d.get('domainName') or d.get('domain_name') or ''
-                                    if not dname:
-                                        continue
-                                    user_count = domain_user_counts.get(dname, 0)
-                                    rec = domain_records.get(dname)
-                                    ever_used = bool(getattr(rec, 'ever_used', False)) if rec else False
-                                    if user_count == 0 and not ever_used:
-                                        available_domains.append(dname)
-
-                                if not available_domains:
-                                    with results_lock:
-                                        failed_accounts += 1
-                                        failed_details.append({
-                                            'account': acct,
-                                            'step': 'changeSubdomain',
-                                            'error': 'No available domains found'
-                                        })
-                                    return
-
-                                available_domains.sort()
-                                next_domain = available_domains[0]
-                                # Record mapping for frontend (base -> next_domain)
-                                try:
-                                    if '.' in next_domain:
-                                        base = next_domain.split('.', 1)[1]
-                                        with results_lock:
-                                            next_domain_map[base] = next_domain
-                                except Exception:
-                                    pass
+                                # Use the explicit target domain supplied by the user
+                                next_domain = target_domain
                                 domain_users = all_regular_users
+                                app.logger.info(f"🎯 Target domain: {next_domain} | Users to move: {len(domain_users)}")
 
-                                # Apply user updates with enhanced retry logic and synchronization
+                                # Apply user updates
                                 successful_user_changes = 0
                                 failed_user_changes = []
-                                max_retries = 5  # Increased retries
-                                retry_delay = 2  # Increased delay between retries
-                                
-                                app.logger.info(f"🔄 Starting domain change for {len(domain_users)} users in account {acct}")
+                                max_retries = 5
+                                retry_delay = 2
+
+                                app.logger.info(f"🔄 Starting domain change for {len(domain_users)} users in account {acct} → {next_domain}")
                                 
                                 # Get the current domain being used (before change)
                                 current_domain = None
@@ -9034,22 +9003,28 @@ def mega_upgrade():
                     import traceback
                     app.logger.error(f"Task {completed_tasks} traceback: {traceback.format_exc()}")
         
-        # Second pass - retry failed accounts
+        # Second pass - retry failed accounts (preserve target_domain)
         if failed_accounts > 0:
             app.logger.info(f"🔄 Retrying {failed_accounts} failed accounts...")
-            retry_accounts = [detail['account'] for detail in failed_details if 'changeSubdomain' in detail.get('step', '')]
-            
-            if retry_accounts:
-                app.logger.info(f"🔄 Retrying domain change for: {retry_accounts}")
-                with ThreadPoolExecutor(max_workers=min(4, len(retry_accounts))) as retry_executor:
-                    retry_futures = [retry_executor.submit(process_account, acc, idx + 1000) for idx, acc in enumerate(retry_accounts)]
-                    
+            # Build retry entries from failed_details, carrying target_domain forward
+            retry_entries = [
+                {'email': detail['account'], 'target_domain': detail.get('target_domain', '')}
+                for detail in failed_details
+                if 'changeDomain' in detail.get('step', '') or 'changeSubdomain' in detail.get('step', '')
+            ]
+
+            if retry_entries:
+                app.logger.info(f"🔄 Retrying domain change for: {[e['email'] for e in retry_entries]}")
+                with ThreadPoolExecutor(max_workers=min(4, len(retry_entries))) as retry_executor:
+                    retry_futures = [retry_executor.submit(process_account, entry, idx + 1000) for idx, entry in enumerate(retry_entries)]
+
                     for f in as_completed(retry_futures):
                         try:
                             result = f.result()
                             app.logger.info(f"✅ Retry successful for account")
                         except Exception as e:
                             app.logger.error(f"❌ Retry failed: {e}")
+
         
         # Final progress update
         progress_data['status'] = 'completed'
