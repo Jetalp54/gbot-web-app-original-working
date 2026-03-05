@@ -8750,18 +8750,18 @@ def mega_upgrade():
                                     # CRITICAL: If user failed, we must retry the entire account
                                     if not user_success:
                                         app.logger.error(f"❌ CRITICAL: User {u_email} failed to update after {max_retries} attempts")
-                                        # Mark this account as needing complete retry
                                         with results_lock:
                                             failed_accounts += 1
                                             failed_details.append({
                                                 'account': acct,
-                                                'step': 'changeSubdomain',
-                                                'error': f"User {u_email} failed to update after {max_retries} attempts - account needs retry",
+                                                'step': 'changeDomain',
+                                                'target_domain': target_domain,
+                                                'error': f"User {u_email} failed to update after {max_retries} attempts",
                                                 'failed_users': failed_user_changes,
                                                 'retry_needed': True,
                                                 'incomplete': True
                                             })
-                                        return  # Exit immediately - don't proceed with partial success
+                                        return  # Exit immediately
                                 
                                 # Log completion status
                                 total_users = len(domain_users)
@@ -9026,15 +9026,25 @@ def mega_upgrade():
                     import traceback
                     app.logger.error(f"Task {completed_tasks} traceback: {traceback.format_exc()}")
         
-        # Second pass - retry failed accounts (preserve target_domain)
+        # Second pass - retry failed accounts
+        # Build a quick lookup: email -> target_domain from the original accounts list
+        account_target_map = {a['email'].lower(): a.get('target_domain', '') for a in accounts}
+
         if failed_accounts > 0:
-            app.logger.info(f"🔄 Retrying {failed_accounts} failed accounts...")
-            # Build retry entries from failed_details, carrying target_domain forward
-            retry_entries = [
-                {'email': detail['account'], 'target_domain': detail.get('target_domain', '')}
-                for detail in failed_details
-                if 'changeDomain' in detail.get('step', '') or 'changeSubdomain' in detail.get('step', '')
-            ]
+            app.logger.info(f"🔄 Retrying {failed_accounts} failed account(s)...")
+            retry_entries = []
+            seen_retry_emails = set()
+            for detail in failed_details:
+                if detail.get('step') in ('changeDomain', 'changeSubdomain') and detail.get('retry_needed'):
+                    email = detail['account']
+                    if email.lower() not in seen_retry_emails:
+                        # Get target_domain from original accounts list (not from failed_details)
+                        td = detail.get('target_domain') or account_target_map.get(email.lower(), '')
+                        if td:
+                            retry_entries.append({'email': email, 'target_domain': td})
+                            seen_retry_emails.add(email.lower())
+                        else:
+                            app.logger.warning(f"⚠️ Skipping retry for {email} — no target_domain found")
 
             if retry_entries:
                 app.logger.info(f"🔄 Retrying domain change for: {[e['email'] for e in retry_entries]}")
