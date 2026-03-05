@@ -8577,6 +8577,71 @@ def mega_upgrade():
                                 original_session_account = session.get('current_account_name')
                                 session['current_account_name'] = authenticated_account_name or db_account_name
                             try:
+                                # ── Step 3a: Ensure target domain exists; add if missing ──────────────
+                                import time as _time
+                                app.logger.info(f"🔍 Checking if target domain '{target_domain}' exists in account {acct}")
+                                domain_info_result = google_api.get_domain_info()
+                                existing_domain_names = []
+                                if domain_info_result.get('success'):
+                                    existing_domain_names = [
+                                        d.get('domainName', '').lower()
+                                        for d in domain_info_result.get('domains', [])
+                                    ]
+                                else:
+                                    app.logger.warning(f"Could not list domains: {domain_info_result.get('error')} — will try to add anyway")
+
+                                target_domain_lower = target_domain.lower()
+
+                                if target_domain_lower in existing_domain_names:
+                                    app.logger.info(f"✅ Target domain '{target_domain}' already exists — skipping add")
+                                else:
+                                    app.logger.info(f"➕ Target domain '{target_domain}' NOT found — adding it now...")
+                                    add_result = google_api.add_domain_alias(target_domain)
+
+                                    if not add_result.get('success'):
+                                        err_msg = add_result.get('error', 'Unknown error')
+                                        # Domain might already exist under a different API path — treat 409 as success
+                                        if '409' in str(err_msg) or 'already exists' in str(err_msg).lower():
+                                            app.logger.info(f"⚠️ Domain add returned 409 (already exists) — treating as success")
+                                        else:
+                                            app.logger.error(f"❌ Failed to add domain '{target_domain}': {err_msg}")
+                                            with results_lock:
+                                                failed_accounts += 1
+                                                failed_details.append({
+                                                    'account': acct,
+                                                    'step': 'addDomain',
+                                                    'target_domain': target_domain,
+                                                    'error': f"Failed to add target domain: {err_msg}"
+                                                })
+                                            return
+                                    else:
+                                        app.logger.info(f"✅ Domain '{target_domain}' added successfully")
+
+                                    # Poll up to 30s for the domain to appear in the list
+                                    propagation_wait = 5    # seconds between polls
+                                    max_polls = 6           # 6 × 5 = 30 seconds max
+                                    domain_ready = False
+                                    for poll_attempt in range(max_polls):
+                                        _time.sleep(propagation_wait)
+                                        recheck = google_api.get_domain_info()
+                                        if recheck.get('success'):
+                                            rechk_names = [
+                                                d.get('domainName', '').lower()
+                                                for d in recheck.get('domains', [])
+                                            ]
+                                            if target_domain_lower in rechk_names:
+                                                app.logger.info(f"✅ Domain '{target_domain}' confirmed in account after {(poll_attempt+1)*propagation_wait}s")
+                                                domain_ready = True
+                                                break
+                                            else:
+                                                app.logger.info(f"⏳ Waiting for domain propagation... attempt {poll_attempt+1}/{max_polls}")
+                                        else:
+                                            app.logger.warning(f"⚠️ Domain recheck failed: {recheck.get('error')}")
+
+                                    if not domain_ready:
+                                        app.logger.warning(f"⚠️ Domain '{target_domain}' not yet confirmed after 30s — proceeding anyway (may still work)")
+
+                                # ── Step 3b: Get all users ────────────────────────────────────────────
                                 # Get all users
                                 all_users = []
                                 page_token = None
