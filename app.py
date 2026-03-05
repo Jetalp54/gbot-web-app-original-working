@@ -8507,90 +8507,57 @@ def mega_upgrade():
 
                         app.logger.info(f"🔧 Worker {index+1} processing account: {acct}")
 
-                        # Step 1: Find account in database (use exact match like manual authentication)
+                        # Step 1: Find account in database (optional — tokens may exist without a DB record)
                         google_account = GoogleAccount.query.filter_by(account_name=acct).first()
-                        
-                        # If exact match fails, try case-insensitive match as fallback
                         if not google_account:
+                            # Try case-insensitive match
                             app.logger.info(f"Exact match failed for {acct}, trying case-insensitive match")
-                        google_account = GoogleAccount.query.filter(
-                            func.lower(GoogleAccount.account_name) == acct.lower()
-                        ).first()
-                        if not google_account:
-                            app.logger.warning(f"Account {acct} not found in database")
-                            all_accounts = GoogleAccount.query.all()
+                            google_account = GoogleAccount.query.filter(
+                                func.lower(GoogleAccount.account_name) == acct.lower()
+                            ).first()
+
+                        if google_account:
+                            db_account_name = google_account.account_name
+                            app.logger.info(f"Found account in DB: {db_account_name}")
+                        else:
+                            # Account not in DB — that's OK. Use the email directly.
+                            # Tokens are stored by email key and don't require a DB record.
+                            db_account_name = acct
+                            app.logger.warning(
+                                f"Account {acct} not found in DB — proceeding with token auth directly"
+                            )
+
+                        # Step 2: Authenticate using tokens
+                        authenticated_account_name = None
+                        auth_success = False
+
+                        # Try db_account_name first (may differ in case from acct)
+                        if google_api.is_token_valid(db_account_name):
+                            auth_success = google_api.authenticate_with_tokens(db_account_name)
+                            app.logger.info(f"Auth result for {db_account_name}: {auth_success}")
+                            if auth_success:
+                                authenticated_account_name = db_account_name
+
+                        # Try original input as fallback (in case tokens stored under that key)
+                        if not auth_success and acct != db_account_name:
+                            app.logger.info(f"Trying auth with original input: {acct}")
+                            if google_api.is_token_valid(acct):
+                                auth_success = google_api.authenticate_with_tokens(acct)
+                                app.logger.info(f"Auth result for {acct}: {auth_success}")
+                                if auth_success:
+                                    authenticated_account_name = acct
+
+                        if not auth_success:
                             with results_lock:
                                 failed_accounts += 1
                                 failed_details.append({
                                     'account': acct,
-                                    'step': 'database_lookup',
-                                    'error': f"Account not found in database. Available accounts: {[acc.account_name for acc in all_accounts]}"
+                                    'step': 'authentication',
+                                    'error': 'No valid tokens found — please authenticate this account via OAuth first'
                                 })
                             return
-                        
-                        app.logger.info(f"Found account in database: {google_account.account_name} (input was: {acct})")
-                        app.logger.info(f"Case comparison: '{acct.lower()}' == '{google_account.account_name.lower()}' = {acct.lower() == google_account.account_name.lower()}")
-                        
-                        # Debug: Check if this account has tokens
-                        app.logger.info(f"Checking tokens for account: {google_account.account_name}")
-                        has_tokens = google_api.is_token_valid(google_account.account_name)
-                        app.logger.info(f"Token validation result: {has_tokens}")
-                        
-                        # Debug: Also check with the original input case
-                        app.logger.info(f"Checking tokens for original input: {acct}")
-                        has_tokens_original = google_api.is_token_valid(acct)
-                        app.logger.info(f"Token validation result for original: {has_tokens_original}")
 
-                        original_account_name = google_account.account_name
 
-                        # Protect only truly critical system accounts (disabled for now)
-                        # critical_accounts = ['system@', 'noreply@', 'postmaster@']
-                        # if any(original_account_name.lower().startswith(prefix) for prefix in critical_accounts):
-                        #     app.logger.warning(f"Skipping critical account {acct}")
-                        #     with results_lock:
-                        #         failed_accounts += 1
-                        #         failed_details.append({
-                        #             'account': acct,
-                        #             'step': 'protection',
-                        #             'error': 'Critical system accounts cannot be modified for security'
-                        #         })
-                        #     return
-                        
-                        app.logger.info(f"Processing account {acct} - protection check disabled")
-
-                        # Step 2: Authenticate
-                        authenticated_account_name = None
-                        if features.get('authenticate'):
-                            # Use the database account name (correct case) for authentication
-                            db_account_name = google_account.account_name
-                            app.logger.info(f"Authenticating with database account name: {db_account_name}")
-                            
-                            # Try authentication with database account name first
-                            auth_success = False
-                            if google_api.is_token_valid(db_account_name):
-                                auth_success = google_api.authenticate_with_tokens(db_account_name)
-                                app.logger.info(f"Authentication with db account name result: {auth_success}")
-                                if auth_success:
-                                    authenticated_account_name = db_account_name
-                            
-                            # If that fails, try with original input (in case tokens are stored under original case)
-                            if not auth_success and acct != db_account_name:
-                                app.logger.info(f"Trying authentication with original input: {acct}")
-                            if google_api.is_token_valid(acct):
-                                    auth_success = google_api.authenticate_with_tokens(acct)
-                                    app.logger.info(f"Authentication with original input result: {auth_success}")
-                                    if auth_success:
-                                        authenticated_account_name = acct
-                            
-                            if not auth_success:
-                                with results_lock:
-                                    failed_accounts += 1
-                                    failed_details.append({
-                                        'account': acct,
-                                        'step': 'authentication',
-                                        'error': 'No valid tokens found - OAuth required'
-                                    })
-                                return
 
                         # Step 3: Change users' domain to the specified target_domain
                         domain_users = []
