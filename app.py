@@ -8423,15 +8423,6 @@ def mega_upgrade():
     
     # Concurrency guard REMOVED - allow unlimited concurrent machines
     try:
-        # Set longer timeout for this endpoint (5 minutes)
-        import signal
-        def timeout_handler(signum, frame):
-            raise TimeoutError("Mega upgrade timeout")
-        
-        # Set timeout to 30 minutes (1800 seconds) for large user bases with multiple accounts
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(1800)
-        
         data = request.get_json()
         raw_accounts = data.get('accounts', [])
         features = data.get('features', {})
@@ -9045,9 +9036,7 @@ def mega_upgrade():
         for detail in failed_details:
             app.logger.info(f"   ❌ {detail['account']}: {detail.get('error', 'Unknown error')}")
         
-        # Cancel timeout
-        signal.alarm(0)
-        
+
         return jsonify({
             'success': True,
             'message': f'Mega upgrade completed using existing functions: {successful_accounts} successful, {failed_accounts} failed',
@@ -9064,9 +9053,7 @@ def mega_upgrade():
         })
         
     except TimeoutError as e:
-        # Cancel timeout
-        signal.alarm(0)
-        app.logger.error(f"Mega upgrade timeout after 30 minutes: {e}")
+        app.logger.error(f"Mega upgrade timeout: {e}")
         return jsonify({
             'success': False, 
             'error': f'Process timed out after 30 minutes. Partial results: {successful_accounts} successful, {failed_accounts} failed',
@@ -9078,8 +9065,6 @@ def mega_upgrade():
             }
         })
     except Exception as e:
-        # Cancel timeout
-        signal.alarm(0)
         app.logger.error(f"Error in mega upgrade: {e}")
         return jsonify({
             'success': False, 
