@@ -11764,31 +11764,84 @@ def api_process_single_account():
             'users': []
         }
         
-        # Find account in database
-        google_account = GoogleAccount.query.filter(
-            db.func.lower(GoogleAccount.account_name) == account_email.lower()
-        ).first()
+        # 1. Exact match attempt
+        from database import ServiceAccount, GoogleAccount
         
-        if not google_account:
+        service_account = ServiceAccount.query.filter(
+            db.func.lower(ServiceAccount.admin_email) == account_email.lower()
+        ).first()
+        if not service_account:
+            service_account = ServiceAccount.query.filter(
+                db.func.lower(ServiceAccount.name) == account_email.lower()
+            ).first()
+            
+        google_account = None
+        if not service_account:
+            google_account = GoogleAccount.query.filter(
+                db.func.lower(GoogleAccount.account_name) == account_email.lower()
+            ).first()
+            
+        # 2. Add fallback matching logic if not found exactly (e.g. they typed support@newdomain.com)
+        if not service_account and not google_account and '@' in account_email:
+            username = account_email.split('@')[0].lower()
+            app.logger.info(f"Account {account_email} not found exactly. Attempting fallback match using username '{username}'...")
+            
+            # Try falling back to Service Account matches
+            matching_sa = ServiceAccount.query.filter(
+                db.func.lower(ServiceAccount.admin_email).like(f"{username}@%")
+            ).all()
+            if len(matching_sa) == 1:
+                service_account = matching_sa[0]
+                app.logger.info(f"✅ Fallback matched {account_email} to ServiceAccount {service_account.admin_email}")
+            else:
+                # Try falling back to Google Account matches
+                matching_ga = GoogleAccount.query.filter(
+                    db.func.lower(GoogleAccount.account_name).like(f"{username}@%")
+                ).all()
+                if len(matching_ga) == 1:
+                    google_account = matching_ga[0]
+                    app.logger.info(f"✅ Fallback matched {account_email} to GoogleAccount {google_account.account_name}")
+                elif len(matching_ga) > 1 or len(matching_sa) > 1:
+                    result['message'] = f'Multiple accounts found for username "{username}". Please use the exact original email.'
+                    return jsonify({'success': True, 'result': result})
+
+        if not service_account and not google_account:
             result['message'] = 'Account not found in database'
             return jsonify({'success': True, 'result': result})
-        
-        app.logger.info(f"Found account in database: {google_account.account_name} (input was: {account_email})")
-        
-        # Try to authenticate the account using existing tokens
-        auth_success = False
-        try:
-            db_account_name = google_account.account_name
-            app.logger.info(f"Authenticating with database account name: {db_account_name}")
             
-            if google_api.is_token_valid(db_account_name):
-                auth_success = authenticate_without_session(db_account_name)
-                if auth_success:
-                    app.logger.info(f"Successfully authenticated with {db_account_name}")
-            else:
-                app.logger.warning(f"No valid tokens found for {db_account_name}")
+        app.logger.info(f"Found account in database (input was: {account_email})")
+        
+        # 3. Authenticate the matched account
+        auth_success = False
+        service = None
+        db_account_name = None
+        
+        try:
+            if service_account:
+                # Modern ServiceAccount authentication
+                db_account_name = service_account.admin_email if hasattr(service_account, 'admin_email') else service_account.name
+                app.logger.info(f"Authenticating with ServiceAccount: {db_account_name}")
+                from services.google_domains_service import GoogleDomainsService
+                domains_service = GoogleDomainsService(service_account.name)
+                service = domains_service._get_admin_service()
+                if service:
+                    auth_success = True
+            elif google_account:
+                # Legacy GoogleAccount authentication
+                db_account_name = google_account.account_name
+                app.logger.info(f"Authenticating with GoogleAccount: {db_account_name}")
+                if google_api.is_token_valid(db_account_name):
+                    if authenticate_without_session(db_account_name):
+                        service = get_service_without_session(db_account_name)
+                        if service:
+                            auth_success = True
+                else:
+                    app.logger.warning(f"No valid tokens found for {db_account_name}")
+                    
+            if auth_success:
+                app.logger.info(f"Successfully authenticated with {db_account_name}")
         except Exception as e:
-            app.logger.warning(f"Token authentication failed for {account_email}: {e}")
+            app.logger.warning(f"Authentication failed for {account_email}: {e}")
         
         if auth_success:
             result['success'] = True
@@ -11797,7 +11850,6 @@ def api_process_single_account():
             # Try to retrieve users for this account
             try:
                 app.logger.info(f"🔍 Retrieving users for account: {db_account_name}")
-                service = get_service_without_session(db_account_name)
                 if service:
                     users_data = get_users_with_service(service)
                     app.logger.info(f"📊 Users data received: {type(users_data)}")
