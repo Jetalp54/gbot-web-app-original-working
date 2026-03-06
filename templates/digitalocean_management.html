@@ -1322,7 +1322,15 @@
 
                 if (response.completed) {
                     clearInterval(monitorInterval);
-                    $('#monitorStatusBadge').text(response.status.toUpperCase()).addClass(response.status === 'failed' ? 'bg-danger' : 'bg-success');
+                    $('#monitorStatus').text(response.status.toUpperCase())
+                        .removeClass('bg-info bg-warning bg-success bg-danger')
+                        .addClass(response.status === 'failed' ? 'bg-danger' : 'bg-success');
+
+                    if (response.status === 'failed') {
+                        showMessage('bulkExecutionMessages', `❌ Execution Failed: ${response.error_message || 'Unknown error during execution'}`, 'danger');
+                    } else if (response.status === 'completed') {
+                        showMessage('bulkExecutionMessages', `✅ Execution Completed Successfully! (Success: ${response.success_count || 0}, Failed: ${response.failure_count || 0})`, 'success');
+                    }
                 }
 
                 renderMonitorDroplets(response.droplets, executionId);
@@ -1344,7 +1352,7 @@
                     renderMonitorDroplets(response.droplets);
 
                     // Update header to indicate global view
-                    $('#monitorStatusBadge').text('GLOBAL VIEW').addClass('bg-primary');
+                    $('#monitorStatus').text('GLOBAL VIEW').removeClass('bg-info bg-warning bg-success bg-danger').addClass('bg-primary');
                 }
             }
         });
