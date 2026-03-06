@@ -597,6 +597,12 @@
     let globalSnapshots = [];      // Track all snapshots for filtering
     let globalRegions = [];        // Track all regions for filtering
 
+    // Helper to escape single quotes for onclick attributes
+    function escapeHtmlJS(str) {
+        if (!str) return "";
+        return str.replace(/'/g, "\\'");
+    }
+
     // === Page Initialization ===
     $(document).ready(function () {
         loadRegionsAndSizes();
@@ -1230,11 +1236,11 @@
         tableBody.empty();
 
         droplets.forEach(function (droplet) {
-            const displayName = droplet.droplet_name.replace('bulk-exec-', '');
-
             // Handle different property names between routes
             const droplet_id = droplet.droplet_id || droplet.id;
             const execId = executionId || droplet.execution_id;
+            const displayName = (droplet.droplet_name || droplet.name || `Droplet ${droplet_id}`).replace('bulk-exec-', '');
+            const escapedName = escapeHtmlJS(displayName);
 
             // Determine status badge classes and text
             let status = droplet.status;
@@ -1297,7 +1303,7 @@
                             <button class="btn btn-outline-primary" onclick="switchToDropletLog('${droplet_id}', '${execId}')" title="View Logs">
                                 <i class="fa fa-terminal"></i>
                             </button>
-                            <button class="btn btn-outline-danger" onclick="manualDeleteDroplet('${droplet_id}', '${droplet.droplet_name}')" title="Destroy Droplet">
+                            <button class="btn btn-outline-danger" onclick="manualDeleteDroplet('${droplet_id}', '${escapedName}')" title="Destroy Droplet">
                                 <i class="fa fa-trash"></i>
                             </button>
                         </div>
@@ -1424,7 +1430,7 @@
                         loadDroplets();
 
                         if (response.status === 'completed') {
-                            showMessage('bulkExecutionMessages', `✅ Execution Completed Successfully! (Success: ${response.success_count}, Failed: ${response.failure_count})`, 'success');
+                            showMessage('bulkExecutionMessages', `✅ Execution Completed Successfully!(Success: ${response.success_count}, Failed: ${response.failure_count})`, 'success');
 
                             // Switch to Passwords Tab
                             $('#passwords-tab').tab('show');
@@ -1438,7 +1444,7 @@
 
                         } else {
                             // Failed
-                            showMessage('bulkExecutionMessages', `❌ Execution Failed: ${response.error_message}`, 'danger');
+                            showMessage('bulkExecutionMessages', `❌ Execution Failed: ${response.error_message} `, 'danger');
                         }
                     }
                 }
@@ -1496,21 +1502,22 @@
 
         droplets.forEach(function (droplet) {
             const statusClass = droplet.status === 'active' ? 'success' : 'warning';
+            const escapedName = escapeHtmlJS(droplet.name || 'Unknown');
             html += `<tr>
-            <td>${droplet.name}</td>
-            <td><code>${droplet.ip_address || 'N/A'}</code></td>
-            <td>${droplet.region}</td>
-            <td>${droplet.size}</td>
-            <td><span class="badge bg-${statusClass}">${droplet.status}</span></td>
-            <td>
-                <button class="btn btn-sm btn-info text-white me-1" onclick="openTestAutomationModal('${droplet.id}')" title="Test Automation">
-                    <i class="fa fa-bug"></i> Test
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="deleteDroplet('${droplet.id}', '${droplet.name}')">
-                    <i class="fa fa-trash"></i>
-                </button>
-            </td>
-        </tr>`;
+                <td><strong>${droplet.name || 'Unknown'}</strong></td>
+                <td><code>${droplet.ip_address || 'N/A'}</code></td>
+                <td>${droplet.region}</td>
+                <td>${droplet.size}</td>
+                <td><span class="badge bg-${statusClass}">${droplet.status}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-info text-white me-1" onclick="openTestAutomationModal('${droplet.id}')" title="Test Automation">
+                        <i class="fa fa-bug"></i> Test
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteDroplet('${droplet.id}', '${escapedName}')">
+                        <i class="fa fa-trash"></i>
+                    </button>
+                </td>
+            </tr>`;
         });
 
         html += '</tbody></table>';
@@ -1519,7 +1526,7 @@
 
     // Delete Droplet
     function deleteDroplet(dropletId, dropletName) {
-        if (!confirm(`Delete droplet "${dropletName}"?`)) {
+        if (!confirm(`Delete droplet "${dropletName}" ? `)) {
             return;
         }
 
@@ -1528,15 +1535,16 @@
             method: 'DELETE',
             success: function (response) {
                 if (response.success) {
-                    alert('Droplet deleted successfully');
+                    alert('Droplet destruction requested successfully.');
                     loadDroplets();
                 } else {
-                    alert('Failed to delete droplet: ' + (response.error || 'Unknown error'));
+                    alert('Failed to delete droplet: ' + (response.error || 'Server error'));
                 }
             },
             error: function (xhr) {
-                const error = xhr.responseJSON?.error || 'Failed to delete droplet';
-                alert('Error: ' + error);
+                console.error('Delete error details:', xhr);
+                const error = xhr.responseJSON?.error || `HTTP ${xhr.status}: ${xhr.statusText || 'Connection failed'} `;
+                alert('Connection Error: ' + error);
             }
         });
     }
@@ -1577,7 +1585,7 @@
             const isAuto = snapshot.name.toLowerCase().includes('automation');
             const rowClass = isAuto ? 'table-success' : '';
 
-            html += `<tr class="${rowClass}">
+            html += `< tr class="${rowClass}" >
             <td class="text-start">${snapshot.name}</td>
             <td>
                 <code>${snapshot.id}</code>
@@ -1596,7 +1604,7 @@
                     <i class="fa fa-trash"></i>
                 </button>
             </td>
-        </tr>`;
+        </tr > `;
         });
 
         html += '</tbody></table>';
@@ -1634,7 +1642,7 @@
         if (!snapshotId) {
             bulkRegionSelect.html('<option value="">Use default</option>');
             globalRegions.forEach(function (region) {
-                bulkRegionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
+                bulkRegionSelect.append(`< option value = "${region.slug}" > ${region.name}</option > `);
             });
             bulkRegionSelect.val(currentValue);
             return;
@@ -1656,7 +1664,7 @@
 
         globalRegions.forEach(function (region) {
             if (supportedRegions.includes(region.slug)) {
-                bulkRegionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
+                bulkRegionSelect.append(`< option value = "${region.slug}" > ${region.name}</option > `);
             }
         });
 
@@ -1674,7 +1682,7 @@
 
     // Delete Snapshot
     function deleteSnapshot(snapshotId, snapshotName) {
-        if (!confirm(`Delete snapshot "${snapshotName}"?`)) {
+        if (!confirm(`Delete snapshot "${snapshotName}" ? `)) {
             return;
         }
 
@@ -1737,19 +1745,19 @@
                         const msg = inputUsersText
                             ? `✅ Loaded ${count} matching passwords`
                             : (currentExecutionId
-                                ? `✅ Loaded ${count} passwords from execution ${currentExecutionId}`
-                                : `✅ Loaded ${count} passwords from database/backups`);
+                                ? `✅ Loaded ${count} passwords from execution ${currentExecutionId} `
+                                : `✅ Loaded ${count} passwords from database / backups`);
 
                         showMessage('passwordsMessages', msg, 'success');
                         renderPasswords(passwords);
                     }
                 } else {
-                    showMessage('passwordsMessages', `❌ ${response.error}`, 'danger');
+                    showMessage('passwordsMessages', `❌ ${response.error} `, 'danger');
                 }
             },
             error: function (xhr) {
                 const error = xhr.responseJSON?.error || 'Failed to load passwords';
-                showMessage('passwordsMessages', `❌ Error: ${error}`, 'danger');
+                showMessage('passwordsMessages', `❌ Error: ${error} `, 'danger');
             }
         });
     }
@@ -1763,7 +1771,7 @@
 
         passwords.forEach(function (pwd, index) {
             const createdDate = pwd.created_at ? new Date(pwd.created_at).toLocaleString() : 'N/A';
-            html += `<tr>
+            html += `< tr >
                 <td>${index + 1}</td>
                 <td>${pwd.email}</td>
                 <td><code>${pwd.app_password}</code></td>
@@ -1773,7 +1781,7 @@
                         <i class="fa fa-copy"></i>
                     </button>
                 </td>
-            </tr>`;
+            </tr > `;
         });
 
         html += '</tbody></table></div>';
@@ -1811,15 +1819,15 @@
         }
 
         $('#testAutomationResult').html(`
-        <div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Test Started... Waiting for logs...</div>
-        <div class="mt-2"><small><strong>Live Logs:</strong></small>
-        <pre id="liveAutomationLogs" class="bg-dark text-white p-2 border rounded" style="max-height: 300px; overflow-y: auto; font-size: 0.8rem; font-family: monospace;">Initializing...</pre>
-        </div>
-    `);
+            < div class="alert alert-info" > <i class="fa fa-spinner fa-spin"></i> Test Started... Waiting for logs...</div >
+                <div class="mt-2"><small><strong>Live Logs:</strong></small>
+                    <pre id="liveAutomationLogs" class="bg-dark text-white p-2 border rounded" style="max-height: 300px; overflow-y: auto; font-size: 0.8rem; font-family: monospace;">Initializing...</pre>
+                </div>
+        `);
 
         // 1. Start Automation
         $.ajax({
-            url: `/api/do/droplets/${dropletId}/test-automation`,
+            url: `/ api /do /droplets/${dropletId} / test - automation`,
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ email: email, password: password }),
@@ -1829,12 +1837,12 @@
                     const resultFile = response.result_file;
                     pollAutomationStatus(dropletId, logFile, resultFile);
                 } else {
-                    $('#testAutomationResult').html(`<div class="alert alert-danger"><strong>❌ Start Failed:</strong> ${response.error || 'Unknown error'}</div>`);
+                    $('#testAutomationResult').html(`< div class="alert alert-danger" > <strong>❌ Start Failed:</strong> ${response.error || 'Unknown error'}</div > `);
                 }
             },
             error: function (xhr) {
                 const error = xhr.responseJSON?.error || 'Failed to start test';
-                $('#testAutomationResult').html(`<div class="alert alert-danger"><strong>❌ Error:</strong> ${error}</div>`);
+                $('#testAutomationResult').html(`< div class="alert alert-danger" > <strong>❌ Error:</strong> ${error}</div > `);
             }
         });
     }
@@ -1842,7 +1850,7 @@
     function pollAutomationStatus(dropletId, logFile, resultFile) {
         const pollInterval = setInterval(() => {
             $.ajax({
-                url: `/api/do/droplets/${dropletId}/automation-status`,
+                url: `/ api /do /droplets/${dropletId} / automation - status`,
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({ log_file: logFile, result_file: resultFile }),
@@ -1864,7 +1872,7 @@
                             displayFinalResult(data.result);
                         } else if (data.status === 'error') {
                             clearInterval(pollInterval);
-                            $('#testAutomationResult').prepend(`<div class="alert alert-danger"><strong>❌ Polling Error:</strong> ${data.error}</div>`);
+                            $('#testAutomationResult').prepend(`< div class="alert alert-danger" > <strong>❌ Polling Error:</strong> ${data.error}</div > `);
                         }
                     }
                 },
@@ -1881,15 +1889,15 @@
 
         // Check for explicit success in JSON result
         if (result.status === 'success') {
-            html += `<div class="alert alert-success">
+            html += `< div class="alert alert-success" >
             <strong>✅ Test Passed!</strong><br>
             App Password: <code>${result.app_password || 'N/A'}</code>
         </div>`;
         } else {
             const errorMsg = result.error_message || result.error || 'Test Failed';
-            html += `<div class="alert alert-danger">
+            html += `< div class="alert alert-danger" >
             <strong>❌ Test Failed:</strong> ${errorMsg}
-        </div>`;
+        </div > `;
         }
 
         // Check for screenshot in stdout (from final result or logs)
@@ -1907,7 +1915,7 @@
 
         if (screenshotMatch) {
             const base64Image = screenshotMatch[1];
-            html += `<div class="mt-2"><strong>Debug Screenshot:</strong><br><img src="data:image/png;base64,${base64Image}" class="img-fluid border rounded" style="max-height: 400px;"></div>`;
+            html += `< div class="mt-2" ><strong>Debug Screenshot:</strong><br><img src="data:image/png;base64,${base64Image}" class="img-fluid border rounded" style="max-height: 400px;"></div>`;
 
             // Clean up logs
             const cleanLogs = finalLogs.replace(/<SCREENSHOT>.*?<\/SCREENSHOT>/, '[Screenshot captured]');
@@ -1928,11 +1936,13 @@
                     // Refresh monitor state
                     if (currentExecutionId) updateMonitorTabs(currentExecutionId);
                 } else {
-                    alert('Error: ' + response.error);
+                    alert('Deletion failed: ' + (response.error || 'Unknown server error'));
                 }
             },
             error: function (xhr) {
-                alert('Connection error while trying to destroy droplet.');
+                console.error('Manual delete error:', xhr);
+                const error = xhr.responseJSON?.error || `HTTP ${xhr.status}: ${xhr.statusText || 'Failed to reach server'}`;
+                alert('Connection Error: ' + error);
             }
         });
     }

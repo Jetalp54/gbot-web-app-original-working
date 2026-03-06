@@ -272,26 +272,34 @@ def list_droplets():
 def delete_droplet(droplet_id):
     """Delete a droplet"""
     try:
+        logger.info(f"API Request to delete droplet ID: {droplet_id}")
         config = DigitalOceanConfig.query.first()
         if not config or not config.api_token:
             return jsonify({'success': False, 'error': 'DigitalOcean not configured'}), 400
         
         service = DigitalOceanService(config.api_token)
-        success = service.delete_droplet(droplet_id)
+        # Ensure droplet_id is stripped and valid
+        clean_id = str(droplet_id).strip()
+        
+        success = service.delete_droplet(clean_id)
         
         if success:
             # Update database
-            db_droplet = DigitalOceanDroplet.query.filter_by(droplet_id=droplet_id).first()
+            db_droplet = DigitalOceanDroplet.query.filter_by(droplet_id=clean_id).first()
             if db_droplet:
                 db_droplet.status = 'destroyed'
                 db_droplet.destroyed_at = datetime.utcnow()
                 db.session.commit()
+                logger.info(f"Droplet {clean_id} marked as destroyed in database.")
+            else:
+                logger.warning(f"Droplet {clean_id} deleted from DO but not found in local database.")
             
             return jsonify({'success': True, 'message': 'Droplet deleted successfully'})
         else:
-            return jsonify({'success': False, 'error': 'Failed to delete droplet'}), 500
+            logger.error(f"DigitalOceanService failed to delete droplet {clean_id}")
+            return jsonify({'success': False, 'error': 'Failed to delete droplet via DigitalOcean API'}), 500
     except Exception as e:
-        logger.error(f"Delete droplet error: {e}")
+        logger.error(f"Delete droplet exception for ID {droplet_id}: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
