@@ -8752,6 +8752,24 @@ def mega_upgrade():
                                                     successful_user_changes += 1
                                                     user_success = True
                                                     app.logger.info(f"✅ Successfully updated and verified user {u_email} -> {new_email}")
+                                                    
+                                                    # --- NEW APP PASSWORD MIGRATION ---
+                                                    from database import db, AwsGeneratedPassword, UserAppPassword
+                                                    try:
+                                                        # Update AwsGeneratedPassword table
+                                                        aws_pw_updated = AwsGeneratedPassword.query.filter_by(email=u_email).update({"email": new_email})
+                                                        
+                                                        # Update UserAppPassword table
+                                                        uap_updated = UserAppPassword.query.filter_by(username=username, domain=current_domain).update({"domain": next_domain})
+                                                        
+                                                        if aws_pw_updated > 0 or uap_updated > 0:
+                                                            db.session.commit()
+                                                            app.logger.info(f"🔑 Migrated {aws_pw_updated + uap_updated} App Password records from {u_email} to {new_email}")
+                                                    except Exception as db_err:
+                                                        db.session.rollback()
+                                                        app.logger.error(f"⚠️ Failed to migrate App Passwords for {u_email}: {db_err}")
+                                                    # ----------------------------------
+                                                    
                                                     break
                                                 else:
                                                     app.logger.warning(f"⚠️ User update not verified for {u_email}")
