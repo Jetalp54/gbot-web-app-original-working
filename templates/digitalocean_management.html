@@ -1677,24 +1677,21 @@
         const supportedRegions = snapshot.regions || [];
         console.log("Filtering regions for snapshot:", snapshotId, "Supported:", supportedRegions);
 
-        // Populate filtered list
-        bulkRegionSelect.html('<option value="">Use default (auto-select)</option>');
+        // Populate filtered list, do NOT add empty default option to force valid selection match
+        bulkRegionSelect.empty();
 
         globalRegions.forEach(function (region) {
             if (supportedRegions.includes(region.slug)) {
-                bulkRegionSelect.append(`< option value = "${region.slug}" > ${region.name}</option > `);
+                bulkRegionSelect.append(`<option value="${region.slug}">${region.name}</option>`);
             }
         });
 
         // Try to restore value if it still exists in the filtered list
-        if (supportedRegions.includes(currentValue)) {
+        if (currentValue && supportedRegions.includes(currentValue)) {
             bulkRegionSelect.val(currentValue);
-        } else {
-            bulkRegionSelect.val("");
-            // If only one region available, auto-select it
-            if (supportedRegions.length === 1) {
-                bulkRegionSelect.val(supportedRegions[0]);
-            }
+        } else if (supportedRegions.length > 0) {
+            // Auto-select the first valid region instead of leaving it blank
+            bulkRegionSelect.val(supportedRegions[0]);
         }
     }
 
