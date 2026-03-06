@@ -822,7 +822,11 @@
                     const config = response.config;
                     if (config.parallel_users) $('#parallelUsers').val(config.parallel_users);
                     if (config.users_per_droplet) $('#usersPerDroplet').val(config.users_per_droplet);
-                    if (config.automation_snapshot_id) $('#snapshotId').val(config.automation_snapshot_id);
+                    if (config.automation_snapshot_id) {
+                        $('#snapshotId').val(config.automation_snapshot_id);
+                        // Filter regions after a short delay to ensure globalRegions and globalSnapshots are loaded
+                        setTimeout(() => filterBulkRegions(config.automation_snapshot_id), 800);
+                    }
                     if (config.auto_destroy_droplets !== undefined) $('#autoDestroy').prop('checked', config.auto_destroy_droplets);
                 }
             }
@@ -1642,6 +1646,12 @@
     }
 
     // Filter Bulk Execution regions based on snapshot availability
+
+    // Auto-filter when user pastes or types a snapshot ID
+    $('#snapshotId').on('input change', function () {
+        filterBulkRegions($(this).val().trim());
+    });
+
     function filterBulkRegions(snapshotId) {
         const bulkRegionSelect = $('#bulkRegion');
         const currentValue = bulkRegionSelect.val();
