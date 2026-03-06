@@ -2878,12 +2878,45 @@ def api_bulk_retrieve_account_users():
                     formatted_users = []
                     default_password = account_passwords.get(account_name, '')
                     
+                    # Ensure models are imported for app password lookup
+                    from database import UserAppPassword, AwsGeneratedPassword
+                    
                     for user in all_users:
                         email = user.get('primaryEmail', '')
                         user_id = user.get('id', '') # Fixed indentation
                         
                         # Detect if admin
                         is_admin = user.get('isAdmin', False)
+                        
+                        # --- NEW APP PASSWORD LOOKUP LOGIC ---
+                        app_password = ''
+                        if email and '@' in email and not is_admin:
+                            try:
+                                username, domain = email.split('@', 1)
+                                
+                                # Strategy 1: Exact match on UserAppPassword (username & domain)
+                                db_password = UserAppPassword.query.filter_by(
+                                    username=username.lower(), 
+                                    domain=domain.lower()
+                                ).first()
+                                
+                                # Strategy 2: Match by username only in UserAppPassword
+                                if not db_password:
+                                    db_password = UserAppPassword.query.filter_by(
+                                        username=username.lower()
+                                    ).first()
+                                    
+                                if db_password:
+                                    app_password = db_password.app_password
+                                else:
+                                    # Strategy 3: Check legacy AwsGeneratedPassword by full email
+                                    aws_password = AwsGeneratedPassword.query.filter_by(email=email).first()
+                                    if aws_password:
+                                        app_password = aws_password.app_password
+                                        
+                            except Exception as e:
+                                app.logger.error(f"[BULK RETRIEVE] Error finding app password for {email}: {e}")
+                        # -------------------------------------
                         
                         # Add to list
                         formatted_users.append({
@@ -2896,7 +2929,7 @@ def api_bulk_retrieve_account_users():
                             'lastLoginTime': user.get('lastLoginTime', ''),
                             'suspended': user.get('suspended', False),
                             'password': default_password, # Includes account password if available
-                            'app_password': '' # Placeholder, we don't know app passwords from Google API
+                            'app_password': app_password # Now uses the properly retrieved password!
                         })
                     
                     account_result['users'] = formatted_users
