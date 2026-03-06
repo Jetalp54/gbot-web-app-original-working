@@ -555,7 +555,7 @@ class BulkExecutionOrchestrator:
         """
         Dual-save system: Save app password to both database AND backup file.
         """
-        from database import db, AwsGeneratedPassword
+        from database import db, AwsGeneratedPassword, UserAppPassword
         
         # 1. IMMEDIATE BACKUP TO FILE ... (using robust naming)
         backup_success = False
@@ -587,12 +587,13 @@ class BulkExecutionOrchestrator:
             if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: ✗ Backup FAILED for {email}\n", append=True)
         
         # 2. SAVE TO DATABASE ...
-        # 2. SAVE TO DATABASE ...
         db_success = False
+        user_app_success = False
         context_manager = self.app.app_context() if self.app else None
         try:
             if context_manager: context_manager.push()
             
+            # === SAVE TO AwsGeneratedPassword ===
             # Use query to find existing entry for this email
             record = AwsGeneratedPassword.query.filter_by(email=email).first()
             
@@ -616,6 +617,42 @@ class BulkExecutionOrchestrator:
             db.session.commit()
             db_success = True
             if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: ✓ Database record saved for {email}\n", append=True)
+            
+            # === SAVE TO UserAppPassword (App Password Management UI) ===
+            try:
+                if '@' in email:
+                    u_name, u_domain = email.split('@', 1)
+                else:
+                    u_name = email
+                    u_domain = '*'
+                    
+                u_name = u_name.lower()
+                u_domain = u_domain.lower()
+                
+                user_app_record = UserAppPassword.query.filter_by(
+                    username=u_name,
+                    domain=u_domain
+                ).first()
+                
+                if user_app_record:
+                    user_app_record.app_password = app_password
+                    user_app_record.updated_at = db.func.current_timestamp()
+                else:
+                    new_user_app = UserAppPassword(
+                        username=u_name,
+                        domain=u_domain,
+                        app_password=app_password
+                    )
+                    db.session.add(new_user_app)
+                    
+                db.session.commit()
+                user_app_success = True
+                if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: ✓ Synced to App Password Management UI for {email}\n", append=True)
+            except Exception as u_db_e:
+                db.session.rollback()
+                logger.error(f"[{self.execution_id}] ✗ UserAppPassword DB sync failed for {email}: {u_db_e}")
+                if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: ⚠ UserAppPassword sync failed: {str(u_db_e)}\n", append=True)
+                
         except Exception as db_e:
             db.session.rollback()
             logger.error(f"[{self.execution_id}] ✗ Database save failed for {email}: {db_e}")
@@ -623,7 +660,9 @@ class BulkExecutionOrchestrator:
         finally:
             if context_manager: context_manager.pop()
         
-        if db_success and backup_success:
+        if db_success and backup_success and user_app_success:
+            if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: ✓✓ MULTI-SAVE COMPLETE: {email}\n", append=True)
+        elif db_success and backup_success:
             if log_callback: log_callback(f"[{datetime.utcnow().isoformat()}] EXECUTOR: ✓✓ DUAL-SAVE COMPLETE: {email}\n", append=True)
     
     def _destroy_droplets_parallel(self, droplets: List[Dict]):
