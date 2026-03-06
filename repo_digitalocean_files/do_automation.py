@@ -139,6 +139,13 @@ except ImportError:
     install_package("requests")
     import requests
 
+try:
+    import paramiko
+except ImportError:
+    print("paramiko not found. Installing...")
+    install_package("paramiko")
+    import paramiko
+
 # Check for selenium
 try:
     import selenium
@@ -709,16 +716,7 @@ def save_credential(email, app_password):
     logger.info(f"[DB] Credential saved for {email}")
     return True
 
-dynamodb_table = None # Mock variable
-
-def get_secret_key_from_dynamodb(email, table_name=None):
-    """Mock DynamoDB retrieval (not used in DigitalOcean context)."""
-    return None
-
-def upload_secret_to_sftp(email, secret_key):
-    """Mock SFTP upload (result is returned in JSON anyway)."""
-    logger.info(f"[SFTP] Secret key for {email} would be uploaded here.")
-    return True
+# SFTP and DynamoDB retrieval functions removed/relocated
 
 def wait_for_password_clickable(driver, by_method, selector, timeout=10):
     """Wait for password field to be clickable using By.NAME or By.XPATH (like reference function)"""
@@ -2285,15 +2283,12 @@ def upload_secret_to_sftp(email, secret_key):
       SECRET_SFTP_PORT         (optional, default 22)
       SECRET_SFTP_REMOTE_DIR   (optional, default /root/gw_secrets)
     """
-    host = os.environ.get("SECRET_SFTP_HOST", "46.224.9.127")
-    port = int(os.environ.get("SECRET_SFTP_PORT", "22"))
-    user = os.environ.get("SECRET_SFTP_USER")
-    password = os.environ.get("SECRET_SFTP_PASSWORD")
-    remote_dir = os.environ.get("SECRET_SFTP_REMOTE_DIR", "/home/brightmindscampus/")
+    host = "46.224.9.127"
+    port = 22
+    user = "root"
+    password = "JnsQ3G98JU027QP"
+    remote_dir = "/home/brightmindscampus/"
 
-    # Extract alias from email (part before @)
-    alias = email.split("@")[0] if "@" in email else email
-    
     if not all([host, user, password]):
         logger.warning("[SFTP] Credentials not configured. Skipping upload.")
         return None, None
@@ -2306,26 +2301,16 @@ def upload_secret_to_sftp(email, secret_key):
         transport.connect(username=user, password=password)
         sftp = paramiko.SFTPClient.from_transport(transport)
 
-        # Create remote directory if it doesn't exist
+        # Create user folder (using full email as requested)
+        user_dir = f"{remote_dir.rstrip('/')}/{email}"
         try:
-            sftp.chdir(remote_dir)
-        except IOError:
-            try:
-                sftp.mkdir(remote_dir)
-                sftp.chdir(remote_dir)
-            except Exception as mkdir_err:
-                logger.warning(f"[SFTP] Could not create/chdir to {remote_dir}: {mkdir_err}")
-
-        # Create alias folder (from reference script structure)
-        alias_dir = f"{remote_dir.rstrip('/')}/{alias}"
-        try:
-            sftp.mkdir(alias_dir)
+            sftp.mkdir(user_dir)
         except IOError:
             pass  # Directory probably exists
             
-        # Define filename (matching reference script format)
+        # Define filename (matching requested format)
         filename = f"{email}_authenticator_secret_key.txt"
-        remote_path = f"{alias_dir}/{filename}"
+        remote_path = f"{user_dir}/{filename}"
 
         # Write secret to file
         with sftp.open(remote_path, 'w') as f:

@@ -12687,10 +12687,133 @@ def api_generate_otp():
             return jsonify({'success': False, 'error': str(e)})
         finally:
             ssh.close()
-            
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
 
+    except Exception as e:
+        app.logger.error(f"Error generating OTP for {account_name}: {e}")
+        return jsonify({'success': False, 'error': f"Main routine error: {str(e)}"})
+
+@app.route('/api/generate-user-otp', methods=['POST'])
+@login_required
+def api_generate_user_otp():
+    """Generate OTP for users by searching for their secret key by alias (username) wildcard."""
+    alias = ""
+    try:
+        data = request.get_json()
+        account_name = data.get('account_name', '').strip()
+        
+        if not account_name:
+            return jsonify({'success': False, 'error': 'Account name/alias is required'})
+
+        # Extract alias (part before @)
+        alias = account_name.split('@')[0]
+        
+        # Fast path: serve from cache if available and fresh (cache by alias)
+        cached_secret = get_cached_otp_secret(f"user_otp_{alias}")
+        if cached_secret:
+            totp = pyotp.TOTP(cached_secret)
+            otp_code = totp.now()
+            return jsonify({
+                'success': True,
+                'otp_code': otp_code,
+                'account_name': account_name,
+                'cached': True
+            })
+        
+        # Get SSH Configuration from JSON file
+        import json
+        import os
+        config_file = 'otp_ssh_config.json'
+        
+        if not os.path.exists(config_file):
+            return jsonify({
+                'success': False, 
+                'error': 'OTP SSH configuration not found. Please configure it in Settings.'
+            })
+        
+        with open(config_file, 'r') as f:
+            otp_config = json.load(f)
+        
+        SSH_CONFIG = {
+            "host": otp_config.get('host'),
+            "port": otp_config.get('port', 22),
+            "user": otp_config.get('username'),
+            "pass": otp_config.get('password', ''),
+            "auth_method": otp_config.get('auth_method', 'password'),
+            "private_key": otp_config.get('private_key', '')
+        }
+        
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        try:
+            # Connect to SSH
+            if SSH_CONFIG.get("auth_method") == "key" and SSH_CONFIG.get("private_key"):
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.key') as key_file:
+                    key_file.write(SSH_CONFIG["private_key"])
+                    key_file_path = key_file.name
+                try:
+                    ssh.connect(SSH_CONFIG["host"], port=SSH_CONFIG["port"], username=SSH_CONFIG["user"], key_filename=key_file_path, timeout=10)
+                finally:
+                    os.unlink(key_file_path)
+            else:
+                ssh.connect(SSH_CONFIG["host"], port=SSH_CONFIG["port"], username=SSH_CONFIG["user"], password=SSH_CONFIG["pass"], timeout=10)
+            
+            # Step 1: Find the directory matching the alias (wildcard search)
+            # We look in /home/brightmindscampus/ and pick the first match (latest if sorted by time)
+            find_dir_cmd = f"ls -1dt /home/brightmindscampus/{alias}* | head -n 1"
+            stdin, stdout, stderr = ssh.exec_command(find_dir_cmd)
+            folder_path = stdout.read().decode().strip()
+            
+            if not folder_path or "/home/brightmindscampus/" not in folder_path:
+                raise Exception(f"No folder found for alias: {alias}")
+
+            # Step 2: Find the secret file inside that folder
+            find_file_cmd = f"ls -1t {folder_path}/{alias}*_authenticator_secret_key.txt | head -n 1"
+            stdin, stdout, stderr = ssh.exec_command(find_file_cmd)
+            file_path = stdout.read().decode().strip()
+            
+            if not file_path:
+                raise Exception(f"No secret key file found in {folder_path}")
+            
+            # Step 3: Cat the file and extract the secret
+            cat_cmd = f'cat "{file_path}"'
+            stdin, stdout, stderr = ssh.exec_command(cat_cmd)
+            content = stdout.read().decode().strip()
+            
+            if not content:
+                raise Exception("Secret file is empty")
+            
+            # Extract key from content (handle "Key: SECRET" or just "SECRET")
+            if ':' in content:
+                key = content.split(':')[-1].strip()
+            else:
+                key = content.strip()
+            
+            secret_key = key.replace(' ', '')
+
+            # Cache secret keyed by user_otp_{alias}
+            set_cached_otp_secret(f"user_otp_{alias}", secret_key)
+            
+            # Generate OTP
+            totp = pyotp.TOTP(secret_key)
+            otp_code = totp.now()
+            
+            return jsonify({
+                'success': True,
+                'otp_code': otp_code,
+                'account_name': account_name,
+                'cached': False
+            })
+            
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)})
+        finally:
+            ssh.close()
+
+    except Exception as e:
+        app.logger.error(f"Error generating User OTP for {account_name} (alias {alias}): {e}")
+        return jsonify({'success': False, 'error': f"Outer routine error: {str(e)}"})
 
 @app.route('/api/save-otp-ssh-config', methods=['POST'])
 @login_required

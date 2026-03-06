@@ -135,11 +135,11 @@
 
     </div>
 
-    <!-- OTP Generator -->
+    <!-- OTP Generator (Accounts) -->
     <div class="github-card draggable-card" data-id="otp-generator">
         <div class="github-card-header" style="cursor: move;">
             <h3 class="github-card-title">
-                <i class="fas fa-key"></i> OTP Generator
+                <i class="fas fa-key"></i> OTP Generator (Accounts)
             </h3>
         </div>
 
@@ -178,6 +178,55 @@
                 <h4>Generated OTP:</h4>
                 <div id="otp-code-display"
                     style="font-family: monospace; font-size: 18px; font-weight: bold; color: var(--text-primary); text-align: center; padding: 12px; background-color: var(--input-bg); border: 1px solid var(--border-panel); border-radius: 6px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OTP Generator (Users) -->
+    <div class="github-card draggable-card" data-id="otp-user-generator">
+        <div class="github-card-header" style="cursor: move;">
+            <h3 class="github-card-title">
+                <i class="fas fa-user-shield"></i> OTP Generator (Users)
+            </h3>
+        </div>
+
+        <div style="padding-top: 16px;">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-12">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <label for="otp-user-input" class="form-label-github mb-0">
+                            <i class="fas fa-user"></i> User Email/Alias
+                        </label>
+                        <label class="d-flex align-items-center gap-2 small text-muted">
+                            <input type="checkbox" id="otp-user-lowercase-toggle">
+                            Force lowercase
+                        </label>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <input type="text" id="otp-user-input" class="form-control-github flex-grow-1"
+                            placeholder="Enter user email or alias" autocapitalize="none" autocorrect="off"
+                            spellcheck="false">
+                        <button onclick="generateUserOTP()" class="glass-button glass-button-primary"
+                            style="background: linear-gradient(135deg, #2ea44f 0%, #22863a 100%);">
+                            <i class="fas fa-play me-2"></i> Generate
+                        </button>
+                        <button onclick="copyUserOTP()" class="glass-button" id="copy-user-otp-btn" disabled>
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="otp-user-status" class="status-box" style="margin-top: 12px; display: none;">
+                <p id="otp-user-status-text">Enter user and click 'Generate OTP'</p>
+            </div>
+
+            <div id="otp-user-result" class="data-display" style="margin-top: 12px; display: none;">
+                <h4>Generated OTP:</h4>
+                <div id="otp-user-code-display"
+                    style="font-family: monospace; font-size: 18px; font-weight: bold; color: #2ea44f; text-align: center; padding: 12px; background-color: var(--input-bg); border: 1px solid var(--border-panel); border-radius: 6px;">
                 </div>
             </div>
         </div>
@@ -8028,6 +8077,7 @@
 
         // OTP Generator Functions
         let currentOTPCode = null;
+        let currentUserOTPCode = null;
 
         function generateOTP() {
             let accountName = document.getElementById('otp-account-input').value.trim();
@@ -8111,8 +8161,91 @@
                     alert('Failed to copy to clipboard: ' + err);
                     logResult(`❌ Failed to copy OTP to clipboard: ${err}`);
                 });
-            } else {
-                alert('No OTP code available to copy');
+            }
+        }
+
+        function generateUserOTP() {
+            let accountName = document.getElementById('otp-user-input').value.trim();
+            const forceLower = document.getElementById('otp-user-lowercase-toggle')?.checked;
+            if (forceLower && accountName) {
+                accountName = accountName.toLowerCase();
+            }
+
+            if (!accountName) {
+                alert('Please enter a user email or alias');
+                return;
+            }
+
+            // Show status
+            const statusDiv = document.getElementById('otp-user-status');
+            const statusText = document.getElementById('otp-user-status-text');
+            const resultDiv = document.getElementById('otp-user-result');
+            const copyBtn = document.getElementById('copy-user-otp-btn');
+
+            statusDiv.style.display = 'block';
+            statusText.textContent = 'Searching SFTP server...';
+            statusText.style.color = '#0969da';
+            resultDiv.style.display = 'none';
+            copyBtn.disabled = true;
+
+            fetch('/api/generate-user-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ account_name: accountName })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        currentUserOTPCode = data.otp_code;
+                        statusText.textContent = `✅ User OTP generated successfully for ${data.account_name}`;
+                        statusText.style.color = '#28a745';
+
+                        // Show the OTP code
+                        resultDiv.style.display = 'block';
+                        document.getElementById('otp-user-code-display').textContent = data.otp_code;
+                        copyBtn.disabled = false;
+
+                        logResult(`🔑 User OTP generated for ${data.account_name}: ${data.otp_code}`);
+                    } else {
+                        statusText.textContent = `❌ Error: ${data.error}`;
+                        statusText.style.color = '#dc3545';
+                        resultDiv.style.display = 'none';
+                        copyBtn.disabled = true;
+                        currentUserOTPCode = null;
+
+                        logResult(`❌ User OTP generation failed: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    statusText.textContent = `❌ Network error: ${error.message}`;
+                    statusText.style.color = '#dc3545';
+                    resultDiv.style.display = 'none';
+                    copyBtn.disabled = true;
+                    currentUserOTPCode = null;
+
+                    logResult(`❌ User OTP generation network error: ${error.message}`);
+                });
+        }
+
+        function copyUserOTP() {
+            if (currentUserOTPCode) {
+                navigator.clipboard.writeText(currentUserOTPCode).then(() => {
+                    const statusText = document.getElementById('otp-user-status-text');
+                    const originalText = statusText.textContent;
+                    statusText.textContent = `📋 OTP '${currentUserOTPCode}' copied to clipboard!`;
+                    statusText.style.color = '#28a745';
+
+                    // Reset status after 3 seconds
+                    setTimeout(() => {
+                        statusText.textContent = originalText;
+                        statusText.style.color = '#0969da';
+                    }, 3000);
+
+                    logResult(`📋 User OTP '${currentUserOTPCode}' copied to clipboard`);
+                }).catch(err => {
+                    alert('Failed to copy to clipboard: ' + err);
+                    logResult(`❌ Failed to copy User OTP to clipboard: ${err}`);
+                });
             }
         }
 
