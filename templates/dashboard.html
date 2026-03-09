@@ -2007,6 +2007,22 @@
                             onmouseout="this.style.background='#0969da'">
                             <i class="fas fa-copy"></i> Copy Text
                         </button>
+                        <button onclick="copyOneUserPerAccountText()" class="btn-github" style="
+                            padding: 8px 16px; 
+                            font-size: 13px; 
+                            font-weight: 500;
+                            background: #6f42c1;
+                            color: white;
+                            border: 1px solid #6f42c1;
+                            border-radius: 6px;
+                            transition: all 0.2s ease;
+                            display: flex;
+                            align-items: center;
+                            gap: 6px;
+                            " onmouseover="this.style.background='#5a32a3'"
+                            onmouseout="this.style.background='#6f42c1'">
+                            <i class="fas fa-user-check"></i> Copy 1 Per Account
+                        </button>
                         <button onclick="exportAutomationUsers()" class="btn-github" style="
                             padding: 8px 16px; 
                             font-size: 13px; 
@@ -11593,6 +11609,88 @@
                 navigator.clipboard.writeText(content).then(() => {
                     console.log('✅ Text copied to clipboard successfully');
                     alert(`✅ Copied ${filtered.length} user(s) with app passwords to clipboard`);
+                }).catch(err => {
+                    console.error('Clipboard API failed:', err);
+                    // Fallback to legacy method using a temporary textarea
+                    const temp = document.createElement('textarea');
+                    temp.value = content;
+                    document.body.appendChild(temp);
+                    copyTextFallback(temp);
+                    document.body.removeChild(temp);
+                });
+            } else {
+                // Fallback for older browsers or non-secure contexts
+                const temp = document.createElement('textarea');
+                temp.value = content;
+                document.body.appendChild(temp);
+                copyTextFallback(temp);
+                document.body.removeChild(temp);
+            }
+        }
+
+        // Copy exactly one user per domain
+        function copyOneUserPerAccountText() {
+            const textArea = document.getElementById('automation-users-text');
+            if (!textArea) {
+                console.error('Text area not found');
+                alert('❌ Text area not found');
+                return;
+            }
+
+            const raw = textArea.value.trim();
+            if (!raw) {
+                alert('❌ No text content to copy');
+                return;
+            }
+
+            // Filter out lines with missing app passwords
+            const lines = raw.split('\n');
+            const filtered = [];
+            const seenDomains = new Set();
+
+            lines.forEach(line => {
+                if (!line.trim()) return;
+                const parts = line.split(',').map(p => p.trim());
+                if (parts.length < 2) return; // malformed
+                const appPwd = (parts[1] || '').toLowerCase();
+                if (!appPwd || appPwd === 'no app password' || appPwd === 'no-app-password') return;
+
+                // Normalize to exactly 4 columns: email, app_password, smtp.gmail.com, 587
+                const email = parts[0];
+                let appPassword = parts[1];
+
+                // Remove SMTP part if it's already included in the app password
+                if (appPassword.endsWith(',smtp.gmail.com,587')) {
+                    appPassword = appPassword.slice(0, -',smtp.gmail.com,587'.length);
+                } else if (appPassword.endsWith(',smtp.gmail.com,587,smtp.gmail.com,587')) {
+                    appPassword = appPassword.slice(0, -',smtp.gmail.com,587,smtp.gmail.com,587'.length);
+                }
+
+                const smtp = parts[2] && parts[2].length ? parts[2] : 'smtp.gmail.com';
+                const port = parts[3] && parts[3].length ? parts[3] : '587';
+
+                // Extract domain from email
+                const domain = email.includes('@') ? email.split('@')[1].toLowerCase() : null;
+
+                if (domain && !seenDomains.has(domain)) {
+                    seenDomains.add(domain);
+                    filtered.push([email, appPassword, smtp, port].join(','));
+                }
+            });
+
+            if (filtered.length === 0) {
+                alert('❌ No users with app passwords to copy');
+                return;
+            }
+
+            const content = filtered.join('\n');
+            console.log('Copying 1 user per account (lines):', filtered.length);
+
+            // Try modern clipboard API first
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(content).then(() => {
+                    console.log('✅ Text copied to clipboard successfully');
+                    alert(`✅ Copied ${filtered.length} user(s) (1 per account) to clipboard`);
                 }).catch(err => {
                     console.error('Clipboard API failed:', err);
                     // Fallback to legacy method using a temporary textarea
