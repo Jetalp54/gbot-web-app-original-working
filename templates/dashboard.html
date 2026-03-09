@@ -4340,16 +4340,28 @@
         }
 
         function copyAllUsers() {
-            const userElements = document.querySelectorAll('.user-item');
-            if (userElements.length === 0) {
+            let emails = [];
+
+            // Try new table layout first
+            const tableRows = document.querySelectorAll('.user-list-table tbody tr');
+            if (tableRows.length > 0) {
+                emails = Array.from(tableRows).map(tr => {
+                    const emailDiv = tr.querySelector('.text-muted.small');
+                    return emailDiv ? emailDiv.textContent.trim() : '';
+                }).filter(email => email);
+            } else {
+                // Fallback for legacy layout if it's still used
+                const userElements = document.querySelectorAll('.user-item');
+                emails = Array.from(userElements).map(element => {
+                    const emailElement = element.querySelector('.email');
+                    return emailElement ? emailElement.textContent.trim() : '';
+                }).filter(email => email);
+            }
+
+            if (emails.length === 0) {
                 alert('No users to copy');
                 return;
             }
-
-            const emails = Array.from(userElements).map(element => {
-                const emailElement = element.querySelector('.email');
-                return emailElement ? emailElement.textContent.trim() : '';
-            }).filter(email => email);
 
             const emailText = emails.join('\n');
 
