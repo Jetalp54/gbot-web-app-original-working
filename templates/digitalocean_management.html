@@ -564,7 +564,7 @@
                                 View app passwords generated from bulk automation executions.
                             </p>
 
-                            <div class="d-flex gap-2 mb-3">
+                            <div class="d-flex gap-2 mb-3 flex-wrap">
                                 <button type="button" class="btn btn-success" onclick="fetchAppPasswords()">
                                     <i class="fa fa-refresh"></i> Fetch App-Passwords
                                 </button>
@@ -573,6 +573,9 @@
                                 </button>
                                 <button type="button" class="btn btn-primary" onclick="copySMTPS()">
                                     <i class="fa fa-copy"></i> Copy-SMTPS
+                                </button>
+                                <button type="button" class="btn btn-danger" onclick="copyFailedUsers()">
+                                    <i class="fa fa-exclamation-triangle"></i> Copy Failed Users
                                 </button>
                             </div>
 
@@ -735,6 +738,63 @@
     function downloadPasswords() {
         const executionId = currentExecutionId || 'all';
         window.location.href = `/api/do/generated-passwords/download/${executionId}`;
+    }
+
+    // === Copy Failed Users (users in input that have NO generated app password) ===
+    function copyFailedUsers() {
+        // 1. Read all emails from the bulk users input box
+        const usersText = $('#bulkUsers').val() ? $('#bulkUsers').val().trim() : '';
+        if (!usersText) {
+            showMessage('passwordsMessages', '⚠️ No users found in the Bulk Automation Execution input box. Please enter users first.', 'warning');
+            return;
+        }
+
+        const allEmails = usersText.split('\n')
+            .map(line => line.split(':')[0].trim().toLowerCase())
+            .filter(email => email.length > 0);
+
+        if (allEmails.length === 0) {
+            showMessage('passwordsMessages', '⚠️ No valid emails found in the input box.', 'warning');
+            return;
+        }
+
+        // 2. Build set of emails that succeeded (have an app password)
+        if (!fetchedPasswordsCache || fetchedPasswordsCache.length === 0) {
+            showMessage('passwordsMessages', '⚠️ No fetched passwords found. Please press "Fetch App-Passwords" first, then try again.', 'warning');
+            return;
+        }
+
+        const succeededEmails = new Set(
+            fetchedPasswordsCache
+                .filter(p => p.email && p.app_password)
+                .map(p => p.email.toLowerCase())
+        );
+
+        // 3. Find the difference — emails that do NOT have a password
+        const failedEmails = allEmails.filter(email => !succeededEmails.has(email));
+
+        if (failedEmails.length === 0) {
+            showMessage('passwordsMessages', '✅ All users have app passwords! No failed users found.', 'success');
+            return;
+        }
+
+        // 4. Copy to clipboard
+        const textToCopy = failedEmails.join('\n');
+        const textArea = document.createElement('textarea');
+        textArea.value = textToCopy;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showMessage('passwordsMessages',
+                `📋 Copied ${failedEmails.length} failed user(s) to clipboard (out of ${allEmails.length} total). These users had no generated app password.`,
+                'warning'
+            );
+        } catch (err) {
+            console.error('Copy failed:', err);
+            showMessage('passwordsMessages', '❌ Failed to copy to clipboard.', 'danger');
+        }
+        document.body.removeChild(textArea);
     }
 
     // === Copy SMTPS ===
