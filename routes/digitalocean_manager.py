@@ -1361,36 +1361,36 @@ def download_generated_passwords(execution_id):
         if os.path.exists(backup_dir):
             for filename in os.listdir(backup_dir):
                 if filename.endswith('.json'):
-                    if is_all or filename.startswith(f"{execution_id}_"):
+                    # The filename format is {email_slug}___{execution_id}.json
+                    if is_all or f"___{execution_id}.json" in filename or filename.startswith(f"{execution_id}_"):
                         try:
                             filepath = os.path.join(backup_dir, filename)
                             with open(filepath, 'r') as f:
                                 data = json.load(f)
                             
-                            passwords.append({
-                                'email': data.get('email'),
-                                'app_password': data.get('app_password')
-                            })
+                            if data.get('email') and data.get('app_password'):
+                                passwords.append({
+                                    'email': data.get('email'),
+                                    'app_password': data.get('app_password')
+                                })
                         except Exception:
                             continue
 
-        # 2. Database Fallback (if specific ID and no files, or 'all')
-        if not passwords or is_all:
-             try:
-                if is_all:
-                    db_passwords = AwsGeneratedPassword.query.all()
-                    existing = set(p['email'] for p in passwords)
-                    for dp in db_passwords:
-                        if dp.email not in existing:
-                            passwords.append({'email': dp.email, 'app_password': dp.app_password})
-                            existing.add(dp.email)
-                elif not passwords: 
-                     # Should filter by execution ID if possible, but we don't have it in DB model easily queryable
-                     # So we might just check if we can match users from the execution?
-                     # For now, just rely on files for specific execution, or DB for 'all'
-                     pass
-             except Exception:
-                 pass
+        # 2. Database Fallback
+        try:
+            from database import AwsGeneratedPassword
+            if is_all:
+                db_passwords = AwsGeneratedPassword.query.all()
+            else:
+                db_passwords = AwsGeneratedPassword.query.filter_by(execution_id=execution_id).all()
+                
+            existing = set(p['email'] for p in passwords)
+            for dp in db_passwords:
+                if (dp.email not in existing) and dp.app_password:
+                    passwords.append({'email': dp.email, 'app_password': dp.app_password})
+                    existing.add(dp.email)
+        except Exception as db_e:
+            logger.error(f"DB fallback fetch failed for password download: {db_e}")
         
         passwords.sort(key=lambda x: x['email'])
         
