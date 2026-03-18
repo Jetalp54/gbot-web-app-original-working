@@ -364,6 +364,12 @@
         border-color: rgba(239, 68, 68, 0.3);
     }
 
+    .card-action-btn.email-btn:hover {
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+
     .card-action-btn.expire-btn:hover {
         background: rgba(156, 163, 175, 0.15);
         color: #9ca3af;
@@ -564,8 +570,11 @@
                         <i class="fas fa-ban"></i>
                     </button>
                     ` : ''}
-                    <button class="card-action-btn copy-btn" onclick="quickCopy(${list.id})" title="Copy Accounts">
+                    <button class="card-action-btn copy-btn" onclick="quickCopy(${list.id})" title="Copy Accounts (with passwords)">
                         <i class="fas fa-copy"></i>
+                    </button>
+                    <button class="card-action-btn email-btn" onclick="quickCopyEmailsOnly(${list.id})" title="Copy Emails Only (no passwords)">
+                        <i class="fas fa-envelope"></i>
                     </button>
                     <button class="card-action-btn delete-btn" onclick="quickDelete(${list.id})" title="Delete List">
                         <i class="fas fa-trash"></i>
@@ -803,7 +812,7 @@
         });
     }
 
-    // Quick copy from card
+    // Quick copy from card (with passwords)
     function quickCopy(listId) {
         const list = lists.find(l => l.id === listId);
         if (list) {
@@ -813,6 +822,45 @@
                 showToast('Failed to copy', 'error');
             });
         }
+    }
+
+    // Quick copy emails only from card (strip passwords after , or :)
+    function quickCopyEmailsOnly(listId) {
+        const list = lists.find(l => l.id === listId);
+        if (!list) return;
+
+        const emailsOnly = list.raw_accounts
+            .split('\n')
+            .map(line => {
+                const trimmed = line.trim();
+                if (!trimmed) return '';
+                // Strip anything after the first comma or colon
+                const commaIdx = trimmed.indexOf(',');
+                const colonIdx = trimmed.indexOf(':');
+                let cutIdx = -1;
+                if (commaIdx !== -1 && colonIdx !== -1) {
+                    cutIdx = Math.min(commaIdx, colonIdx);
+                } else if (commaIdx !== -1) {
+                    cutIdx = commaIdx;
+                } else if (colonIdx !== -1) {
+                    cutIdx = colonIdx;
+                }
+                return cutIdx !== -1 ? trimmed.substring(0, cutIdx).trim() : trimmed;
+            })
+            .filter(email => email.length > 0)
+            .join('\n');
+
+        if (!emailsOnly) {
+            showToast('No emails found in this list', 'error');
+            return;
+        }
+
+        navigator.clipboard.writeText(emailsOnly).then(() => {
+            const count = emailsOnly.split('\n').length;
+            showToast(`${count} email(s) copied (no passwords)`, 'success');
+        }).catch(() => {
+            showToast('Failed to copy', 'error');
+        });
     }
 
     // Quick delete from card
