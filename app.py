@@ -2637,6 +2637,22 @@ def api_bulk_create_account_users():
                             service = auth_data['service']
                             account_result['authenticated'] = True
                             
+                            # Extract credentials ONCE for proxy support
+                            account_creds = None
+                            if proxy_list:
+                                try:
+                                    if hasattr(service, '_http') and hasattr(service._http, 'credentials'):
+                                        account_creds = service._http.credentials
+                                    elif hasattr(service, 'credentials'):
+                                        account_creds = service.credentials
+                                    
+                                    if account_creds:
+                                        app.logger.info(f"[PROXY] ✅ Extracted credentials for {account_name} — proxy will be used")
+                                    else:
+                                        app.logger.warning(f"[PROXY] ⚠️ Could not extract credentials for {account_name}, will use direct connection (no proxy)")
+                                except Exception as cred_err:
+                                    app.logger.error(f"[PROXY] Error extracting credentials for {account_name}: {cred_err}")
+                            
                             # Determine domain
                             domain = domain_input
                             if not domain:
@@ -2677,24 +2693,19 @@ def api_bulk_create_account_users():
                             if lightning_mode:
                                 # LIGHTNING MODE: Parallel Creation
                                 app.logger.info(f"[BULK ACCOUNTS] ⚡ LIGHTNING MODE ENABLED for {account_name}")
-                                
-                                # Extract credentials to create thread-local services
-                                try:
-                                    # Attempt to get credentials from the existing service object
-                                    # This works for most google-api-python-client service objects
-                                    if hasattr(service, '_http') and hasattr(service._http, 'credentials'):
-                                        creds = service._http.credentials
-                                    elif hasattr(service, 'credentials'):
-                                        creds = service.credentials
-                                    else:
-                                        # Fallback if we can't find creds easily: use the shared service (risky but better than failing)
-                                        # Or re-authenticate?
-                                        # For now, let's assume standard client structure 
-                                        creds = None
-                                        app.logger.warning(f"[LIGHTNING MODE] Could not extract credentials for {account_name}, falling back to shared service (may have race conditions)")
-                                except Exception as e:
-                                    creds = None
-                                    app.logger.error(f"[LIGHTNING MODE] Error extracting credentials: {e}")
+                                # Use credentials already extracted above (account_creds)
+                                creds = account_creds  # May be None if extraction failed
+                                if not creds:
+                                    # Try one more time
+                                    try:
+                                        if hasattr(service, '_http') and hasattr(service._http, 'credentials'):
+                                            creds = service._http.credentials
+                                        elif hasattr(service, 'credentials'):
+                                            creds = service.credentials
+                                    except Exception:
+                                        pass
+                                    if not creds:
+                                        app.logger.warning(f"[LIGHTNING MODE] No credentials extracted for {account_name}, falling back to shared service")
 
                                 def create_single_user_thread(user_data, credentials=None, shared_service=None):
                                     try:
@@ -2750,22 +2761,21 @@ def api_bulk_create_account_users():
                                             "suspended": False # ACTIVE as requested
                                         }
                                         
-                                        # Use proxied service if proxy_list is available
-                                        if proxy_list:
+                                        # Use proxied service if proxy_list is available and we have credentials
+                                        if proxy_list and account_creds:
                                             proxy_info = get_next_proxy()
-                                            if proxy_info and hasattr(service, '_http'):
+                                            if proxy_info:
                                                 try:
-                                                    creds_std = service._http.credentials if hasattr(service._http, 'credentials') else (service.credentials if hasattr(service, 'credentials') else None)
-                                                    if creds_std:
-                                                        proxied_svc = build_proxied_service(creds_std, proxy_info)
-                                                        proxied_svc.users().insert(body=user_body).execute()
-                                                        app.logger.info(f"[PROXY] Created {user_data['email']} via proxy {proxy_info['ip']}:{proxy_info['port']}")
-                                                        user_data['success'] = True
-                                                        account_result['users'].append(user_data)
-                                                        continue
+                                                    proxied_svc = build_proxied_service(account_creds, proxy_info)
+                                                    proxied_svc.users().insert(body=user_body).execute()
+                                                    app.logger.info(f"[PROXY] ✅ Created {user_data['email']} via proxy {proxy_info['ip']}:{proxy_info['port']}")
+                                                    user_data['success'] = True
+                                                    account_result['users'].append(user_data)
+                                                    continue
                                                 except Exception as proxy_e:
-                                                    app.logger.warning(f"[PROXY] Proxied creation failed for {user_data['email']}, falling back: {proxy_e}")
+                                                    app.logger.warning(f"[PROXY] ⚠️ Proxied creation failed for {user_data['email']}, falling back to direct: {proxy_e}")
                                         
+                                        # Direct (non-proxied) creation
                                         service.users().insert(body=user_body).execute()
                                         
                                         user_data['success'] = True
