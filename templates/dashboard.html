@@ -804,6 +804,13 @@
                             <strong>Lightning Mode</strong> (Fast Parallel Creation)
                         </label>
                     </div>
+                    <div class="form-group-github d-flex align-items-center mb-3" style="margin-left: 16px;">
+                        <input type="checkbox" id="use_proxy_checkbox" style="margin-right: 8px;">
+                        <label for="use_proxy_checkbox" class="mb-0" style="cursor: pointer;">
+                            <i class="fas fa-shield-alt" style="color: #6366f1;"></i>
+                            <strong>Use Proxy</strong> (Route API calls through proxies)
+                        </label>
+                    </div>
 
                     <button onclick="executeBulkAccountCreation()" class="btn-github btn-github-primary">
                         <i class="fas fa-play"></i>
@@ -6912,6 +6919,7 @@
 
             // Get Lightning Mode status
             const lightningMode = document.getElementById('lightning_mode_checkbox')?.checked || false;
+            const useProxy = document.getElementById('use_proxy_checkbox')?.checked || false;
 
             // Call API to start task
             fetch('/api/bulk-create-account-users', {
@@ -6919,7 +6927,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     accounts_data: accountsData,
-                    lightning_mode: lightningMode
+                    lightning_mode: lightningMode,
+                    use_proxy: useProxy
                 })
             })
                 .then(response => response.json())

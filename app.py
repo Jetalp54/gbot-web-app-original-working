@@ -2448,13 +2448,39 @@ def api_bulk_create_account_users():
         account_info['users_per_account'] = int(users_per_account)
 
     lightning_mode = data.get('lightning_mode', False)
+    use_proxy = data.get('use_proxy', False)
+
+    # Fetch proxy list if proxy is enabled
+    proxy_list = []
+    if use_proxy:
+        try:
+            from database import ProxyConfig
+            proxy_config = ProxyConfig.query.first()
+            if proxy_config and proxy_config.enabled and proxy_config.proxies:
+                for line in proxy_config.proxies.strip().split('\n'):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    parts = line.split(':')
+                    if len(parts) == 4:
+                        proxy_list.append({
+                            'ip': parts[0],
+                            'port': parts[1],
+                            'username': parts[2],
+                            'password': parts[3]
+                        })
+                app.logger.info(f"[BULK CREATE] Proxy enabled with {len(proxy_list)} proxy/proxies")
+            else:
+                app.logger.warning("[BULK CREATE] Proxy requested but not configured/enabled in database")
+        except Exception as proxy_err:
+            app.logger.error(f"[BULK CREATE] Error loading proxies: {proxy_err}")
 
     import uuid
     import threading
     task_id = str(uuid.uuid4())
     update_progress(task_id, 0, len(accounts_data), "starting", "Initializing bulk creation...")
     
-    def background_task(task_id, accounts_data, lightning_mode=False):
+    def background_task(task_id, accounts_data, lightning_mode=False, proxy_list=None):
         with app.app_context():
             from concurrent.futures import ThreadPoolExecutor, as_completed
             import random
@@ -2462,6 +2488,51 @@ def api_bulk_create_account_users():
             from faker import Faker
             
             try:
+                import httplib2
+                import threading as _threading
+
+                # Thread-safe proxy rotation counter for this task
+                _proxy_counter = [0]
+                _proxy_lock = _threading.Lock()
+
+                def get_next_proxy():
+                    """Get next proxy from list using round-robin (thread-safe)"""
+                    if not proxy_list:
+                        return None
+                    with _proxy_lock:
+                        proxy = proxy_list[_proxy_counter[0] % len(proxy_list)]
+                        _proxy_counter[0] += 1
+                        return proxy
+
+                def build_proxied_http(proxy_info):
+                    """Build an httplib2.Http with proxy support"""
+                    if not proxy_info:
+                        return None
+                    try:
+                        proxy = httplib2.ProxyInfo(
+                            proxy_type=httplib2.socks.PROXY_TYPE_HTTP,
+                            proxy_host=proxy_info['ip'],
+                            proxy_port=int(proxy_info['port']),
+                            proxy_user=proxy_info.get('username'),
+                            proxy_pass=proxy_info.get('password')
+                        )
+                        return httplib2.Http(proxy_info=proxy)
+                    except Exception as pe:
+                        app.logger.error(f"[PROXY] Failed to build proxied http: {pe}")
+                        return None
+
+                def build_proxied_service(credentials, proxy_info=None):
+                    """Build a Google Admin service (optionally proxied)"""
+                    from googleapiclient.discovery import build as gapi_build
+                    if proxy_info:
+                        proxied_http = build_proxied_http(proxy_info)
+                        if proxied_http:
+                            import google_auth_httplib2
+                            authed_http = google_auth_httplib2.AuthorizedHttp(credentials, http=proxied_http)
+                            return gapi_build('admin', 'directory_v1', http=authed_http, cache_discovery=False)
+                    # Fallback: no proxy
+                    return gapi_build('admin', 'directory_v1', credentials=credentials, cache_discovery=False)
+
                 # Step 0: Immediate Domain Save (Async now)
                 domains_to_save_immediately = set()
                 for account_info in accounts_data:
@@ -2629,11 +2700,14 @@ def api_bulk_create_account_users():
                                     try:
                                         # Create thread-local service if credentials available
                                         if credentials:
-                                            from googleapiclient.discovery import build
-                                            local_service = build('admin', 'directory_v1', credentials=credentials, cache_discovery=False)
-                                            # Close the underlying http object when done? 
-                                            # Python's GC handles it, but creating many services is heavy. 
-                                            # However, it's safer for threading.
+                                            if proxy_list:
+                                                proxy_info = get_next_proxy()
+                                                local_service = build_proxied_service(credentials, proxy_info)
+                                                if proxy_info:
+                                                    app.logger.info(f"[LIGHTNING+PROXY] Using proxy {proxy_info['ip']}:{proxy_info['port']} for {user_data['email']}")
+                                            else:
+                                                from googleapiclient.discovery import build
+                                                local_service = build('admin', 'directory_v1', credentials=credentials, cache_discovery=False)
                                         else:
                                             local_service = shared_service
 
@@ -2675,6 +2749,22 @@ def api_bulk_create_account_users():
                                             "changePasswordAtNextLogin": False,
                                             "suspended": False # ACTIVE as requested
                                         }
+                                        
+                                        # Use proxied service if proxy_list is available
+                                        if proxy_list:
+                                            proxy_info = get_next_proxy()
+                                            if proxy_info and hasattr(service, '_http'):
+                                                try:
+                                                    creds_std = service._http.credentials if hasattr(service._http, 'credentials') else (service.credentials if hasattr(service, 'credentials') else None)
+                                                    if creds_std:
+                                                        proxied_svc = build_proxied_service(creds_std, proxy_info)
+                                                        proxied_svc.users().insert(body=user_body).execute()
+                                                        app.logger.info(f"[PROXY] Created {user_data['email']} via proxy {proxy_info['ip']}:{proxy_info['port']}")
+                                                        user_data['success'] = True
+                                                        account_result['users'].append(user_data)
+                                                        continue
+                                                except Exception as proxy_e:
+                                                    app.logger.warning(f"[PROXY] Proxied creation failed for {user_data['email']}, falling back: {proxy_e}")
                                         
                                         service.users().insert(body=user_body).execute()
                                         
@@ -2751,7 +2841,7 @@ def api_bulk_create_account_users():
                 app.logger.error(traceback.format_exc())
                 update_progress(task_id, 0, 0, "error", f"Task failed: {str(e)}")
 
-    threading.Thread(target=background_task, args=(task_id, accounts_data, lightning_mode)).start()
+    threading.Thread(target=background_task, args=(task_id, accounts_data, lightning_mode, proxy_list)).start()
     return jsonify({'success': True, 'task_id': task_id})
 
 @app.route('/api/bulk-retrieve-account-users', methods=['POST'])
