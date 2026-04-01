@@ -189,7 +189,7 @@ class SimpleDomainService:
             }
             
             # Try to verify with retries for DNS propagation
-            max_attempts = 5
+            max_attempts = 8  # Increased to give DNS more time to propagate
             for attempt in range(max_attempts):
                 try:
                     # CRITICAL FIX: Only pass 'site' in body, method is a parameter
@@ -213,18 +213,15 @@ class SimpleDomainService:
                     
                     # Handle specific error cases
                     if status == 400:
-                        if 'token' in error_str.lower() or 'could not be found' in error_str.lower():
-                            # DNS not propagated yet
-                            if attempt < max_attempts - 1:
-                                wait_time = 10 * (attempt + 1)
-                                logger.info(f"[VERIFY] DNS not ready, waiting {wait_time}s (attempt {attempt+1}/{max_attempts})")
-                                time.sleep(wait_time)
-                                continue
-                            else:
-                                return False, "DNS TXT record not found after multiple retries. Please wait for DNS propagation (can take up to 48 hours)."
+                        # Always retry on 400 because it usually means DNS is not propagated yet
+                        # Google's error messages vary and might not always contain "token"
+                        if attempt < max_attempts - 1:
+                            wait_time = 15 * (attempt + 1)
+                            logger.info(f"[VERIFY] Verification failed (400). DNS probably not ready. Waiting {wait_time}s (attempt {attempt+1}/{max_attempts}). error: {error_str[:150]}")
+                            time.sleep(wait_time)
+                            continue
                         else:
-                            logger.error(f"[VERIFY] 400 error for {domain}: {error_str}")
-                            return False, f"Bad request: {error_str}"
+                            return False, f"Verification failed after {max_attempts} retries (DNS likely not propagated yet). Error from Google: {error_str}"
                     
                     elif status == 409:
                         # Already verified - this is success!
