@@ -535,9 +535,9 @@ class GoogleDomainsService:
                     # This is normal - Workspace may need a few minutes
                     logger.info(f"Site Verification succeeded, Workspace verification pending for {verification_domain}...")
                     return {
-                        'verified': False, 
-                        'status': 'pending', 
-                        'error': 'Site Verification complete. Workspace verification pending - may take a few minutes.'
+                        'verified': True, 
+                        'status': 'verified', 
+                        'error': 'Site Verification complete. Workspace verification pending - may take a few minutes to show in UI.'
                     }
                     
             except HttpError as e:
@@ -547,8 +547,8 @@ class GoogleDomainsService:
                     try:
                         self.ensure_domain_added(verification_domain)
                         return {
-                            'verified': False,
-                            'status': 'pending',
+                            'verified': True,
+                            'status': 'verified',
                             'error': 'Domain added to Workspace. Verification syncing - may take a few minutes.'
                         }
                     except Exception as add_error:

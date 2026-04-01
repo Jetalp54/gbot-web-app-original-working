@@ -12663,7 +12663,7 @@
             fetch('/api/domains/verify-unverified', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ account_name: currentAccountName })
+                body: JSON.stringify({ account_name: sessionStorage.getItem('current_account_name') })
             })
                 .then(response => response.json())
                 .then(data => {
