@@ -485,7 +485,9 @@ def verify_unverified_domains():
                                 break
                             
                             # Create operation record
+                            operation_id = str(uuid.uuid4())
                             operation = DomainVerificationOperation(
+                                id=operation_id,
                                 job_id=job_id,
                                 domain=domain,
                                 apex_domain=domain,  # These are apex domains from Admin SDK
