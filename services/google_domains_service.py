@@ -521,48 +521,63 @@ class GoogleDomainsService:
             logger.info(f"Checking verification status in Workspace Admin SDK for {verification_domain}")
             admin_service = self._get_admin_service()
             
-            # Try to get domain status
-            try:
-                domain_info = admin_service.domains().get(customer='my_customer', domainName=verification_domain).execute()
-                current_verified = domain_info.get('verified', False)
-                logger.info(f"Workspace verification status for {verification_domain}: {current_verified}")
-                
-                if current_verified:
-                    logger.info(f"Domain {verification_domain} is verified in Google Workspace!")
-                    return {'verified': True, 'status': 'verified'}
-                else:
-                    # Site Verification succeeded but Workspace hasn't synced yet
-                    # This is normal - Workspace may need a few minutes
-                    logger.info(f"Site Verification succeeded, Workspace verification pending for {verification_domain}...")
-                    return {
-                        'verified': True, 
-                        'status': 'verified', 
-                        'error': 'Site Verification complete. Workspace verification pending - may take a few minutes to show in UI.'
-                    }
+            # Loop to check domain status because Workspace Admin SDK can take a few minutes to sync
+            max_sync_checks = 12 # 12 attempts * 10 seconds = up to 2 minutes of waiting for Google's internal sync
+            current_verified = False
+            domain_not_found = False
+            
+            for check in range(max_sync_checks):
+                try:
+                    domain_info = admin_service.domains().get(customer='my_customer', domainName=verification_domain).execute()
+                    current_verified = domain_info.get('verified', False)
+                    logger.info(f"Workspace verification status for {verification_domain} (check {check+1}): {current_verified}")
                     
-            except HttpError as e:
-                if e.resp.status == 404:
-                    # Domain not in Workspace - add it
-                    logger.info(f"Domain {verification_domain} not in Workspace, adding...")
-                    try:
-                        self.ensure_domain_added(verification_domain)
-                        return {
-                            'verified': True,
-                            'status': 'verified',
-                            'error': 'Domain added to Workspace. Verification syncing - may take a few minutes.'
-                        }
-                    except Exception as add_error:
-                        logger.warning(f"Could not add domain: {add_error}")
-                        # Site Verification succeeded, that's the important part
-                        return {
-                            'verified': True,
-                            'status': 'verified',
-                            'note': 'Site Verification complete. Domain may need to be added to Workspace manually.'
-                        }
-                else:
-                    logger.warning(f"Admin SDK error: {e}")
-                    # Site Verification succeeded, return success
-                    return {'verified': True, 'status': 'verified'}
+                    if current_verified:
+                        logger.info(f"✅ Domain {verification_domain} is fully verified in Google Workspace!")
+                        return {'verified': True, 'status': 'verified'}
+                    elif check < max_sync_checks - 1:
+                        logger.info(f"⏳ Site Verification succeeded, but Workspace still says 'unverified'. Waiting 10s for Google to internally sync...")
+                        time.sleep(10)
+                        
+                except HttpError as e:
+                    if e.resp.status == 404:
+                        logger.info(f"Domain {verification_domain} not found in Workspace (404) during check {check+1}")
+                        domain_not_found = True
+                        break # Domain not in workspace, exit loop to handle below
+                    elif check < max_sync_checks - 1:
+                        logger.warning(f"Error checking status: {e}, will retry...")
+                        time.sleep(5)
+                    else:
+                        raise e
+            
+            if domain_not_found:
+                # Domain not in Workspace - add it
+                logger.info(f"Domain {verification_domain} not in Workspace, adding...")
+                try:
+                    self.ensure_domain_added(verification_domain)
+                    # We added it, but it might still need time to sync internally
+                    # Return verified: False so the UI knows it's not ready yet
+                    return {
+                        'verified': False,
+                        'status': 'syncing',
+                        'error': 'Domain just added to Workspace. Verification syncing - may take a few minutes to complete before you can use it.'
+                    }
+                except Exception as add_error:
+                    logger.warning(f"Could not add domain: {add_error}")
+                    return {
+                        'verified': False,
+                        'status': 'failed',
+                        'error': f'Site Verification complete, but could not add domain to Workspace automatically: {add_error}'
+                    }
+            
+            # If we exhausted the loop and it's still not verified
+            if not current_verified:
+                logger.warning(f"Workspace Admin SDK did not sync verification for {verification_domain} within limit.")
+                return {
+                    'verified': False, 
+                    'status': 'syncing', 
+                    'error': 'Site Verification succeeded, but Google Workspace Admin is taking a long time to sync. Please wait up to 15-30 minutes.'
+                }
                     
         except Exception as e:
             logger.error(f"Workspace/Site verification error for {verification_domain}: {e}", exc_info=True)
