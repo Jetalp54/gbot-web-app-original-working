@@ -4372,11 +4372,6 @@ def api_retrieve_domains():
                 
                 # STRICT FILTERING: Only show VERIFIED domains
                 # AND prioritize domains matching the account's domain suffix to avoid clutter
-                # Logic: If account is 'user@example.com', we prefer domains ending in 'example.com'
-                # But we must be careful not to hide valid domains if the user manages multiple.
-                # However, the user explicitly asked for "real existing domains" (11 vs 200).
-                # We will filter by VERIFIED status strictly.
-                
                 user_domain_suffix = account_name.split('@')[-1] if '@' in account_name else ''
                 
                 domains = []
@@ -4384,19 +4379,14 @@ def api_retrieve_domains():
                     is_verified = d.get('verified', False)
                     d_name = d.get('domainName', '')
                     
-                    # Strict Verified Check
-                    if not is_verified:
-                        continue
-                        
-                    # Optional: Heuristic to prioritize relevant domains
-                    # If the list is huge (>50), we might want to filter by suffix
-                    # But for now, let's just trust 'verified' is enough, BUT ensure d['verified'] is actually boolean True.
-                    # Some APIs return strings 'true'/'false'.
-                    if str(is_verified).lower() == 'true' or is_verified is True:
-                         domains.append(d)
+                    # Include ALL domains (both verified and unverified)
+                    if d_name:
+                        domains.append(d)
                 
-                if len(domains) < len(raw_domains):
-                    app.logger.info(f"Filtered {len(raw_domains) - len(domains)} unverified domains. Keeping {len(domains)} verified domains.")
+                verified_count = sum(1 for d in domains if str(d.get('verified', False)).lower() == 'true' or d.get('verified') is True)
+                unverified_count = len(domains) - verified_count
+                if unverified_count > 0:
+                    app.logger.info(f"Showing {len(domains)} total domains: {verified_count} verified, {unverified_count} unverified.")
                 
                 # For batched mode, we'll get user counts separately to avoid timeout
                 # OPTIMIZATION: Only query for domains we actually retrieved
@@ -4407,17 +4397,23 @@ def api_retrieve_domains():
                 for domain in domains:
                     domain_name = domain.get('domainName', '')
                     is_verified = domain.get('verified', False)
+                    # Normalize verified to boolean
+                    is_verified_bool = str(is_verified).lower() == 'true' or is_verified is True
                     
-                    # Purely live status (user count unknown yet, assume available or check later)
-                    # Since this is batched, we default to available/green until updated
-                    status = 'available'
-                    status_text = 'AVAILABLE'
-                    status_color = '#4CAF50'  # Green
+                    # Color-code based on verification status
+                    if is_verified_bool:
+                        status = 'available'
+                        status_text = 'AVAILABLE'
+                        status_color = '#4CAF50'  # Green
+                    else:
+                        status = 'unverified'
+                        status_text = 'UNVERIFIED'
+                        status_color = '#FF9800'  # Orange
                     
                     formatted_domain = {
                         'domainName': domain_name,
                         'domain_name': domain_name,
-                        'verified': is_verified,
+                        'verified': is_verified_bool,
                         'user_count': 0, # Will be calculated separately
                         'status': status,
                         'status_text': status_text,
@@ -4443,16 +4439,16 @@ def api_retrieve_domains():
             
             raw_domains = result['domains']
             
-            # STRICT FILTERING: Only show VERIFIED domains
+            # Include ALL domains (both verified and unverified)
             domains = []
             for d in raw_domains:
-                is_verified = d.get('verified', False)
-                if not is_verified:
-                    continue
-                if str(is_verified).lower() == 'true' or is_verified is True:
-                     domains.append(d)
+                d_name = d.get('domainName', '')
+                if d_name:
+                    domains.append(d)
             
-            app.logger.info(f"API Retrieve (Full): Found {len(raw_domains)} raw domains, filtered to {len(domains)} verified domains.")
+            verified_count = sum(1 for d in domains if str(d.get('verified', False)).lower() == 'true' or d.get('verified') is True)
+            unverified_count = len(domains) - verified_count
+            app.logger.info(f"API Retrieve (Full): Found {len(raw_domains)} raw domains, showing {len(domains)} total ({verified_count} verified, {unverified_count} unverified).")
             
             # Get all users to calculate domain usage (handle pagination for large user bases)
             all_users = []
@@ -4544,9 +4540,18 @@ def api_retrieve_domains():
                     status_text = 'USED'
                     status_color = 'orange'
                 else:
-                    status = 'available'  # Green - never been used
-                    status_text = 'AVAILABLE'
-                    status_color = 'green'
+                    # Check if verified
+                    is_verified = domain.get('verified', False)
+                    is_verified_bool = str(is_verified).lower() == 'true' or is_verified is True
+                    
+                    if not is_verified_bool:
+                        status = 'unverified'
+                        status_text = 'UNVERIFIED'
+                        status_color = '#FF9800'  # Orange
+                    else:
+                        status = 'available'  # Green - never been used
+                        status_text = 'AVAILABLE'
+                        status_color = 'green'
                 
                 domain_data = {
                     'domain_name': domain_name,
@@ -8771,18 +8776,34 @@ def mega_upgrade():
                                         
                                     if result.get('token'):
                                         try:
-                                            app.logger.info(f"Creating Namecheap DNS TXT record for {target_domain}...")
-                                            from services.namecheap_dns_service import NamecheapDNSService
-                                            dns_svc = NamecheapDNSService()
+                                            # Auto-detect DNS provider: Cloudflare if configured, else Namecheap
+                                            from database import CloudflareConfig
+                                            cf_config = CloudflareConfig.query.filter_by(is_configured=True).first()
                                             
-                                            # Create TXT record with 1 minute TTL
-                                            dns_svc.upsert_txt_record(
-                                                domain=result['apex_domain'], 
-                                                host=result['txt_host'], 
-                                                txt_value=result['token'], 
-                                                ttl=60
-                                            )
-                                            app.logger.info("✅ DNS TXT created successfully on Namecheap")
+                                            if cf_config:
+                                                # Use Cloudflare with TTL=1 (Auto)
+                                                app.logger.info(f"Creating Cloudflare DNS TXT record for {target_domain} (TTL=Auto)...")
+                                                from services.cloudflare_dns_service import CloudflareDNSService
+                                                dns_svc = CloudflareDNSService()
+                                                dns_svc.upsert_txt_record(
+                                                    apex=result['apex_domain'],
+                                                    host=result['txt_host'],
+                                                    value=result['token'],
+                                                    ttl=1  # 1 = Automatic in Cloudflare
+                                                )
+                                                app.logger.info("✅ DNS TXT created successfully on Cloudflare (TTL=Auto)")
+                                            else:
+                                                # Fallback to Namecheap
+                                                app.logger.info(f"Creating Namecheap DNS TXT record for {target_domain}...")
+                                                from services.namecheap_dns_service import NamecheapDNSService
+                                                dns_svc = NamecheapDNSService()
+                                                dns_svc.upsert_txt_record(
+                                                    domain=result['apex_domain'],
+                                                    host=result['txt_host'],
+                                                    txt_value=result['token'],
+                                                    ttl=1799
+                                                )
+                                                app.logger.info("✅ DNS TXT created successfully on Namecheap")
                                             
                                             # Wait briefly for DNS propagation
                                             app.logger.info("⏳ Waiting 15 seconds for DNS propagation...")
