@@ -433,8 +433,8 @@ class GoogleDomainsService:
                 #     logger.info(f"Using admin email as owner: {admin_email}")
                 
                 # Retry with exponential backoff for webResource().insert()
-                # Increased to 6 retries to handle slow DNS propagation (total wait ~210s)
-                max_retries = 6
+                # Increased to 8 retries to handle slow DNS propagation (total wait ~540s)
+                max_retries = 8
                 for attempt in range(max_retries):
                     try:
                         # CRITICAL FIX: Only pass site in body, verificationMethod is parameter only
@@ -467,21 +467,17 @@ class GoogleDomainsService:
                             site_verification_success = True
                             break
                         
-                        # 400 with "verification token could not be found" - DNS not propagated
+                        # 400 - usually DNS not propagated or validation failed
                         if status == 400:
-                            if 'token' in error_str.lower() or 'could not be found' in error_str.lower():
-                                # Wait and retry - DNS might need more time
-                                if attempt < max_retries - 1:
-                                    wait_time = 10 * (attempt + 1)  # 10s, 20s, 30s, 40s, 50s
-                                    logger.info(f"⏳ DNS token not found, waiting {wait_time}s before retry...")
-                                    time.sleep(wait_time)
-                                    continue
-                                else:
-                                    site_verification_error = f"DNS TXT record not found after {max_retries} attempts. Please wait for DNS propagation."
-                                    break
+                            # Always retry on 400 because it means DNS is not propagated yet
+                            # Google's error messages vary and might not always contain "token"
+                            if attempt < max_retries - 1:
+                                wait_time = 15 * (attempt + 1)  # 15s, 30s, 45s, 60s, 75s...
+                                logger.info(f"⏳ Verification failed (400) for {verification_domain}. DNS likely not ready. Waiting {wait_time}s before retry... Error: {error_str[:150]}")
+                                time.sleep(wait_time)
+                                continue
                             else:
-                                # Other 400 error
-                                site_verification_error = f"Bad request (400): {error_str}"
+                                site_verification_error = f"Verification failed after {max_retries} attempts (DNS likely not propagated). Please wait for DNS propagation (can take up to 48 hours). Error: {error_str}"
                                 break
                         
                         # 403 - permission denied
