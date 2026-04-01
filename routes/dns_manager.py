@@ -10,7 +10,7 @@ from datetime import datetime
 import json
 from flask import Blueprint, request, jsonify, session, redirect, url_for, Response, stream_with_context
 from functools import wraps
-from database import db, DomainOperation, GoogleAccount, ServiceAccount, CloudflareConfig
+from database import db, DomainOperation, DomainVerificationOperation, GoogleAccount, ServiceAccount, CloudflareConfig
 from services.zone_utils import to_apex
 from services.google_domains_service import GoogleDomainsService
 from services.namecheap_dns_service import NamecheapDNSService
@@ -475,8 +475,8 @@ def verify_unverified_domains():
             with app.app_context():
                 max_workers = min(5, len(unverified_domains))
                 logger.info(f"Job {job_id}: Starting parallel verification with {max_workers} workers")
-                
                 try:
+                    from concurrent.futures import ThreadPoolExecutor
                     with ThreadPoolExecutor(max_workers=max_workers) as executor:
                         futures = []
                         for domain in unverified_domains:
