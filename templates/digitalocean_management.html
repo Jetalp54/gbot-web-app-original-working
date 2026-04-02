@@ -770,16 +770,35 @@
                 .map(p => p.email.toLowerCase())
         );
 
-        // 3. Find the difference — emails that do NOT have a password
-        const failedEmails = allEmails.filter(email => !succeededEmails.has(email));
+        // 3. Find the difference — emails that do NOT have a password, and format as email,password
+        const failedLines = [];
+        let failedCount = 0;
+        
+        usersText.split('\n').forEach(line => {
+             const trimmed = line.trim();
+             if (!trimmed) return;
+             
+             const parts = trimmed.split(':');
+             const email = parts[0].trim().toLowerCase();
+             
+             if (!succeededEmails.has(email)) {
+                 failedCount++;
+                 if (parts.length >= 2) {
+                     const password = parts.slice(1).join(':').trim();
+                     failedLines.push(`${parts[0].trim()},${password}`);
+                 } else {
+                     failedLines.push(trimmed);
+                 }
+             }
+        });
 
-        if (failedEmails.length === 0) {
+        if (failedCount === 0) {
             showMessage('passwordsMessages', '✅ All users have app passwords! No failed users found.', 'success');
             return;
         }
 
         // 4. Copy to clipboard
-        const textToCopy = failedEmails.join('\n');
+        const textToCopy = failedLines.join('\n');
         const textArea = document.createElement('textarea');
         textArea.value = textToCopy;
         document.body.appendChild(textArea);
@@ -787,7 +806,7 @@
         try {
             document.execCommand('copy');
             showMessage('passwordsMessages',
-                `📋 Copied ${failedEmails.length} failed user(s) to clipboard (out of ${allEmails.length} total). These users had no generated app password.`,
+                `📋 Copied ${failedCount} failed user(s) (username,password) to clipboard (out of ${allEmails.length} total).`,
                 'warning'
             );
         } catch (err) {
