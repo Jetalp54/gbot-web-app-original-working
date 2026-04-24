@@ -2449,9 +2449,11 @@ def api_bulk_create_account_users():
 
     lightning_mode = data.get('lightning_mode', False)
     use_proxy = data.get('use_proxy', False)
+    safe_mode = data.get('safe_mode', False)  # Safe Mode: slow creation + unsuspend wave to avoid Google suspension
 
     # Fetch proxy list if proxy is enabled
     proxy_list = []
+    proxy_warning = None
     if use_proxy:
         try:
             from database import ProxyConfig
@@ -2469,18 +2471,29 @@ def api_bulk_create_account_users():
                             'username': parts[2],
                             'password': parts[3]
                         })
-                app.logger.info(f"[BULK CREATE] Proxy enabled with {len(proxy_list)} proxy/proxies")
+                    else:
+                        app.logger.warning(f"[BULK CREATE] Skipping malformed proxy line (expected IP:PORT:USER:PASS): {line}")
+                if proxy_list:
+                    app.logger.info(f"[BULK CREATE] Proxy enabled with {len(proxy_list)} proxy/proxies loaded")
+                else:
+                    proxy_warning = "Proxy checkbox is checked but no valid proxies were parsed. Check format: IP:PORT:USERNAME:PASSWORD (one per line)."
+                    app.logger.warning(f"[BULK CREATE] {proxy_warning}")
+            elif proxy_config and not proxy_config.enabled:
+                proxy_warning = "Proxy checkbox is checked but proxies are disabled in Proxy Settings. Please enable them first."
+                app.logger.warning(f"[BULK CREATE] {proxy_warning}")
             else:
-                app.logger.warning("[BULK CREATE] Proxy requested but not configured/enabled in database")
+                proxy_warning = "Proxy checkbox is checked but no proxies are configured. Please add proxies in Proxy Settings."
+                app.logger.warning(f"[BULK CREATE] {proxy_warning}")
         except Exception as proxy_err:
-            app.logger.error(f"[BULK CREATE] Error loading proxies: {proxy_err}")
+            proxy_warning = f"Error loading proxy config: {proxy_err}"
+            app.logger.error(f"[BULK CREATE] {proxy_warning}")
 
     import uuid
     import threading
     task_id = str(uuid.uuid4())
     update_progress(task_id, 0, len(accounts_data), "starting", "Initializing bulk creation...")
     
-    def background_task(task_id, accounts_data, lightning_mode=False, proxy_list=None):
+    def background_task(task_id, accounts_data, lightning_mode=False, proxy_list=None, safe_mode=False):
         with app.app_context():
             from concurrent.futures import ThreadPoolExecutor, as_completed
             import random
@@ -2577,23 +2590,56 @@ def api_bulk_create_account_users():
                             
                             if service_account:
                                 try:
+                                    # Get credentials DIRECTLY before building service
+                                    # This is the reliable way — avoids fragile service._http.credentials extraction
                                     domains_service = GoogleDomainsService(service_account.name)
+                                    credentials = domains_service._get_credentials()
+                                    if not credentials:
+                                        return {'account': account_name, 'authenticated': False, 'error': 'Could not get credentials'}
                                     admin_service = domains_service._get_admin_service()
-                                    return {'account': account_name, 'authenticated': True, 'service': admin_service, 'is_service_account': True}
+                                    return {
+                                        'account': account_name,
+                                        'authenticated': True,
+                                        'service': admin_service,
+                                        'credentials': credentials,  # Store directly for proxy use
+                                        'is_service_account': True
+                                    }
                                 except Exception as sa_err:
                                     return {'account': account_name, 'authenticated': False, 'error': str(sa_err)}
                             
                             # Fallback to GoogleAccount (legacy OAuth)
-                            # Need to import these functions or ensure they are globally available
-                            from . import authenticate_without_session, get_service_without_session
-                            if not authenticate_without_session(account_name):
-                                return {'account': account_name, 'authenticated': False, 'error': 'Auth failed'}
+                            google_account = GoogleAccount.query.filter_by(account_name=account_name).first()
+                            if google_account and google_account.tokens:
+                                try:
+                                    from google.oauth2.credentials import Credentials as GCreds
+                                    import google.auth.transport.requests as ga_requests
+                                    token = google_account.tokens[0]
+                                    scopes = [s.name for s in token.scopes]
+                                    creds = GCreds(
+                                        token=token.token,
+                                        refresh_token=token.refresh_token,
+                                        token_uri=token.token_uri,
+                                        client_id=google_account.client_id,
+                                        client_secret=google_account.client_secret,
+                                        scopes=scopes
+                                    )
+                                    if creds.expired and creds.refresh_token:
+                                        creds.refresh(ga_requests.Request())
+                                    if creds.valid:
+                                        from googleapiclient.discovery import build as gapi_build
+                                        service = gapi_build('admin', 'directory_v1', credentials=creds, cache_discovery=False)
+                                        return {
+                                            'account': account_name,
+                                            'authenticated': True,
+                                            'service': service,
+                                            'credentials': creds,  # Store directly for proxy use
+                                        }
+                                    else:
+                                        return {'account': account_name, 'authenticated': False, 'error': 'OAuth token invalid/expired'}
+                                except Exception as oauth_err:
+                                    return {'account': account_name, 'authenticated': False, 'error': str(oauth_err)}
                             
-                            service = get_service_without_session(account_name)
-                            if not service:
-                                return {'account': account_name, 'authenticated': False, 'error': 'No service'}
-                            
-                            return {'account': account_name, 'authenticated': True, 'service': service}
+                            return {'account': account_name, 'authenticated': False, 'error': 'No valid credentials found'}
                         except Exception as e:
                             return {'account': account_info['account'], 'authenticated': False, 'error': str(e)}
 
@@ -2637,21 +2683,13 @@ def api_bulk_create_account_users():
                             service = auth_data['service']
                             account_result['authenticated'] = True
                             
-                            # Extract credentials ONCE for proxy support
-                            account_creds = None
+                            # Get credentials directly from auth result (stored during authentication phase)
+                            account_creds = auth_data.get('credentials')
                             if proxy_list:
-                                try:
-                                    if hasattr(service, '_http') and hasattr(service._http, 'credentials'):
-                                        account_creds = service._http.credentials
-                                    elif hasattr(service, 'credentials'):
-                                        account_creds = service.credentials
-                                    
-                                    if account_creds:
-                                        app.logger.info(f"[PROXY] ✅ Extracted credentials for {account_name} — proxy will be used")
-                                    else:
-                                        app.logger.warning(f"[PROXY] ⚠️ Could not extract credentials for {account_name}, will use direct connection (no proxy)")
-                                except Exception as cred_err:
-                                    app.logger.error(f"[PROXY] Error extracting credentials for {account_name}: {cred_err}")
+                                if account_creds:
+                                    app.logger.info(f"[PROXY] ✅ Credentials ready for {account_name} — proxy will be used")
+                                else:
+                                    app.logger.warning(f"[PROXY] ⚠️ No credentials in auth result for {account_name} — falling back to direct connection")
                             
                             # Determine domain
                             domain = domain_input
@@ -2693,19 +2731,10 @@ def api_bulk_create_account_users():
                             if lightning_mode:
                                 # LIGHTNING MODE: Parallel Creation
                                 app.logger.info(f"[BULK ACCOUNTS] ⚡ LIGHTNING MODE ENABLED for {account_name}")
-                                # Use credentials already extracted above (account_creds)
-                                creds = account_creds  # May be None if extraction failed
+                                # Credentials come directly from authentication phase (reliable)
+                                creds = account_creds  # None only if auth somehow didn't store them
                                 if not creds:
-                                    # Try one more time
-                                    try:
-                                        if hasattr(service, '_http') and hasattr(service._http, 'credentials'):
-                                            creds = service._http.credentials
-                                        elif hasattr(service, 'credentials'):
-                                            creds = service.credentials
-                                    except Exception:
-                                        pass
-                                    if not creds:
-                                        app.logger.warning(f"[LIGHTNING MODE] No credentials extracted for {account_name}, falling back to shared service")
+                                    app.logger.warning(f"[LIGHTNING MODE] No credentials available for {account_name} — will use shared service (no per-thread proxy)")
 
                                 def create_single_user_thread(user_data, credentials=None, shared_service=None):
                                     try:
@@ -2750,40 +2779,129 @@ def api_bulk_create_account_users():
                                         account_result['users'].append(result)
 
                             else:
-                                # STANDARD MODE: Sequential Creation
-                                for user_data in users_data_list:
-                                    try:
-                                        user_body = {
-                                            "primaryEmail": user_data['email'],
-                                            "name": { "givenName": user_data['first_name'], "familyName": user_data['last_name'] },
-                                            "password": user_data['password'],
-                                            "changePasswordAtNextLogin": False,
-                                            "suspended": False # ACTIVE as requested
-                                        }
-                                        
-                                        # Use proxied service if proxy_list is available and we have credentials
-                                        if proxy_list and account_creds:
-                                            proxy_info = get_next_proxy()
-                                            if proxy_info:
+                                # STANDARD MODE or SAFE MODE: Sequential Creation
+                                import time as _time
+
+                                SAFE_BATCH_SIZE    = 5    # Create N users then pause
+                                SAFE_USER_DELAY    = 2.5  # Seconds between each user (avoids rate-limit abuse detection)
+                                SAFE_BATCH_DELAY   = 10   # Seconds between batches (lets Google settle)
+                                SAFE_UNSUSPEND_WAIT = 8   # Seconds to wait before unsuspend wave
+                                SAFE_UNSUSPEND_RETRIES = 5  # How many times to retry unsuspend per user
+
+                                if safe_mode:
+                                    app.logger.info(f"[SAFE MODE] 🛡️ SAFE MODE ENABLED for {account_name} — batch_size={SAFE_BATCH_SIZE}, user_delay={SAFE_USER_DELAY}s, batch_delay={SAFE_BATCH_DELAY}s")
+
+                                for batch_start in range(0, len(users_data_list), SAFE_BATCH_SIZE if safe_mode else len(users_data_list)):
+                                    batch = users_data_list[batch_start:batch_start + SAFE_BATCH_SIZE] if safe_mode else users_data_list
+
+                                    for idx, user_data in enumerate(batch):
+                                        try:
+                                            user_body = {
+                                                "primaryEmail": user_data['email'],
+                                                "name": { "givenName": user_data['first_name'], "familyName": user_data['last_name'] },
+                                                "password": user_data['password'],
+                                                "changePasswordAtNextLogin": False,
+                                                "orgUnitPath": "/",
+                                                "suspended": False
+                                            }
+
+                                            # Use proxied service if proxy_list is available and we have credentials
+                                            if proxy_list and account_creds:
+                                                proxy_info = get_next_proxy()
+                                                if proxy_info:
+                                                    try:
+                                                        proxied_svc = build_proxied_service(account_creds, proxy_info)
+                                                        proxied_svc.users().insert(body=user_body).execute()
+                                                        app.logger.info(f"[PROXY] ✅ Created {user_data['email']} via proxy {proxy_info['ip']}:{proxy_info['port']}")
+                                                        user_data['success'] = True
+                                                        account_result['users'].append(user_data)
+                                                        if safe_mode and idx < len(batch) - 1:
+                                                            _time.sleep(SAFE_USER_DELAY)
+                                                        continue
+                                                    except Exception as proxy_e:
+                                                        app.logger.warning(f"[PROXY] ⚠️ Proxied creation failed for {user_data['email']}, falling back to direct: {proxy_e}")
+
+                                            # Direct (non-proxied) creation
+                                            service.users().insert(body=user_body).execute()
+                                            user_data['success'] = True
+                                            account_result['users'].append(user_data)
+
+                                            # Safe mode: pause between each user to avoid triggering abuse detection
+                                            if safe_mode and idx < len(batch) - 1:
+                                                _time.sleep(SAFE_USER_DELAY)
+
+                                        except Exception as user_err:
+                                            user_data['success'] = False
+                                            user_data['error'] = str(user_err)
+                                            account_result['users'].append(user_data)
+
+                                    # Safe mode: pause between batches
+                                    if safe_mode and batch_start + SAFE_BATCH_SIZE < len(users_data_list):
+                                        next_batch_idx = batch_start + SAFE_BATCH_SIZE
+                                        remaining = len(users_data_list) - next_batch_idx
+                                        app.logger.info(f"[SAFE MODE] Batch done. Cooling down {SAFE_BATCH_DELAY}s before next batch ({remaining} users remaining)...")
+                                        _time.sleep(SAFE_BATCH_DELAY)
+
+                                    # In non-safe mode the loop only runs once (full list as one batch), exit
+                                    if not safe_mode:
+                                        break
+
+                                # ── UNSUSPEND WAVE (Safe Mode only) ──────────────────────────────────────
+                                # After creating all users, wait then sweep for suspended ones and fix them.
+                                # This handles Google's "propagation-lag suspension" where the API creates
+                                # the user as active but Google's backend marks them suspended within seconds.
+                                if safe_mode:
+                                    created_emails = [u['email'] for u in account_result['users'] if u.get('success')]
+                                    if created_emails:
+                                        app.logger.info(f"[SAFE MODE] ⏳ Waiting {SAFE_UNSUSPEND_WAIT}s before unsuspend wave for {len(created_emails)} user(s)...")
+                                        _time.sleep(SAFE_UNSUSPEND_WAIT)
+
+                                        unsuspended_count = 0
+                                        still_suspended = 0
+
+                                        for email in created_emails:
+                                            unsuspended_this = False
+                                            for attempt in range(SAFE_UNSUSPEND_RETRIES):
                                                 try:
-                                                    proxied_svc = build_proxied_service(account_creds, proxy_info)
-                                                    proxied_svc.users().insert(body=user_body).execute()
-                                                    app.logger.info(f"[PROXY] ✅ Created {user_data['email']} via proxy {proxy_info['ip']}:{proxy_info['port']}")
-                                                    user_data['success'] = True
-                                                    account_result['users'].append(user_data)
-                                                    continue
-                                                except Exception as proxy_e:
-                                                    app.logger.warning(f"[PROXY] ⚠️ Proxied creation failed for {user_data['email']}, falling back to direct: {proxy_e}")
-                                        
-                                        # Direct (non-proxied) creation
-                                        service.users().insert(body=user_body).execute()
-                                        
-                                        user_data['success'] = True
-                                        account_result['users'].append(user_data)
-                                    except Exception as user_err:
-                                        user_data['success'] = False
-                                        user_data['error'] = str(user_err)
-                                        account_result['users'].append(user_data)
+                                                    # Use rotating proxy for check/unsuspend wave too for maximum protection
+                                                    active_svc = service
+                                                    if proxy_list and account_creds:
+                                                        p_info = get_next_proxy()
+                                                        if p_info:
+                                                            try:
+                                                                active_svc = build_proxied_service(account_creds, p_info)
+                                                                app.logger.info(f"[SAFE MODE+PROXY] Checking {email} via proxy {p_info['ip']}:{p_info['port']}")
+                                                            except Exception:
+                                                                active_svc = service # Fallback to direct if proxy build fails
+                                                    
+                                                    user_check = active_svc.users().get(userKey=email, projection='basic').execute()
+                                                    if user_check.get('suspended'):
+                                                        app.logger.warning(f"[SAFE MODE] 🔴 {email} is suspended (attempt {attempt+1}). Unsuspending...")
+                                                        active_svc.users().update(userKey=email, body={'suspended': False}).execute()
+                                                        _time.sleep(2)  # Brief pause after unsuspend call
+                                                        # Verify the unsuspend took effect
+                                                        recheck = active_svc.users().get(userKey=email, projection='basic').execute()
+                                                        if not recheck.get('suspended'):
+                                                            app.logger.info(f"[SAFE MODE] ✅ {email} successfully unsuspended")
+                                                            unsuspended_count += 1
+                                                            unsuspended_this = True
+                                                            break
+                                                        else:
+                                                            app.logger.warning(f"[SAFE MODE] Still suspended after unsuspend call for {email}, retry {attempt+1}/{SAFE_UNSUSPEND_RETRIES}")
+                                                            _time.sleep(3 * (attempt + 1))  # Exponential backoff
+                                                    else:
+                                                        # User is already active — no action needed
+                                                        unsuspended_this = True
+                                                        break
+                                                except Exception as check_err:
+                                                    app.logger.warning(f"[SAFE MODE] Error checking/unsuspending {email} (attempt {attempt+1}): {check_err}")
+                                                    _time.sleep(3)
+
+                                            if not unsuspended_this:
+                                                still_suspended += 1
+                                                app.logger.error(f"[SAFE MODE] ❌ Could NOT unsuspend {email} after {SAFE_UNSUSPEND_RETRIES} attempts — likely requires Google identity verification (SMS)")
+
+                                        app.logger.info(f"[SAFE MODE] Unsuspend wave complete: {unsuspended_count} fixed, {still_suspended} require manual SMS verification")
                             
                             # Domain update (already done mostly, but update user count/verified)
                             success_count = sum(1 for u in account_result['users'] if u.get('success'))
@@ -2852,7 +2970,13 @@ def api_bulk_create_account_users():
                 update_progress(task_id, 0, 0, "error", f"Task failed: {str(e)}")
 
     threading.Thread(target=background_task, args=(task_id, accounts_data, lightning_mode, proxy_list)).start()
-    return jsonify({'success': True, 'task_id': task_id})
+    return jsonify({
+        'success': True,
+        'task_id': task_id,
+        'proxy_active': len(proxy_list) > 0,
+        'proxy_count': len(proxy_list),
+        'proxy_warning': proxy_warning  # None if proxies loaded OK, string message if there's an issue
+    })
 
 @app.route('/api/bulk-retrieve-account-users', methods=['POST'])
 @login_required
@@ -13141,6 +13265,67 @@ def api_save_proxy_config():
         db.session.rollback()
         app.logger.error(f"Error saving proxy config: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/test-proxies', methods=['POST'])
+@login_required
+def api_test_proxies():
+    """Test Proxy connections"""
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin privileges required'})
+    
+    try:
+        data = request.get_json()
+        proxies_text = data.get('proxies', '').strip()
+        
+        if not proxies_text:
+            return jsonify({'success': False, 'error': 'No proxies provided to test'})
+            
+        proxy_lines = [line.strip() for line in proxies_text.split('\n') if line.strip()]
+        results = []
+        
+        import requests
+        
+        for line in proxy_lines:
+            try:
+                # Expected format: IP:PORT:USERNAME:PASSWORD
+                parts = line.split(':')
+                if len(parts) != 4:
+                    results.append({'proxy': line, 'status': 'Error', 'message': 'Invalid format. Expected IP:PORT:USER:PASS'})
+                    continue
+                    
+                ip, port, user, password = parts
+                proxy_url = f"http://{user}:{password}@{ip}:{port}"
+                proxies = {
+                    "http": proxy_url,
+                    "https": proxy_url
+                }
+                
+                # Test against ip-api.com
+                test_url = "http://ip-api.com/json"
+                response = requests.get(test_url, proxies=proxies, timeout=10)
+                
+                if response.status_code == 200:
+                    ip_data = response.json()
+                    results.append({
+                        'proxy': line,
+                        'status': 'Success',
+                        'ip': ip_data.get('query', 'Unknown'),
+                        'country': ip_data.get('country', 'Unknown'),
+                        'city': ip_data.get('city', 'Unknown')
+                    })
+                else:
+                    results.append({'proxy': line, 'status': 'Failed', 'message': f'HTTP Status {response.status_code}'})
+            except Exception as e:
+                results.append({'proxy': line, 'status': 'Failed', 'message': str(e)})
+                
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+    except Exception as e:
+        app.logger.error(f"Error testing proxies: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 
 @app.route('/api/get-twocaptcha-config', methods=['GET'])
 @login_required

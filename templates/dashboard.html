@@ -811,6 +811,13 @@
                             <strong>Use Proxy</strong> (Route API calls through proxies)
                         </label>
                     </div>
+                    <div class="form-group-github d-flex align-items-center mb-3" style="margin-left: 16px;">
+                        <input type="checkbox" id="safe_mode_checkbox" style="margin-right: 8px;" checked>
+                        <label for="safe_mode_checkbox" class="mb-0" style="cursor: pointer;">
+                            <i class="fas fa-shield-virus" style="color: #10b981;"></i>
+                            <strong>Safe Mode</strong> (Batch creation + Delays + Auto-Unsuspend)
+                        </label>
+                    </div>
 
                     <button onclick="executeBulkAccountCreation()" class="btn-github btn-github-primary">
                         <i class="fas fa-play"></i>
@@ -6917,9 +6924,10 @@
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting Task...';
             }
 
-            // Get Lightning Mode status
+            // Get Mode status
             const lightningMode = document.getElementById('lightning_mode_checkbox')?.checked || false;
             const useProxy = document.getElementById('use_proxy_checkbox')?.checked || false;
+            const safeMode = document.getElementById('safe_mode_checkbox')?.checked || false;
 
             // Call API to start task
             fetch('/api/bulk-create-account-users', {
@@ -6928,7 +6936,8 @@
                 body: JSON.stringify({
                     accounts_data: accountsData,
                     lightning_mode: lightningMode,
-                    use_proxy: useProxy
+                    use_proxy: useProxy,
+                    safe_mode: safeMode
                 })
             })
                 .then(response => response.json())
@@ -6939,6 +6948,23 @@
 
                         if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
 
+                        // Show proxy status info
+                        if (useProxy) {
+                            if (initialData.proxy_warning) {
+                                // Proxy was requested but couldn't load — show visible warning
+                                const warningMsg = `⚠️ PROXY WARNING: ${initialData.proxy_warning}`;
+                                if (progressText) progressText.textContent = warningMsg;
+                                if (progressText) progressText.style.color = '#f0a500';
+                                console.warn('[PROXY]', initialData.proxy_warning);
+                            } else if (initialData.proxy_active) {
+                                console.log(`[PROXY] ✅ ${initialData.proxy_count} proxy/proxies active for this task`);
+                                if (progressText) {
+                                    progressText.textContent = `🔒 Proxy active (${initialData.proxy_count} proxies). Starting...`;
+                                    progressText.style.color = '';
+                                }
+                            }
+                        }
+
                         // Poll function
                         const pollProgress = () => {
                             fetch(`/api/task-progress/${taskId}`)
@@ -6946,7 +6972,10 @@
                                 .then(progress => {
                                     // Update UI
                                     if (progressBar) progressBar.style.width = `${progress.percentage}%`;
-                                    if (progressText) progressText.textContent = progress.message || `Processing... ${progress.percentage}%`;
+                                    if (progressText) {
+                                        progressText.style.color = ''; // reset any warning color
+                                        progressText.textContent = progress.message || `Processing... ${progress.percentage}%`;
+                                    }
 
                                     if (progress.status === 'completed') {
                                         // Task Done
